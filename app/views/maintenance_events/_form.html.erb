@@ -1,0 +1,37 @@
+<%= form_with(model: maintenance_event) do |form| %>
+  <% if maintenance_event.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(maintenance_event.errors.count, "error") %> prohibited this maintenance_event from being saved:</h2>
+
+      <ul>
+        <% maintenance_event.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :component_id, style: "display: block" %>
+    <%= form.collection_select :component_id, Component.all, :id, :label %>
+  </div>
+
+  <div>
+    <%= form.label :event_type, style: "display: block" %>
+    <%= form.select :event_type, MaintenanceEvent::EVENT_TYPES %>
+  </div>
+
+  <div>
+    <%= form.label :performed_on, style: "display: block" %>
+    <%= form.date_field :performed_on %>
+  </div>
+
+  <div>
+    <%= form.label :notes, style: "display: block" %>
+    <%= form.text_area :notes %>
+  </div>
+
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

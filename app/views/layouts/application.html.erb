@@ -11,6 +11,13 @@
   </head>
 
   <body>
+    <nav>
+      <%= link_to "Bikes", bikes_path %>
+      <%= link_to "Components", components_path %>
+      <%= link_to "Assignments", component_assignments_path %>
+      <%= link_to "Maintenance", maintenance_events_path %>
+    </nav>
+
     <%= yield %>
   </body>
 </html>

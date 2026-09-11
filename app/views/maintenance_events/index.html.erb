@@ -1,0 +1,14 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Maintenance events</h1>
+
+<div id="maintenance_events">
+  <% @maintenance_events.each do |maintenance_event| %>
+    <%= render maintenance_event %>
+    <p>
+      <%= link_to "Show this maintenance event", maintenance_event %>
+    </p>
+  <% end %>
+</div>
+
+<%= link_to "New maintenance event", new_maintenance_event_path %>

@@ -1,0 +1,2 @@
+module ComponentAssignmentsHelper
+end

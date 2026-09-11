@@ -16,6 +16,13 @@ module BikeMaintenance
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w(assets tasks))
 
+    config.generators do |g|
+      # Spec files are written by hand (see spec/models); scaffolding tends to
+      # boot the app and trip over pending migrations mid-generate.
+      g.test_framework nil
+      g.fixture_replacement :factory_bot, dir: "spec/factories"
+    end
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files
