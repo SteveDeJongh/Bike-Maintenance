@@ -1,69 +1,48 @@
 class MaintenanceEventsController < ApplicationController
-  before_action :set_maintenance_event, only: %i[ show edit update destroy ]
+  before_action :set_maintenance_event, only: %i[ show update destroy ]
 
-  # GET /maintenance_events or /maintenance_events.json
+  # GET /maintenance_events
   def index
     @maintenance_events = MaintenanceEvent.includes(:component).all
+    render json: @maintenance_events
   end
 
-  # GET /maintenance_events/1 or /maintenance_events/1.json
+  # GET /maintenance_events/1
   def show
+    render json: @maintenance_event
   end
 
-  # GET /maintenance_events/new
-  def new
-    @maintenance_event = MaintenanceEvent.new
-  end
-
-  # GET /maintenance_events/1/edit
-  def edit
-  end
-
-  # POST /maintenance_events or /maintenance_events.json
+  # POST /maintenance_events
   def create
     @maintenance_event = MaintenanceEvent.new(maintenance_event_params)
 
-    respond_to do |format|
-      if @maintenance_event.save
-        format.html { redirect_to @maintenance_event, notice: "Maintenance event was successfully created." }
-        format.json { render :show, status: :created, location: @maintenance_event }
-      else
-        format.html { render :new, status: :unprocessable_content }
-        format.json { render json: @maintenance_event.errors, status: :unprocessable_content }
-      end
+    if @maintenance_event.save
+      render json: @maintenance_event, status: :created
+    else
+      render json: @maintenance_event.errors, status: :unprocessable_content
     end
   end
 
-  # PATCH/PUT /maintenance_events/1 or /maintenance_events/1.json
+  # PATCH/PUT /maintenance_events/1
   def update
-    respond_to do |format|
-      if @maintenance_event.update(maintenance_event_params)
-        format.html { redirect_to @maintenance_event, notice: "Maintenance event was successfully updated.", status: :see_other }
-        format.json { render :show, status: :ok, location: @maintenance_event }
-      else
-        format.html { render :edit, status: :unprocessable_content }
-        format.json { render json: @maintenance_event.errors, status: :unprocessable_content }
-      end
+    if @maintenance_event.update(maintenance_event_params)
+      render json: @maintenance_event
+    else
+      render json: @maintenance_event.errors, status: :unprocessable_content
     end
   end
 
-  # DELETE /maintenance_events/1 or /maintenance_events/1.json
+  # DELETE /maintenance_events/1
   def destroy
     @maintenance_event.destroy!
-
-    respond_to do |format|
-      format.html { redirect_to maintenance_events_path, notice: "Maintenance event was successfully destroyed.", status: :see_other }
-      format.json { head :no_content }
-    end
+    head :no_content
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
     def set_maintenance_event
       @maintenance_event = MaintenanceEvent.find(params[:id])
     end
 
-    # Only allow a list of trusted parameters through.
     def maintenance_event_params
       params.require(:maintenance_event).permit(:component_id, :event_type, :performed_on, :notes)
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_11_004849) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_18_000356) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -54,7 +54,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_11_004849) do
     t.index ["component_id"], name: "index_maintenance_events_on_component_id"
   end
 
+  create_table "strava_activities", force: :cascade do |t|
+    t.bigint "strava_id", null: false
+    t.bigint "bike_id"
+    t.integer "distance_meters", default: 0, null: false
+    t.date "moved_on", null: false
+    t.string "name"
+    t.string "activity_type"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bike_id"], name: "index_strava_activities_on_bike_id"
+    t.index ["strava_id"], name: "index_strava_activities_on_strava_id", unique: true
+  end
+
   add_foreign_key "component_assignments", "bikes"
   add_foreign_key "component_assignments", "components"
   add_foreign_key "maintenance_events", "components"
+  add_foreign_key "strava_activities", "bikes"
 end

@@ -12,8 +12,11 @@ attributed to the right chain.
 
 ## Stack
 
-- Ruby on Rails, Postgres
-- Hotwire (Turbo + Stimulus) for the UI — no separate frontend/SPA for the MVP
+- Ruby on Rails (API-only, `config.api_only = true`), Postgres
+- Separate frontend SPA built with Vite, running on `localhost:5173` in development.
+  The Rails app talks to it only via CORS (see `config/initializers/cors.rb`) — no
+  server-rendered views, no Hotwire/Turbo/Stimulus/importmap. This replaced the
+  original Hotwire-based UI plan.
 - Hosting TBD (Render or Fly.io are the leading candidates) — not needed until Phase 2
 
 ## Data model
@@ -26,8 +29,11 @@ attributed to the right chain.
   same component, and no overlapping assignments for the same (bike, category) slot.
 - `MaintenanceEvent`: component_id, event_type (wax, clean, replace, inspect),
   performed_on, notes
-- `StravaActivity`: strava_id (unique), bike_id (resolved from Strava's gear_id),
-  distance_meters, moved_on, name, activity_type, synced_at
+- `StravaActivity`: strava_id (unique), bike_id (resolved from Strava's gear_id,
+  nullable until mapped), distance_meters, moved_on, name, activity_type, synced_at.
+  The model/migration exist already (added early, alongside `Component#total_distance`
+  and `#distance_since`/`#distance_since_wax`, so the API could expose those computed
+  fields) — but nothing populates this table yet. That's still Phase 3 below.
 - `StravaCredential`: access_token, refresh_token, expires_at, athlete_id, scope
   (single row — single-user app)
 
@@ -53,11 +59,18 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
 ## Build order (work one phase at a time; don't jump ahead)
 
 1. Skeleton — done once this file exists and `rails db:create` works.
-2. Core CRUD — Bike, Component, ComponentAssignment, MaintenanceEvent models + Hotwire
-   views. Fully testable with manually-entered data, no Strava yet. **<- current phase**
-3. Strava OAuth + scheduled activity sync + gear-to-bike mapping screen.
-4. Attribution dashboard — per-bike/per-component total distance, distance since last
-   maintenance event, simple threshold alerts.
+2. Core CRUD — Bike, Component, ComponentAssignment, MaintenanceEvent models +
+   JSON REST controllers (index/show/create/update/destroy), consumed by the
+   separate Vite frontend. Fully testable with manually-entered data, no Strava
+   sync yet. `Component#show` already returns `total_distance` and
+   `distance_since_wax`, computed against the (currently empty) StravaActivity
+   table. **<- current phase**
+3. Strava OAuth + scheduled activity sync + gear-to-bike mapping screen. The
+   StravaActivity model/migration already exist (see Data model above); this
+   phase is about actually populating the table via OAuth + polling.
+4. Attribution dashboard (frontend) — surface total distance, distance since
+   last maintenance event, and simple threshold alerts using the API from
+   Phase 2/3.
 5. Polish — deploy, webhooks, charts, notifications.
 
 ## Conventions
