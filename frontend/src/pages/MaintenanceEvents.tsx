@@ -1,11 +1,28 @@
-import { useMemo } from 'react'
-import { Alert, Loader, Table, Text, Title } from '@mantine/core'
-import { useMaintenanceEvents } from '../api/queries'
+import { useMemo, useState } from 'react'
+import { Alert, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { useComponents, useMaintenanceEvents } from '../api/queries'
+import { useDeleteMaintenanceEvent } from '../api/mutations'
+import { confirmDelete } from '../components/confirmDelete'
+import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
+import type { MaintenanceEvent } from '../types/models'
 
 const RECENT_LIMIT = 10
 
 export default function MaintenanceEvents() {
   const { data, isPending, isError, error } = useMaintenanceEvents()
+  const { data: components } = useComponents()
+  const deleteEvent = useDeleteMaintenanceEvent()
+
+  const [modalOpened, setModalOpened] = useState(false)
+  const [editing, setEditing] = useState<MaintenanceEvent | null>(null)
+
+  const componentLabels = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const component of components ?? []) {
+      map.set(component.id, component.label)
+    }
+    return map
+  }, [components])
 
   // No dedicated "recent events" endpoint or sort/limit param exists on
   // GET /maintenance_events; sorting/limiting is done here client-side. If
@@ -19,11 +36,30 @@ export default function MaintenanceEvents() {
       .slice(0, RECENT_LIMIT)
   }, [data])
 
+  function openCreate() {
+    setEditing(null)
+    setModalOpened(true)
+  }
+
+  function openEdit(event: MaintenanceEvent) {
+    setEditing(event)
+    setModalOpened(true)
+  }
+
+  function handleDelete(event: MaintenanceEvent) {
+    confirmDelete({
+      title: 'Delete maintenance event',
+      message: 'Delete this maintenance event? This cannot be undone.',
+      onConfirm: () => deleteEvent.mutate(event.id),
+    })
+  }
+
   return (
     <>
-      <Title order={2} mb="md">
-        Maintenance Events
-      </Title>
+      <Group justify="space-between" mb="md">
+        <Title order={2}>Maintenance Events</Title>
+        <Button onClick={openCreate}>+ New Maintenance Event</Button>
+      </Group>
 
       {isPending && <Loader />}
 
@@ -43,11 +79,9 @@ export default function MaintenanceEvents() {
             <Table.Tr>
               <Table.Th>Performed On</Table.Th>
               <Table.Th>Type</Table.Th>
-              {/* component_id has no expansion from the API (no serializer) —
-                  showing the raw id for now; a detail/expansion view is
-                  future work. */}
               <Table.Th>Component</Table.Th>
               <Table.Th>Notes</Table.Th>
+              <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -55,13 +89,36 @@ export default function MaintenanceEvents() {
               <Table.Tr key={event.id}>
                 <Table.Td>{event.performed_on}</Table.Td>
                 <Table.Td>{event.event_type}</Table.Td>
-                <Table.Td>Component #{event.component_id}</Table.Td>
+                <Table.Td>
+                  {componentLabels.get(event.component_id) ?? `Component #${event.component_id}`}
+                </Table.Td>
                 <Table.Td>{event.notes ?? ''}</Table.Td>
+                <Table.Td>
+                  <Group justify="flex-end" gap="xs">
+                    <Button size="xs" variant="subtle" onClick={() => openEdit(event)}>
+                      Edit
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onClick={() => handleDelete(event)}
+                    >
+                      Delete
+                    </Button>
+                  </Group>
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
+
+      <MaintenanceEventFormModal
+        opened={modalOpened}
+        onClose={() => setModalOpened(false)}
+        event={editing ?? undefined}
+      />
     </>
   )
 }

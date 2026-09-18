@@ -5,6 +5,7 @@ const navLinks = [
   { to: '/bikes', label: 'Bikes' },
   { to: '/components', label: 'Components' },
   { to: '/maintenance-events', label: 'Maintenance Events' },
+  { to: '/assignments', label: 'Assignments' },
 ]
 
 export default function Layout() {

@@ -17,6 +17,11 @@ const sections = [
     title: 'Maintenance Events',
     description: 'View the latest waxing, cleaning, and other maintenance events.',
   },
+  {
+    to: '/assignments',
+    title: 'Assignments',
+    description: 'See which components are, or were, mounted on which bikes.',
+  },
 ]
 
 export default function Landing() {
@@ -29,7 +34,7 @@ export default function Landing() {
         </Text>
       </div>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         {sections.map((section) => (
           <Card
             key={section.to}

@@ -14,7 +14,13 @@ export interface Component {
   acquired_on: string
   retired_on: string | null
   // total_distance / distance_since_wax intentionally omitted:
-  // only present on GET /components/:id, not on the index list used here.
+  // only present on GET /components/:id (see ComponentDetail below), not on
+  // the index list used here.
+}
+
+export interface ComponentDetail extends Component {
+  total_distance: number
+  distance_since_wax: number
 }
 
 export interface ComponentAssignment {
