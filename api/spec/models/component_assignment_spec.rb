@@ -101,13 +101,23 @@ RSpec.describe ComponentAssignment, type: :model do
       expect(other_bike_assignment).to be_valid
     end
 
-    it "allows a chain swap where the outgoing chain's assignment ends the day the incoming one starts" do
+    it "allows a same-day chain swap where the incoming assignment starts after the outgoing one ends" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Date.new(2026, 1, 1), ended_on: Date.new(2026, 3, 1))
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Time.zone.local(2026, 3, 1, 8, 0), ended_on: Time.zone.local(2026, 3, 1, 9, 0))
 
-      swap_in = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Date.new(2026, 3, 2), ended_on: nil)
+      swap_in = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Time.zone.local(2026, 3, 1, 9, 1), ended_on: nil)
 
       expect(swap_in).to be_valid
+    end
+
+    it "rejects a same-day chain swap when the incoming assignment starts at the exact instant the outgoing one ends" do
+      bike = create(:bike)
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Time.zone.local(2026, 3, 1, 8, 0), ended_on: Time.zone.local(2026, 3, 1, 9, 0))
+
+      swap_in = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_on: Time.zone.local(2026, 3, 1, 9, 0), ended_on: nil)
+
+      expect(swap_in).not_to be_valid
+      expect(swap_in.errors[:base]).to include(a_string_matching(/already has a chain/))
     end
   end
 end

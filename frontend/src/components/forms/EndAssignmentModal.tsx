@@ -1,18 +1,11 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Modal, Stack } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
+import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
+import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { ComponentAssignment } from '../../types/models'
-
-function todayString(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 interface EndAssignmentFormValues {
   ended_on: string | null
@@ -50,7 +43,7 @@ function EndAssignmentForm({
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<EndAssignmentFormValues>({
-    initialValues: { ended_on: todayString() },
+    initialValues: { ended_on: nowIsoUtc() },
     validate: {
       ended_on: (value) => (value ? null : 'End date is required'),
     },
@@ -80,7 +73,15 @@ function EndAssignmentForm({
           </Alert>
         )}
 
-        <DateInput label="Ended on" required {...form.getInputProps('ended_on')} />
+        <DateTimePicker
+          label="Ended on"
+          required
+          value={isoUtcToDate(form.values.ended_on)}
+          onChange={(value) =>
+            form.setFieldValue('ended_on', mantineLocalStringToIsoUtc(value))
+          }
+          error={form.errors.ended_on}
+        />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

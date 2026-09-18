@@ -15,5 +15,24 @@ export const COMPONENT_CATEGORIES = [
 
 export type ComponentCategory = (typeof COMPONENT_CATEGORIES)[number]
 
+export const COMPONENT_CATEGORY_LABELS: Record<ComponentCategory, string> = {
+  chain: 'Chain',
+  cassette: 'Cassette',
+  chainring: 'Chainring',
+  tire_front: 'Front Tire',
+  tire_rear: 'Rear Tire',
+  wheel_front: 'Front Wheel',
+  wheel_rear: 'Rear Wheel',
+  brake_pads_front: 'Front Brake Pads',
+  brake_pads_rear: 'Rear Brake Pads',
+  bottom_bracket: 'Bottom Bracket',
+  handlebar_tape: 'Handlebar Tape',
+  saddle: 'Saddle',
+}
+
+export function categoryLabel(category: string): string {
+  return COMPONENT_CATEGORY_LABELS[category as ComponentCategory] ?? category
+}
+
 // Must match MaintenanceEvent::EVENT_TYPES in api/app/models/maintenance_event.rb exactly.
 export const MAINTENANCE_EVENT_TYPES = ['wax', 'clean', 'replace', 'inspect'] as const

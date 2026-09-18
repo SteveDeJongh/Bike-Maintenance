@@ -4,6 +4,8 @@ import { useBikes, useComponentAssignments, useComponents } from '../api/queries
 import { useDeleteComponentAssignment } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import ComponentAssignmentFormModal from '../components/forms/ComponentAssignmentFormModal'
+import { categoryLabel } from '../constants'
+import { formatDateTime } from '../utils/datetime'
 import type { ComponentAssignment } from '../types/models'
 
 export default function Assignments() {
@@ -17,6 +19,11 @@ export default function Assignments() {
 
   function componentLabel(componentId: number) {
     return components?.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
+  }
+
+  function componentCategory(componentId: number) {
+    const category = components?.find((c) => c.id === componentId)?.category
+    return category ? categoryLabel(category) : ''
   }
 
   function bikeName(bikeId: number) {
@@ -62,6 +69,7 @@ export default function Assignments() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th>Category</Table.Th>
               <Table.Th>Component</Table.Th>
               <Table.Th>Bike</Table.Th>
               <Table.Th>Started</Table.Th>
@@ -72,10 +80,11 @@ export default function Assignments() {
           <Table.Tbody>
             {data.map((assignment) => (
               <Table.Tr key={assignment.id}>
+                <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
                 <Table.Td>{componentLabel(assignment.component_id)}</Table.Td>
                 <Table.Td>{bikeName(assignment.bike_id)}</Table.Td>
-                <Table.Td>{assignment.started_on}</Table.Td>
-                <Table.Td>{assignment.ended_on ?? 'Present'}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
+                <Table.Td>{assignment.ended_on ? formatDateTime(assignment.ended_on) : 'Present'}</Table.Td>
                 <Table.Td>
                   <Group justify="flex-end" gap="xs">
                     <Button size="xs" variant="subtle" onClick={() => openEdit(assignment)}>

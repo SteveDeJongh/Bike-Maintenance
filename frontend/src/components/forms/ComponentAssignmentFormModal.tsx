@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Modal, Select, Stack, Text } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
+import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import {
@@ -9,9 +9,12 @@ import {
   type ComponentAssignmentPayload,
 } from '../../api/mutations'
 import { useBikes, useComponents } from '../../api/queries'
+import { categoryLabel } from '../../constants'
+import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { Bike, Component, ComponentAssignment } from '../../types/models'
 
 interface AssignmentFormValues {
+  category: string
   component_id: string
   bike_id: string
   started_on: string | null
@@ -20,19 +23,11 @@ interface AssignmentFormValues {
 
 function emptyValues(lockBike?: Bike): AssignmentFormValues {
   return {
+    category: '',
     component_id: '',
     bike_id: lockBike ? String(lockBike.id) : '',
-    started_on: null,
+    started_on: nowIsoUtc(),
     ended_on: null,
-  }
-}
-
-function toFormValues(assignment: ComponentAssignment): AssignmentFormValues {
-  return {
-    component_id: String(assignment.component_id),
-    bike_id: String(assignment.bike_id),
-    started_on: assignment.started_on,
-    ended_on: assignment.ended_on,
   }
 }
 
@@ -101,9 +96,22 @@ function AssignmentForm({
   const { data: components } = useComponents()
   const { data: bikes } = useBikes()
 
+  const initialComponent = assignment
+    ? (components ?? []).find((c) => c.id === assignment.component_id)
+    : undefined
+
   const form = useForm<AssignmentFormValues>({
-    initialValues: assignment ? toFormValues(assignment) : emptyValues(lockBike),
+    initialValues: assignment
+      ? {
+          category: initialComponent?.category ?? '',
+          component_id: String(assignment.component_id),
+          bike_id: String(assignment.bike_id),
+          started_on: assignment.started_on,
+          ended_on: assignment.ended_on,
+        }
+      : emptyValues(lockBike),
     validate: {
+      category: (value) => (value ? null : 'Category is required'),
       component_id: (value) => (value ? null : 'Component is required'),
       bike_id: (value) => (value ? null : 'Bike is required'),
       started_on: (value) => (value ? null : 'Start date is required'),
@@ -122,12 +130,16 @@ function AssignmentForm({
     })
   }
 
-  const componentOptions = (components ?? [])
-    .filter((component: Component) => isEdit || !excludeComponentIds?.includes(component.id))
-    .map((component: Component) => ({
-      value: String(component.id),
-      label: `${component.label} (${component.category})`,
-    }))
+  const availableComponents = (components ?? []).filter(
+    (component: Component) => isEdit || !excludeComponentIds?.includes(component.id),
+  )
+  const categoryOptions = [...new Set(availableComponents.map((c) => c.category))].map(
+    (category) => ({ value: category, label: categoryLabel(category) }),
+  )
+  const componentOptions = availableComponents
+    .filter((component) => component.category === form.values.category)
+    .map((component) => ({ value: String(component.id), label: component.label }))
+
   const bikeOptions = (bikes ?? []).map((bike: Bike) => ({
     value: String(bike.id),
     label: bike.name,
@@ -145,8 +157,21 @@ function AssignmentForm({
         )}
 
         <Select
+          label="Category"
+          required
+          data={categoryOptions}
+          {...form.getInputProps('category')}
+          onChange={(value) => {
+            form.setFieldValue('category', value ?? '')
+            form.setFieldValue('component_id', '')
+          }}
+        />
+
+        <Select
           label="Component"
           required
+          disabled={!form.values.category}
+          placeholder={form.values.category ? undefined : 'Pick a category first'}
           data={componentOptions}
           {...form.getInputProps('component_id')}
         />
@@ -159,8 +184,22 @@ function AssignmentForm({
           <Select label="Bike" required data={bikeOptions} {...form.getInputProps('bike_id')} />
         )}
 
-        <DateInput label="Started on" required {...form.getInputProps('started_on')} />
-        <DateInput label="Ended on" clearable {...form.getInputProps('ended_on')} />
+        <DateTimePicker
+          label="Started on"
+          required
+          value={isoUtcToDate(form.values.started_on)}
+          onChange={(value) =>
+            form.setFieldValue('started_on', mantineLocalStringToIsoUtc(value))
+          }
+          error={form.errors.started_on}
+        />
+        <DateTimePicker
+          label="Ended on"
+          clearable
+          value={isoUtcToDate(form.values.ended_on)}
+          onChange={(value) => form.setFieldValue('ended_on', mantineLocalStringToIsoUtc(value))}
+          error={form.errors.ended_on}
+        />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

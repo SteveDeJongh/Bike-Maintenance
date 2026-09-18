@@ -5,6 +5,7 @@ import { useComponents } from '../api/queries'
 import { useDeleteComponent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
+import { categoryLabel } from '../constants'
 import type { Component } from '../types/models'
 
 export default function Components() {
@@ -68,7 +69,7 @@ export default function Components() {
                     {component.label}
                   </Anchor>
                 </Table.Td>
-                <Table.Td>{component.category}</Table.Td>
+                <Table.Td>{categoryLabel(component.category)}</Table.Td>
                 <Table.Td>{component.acquired_on}</Table.Td>
                 <Table.Td>{component.retired_on ?? 'Active'}</Table.Td>
                 <Table.Td>

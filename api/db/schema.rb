@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_18_000356) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_18_015808) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -27,8 +27,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000356) do
   create_table "component_assignments", force: :cascade do |t|
     t.bigint "component_id", null: false
     t.bigint "bike_id", null: false
-    t.date "started_on"
-    t.date "ended_on"
+    t.datetime "started_on"
+    t.datetime "ended_on"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bike_id"], name: "index_component_assignments_on_bike_id"

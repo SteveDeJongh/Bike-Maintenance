@@ -16,6 +16,8 @@ import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponents } from '../api/queries'
 import ComponentAssignmentFormModal from '../components/forms/ComponentAssignmentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
+import { categoryLabel } from '../constants'
+import { formatDateTime } from '../utils/datetime'
 import type { ComponentAssignment } from '../types/models'
 
 export default function BikeDetail() {
@@ -56,6 +58,11 @@ export default function BikeDetail() {
     return components?.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
   }
 
+  function componentCategory(componentId: number) {
+    const category = components?.find((c) => c.id === componentId)?.category
+    return category ? categoryLabel(category) : ''
+  }
+
   const bikeAssignments = (assignments ?? []).filter((a) => a.bike_id === bikeId)
   const activeAssignments = bikeAssignments.filter((a) => a.ended_on === null)
   const historyAssignments = bikeAssignments
@@ -88,6 +95,7 @@ export default function BikeDetail() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th>Category</Table.Th>
               <Table.Th>Component</Table.Th>
               <Table.Th>Since</Table.Th>
               <Table.Th />
@@ -96,12 +104,13 @@ export default function BikeDetail() {
           <Table.Tbody>
             {activeAssignments.map((assignment) => (
               <Table.Tr key={assignment.id}>
+                <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
                 <Table.Td>
                   <Anchor component={Link} to={`/components/${assignment.component_id}`}>
                     {componentLabel(assignment.component_id)}
                   </Anchor>
                 </Table.Td>
-                <Table.Td>{assignment.started_on}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
                 <Table.Td>
                   <Group justify="flex-end">
                     <Button
@@ -128,6 +137,7 @@ export default function BikeDetail() {
         <Table striped>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th>Category</Table.Th>
               <Table.Th>Component</Table.Th>
               <Table.Th>Started</Table.Th>
               <Table.Th>Ended</Table.Th>
@@ -136,9 +146,10 @@ export default function BikeDetail() {
           <Table.Tbody>
             {historyAssignments.map((assignment) => (
               <Table.Tr key={assignment.id}>
+                <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
                 <Table.Td>{componentLabel(assignment.component_id)}</Table.Td>
-                <Table.Td>{assignment.started_on}</Table.Td>
-                <Table.Td>{assignment.ended_on}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.ended_on)}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>

@@ -8,9 +8,11 @@ class Component < ApplicationRecord
 
   # Sum of StravaActivity distance across all this component's assignment
   # windows (each window is [started_on, ended_on || today] on that
-  # assignment's bike).
+  # assignment's bike). ComponentAssignment start/end carry time-of-day
+  # precision (for same-day swap validation), but StravaActivity.moved_on
+  # is date-only, so windows are truncated to dates here before comparing.
   def total_distance
-    component_assignments.sum { |assignment| distance_during(assignment, assignment.started_on) }
+    component_assignments.sum { |assignment| distance_during(assignment, assignment.started_on.to_date) }
   end
 
   # Same as total_distance, but only counting activity after the most
@@ -21,7 +23,7 @@ class Component < ApplicationRecord
     return total_distance if last_event.nil?
 
     component_assignments.sum do |assignment|
-      range_start = [assignment.started_on, last_event.performed_on].max
+      range_start = [assignment.started_on.to_date, last_event.performed_on].max
       distance_during(assignment, range_start)
     end
   end
@@ -33,7 +35,7 @@ class Component < ApplicationRecord
   private
 
   def distance_during(assignment, range_start)
-    range_end = assignment.ended_on || Date.current
+    range_end = assignment.ended_on&.to_date || Date.current
     return 0 if range_start > range_end
 
     StravaActivity

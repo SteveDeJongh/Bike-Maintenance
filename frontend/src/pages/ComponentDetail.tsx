@@ -16,6 +16,7 @@ import { ApiError } from '../api/client'
 import { useComponent, useMaintenanceEvents } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
+import { categoryLabel } from '../constants'
 
 export default function ComponentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -65,7 +66,7 @@ export default function ComponentDetail() {
             {component.retired_on && <Badge color="gray">Retired</Badge>}
           </Group>
           <Text c="dimmed">
-            {component.category} · Acquired {component.acquired_on}
+            {categoryLabel(component.category)} · Acquired {component.acquired_on}
           </Text>
         </div>
         <Button variant="default" onClick={() => setEditOpened(true)}>

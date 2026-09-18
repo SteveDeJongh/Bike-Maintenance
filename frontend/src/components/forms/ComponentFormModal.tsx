@@ -8,7 +8,7 @@ import {
   useUpdateComponent,
   type ComponentPayload,
 } from '../../api/mutations'
-import { COMPONENT_CATEGORIES } from '../../constants'
+import { COMPONENT_CATEGORIES, categoryLabel } from '../../constants'
 import type { Component } from '../../types/models'
 
 interface ComponentFormValues {
@@ -109,7 +109,10 @@ function ComponentForm({
         <Select
           label="Category"
           required
-          data={[...COMPONENT_CATEGORIES]}
+          data={COMPONENT_CATEGORIES.map((category) => ({
+            value: category,
+            label: categoryLabel(category),
+          }))}
           {...form.getInputProps('category')}
         />
         <DateInput label="Acquired on" required {...form.getInputProps('acquired_on')} />
