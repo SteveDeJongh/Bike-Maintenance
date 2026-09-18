@@ -13,11 +13,13 @@ attributed to the right chain.
 ## Stack
 
 - Ruby on Rails (API-only, `config.api_only = true`), Postgres — lives in `api/`
-- Separate frontend SPA built with Vite, running on `localhost:5173` in development.
-  The Rails app talks to it only via CORS (see `api/config/initializers/cors.rb`) —
-  no server-rendered views, no Hotwire/Turbo/Stimulus/importmap. This replaced the
-  original Hotwire-based UI plan. The frontend isn't scaffolded yet; when it is,
-  it'll live in its own sibling directory alongside `api/`.
+- Separate frontend SPA built with Vite (React + TypeScript), running on
+  `localhost:5173` in development. The Rails app talks to it only via CORS (see
+  `api/config/initializers/cors.rb`) — no server-rendered views, no
+  Hotwire/Turbo/Stimulus/importmap. This replaced the original Hotwire-based UI
+  plan. Lives in `frontend/`, a sibling directory alongside `api/`. Uses
+  `react-router-dom` for routing, `@tanstack/react-query` for data fetching, and
+  Mantine (`@mantine/core`) for UI components.
 - Hosting TBD (Render or Fly.io are the leading candidates) — not needed until Phase 2
 
 ## Repo layout
