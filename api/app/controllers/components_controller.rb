@@ -3,7 +3,7 @@ class ComponentsController < ApplicationController
 
   # GET /components
   def index
-    @components = Component.all
+    @components = current_user.components
     render json: @components
   end
 
@@ -14,7 +14,7 @@ class ComponentsController < ApplicationController
 
   # POST /components
   def create
-    @component = Component.new(component_params)
+    @component = current_user.components.new(component_params)
 
     if @component.save
       render json: @component, status: :created
@@ -40,7 +40,7 @@ class ComponentsController < ApplicationController
 
   private
     def set_component
-      @component = Component.find(params[:id])
+      @component = current_user.components.find(params[:id])
     end
 
     def component_params

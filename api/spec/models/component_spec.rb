@@ -21,7 +21,7 @@ RSpec.describe Component, type: :model do
 
   it "destroys its component assignments and maintenance events when destroyed" do
     component = create(:component)
-    assignment = create(:component_assignment, component: component)
+    assignment = create(:component_assignment, component: component, bike: create(:bike, user: component.user))
     event = create(:maintenance_event, component: component)
 
     component.destroy
@@ -32,8 +32,8 @@ RSpec.describe Component, type: :model do
 
   describe "#total_distance" do
     it "sums StravaActivity distance within the component's assignment window" do
-      component = create(:component)
       bike = create(:bike)
+      component = create(:component, user: bike.user)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 1, 31, 23, 59))
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15, 9, 0), distance_meters: 5_000)
@@ -44,8 +44,8 @@ RSpec.describe Component, type: :model do
 
     it "splits same-day distance between two components swapped mid-day" do
       bike = create(:bike)
-      chain_a = create(:component, category: "chain")
-      chain_b = create(:component, category: "chain")
+      chain_a = create(:component, category: "chain", user: bike.user)
+      chain_b = create(:component, category: "chain", user: bike.user)
       create(:component_assignment, component: chain_a, bike: bike,
         started_at: Time.zone.local(2026, 1, 1, 8, 0), ended_at: Time.zone.local(2026, 1, 1, 12, 0))
       create(:component_assignment, component: chain_b, bike: bike,
@@ -61,8 +61,8 @@ RSpec.describe Component, type: :model do
 
   describe "#distance_since" do
     it "only counts activity after the most recent maintenance event of that type" do
-      component = create(:component)
       bike = create(:bike)
+      component = create(:component, user: bike.user)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:maintenance_event, component: component, event_type: "wax",
@@ -74,8 +74,8 @@ RSpec.describe Component, type: :model do
     end
 
     it "excludes a ride from earlier the same day as the wax" do
-      component = create(:component)
       bike = create(:bike)
+      component = create(:component, user: bike.user)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:maintenance_event, component: component, event_type: "wax",

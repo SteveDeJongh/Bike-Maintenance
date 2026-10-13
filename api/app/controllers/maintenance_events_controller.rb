@@ -3,7 +3,7 @@ class MaintenanceEventsController < ApplicationController
 
   # GET /maintenance_events
   def index
-    @maintenance_events = MaintenanceEvent.includes(:component).all
+    @maintenance_events = current_user.maintenance_events.includes(:component)
     render json: @maintenance_events
   end
 
@@ -14,7 +14,10 @@ class MaintenanceEventsController < ApplicationController
 
   # POST /maintenance_events
   def create
-    @maintenance_event = MaintenanceEvent.new(maintenance_event_params)
+    event_params = maintenance_event_params
+    return render_component_not_found unless owns_referenced_component?(event_params)
+
+    @maintenance_event = MaintenanceEvent.new(event_params)
 
     if @maintenance_event.save
       render json: @maintenance_event, status: :created
@@ -25,7 +28,10 @@ class MaintenanceEventsController < ApplicationController
 
   # PATCH/PUT /maintenance_events/1
   def update
-    if @maintenance_event.update(maintenance_event_params)
+    event_params = maintenance_event_params
+    return render_component_not_found unless owns_referenced_component?(event_params)
+
+    if @maintenance_event.update(event_params)
       render json: @maintenance_event
     else
       render json: @maintenance_event.errors, status: :unprocessable_content
@@ -40,10 +46,18 @@ class MaintenanceEventsController < ApplicationController
 
   private
     def set_maintenance_event
-      @maintenance_event = MaintenanceEvent.find(params[:id])
+      @maintenance_event = current_user.maintenance_events.find(params[:id])
     end
 
     def maintenance_event_params
       params.require(:maintenance_event).permit(:component_id, :event_type, :performed_at, :notes)
+    end
+
+    def owns_referenced_component?(attrs)
+      !attrs.key?(:component_id) || current_user.components.exists?(attrs[:component_id])
+    end
+
+    def render_component_not_found
+      render json: { base: ["Component not found"] }, status: :not_found
     end
 end

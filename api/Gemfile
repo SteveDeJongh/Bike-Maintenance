@@ -14,6 +14,15 @@ gem "puma", ">= 5.0"
 # Handle Cross-Origin Resource Sharing (CORS) for the API [https://github.com/cyu/rack-cors]
 gem "rack-cors"
 
+# HTTP client for the Strava API integration [https://github.com/lostisland/faraday]
+gem "faraday"
+
+# Pinned below 2.9: that version removed the `quirks_mode` keyword that Rails
+# 7.1's ActiveSupport::JSON encoder still passes, breaking `render json:`.
+# Faraday's own dependency chain otherwise resolves to a newer, incompatible
+# default. Safe to lift once Rails is upgraded past this.
+gem "json", "< 2.9"
+
 # Use Redis adapter to run Action Cable in production
 # gem "redis", ">= 4.0.1"
 

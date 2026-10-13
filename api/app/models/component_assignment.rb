@@ -6,8 +6,15 @@ class ComponentAssignment < ApplicationRecord
   validate :ended_at_after_started_at
   validate :no_overlapping_assignment_for_component
   validate :no_overlapping_assignment_for_bike_slot
+  validate :component_and_bike_have_same_owner
 
   private
+
+  def component_and_bike_have_same_owner
+    return if component.blank? || bike.blank?
+
+    errors.add(:base, "Component and bike must belong to the same user") if component.user_id != bike.user_id
+  end
 
   def ended_at_after_started_at
     return if started_at.blank? || ended_at.blank?

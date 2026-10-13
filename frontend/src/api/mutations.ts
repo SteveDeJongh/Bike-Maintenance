@@ -23,6 +23,10 @@ export function useUpdateBike(id: number) {
     mutationFn: (values: Partial<BikePayload>) => apiPatch<Bike>(`/bikes/${id}`, { bike: values }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
+      // A changed strava_gear_id triggers server-side reconciliation of
+      // previously-unmapped activities, so the gear-mapping screen's list
+      // needs to reflect that too.
+      queryClient.invalidateQueries({ queryKey: ['strava'] })
     },
   })
 }
@@ -125,5 +129,18 @@ export function useDeleteMaintenanceEvent() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/maintenance_events/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_events'] }),
+  })
+}
+
+// Strava
+
+export function useSyncStrava() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<void>('/strava/sync', {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['strava'] })
+      queryClient.invalidateQueries({ queryKey: ['bikes'] })
+    },
   })
 }

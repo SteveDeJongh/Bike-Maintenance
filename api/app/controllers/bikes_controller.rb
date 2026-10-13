@@ -3,7 +3,7 @@ class BikesController < ApplicationController
 
   # GET /bikes
   def index
-    @bikes = Bike.all
+    @bikes = current_user.bikes
     render json: @bikes
   end
 
@@ -14,7 +14,7 @@ class BikesController < ApplicationController
 
   # POST /bikes
   def create
-    @bike = Bike.new(bike_params)
+    @bike = current_user.bikes.new(bike_params)
 
     if @bike.save
       render json: @bike, status: :created
@@ -40,7 +40,7 @@ class BikesController < ApplicationController
 
   private
     def set_bike
-      @bike = Bike.find(params[:id])
+      @bike = current_user.bikes.find(params[:id])
     end
 
     def bike_params

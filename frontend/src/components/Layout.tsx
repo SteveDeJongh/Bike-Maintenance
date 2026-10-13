@@ -6,6 +6,7 @@ const navLinks = [
   { to: '/components', label: 'Components' },
   { to: '/maintenance-events', label: 'Maintenance Events' },
   { to: '/assignments', label: 'Assignments' },
+  { to: '/strava', label: 'Strava' },
 ]
 
 export default function Layout() {

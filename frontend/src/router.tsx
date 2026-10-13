@@ -7,6 +7,7 @@ import Components from './pages/Components'
 import ComponentDetail from './pages/ComponentDetail'
 import Assignments from './pages/Assignments'
 import MaintenanceEvents from './pages/MaintenanceEvents'
+import Strava from './pages/Strava'
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: 'components/:id', element: <ComponentDetail /> },
       { path: 'assignments', element: <Assignments /> },
       { path: 'maintenance-events', element: <MaintenanceEvents /> },
+      { path: 'strava', element: <Strava /> },
     ],
   },
 ])

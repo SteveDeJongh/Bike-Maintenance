@@ -40,3 +40,8 @@ export interface MaintenanceEvent {
   performed_at: string
   notes: string | null
 }
+
+export interface StravaStatus {
+  connected: boolean
+  athlete_id: number | null
+}

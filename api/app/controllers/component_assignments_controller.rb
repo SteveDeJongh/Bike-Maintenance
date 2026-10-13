@@ -3,7 +3,7 @@ class ComponentAssignmentsController < ApplicationController
 
   # GET /component_assignments
   def index
-    @component_assignments = ComponentAssignment.includes(:component, :bike).all
+    @component_assignments = current_user.component_assignments.includes(:component, :bike)
     render json: @component_assignments
   end
 
@@ -14,7 +14,10 @@ class ComponentAssignmentsController < ApplicationController
 
   # POST /component_assignments
   def create
-    @component_assignment = ComponentAssignment.new(component_assignment_params)
+    assignment_params = component_assignment_params
+    return render_bike_or_component_not_found unless owns_referenced_records?(assignment_params)
+
+    @component_assignment = ComponentAssignment.new(assignment_params)
 
     if @component_assignment.save
       render json: @component_assignment, status: :created
@@ -25,7 +28,10 @@ class ComponentAssignmentsController < ApplicationController
 
   # PATCH/PUT /component_assignments/1
   def update
-    if @component_assignment.update(component_assignment_params)
+    assignment_params = component_assignment_params
+    return render_bike_or_component_not_found unless owns_referenced_records?(assignment_params)
+
+    if @component_assignment.update(assignment_params)
       render json: @component_assignment
     else
       render json: @component_assignment.errors, status: :unprocessable_content
@@ -40,10 +46,22 @@ class ComponentAssignmentsController < ApplicationController
 
   private
     def set_component_assignment
-      @component_assignment = ComponentAssignment.find(params[:id])
+      @component_assignment = current_user.component_assignments.find(params[:id])
     end
 
     def component_assignment_params
       params.require(:component_assignment).permit(:component_id, :bike_id, :started_at, :ended_at)
+    end
+
+    # Only checks ownership for keys actually present — update often omits
+    # bike_id/component_id entirely (e.g. just changing ended_at).
+    def owns_referenced_records?(attrs)
+      bike_ok = !attrs.key?(:bike_id) || current_user.bikes.exists?(attrs[:bike_id])
+      component_ok = !attrs.key?(:component_id) || current_user.components.exists?(attrs[:component_id])
+      bike_ok && component_ok
+    end
+
+    def render_bike_or_component_not_found
+      render json: { base: ["Bike or component not found"] }, status: :not_found
     end
 end

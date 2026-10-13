@@ -33,12 +33,21 @@ RSpec.describe ComponentAssignment, type: :model do
     expect(assignment.errors[:ended_at]).to be_present
   end
 
+  it "is invalid when the component and bike belong to different users" do
+    assignment = build(:component_assignment, component: create(:component), bike: create(:bike))
+
+    expect(assignment).not_to be_valid
+    expect(assignment.errors[:base]).to include(a_string_matching(/same user/))
+  end
+
   describe "overlap validation for the same component" do
     it "rejects a second open-ended assignment for a component already mounted elsewhere" do
       component = create(:component)
-      create(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 1, 1), ended_at: nil)
+      create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 1, 1), ended_at: nil)
 
-      overlapping = build(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 2, 1), ended_at: nil)
+      overlapping = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 2, 1), ended_at: nil)
 
       expect(overlapping).not_to be_valid
       expect(overlapping.errors[:base]).to include(a_string_matching(/already assigned/))
@@ -46,18 +55,22 @@ RSpec.describe ComponentAssignment, type: :model do
 
     it "allows a second assignment once the first has ended before the new one starts" do
       component = create(:component)
-      create(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 1, 31))
+      create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 1, 31))
 
-      sequential = build(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 2, 1), ended_at: nil)
+      sequential = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 2, 1), ended_at: nil)
 
       expect(sequential).to be_valid
     end
 
     it "rejects overlapping date ranges even when both have an end date" do
       component = create(:component)
-      create(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 2, 1))
+      create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 2, 1))
 
-      overlapping = build(:component_assignment, component: component, bike: create(:bike), started_at: Date.new(2026, 1, 15), ended_at: Date.new(2026, 3, 1))
+      overlapping = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+        started_at: Date.new(2026, 1, 15), ended_at: Date.new(2026, 3, 1))
 
       expect(overlapping).not_to be_valid
     end
@@ -74,9 +87,12 @@ RSpec.describe ComponentAssignment, type: :model do
   describe "overlap validation for the same bike + category slot" do
     it "rejects a different component of the same category overlapping on the same bike" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Date.new(2026, 1, 1), ended_at: nil)
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+        started_at: Date.new(2026, 1, 1), ended_at: nil)
 
-      overlapping = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Date.new(2026, 2, 1), ended_at: nil)
+      overlapping = build(:component_assignment, bike: bike,
+        component: create(:component, category: "chain", user: bike.user),
+        started_at: Date.new(2026, 2, 1), ended_at: nil)
 
       expect(overlapping).not_to be_valid
       expect(overlapping.errors[:base]).to include(a_string_matching(/already has a chain/))
@@ -84,9 +100,12 @@ RSpec.describe ComponentAssignment, type: :model do
 
     it "allows different categories on the same bike to overlap" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Date.new(2026, 1, 1), ended_at: nil)
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+        started_at: Date.new(2026, 1, 1), ended_at: nil)
 
-      different_slot = build(:component_assignment, bike: bike, component: create(:component, category: "cassette"), started_at: Date.new(2026, 1, 1), ended_at: nil)
+      different_slot = build(:component_assignment, bike: bike,
+        component: create(:component, category: "cassette", user: bike.user),
+        started_at: Date.new(2026, 1, 1), ended_at: nil)
 
       expect(different_slot).to be_valid
     end
@@ -94,27 +113,35 @@ RSpec.describe ComponentAssignment, type: :model do
     it "allows the same category on different bikes to overlap" do
       component_a = create(:component, category: "chain")
       component_b = create(:component, category: "chain")
-      create(:component_assignment, bike: create(:bike), component: component_a, started_at: Date.new(2026, 1, 1), ended_at: nil)
+      create(:component_assignment, bike: create(:bike, user: component_a.user), component: component_a,
+        started_at: Date.new(2026, 1, 1), ended_at: nil)
 
-      other_bike_assignment = build(:component_assignment, bike: create(:bike), component: component_b, started_at: Date.new(2026, 1, 1), ended_at: nil)
+      other_bike_assignment = build(:component_assignment, bike: create(:bike, user: component_b.user),
+        component: component_b, started_at: Date.new(2026, 1, 1), ended_at: nil)
 
       expect(other_bike_assignment).to be_valid
     end
 
     it "allows a same-day chain swap where the incoming assignment starts after the outgoing one ends" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
 
-      swap_in = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Time.zone.local(2026, 3, 1, 9, 1), ended_at: nil)
+      swap_in = build(:component_assignment, bike: bike,
+        component: create(:component, category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 9, 1), ended_at: nil)
 
       expect(swap_in).to be_valid
     end
 
     it "rejects a same-day chain swap when the incoming assignment starts at the exact instant the outgoing one ends" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
+      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
 
-      swap_in = build(:component_assignment, bike: bike, component: create(:component, category: "chain"), started_at: Time.zone.local(2026, 3, 1, 9, 0), ended_at: nil)
+      swap_in = build(:component_assignment, bike: bike,
+        component: create(:component, category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 9, 0), ended_at: nil)
 
       expect(swap_in).not_to be_valid
       expect(swap_in.errors[:base]).to include(a_string_matching(/already has a chain/))

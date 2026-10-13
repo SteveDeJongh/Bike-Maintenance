@@ -1,4 +1,5 @@
 class Component < ApplicationRecord
+  belongs_to :user
   has_many :component_assignments, dependent: :destroy
   has_many :bikes, through: :component_assignments
   has_many :maintenance_events, dependent: :destroy

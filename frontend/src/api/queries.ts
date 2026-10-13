@@ -6,6 +6,7 @@ import type {
   ComponentAssignment,
   ComponentDetail,
   MaintenanceEvent,
+  StravaStatus,
 } from '../types/models'
 
 export function useBikes() {
@@ -49,5 +50,19 @@ export function useMaintenanceEvents() {
   return useQuery({
     queryKey: ['maintenance_events'],
     queryFn: () => apiGet<MaintenanceEvent[]>('/maintenance_events'),
+  })
+}
+
+export function useStravaStatus() {
+  return useQuery({
+    queryKey: ['strava', 'status'],
+    queryFn: () => apiGet<StravaStatus>('/strava/status'),
+  })
+}
+
+export function useUnmappedGear() {
+  return useQuery({
+    queryKey: ['strava', 'unmapped_gear'],
+    queryFn: () => apiGet<string[]>('/strava/unmapped_gear'),
   })
 }

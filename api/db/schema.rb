@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_13_220637) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_13_224713) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,6 +22,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_220637) do
     t.date "retired_on"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_bikes_on_user_id"
   end
 
   create_table "component_assignments", force: :cascade do |t|
@@ -42,6 +44,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_220637) do
     t.date "retired_on"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_components_on_user_id"
   end
 
   create_table "maintenance_events", force: :cascade do |t|
@@ -64,12 +68,39 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_220637) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.string "gear_id"
     t.index ["bike_id"], name: "index_strava_activities_on_bike_id"
     t.index ["strava_id"], name: "index_strava_activities_on_strava_id", unique: true
+    t.index ["user_id"], name: "index_strava_activities_on_user_id"
   end
 
+  create_table "strava_credentials", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "access_token", null: false
+    t.string "refresh_token", null: false
+    t.bigint "athlete_id", null: false
+    t.datetime "expires_at", null: false
+    t.string "scope"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_strava_credentials_on_user_id", unique: true
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
+  end
+
+  add_foreign_key "bikes", "users"
   add_foreign_key "component_assignments", "bikes"
   add_foreign_key "component_assignments", "components"
+  add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
   add_foreign_key "strava_activities", "bikes"
+  add_foreign_key "strava_activities", "users"
+  add_foreign_key "strava_credentials", "users"
 end
