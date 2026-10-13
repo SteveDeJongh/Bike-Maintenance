@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Modal, Select, Stack, Textarea } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
+import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import {
@@ -10,20 +10,13 @@ import {
 } from '../../api/mutations'
 import { useComponents } from '../../api/queries'
 import { MAINTENANCE_EVENT_TYPES } from '../../constants'
+import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { Component, MaintenanceEvent } from '../../types/models'
-
-function todayString(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 interface MaintenanceEventFormValues {
   component_id: string
   event_type: string
-  performed_on: string | null
+  performed_at: string | null
   notes: string
 }
 
@@ -31,7 +24,7 @@ function emptyValues(defaultComponentId?: number): MaintenanceEventFormValues {
   return {
     component_id: defaultComponentId ? String(defaultComponentId) : '',
     event_type: '',
-    performed_on: todayString(),
+    performed_at: nowIsoUtc(),
     notes: '',
   }
 }
@@ -40,7 +33,7 @@ function toFormValues(event: MaintenanceEvent): MaintenanceEventFormValues {
   return {
     component_id: String(event.component_id),
     event_type: event.event_type,
-    performed_on: event.performed_on,
+    performed_at: event.performed_at,
     notes: event.notes ?? '',
   }
 }
@@ -49,7 +42,7 @@ function toPayload(values: MaintenanceEventFormValues): MaintenanceEventPayload 
   return {
     component_id: Number(values.component_id),
     event_type: values.event_type as MaintenanceEvent['event_type'],
-    performed_on: values.performed_on ?? '',
+    performed_at: values.performed_at ?? '',
     notes: values.notes.trim() || null,
   }
 }
@@ -104,7 +97,7 @@ function MaintenanceEventForm({
     validate: {
       component_id: (value) => (value ? null : 'Component is required'),
       event_type: (value) => (value ? null : 'Event type is required'),
-      performed_on: (value) => (value ? null : 'Date is required'),
+      performed_at: (value) => (value ? null : 'Date is required'),
     },
   })
 
@@ -148,7 +141,15 @@ function MaintenanceEventForm({
           data={[...MAINTENANCE_EVENT_TYPES]}
           {...form.getInputProps('event_type')}
         />
-        <DateInput label="Performed on" required {...form.getInputProps('performed_on')} />
+        <DateTimePicker
+          label="Performed at"
+          required
+          value={isoUtcToDate(form.values.performed_at)}
+          onChange={(value) =>
+            form.setFieldValue('performed_at', mantineLocalStringToIsoUtc(value))
+          }
+          error={form.errors.performed_at}
+        />
         <Textarea label="Notes" {...form.getInputProps('notes')} />
 
         <Group justify="flex-end">

@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :maintenance_event do
     component
     event_type { "wax" }
-    performed_on { Date.new(2026, 1, 1) }
+    performed_at { Time.zone.local(2026, 1, 1, 12, 0) }
     notes { "" }
   end
 end

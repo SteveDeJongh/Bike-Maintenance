@@ -4,5 +4,5 @@ class MaintenanceEvent < ApplicationRecord
   belongs_to :component
 
   validates :event_type, presence: true, inclusion: { in: EVENT_TYPES }
-  validates :performed_on, presence: true
+  validates :performed_at, presence: true
 end

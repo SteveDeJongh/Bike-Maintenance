@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_18_015808) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_13_220637) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -27,8 +27,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_015808) do
   create_table "component_assignments", force: :cascade do |t|
     t.bigint "component_id", null: false
     t.bigint "bike_id", null: false
-    t.datetime "started_on"
-    t.datetime "ended_on"
+    t.datetime "started_at"
+    t.datetime "ended_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bike_id"], name: "index_component_assignments_on_bike_id"
@@ -47,7 +47,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_015808) do
   create_table "maintenance_events", force: :cascade do |t|
     t.bigint "component_id", null: false
     t.string "event_type"
-    t.date "performed_on"
+    t.datetime "performed_at"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -58,7 +58,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_015808) do
     t.bigint "strava_id", null: false
     t.bigint "bike_id"
     t.integer "distance_meters", default: 0, null: false
-    t.date "moved_on", null: false
+    t.datetime "moved_at", null: false
     t.string "name"
     t.string "activity_type"
     t.datetime "synced_at"

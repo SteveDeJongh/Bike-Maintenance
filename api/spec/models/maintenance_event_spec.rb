@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe MaintenanceEvent, type: :model do
-  it "is valid with a component, event_type, and performed_on" do
+  it "is valid with a component, event_type, and performed_at" do
     expect(build(:maintenance_event)).to be_valid
   end
 
@@ -19,11 +19,11 @@ RSpec.describe MaintenanceEvent, type: :model do
     expect(event.errors[:event_type]).to be_present
   end
 
-  it "is invalid without performed_on" do
-    event = build(:maintenance_event, performed_on: nil)
+  it "is invalid without performed_at" do
+    event = build(:maintenance_event, performed_at: nil)
 
     expect(event).not_to be_valid
-    expect(event.errors[:performed_on]).to be_present
+    expect(event.errors[:performed_at]).to be_present
   end
 
   it "is invalid without a component" do

@@ -35,13 +35,15 @@ docker build .`), not the repo root.
 - `Bike`: name, make, model, strava_gear_id, retired_on
 - `Component`: label (e.g. "Chain A"), category (chain, cassette, tire_front, tire_rear,
   ...), acquired_on, retired_on — category doubles as a "slot" for validation
-- `ComponentAssignment`: component_id, bike_id, started_on, ended_on (nullable = currently
+- `ComponentAssignment`: component_id, bike_id, started_at, ended_at (nullable = currently
   mounted) — records what was on which bike, when. No overlapping assignments for the
   same component, and no overlapping assignments for the same (bike, category) slot.
+  Timestamps, not dates: a component can be swapped more than once in a day.
 - `MaintenanceEvent`: component_id, event_type (wax, clean, replace, inspect),
-  performed_on, notes
+  performed_at (timestamp), notes
 - `StravaActivity`: strava_id (unique), bike_id (resolved from Strava's gear_id,
-  nullable until mapped), distance_meters, moved_on, name, activity_type, synced_at.
+  nullable until mapped), distance_meters, moved_at (timestamp — the ride's start),
+  name, activity_type, synced_at.
   The model/migration exist already (added early, alongside `Component#total_distance`
   and `#distance_since`/`#distance_since_wax`, so the API could expose those computed
   fields) — but nothing populates this table yet. That's still Phase 3 below.
@@ -54,8 +56,10 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
 (not stored), via a service object or model method:
 
 - `Component#total_distance` = sum of StravaActivity.distance where bike_id matches one
-  of the component's assignments and moved_on falls within that assignment's
-  [started_on, ended_on || today] window, summed across all the component's assignments.
+  of the component's assignments and moved_at falls within that assignment's
+  half-open [started_at, ended_at) window — or [started_at, ∞) while still mounted —
+  summed across all the component's assignments. The window is half-open so that an
+  activity on a swap boundary is credited to exactly one assignment, never both.
 - `Component#distance_since(event_type:)` = same sum, filtered to activities after the
   most recent MaintenanceEvent of that type.
 
@@ -88,5 +92,9 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
 
 - Write model specs (RSpec) alongside every model.
 - Commit after each working increment.
+- Date/time column naming: `_at` for datetime columns, `_on` for date-only columns.
+  Keep this consistent for any new column — if a column gains a time component, rename
+  it to `_at` in the same migration. Current date-only columns: `bikes.retired_on`,
+  `components.acquired_on`, `components.retired_on`.
 - If a change here affects the data model or architecture, flag it back to the project
   plan doc rather than only updating this file.

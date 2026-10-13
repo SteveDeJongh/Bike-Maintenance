@@ -64,12 +64,12 @@ export default function BikeDetail() {
   }
 
   const bikeAssignments = (assignments ?? []).filter((a) => a.bike_id === bikeId)
-  const activeAssignments = bikeAssignments.filter((a) => a.ended_on === null)
+  const activeAssignments = bikeAssignments.filter((a) => a.ended_at === null)
   const historyAssignments = bikeAssignments
-    .filter((a) => a.ended_on !== null)
-    .sort((a, b) => b.started_on.localeCompare(a.started_on))
+    .filter((a) => a.ended_at !== null)
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))
   const activeComponentIdsEverywhere = (assignments ?? [])
-    .filter((a) => a.ended_on === null)
+    .filter((a) => a.ended_at === null)
     .map((a) => a.component_id)
 
   return (
@@ -110,7 +110,7 @@ export default function BikeDetail() {
                     {componentLabel(assignment.component_id)}
                   </Anchor>
                 </Table.Td>
-                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_at)}</Table.Td>
                 <Table.Td>
                   <Group justify="flex-end">
                     <Button
@@ -148,8 +148,8 @@ export default function BikeDetail() {
               <Table.Tr key={assignment.id}>
                 <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
                 <Table.Td>{componentLabel(assignment.component_id)}</Table.Td>
-                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
-                <Table.Td>{formatDateTime(assignment.ended_on)}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_at)}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.ended_at)}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>

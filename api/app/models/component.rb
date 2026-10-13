@@ -7,23 +7,23 @@ class Component < ApplicationRecord
   validates :category, presence: true
 
   # Sum of StravaActivity distance across all this component's assignment
-  # windows (each window is [started_on, ended_on || today] on that
-  # assignment's bike). ComponentAssignment start/end carry time-of-day
-  # precision (for same-day swap validation), but StravaActivity.moved_on
-  # is date-only, so windows are truncated to dates here before comparing.
+  # windows, on the bike it was mounted to for each one. Windows are
+  # half-open — [started_at, ended_at) — so a component swapped mid-day is
+  # credited only the rides that happened while it was actually mounted,
+  # and an activity falling on a swap boundary is never counted twice.
   def total_distance
-    component_assignments.sum { |assignment| distance_during(assignment, assignment.started_on.to_date) }
+    component_assignments.sum { |assignment| distance_during(assignment, assignment.started_at) }
   end
 
   # Same as total_distance, but only counting activity after the most
   # recent MaintenanceEvent of the given type (or all of it, if there is
   # no such event yet).
   def distance_since(event_type:)
-    last_event = maintenance_events.where(event_type: event_type).order(performed_on: :desc).first
+    last_event = maintenance_events.where(event_type: event_type).order(performed_at: :desc).first
     return total_distance if last_event.nil?
 
     component_assignments.sum do |assignment|
-      range_start = [assignment.started_on.to_date, last_event.performed_on].max
+      range_start = [assignment.started_at, last_event.performed_at].max
       distance_during(assignment, range_start)
     end
   end
@@ -35,12 +35,14 @@ class Component < ApplicationRecord
   private
 
   def distance_during(assignment, range_start)
-    range_end = assignment.ended_on&.to_date || Date.current
-    return 0 if range_start > range_end
+    activities = StravaActivity.where(bike_id: assignment.bike_id)
 
-    StravaActivity
-      .where(bike_id: assignment.bike_id)
-      .where(moved_on: range_start..range_end)
-      .sum(:distance_meters)
+    if assignment.ended_at
+      return 0 if range_start >= assignment.ended_at
+
+      activities.where(moved_at: range_start...assignment.ended_at).sum(:distance_meters)
+    else
+      activities.where(moved_at: range_start..).sum(:distance_meters)
+    end
   end
 end

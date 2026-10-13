@@ -83,8 +83,8 @@ export default function Assignments() {
                 <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
                 <Table.Td>{componentLabel(assignment.component_id)}</Table.Td>
                 <Table.Td>{bikeName(assignment.bike_id)}</Table.Td>
-                <Table.Td>{formatDateTime(assignment.started_on)}</Table.Td>
-                <Table.Td>{assignment.ended_on ? formatDateTime(assignment.ended_on) : 'Present'}</Table.Td>
+                <Table.Td>{formatDateTime(assignment.started_at)}</Table.Td>
+                <Table.Td>{assignment.ended_at ? formatDateTime(assignment.ended_at) : 'Present'}</Table.Td>
                 <Table.Td>
                   <Group justify="flex-end" gap="xs">
                     <Button size="xs" variant="subtle" onClick={() => openEdit(assignment)}>

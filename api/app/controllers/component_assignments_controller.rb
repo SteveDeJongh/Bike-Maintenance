@@ -44,6 +44,6 @@ class ComponentAssignmentsController < ApplicationController
     end
 
     def component_assignment_params
-      params.require(:component_assignment).permit(:component_id, :bike_id, :started_on, :ended_on)
+      params.require(:component_assignment).permit(:component_id, :bike_id, :started_at, :ended_at)
     end
 end

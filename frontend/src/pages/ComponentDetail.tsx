@@ -17,6 +17,7 @@ import { useComponent, useMaintenanceEvents } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
 import { categoryLabel } from '../constants'
+import { formatDateTime } from '../utils/datetime'
 
 export default function ComponentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -31,7 +32,7 @@ export default function ComponentDetail() {
   const history = useMemo(() => {
     return (events ?? [])
       .filter((event) => event.component_id === componentId)
-      .sort((a, b) => b.performed_on.localeCompare(a.performed_on))
+      .sort((a, b) => b.performed_at.localeCompare(a.performed_at))
   }, [events, componentId])
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
@@ -102,7 +103,7 @@ export default function ComponentDetail() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Performed On</Table.Th>
+              <Table.Th>Performed At</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Notes</Table.Th>
             </Table.Tr>
@@ -110,7 +111,7 @@ export default function ComponentDetail() {
           <Table.Tbody>
             {history.map((event) => (
               <Table.Tr key={event.id}>
-                <Table.Td>{event.performed_on}</Table.Td>
+                <Table.Td>{formatDateTime(event.performed_at)}</Table.Td>
                 <Table.Td>{event.event_type}</Table.Td>
                 <Table.Td>{event.notes ?? ''}</Table.Td>
               </Table.Tr>

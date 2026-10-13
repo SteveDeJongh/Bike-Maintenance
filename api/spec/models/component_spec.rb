@@ -35,11 +35,27 @@ RSpec.describe Component, type: :model do
       component = create(:component)
       bike = create(:bike)
       create(:component_assignment, component: component, bike: bike,
-        started_on: Time.zone.local(2026, 1, 1), ended_on: Time.zone.local(2026, 1, 31, 23, 59))
-      create(:strava_activity, bike: bike, moved_on: Date.new(2026, 1, 15), distance_meters: 5_000)
-      create(:strava_activity, bike: bike, moved_on: Date.new(2026, 2, 1), distance_meters: 9_999)
+        started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 1, 31, 23, 59))
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15, 9, 0), distance_meters: 5_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 2, 1, 9, 0), distance_meters: 9_999)
 
       expect(component.total_distance).to eq(5_000)
+    end
+
+    it "splits same-day distance between two components swapped mid-day" do
+      bike = create(:bike)
+      chain_a = create(:component, category: "chain")
+      chain_b = create(:component, category: "chain")
+      create(:component_assignment, component: chain_a, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1, 8, 0), ended_at: Time.zone.local(2026, 1, 1, 12, 0))
+      create(:component_assignment, component: chain_b, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1, 12, 0, 1), ended_at: nil)
+
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 1, 9, 0), distance_meters: 20_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 1, 15, 0), distance_meters: 30_000)
+
+      expect(chain_a.total_distance).to eq(20_000)
+      expect(chain_b.total_distance).to eq(30_000)
     end
   end
 
@@ -48,12 +64,27 @@ RSpec.describe Component, type: :model do
       component = create(:component)
       bike = create(:bike)
       create(:component_assignment, component: component, bike: bike,
-        started_on: Time.zone.local(2026, 1, 1), ended_on: nil)
-      create(:maintenance_event, component: component, event_type: "wax", performed_on: Date.new(2026, 1, 15))
-      create(:strava_activity, bike: bike, moved_on: Date.new(2026, 1, 10), distance_meters: 3_000)
-      create(:strava_activity, bike: bike, moved_on: Date.new(2026, 1, 20), distance_meters: 4_000)
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:maintenance_event, component: component, event_type: "wax",
+        performed_at: Time.zone.local(2026, 1, 15, 12, 0))
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 3_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 20, 9, 0), distance_meters: 4_000)
 
       expect(component.distance_since_wax).to eq(4_000)
+    end
+
+    it "excludes a ride from earlier the same day as the wax" do
+      component = create(:component)
+      bike = create(:bike)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:maintenance_event, component: component, event_type: "wax",
+        performed_at: Time.zone.local(2026, 1, 5, 14, 0))
+
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5, 9, 0), distance_meters: 20_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5, 17, 0), distance_meters: 30_000)
+
+      expect(component.distance_since_wax).to eq(30_000)
     end
   end
 end

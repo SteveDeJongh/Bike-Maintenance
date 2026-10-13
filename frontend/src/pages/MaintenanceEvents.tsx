@@ -4,6 +4,7 @@ import { useComponents, useMaintenanceEvents } from '../api/queries'
 import { useDeleteMaintenanceEvent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
+import { formatDateTime } from '../utils/datetime'
 import type { MaintenanceEvent } from '../types/models'
 
 const RECENT_LIMIT = 10
@@ -32,7 +33,7 @@ export default function MaintenanceEvents() {
   const recentEvents = useMemo(() => {
     if (!data) return []
     return [...data]
-      .sort((a, b) => b.performed_on.localeCompare(a.performed_on))
+      .sort((a, b) => b.performed_at.localeCompare(a.performed_at))
       .slice(0, RECENT_LIMIT)
   }, [data])
 
@@ -77,7 +78,7 @@ export default function MaintenanceEvents() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Performed On</Table.Th>
+              <Table.Th>Performed At</Table.Th>
               <Table.Th>Type</Table.Th>
               <Table.Th>Component</Table.Th>
               <Table.Th>Notes</Table.Th>
@@ -87,7 +88,7 @@ export default function MaintenanceEvents() {
           <Table.Tbody>
             {recentEvents.map((event) => (
               <Table.Tr key={event.id}>
-                <Table.Td>{event.performed_on}</Table.Td>
+                <Table.Td>{formatDateTime(event.performed_at)}</Table.Td>
                 <Table.Td>{event.event_type}</Table.Td>
                 <Table.Td>
                   {componentLabels.get(event.component_id) ?? `Component #${event.component_id}`}

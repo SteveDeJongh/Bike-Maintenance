@@ -3,5 +3,5 @@ class StravaActivity < ApplicationRecord
 
   validates :strava_id, presence: true, uniqueness: true
   validates :distance_meters, presence: true
-  validates :moved_on, presence: true
+  validates :moved_at, presence: true
 end

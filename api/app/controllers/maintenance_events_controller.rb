@@ -44,6 +44,6 @@ class MaintenanceEventsController < ApplicationController
     end
 
     def maintenance_event_params
-      params.require(:maintenance_event).permit(:component_id, :event_type, :performed_on, :notes)
+      params.require(:maintenance_event).permit(:component_id, :event_type, :performed_at, :notes)
     end
 end

@@ -23,18 +23,20 @@ export interface ComponentDetail extends Component {
   distance_since_wax: number
 }
 
+// Fields suffixed _at are ISO-8601 timestamps; _on fields are date-only
+// (YYYY-MM-DD), matching the API's column naming convention.
 export interface ComponentAssignment {
   id: number
   component_id: number
   bike_id: number
-  started_on: string
-  ended_on: string | null
+  started_at: string
+  ended_at: string | null
 }
 
 export interface MaintenanceEvent {
   id: number
   component_id: number
   event_type: 'wax' | 'clean' | 'replace' | 'inspect'
-  performed_on: string
+  performed_at: string
   notes: string | null
 }

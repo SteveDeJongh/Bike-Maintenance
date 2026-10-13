@@ -17,8 +17,8 @@ interface AssignmentFormValues {
   category: string
   component_id: string
   bike_id: string
-  started_on: string | null
-  ended_on: string | null
+  started_at: string | null
+  ended_at: string | null
 }
 
 function emptyValues(lockBike?: Bike): AssignmentFormValues {
@@ -26,8 +26,8 @@ function emptyValues(lockBike?: Bike): AssignmentFormValues {
     category: '',
     component_id: '',
     bike_id: lockBike ? String(lockBike.id) : '',
-    started_on: nowIsoUtc(),
-    ended_on: null,
+    started_at: nowIsoUtc(),
+    ended_at: null,
   }
 }
 
@@ -35,8 +35,8 @@ function toPayload(values: AssignmentFormValues): ComponentAssignmentPayload {
   return {
     component_id: Number(values.component_id),
     bike_id: Number(values.bike_id),
-    started_on: values.started_on ?? '',
-    ended_on: values.ended_on,
+    started_at: values.started_at ?? '',
+    ended_at: values.ended_at,
   }
 }
 
@@ -106,15 +106,15 @@ function AssignmentForm({
           category: initialComponent?.category ?? '',
           component_id: String(assignment.component_id),
           bike_id: String(assignment.bike_id),
-          started_on: assignment.started_on,
-          ended_on: assignment.ended_on,
+          started_at: assignment.started_at,
+          ended_at: assignment.ended_at,
         }
       : emptyValues(lockBike),
     validate: {
       category: (value) => (value ? null : 'Category is required'),
       component_id: (value) => (value ? null : 'Component is required'),
       bike_id: (value) => (value ? null : 'Bike is required'),
-      started_on: (value) => (value ? null : 'Start date is required'),
+      started_at: (value) => (value ? null : 'Start date is required'),
     },
   })
 
@@ -187,18 +187,18 @@ function AssignmentForm({
         <DateTimePicker
           label="Started on"
           required
-          value={isoUtcToDate(form.values.started_on)}
+          value={isoUtcToDate(form.values.started_at)}
           onChange={(value) =>
-            form.setFieldValue('started_on', mantineLocalStringToIsoUtc(value))
+            form.setFieldValue('started_at', mantineLocalStringToIsoUtc(value))
           }
-          error={form.errors.started_on}
+          error={form.errors.started_at}
         />
         <DateTimePicker
           label="Ended on"
           clearable
-          value={isoUtcToDate(form.values.ended_on)}
-          onChange={(value) => form.setFieldValue('ended_on', mantineLocalStringToIsoUtc(value))}
-          error={form.errors.ended_on}
+          value={isoUtcToDate(form.values.ended_at)}
+          onChange={(value) => form.setFieldValue('ended_at', mantineLocalStringToIsoUtc(value))}
+          error={form.errors.ended_at}
         />
 
         <Group justify="flex-end">

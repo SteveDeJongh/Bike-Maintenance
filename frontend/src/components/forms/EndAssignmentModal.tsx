@@ -8,7 +8,7 @@ import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils
 import type { ComponentAssignment } from '../../types/models'
 
 interface EndAssignmentFormValues {
-  ended_on: string | null
+  ended_at: string | null
 }
 
 interface EndAssignmentModalProps {
@@ -43,9 +43,9 @@ function EndAssignmentForm({
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<EndAssignmentFormValues>({
-    initialValues: { ended_on: nowIsoUtc() },
+    initialValues: { ended_at: nowIsoUtc() },
     validate: {
-      ended_on: (value) => (value ? null : 'End date is required'),
+      ended_at: (value) => (value ? null : 'End date is required'),
     },
   })
 
@@ -54,7 +54,7 @@ function EndAssignmentForm({
   function handleSubmit(values: EndAssignmentFormValues) {
     setBaseErrors([])
     updateAssignment.mutate(
-      { ended_on: values.ended_on },
+      { ended_at: values.ended_at },
       {
         onSuccess: () => onClose(),
         onError: (error) => setBaseErrors(applyApiErrors(form, error)),
@@ -76,11 +76,11 @@ function EndAssignmentForm({
         <DateTimePicker
           label="Ended on"
           required
-          value={isoUtcToDate(form.values.ended_on)}
+          value={isoUtcToDate(form.values.ended_at)}
           onChange={(value) =>
-            form.setFieldValue('ended_on', mantineLocalStringToIsoUtc(value))
+            form.setFieldValue('ended_at', mantineLocalStringToIsoUtc(value))
           }
-          error={form.errors.ended_on}
+          error={form.errors.ended_at}
         />
 
         <Group justify="flex-end">
