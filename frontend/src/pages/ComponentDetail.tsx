@@ -18,6 +18,7 @@ import ComponentFormModal from '../components/forms/ComponentFormModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
 import { categoryLabel } from '../constants'
 import { formatDateTime } from '../utils/datetime'
+import { formatDistance } from '../utils/distance'
 
 export default function ComponentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -80,14 +81,14 @@ export default function ComponentDetail() {
           <Text size="sm" c="dimmed">
             Total distance
           </Text>
-          <Text fw={500}>{component.total_distance} m</Text>
+          <Text fw={500}>{formatDistance(component.total_distance)}</Text>
         </div>
         {component.category === 'chain' && (
           <div>
             <Text size="sm" c="dimmed">
               Distance since last wax
             </Text>
-            <Text fw={500}>{component.distance_since_wax} m</Text>
+            <Text fw={500}>{formatDistance(component.distance_since_wax)}</Text>
           </div>
         )}
       </Group>
