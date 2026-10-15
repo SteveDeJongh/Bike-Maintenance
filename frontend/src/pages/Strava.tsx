@@ -58,7 +58,14 @@ export default function Strava() {
             >
               Refresh gear list
             </Button>
+            <Button component="a" href={`${API_BASE_URL}/strava/authorize`} variant="subtle">
+              Reconnect to Strava
+            </Button>
           </Group>
+          <Text size="xs" c="dimmed">
+            Reconnect if permissions change or the connection stops working — this
+            re-approves the same account, it does not disconnect anything first.
+          </Text>
 
           <UnmappedGearSection />
         </>
