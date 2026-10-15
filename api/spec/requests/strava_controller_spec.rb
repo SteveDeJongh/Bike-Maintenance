@@ -64,6 +64,54 @@ RSpec.describe "Strava", type: :request do
     end
   end
 
+  describe "GET /strava/mapped_gear" do
+    it "lists the current user's bikes that have a strava_gear_id, enriched from the cache" do
+      bike = create(:bike, user: current_user, name: "Soloist", strava_gear_id: "g1")
+      create(:strava_gear, user: current_user, strava_gear_id: "g1",
+        name: "Juan solo", brand_name: "C", model: "S", retired: false, distance_meters: 999_999)
+      create(:strava_activity, user: current_user, bike: bike, distance_meters: 1_000)
+      create(:strava_activity, user: current_user, bike: bike, distance_meters: 2_000)
+      create(:bike, user: current_user, strava_gear_id: nil) # unmapped, excluded
+
+      get "/strava/mapped_gear"
+
+      expect(JSON.parse(response.body)).to eq(
+        [{ "bike_id" => bike.id, "bike_name" => "Soloist", "gear_id" => "g1",
+           "name" => "Juan solo", "brand_name" => "C", "model_name" => "S", "retired" => false,
+           "activity_count" => 2, "distance_meters" => 3_000 }],
+      )
+    end
+
+    it "falls back gracefully when the gear is not in the cache" do
+      create(:bike, user: current_user, name: "Manual Bike", strava_gear_id: "uncached")
+
+      get "/strava/mapped_gear"
+
+      expect(JSON.parse(response.body)).to eq(
+        [{ "bike_id" => Bike.find_by(name: "Manual Bike").id, "bike_name" => "Manual Bike",
+           "gear_id" => "uncached", "name" => nil, "brand_name" => nil, "model_name" => nil,
+           "retired" => false, "activity_count" => 0, "distance_meters" => 0 }],
+      )
+    end
+
+    it "sorts alphabetically by bike name" do
+      create(:bike, user: current_user, name: "Zeta", strava_gear_id: "g1")
+      create(:bike, user: current_user, name: "Alpha", strava_gear_id: "g2")
+
+      get "/strava/mapped_gear"
+
+      expect(JSON.parse(response.body).map { |b| b["bike_name"] }).to eq(%w[Alpha Zeta])
+    end
+
+    it "is scoped to the current user" do
+      create(:bike, strava_gear_id: "other-users-gear")
+
+      get "/strava/mapped_gear"
+
+      expect(JSON.parse(response.body)).to eq([])
+    end
+  end
+
   describe "POST /strava/refresh_gear" do
     it "runs a gear sync for the current user" do
       create(:strava_credential, user: current_user)

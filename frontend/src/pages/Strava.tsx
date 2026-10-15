@@ -1,12 +1,24 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text, Title } from '@mantine/core'
+import { Link, useSearchParams } from 'react-router-dom'
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Select,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from '@mantine/core'
 import { API_BASE_URL } from '../api/client'
-import { useBikes, useStravaStatus, useUnmappedGear } from '../api/queries'
+import { useBikes, useMappedGear, useStravaStatus, useUnmappedGear } from '../api/queries'
 import { useRefreshGear, useSyncStrava, useUpdateBike } from '../api/mutations'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import { formatDistance } from '../utils/distance'
-import type { StravaGear } from '../types/models'
+import type { StravaGear, StravaMappedBike } from '../types/models'
 
 const CREATE_NEW_BIKE = '__create_new__'
 
@@ -71,10 +83,78 @@ export default function Strava() {
             re-approves the same account, it does not disconnect anything first.
           </Text>
 
+          <MappedGearSection />
           <UnmappedGearSection />
         </>
       )}
     </Stack>
+  )
+}
+
+function MappedGearSection() {
+  const { data: bikes, isPending, isError, error } = useMappedGear()
+
+  return (
+    <Stack>
+      <Title order={3}>Mapped gear</Title>
+
+      {isPending && <Loader />}
+
+      {isError && (
+        <Alert color="red" title="Failed to load mapped gear">
+          {error.message}
+        </Alert>
+      )}
+
+      {bikes && bikes.length === 0 && <Text c="dimmed">No bikes are mapped to Strava gear yet.</Text>}
+
+      {bikes && bikes.length > 0 && (
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Bike</Table.Th>
+              <Table.Th>Strava gear</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {bikes.map((bike) => (
+              <MappedGearRow key={bike.bike_id} bike={bike} />
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Stack>
+  )
+}
+
+function MappedGearRow({ bike }: { bike: StravaMappedBike }) {
+  const brandModel = [bike.brand_name, bike.model_name].filter(Boolean).join(' ')
+  const rideLabel = `${bike.activity_count} ${bike.activity_count === 1 ? 'ride' : 'rides'}`
+
+  return (
+    <Table.Tr>
+      <Table.Td>
+        <Anchor component={Link} to={`/bikes/${bike.bike_id}`}>
+          {bike.bike_name}
+        </Anchor>
+      </Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <div>
+            <Text fw={500}>{bike.name || bike.gear_id}</Text>
+            {brandModel && (
+              <Text size="sm" c="dimmed">
+                {brandModel}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed">
+              {rideLabel} · {formatDistance(bike.distance_meters)}
+            </Text>
+          </div>
+          {bike.retired && <Badge color="gray">Retired</Badge>}
+        </Group>
+      </Table.Td>
+    </Table.Tr>
   )
 }
 

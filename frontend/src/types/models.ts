@@ -55,3 +55,15 @@ export interface StravaGear {
   activity_count: number
   distance_meters: number
 }
+
+export interface StravaMappedBike {
+  bike_id: number
+  bike_name: string
+  gear_id: string
+  name: string | null
+  brand_name: string | null
+  model_name: string | null
+  retired: boolean
+  activity_count: number
+  distance_meters: number
+}
