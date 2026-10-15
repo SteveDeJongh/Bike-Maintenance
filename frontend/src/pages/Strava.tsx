@@ -4,7 +4,11 @@ import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text, Title 
 import { API_BASE_URL } from '../api/client'
 import { useBikes, useStravaStatus, useUnmappedGear } from '../api/queries'
 import { useRefreshGear, useSyncStrava, useUpdateBike } from '../api/mutations'
+import BikeFormModal from '../components/forms/BikeFormModal'
+import { formatDistance } from '../utils/distance'
 import type { StravaGear } from '../types/models'
+
+const CREATE_NEW_BIKE = '__create_new__'
 
 export default function Strava() {
   const [searchParams] = useSearchParams()
@@ -115,15 +119,24 @@ function UnmappedGearSection() {
 function UnmappedGearRow({ gear }: { gear: StravaGear }) {
   const { data: bikes } = useBikes()
   const [bikeId, setBikeId] = useState<string | null>(null)
+  const [createOpened, setCreateOpened] = useState(false)
   const updateBike = useUpdateBike(bikeId ? Number(bikeId) : -1)
 
   function handleChange(value: string | null) {
+    if (value === CREATE_NEW_BIKE) {
+      setCreateOpened(true)
+      return
+    }
     setBikeId(value)
     if (value) updateBike.mutate({ strava_gear_id: gear.gear_id })
   }
 
-  const bikeOptions = (bikes ?? []).map((bike) => ({ value: String(bike.id), label: bike.name }))
+  const bikeOptions = [
+    ...(bikes ?? []).map((bike) => ({ value: String(bike.id), label: bike.name })),
+    { value: CREATE_NEW_BIKE, label: '+ Create new bike' },
+  ]
   const brandModel = [gear.brand_name, gear.model_name].filter(Boolean).join(' ')
+  const rideLabel = `${gear.activity_count} ${gear.activity_count === 1 ? 'ride' : 'rides'}`
 
   return (
     <Table.Tr>
@@ -136,6 +149,9 @@ function UnmappedGearRow({ gear }: { gear: StravaGear }) {
                 {brandModel}
               </Text>
             )}
+            <Text size="sm" c="dimmed">
+              {rideLabel} · {formatDistance(gear.distance_meters)}
+            </Text>
           </div>
           {gear.retired && <Badge color="gray">Retired</Badge>}
         </Group>
@@ -147,6 +163,12 @@ function UnmappedGearRow({ gear }: { gear: StravaGear }) {
           onChange={handleChange}
           placeholder="Pick a bike"
           disabled={updateBike.isPending}
+        />
+
+        <BikeFormModal
+          opened={createOpened}
+          onClose={() => setCreateOpened(false)}
+          createDefaults={{ name: gear.name ?? '', strava_gear_id: gear.gear_id }}
         />
       </Table.Td>
     </Table.Tr>

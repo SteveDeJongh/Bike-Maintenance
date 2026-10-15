@@ -6,7 +6,7 @@ class Bike < ApplicationRecord
 
   validates :name, presence: true
 
-  after_update :reconcile_strava_activities, if: :saved_change_to_strava_gear_id?
+  after_save :reconcile_strava_activities, if: :saved_change_to_strava_gear_id?
 
   private
 

@@ -53,5 +53,17 @@ RSpec.describe StravaActivity, type: :model do
 
       expect(activity.reload.bike_id).to eq(bike.id)
     end
+
+    it "also reconciles when a bike is created with strava_gear_id already set" do
+      # after_update alone would miss this — the gear-mapping screen's "create
+      # new bike" flow creates the bike with strava_gear_id pre-filled, not
+      # set via a later update.
+      user = create(:user)
+      activity = create(:strava_activity, user: user, bike_id: nil, gear_id: "g1")
+
+      bike = create(:bike, user: user, strava_gear_id: "g1")
+
+      expect(activity.reload.bike_id).to eq(bike.id)
+    end
   end
 end

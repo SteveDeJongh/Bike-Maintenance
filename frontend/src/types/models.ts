@@ -52,4 +52,6 @@ export interface StravaGear {
   brand_name: string | null
   model_name: string | null
   retired: boolean
+  activity_count: number
+  distance_meters: number
 }

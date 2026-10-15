@@ -46,22 +46,40 @@ interface BikeFormModalProps {
   opened: boolean
   onClose: () => void
   bike?: Bike
+  // Pre-fills a new bike's fields (e.g. from the gear-mapping screen's
+  // "create new bike" action) — ignored when editing an existing bike.
+  createDefaults?: Partial<Pick<BikeFormValues, 'name' | 'strava_gear_id'>>
 }
 
-export default function BikeFormModal({ opened, onClose, bike }: BikeFormModalProps) {
+export default function BikeFormModal({
+  opened,
+  onClose,
+  bike,
+  createDefaults,
+}: BikeFormModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={bike ? 'Edit Bike' : 'New Bike'}>
-      {opened && <BikeForm key={bike?.id ?? 'new'} onClose={onClose} bike={bike} />}
+      {opened && (
+        <BikeForm key={bike?.id ?? 'new'} onClose={onClose} bike={bike} createDefaults={createDefaults} />
+      )}
     </Modal>
   )
 }
 
-function BikeForm({ onClose, bike }: { onClose: () => void; bike?: Bike }) {
+function BikeForm({
+  onClose,
+  bike,
+  createDefaults,
+}: {
+  onClose: () => void
+  bike?: Bike
+  createDefaults?: Partial<Pick<BikeFormValues, 'name' | 'strava_gear_id'>>
+}) {
   const isEdit = Boolean(bike)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<BikeFormValues>({
-    initialValues: bike ? toFormValues(bike) : emptyValues,
+    initialValues: bike ? toFormValues(bike) : { ...emptyValues, ...createDefaults },
     validate: {
       name: (value) => (value.trim() ? null : 'Name is required'),
     },

@@ -34,7 +34,8 @@ RSpec.describe "Strava", type: :request do
     it "lists cached gear with no mapped bike, scoped to the current user, with enriched details" do
       bike = create(:bike, user: current_user, strava_gear_id: "g2")
       create(:strava_gear, user: current_user, strava_gear_id: "g1",
-        name: "Gravel Bike", brand_name: "Specialized", model: "Diverge", retired: true)
+        name: "Gravel Bike", brand_name: "Specialized", model: "Diverge", retired: true,
+        distance_meters: 1000)
       create(:strava_gear, user: current_user, strava_gear_id: "g2") # already mapped to a bike
       create(:strava_gear, strava_gear_id: "g3") # another user's gear
 
@@ -42,8 +43,24 @@ RSpec.describe "Strava", type: :request do
 
       expect(JSON.parse(response.body)).to eq(
         [{ "gear_id" => "g1", "name" => "Gravel Bike", "brand_name" => "Specialized",
-           "model_name" => "Diverge", "retired" => true }],
+           "model_name" => "Diverge", "retired" => true, "activity_count" => 0,
+           "distance_meters" => 1000 }],
       )
+    end
+
+    it "sorts retired gear to the bottom, and ascending by activity count within each group" do
+      bike_for_count = create(:bike, user: current_user)
+      create(:strava_gear, user: current_user, strava_gear_id: "active-many", retired: false)
+      create(:strava_gear, user: current_user, strava_gear_id: "active-zero", retired: false)
+      create(:strava_gear, user: current_user, strava_gear_id: "retired-zero", retired: true)
+      create(:strava_gear, user: current_user, strava_gear_id: "retired-many", retired: true)
+      create_list(:strava_activity, 3, user: current_user, bike: bike_for_count, gear_id: "active-many")
+      create_list(:strava_activity, 2, user: current_user, bike: bike_for_count, gear_id: "retired-many")
+
+      get "/strava/unmapped_gear"
+
+      gear_ids = JSON.parse(response.body).map { |g| g["gear_id"] }
+      expect(gear_ids).to eq(%w[active-zero active-many retired-zero retired-many])
     end
   end
 

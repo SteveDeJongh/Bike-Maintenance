@@ -35,9 +35,19 @@ class StravaController < ApplicationController
   def unmapped_gear
     mapped_ids = current_user.bikes.where.not(strava_gear_id: [nil, ""]).pluck(:strava_gear_id)
     gears = current_user.strava_gears.where.not(strava_gear_id: mapped_ids)
-    render json: gears.map { |g|
-      { gear_id: g.strava_gear_id, name: g.name, brand_name: g.brand_name,
-        model_name: g.model, retired: g.retired }
+    activity_counts = current_user.strava_activities.group(:gear_id).count
+
+    # Retired gear always sinks to the bottom; within each group, ascending
+    # activity count surfaces true 0-activity new additions first.
+    sorted = gears.sort_by { |g| [g.retired ? 1 : 0, activity_counts[g.strava_gear_id] || 0] }
+
+    render json: sorted.map { |g|
+      {
+        gear_id: g.strava_gear_id, name: g.name, brand_name: g.brand_name,
+        model_name: g.model, retired: g.retired,
+        activity_count: activity_counts[g.strava_gear_id] || 0,
+        distance_meters: g.distance_meters,
+      }
     }
   end
 

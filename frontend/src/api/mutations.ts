@@ -13,7 +13,13 @@ export function useCreateBike() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: BikePayload) => apiPost<Bike>('/bikes', { bike: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bikes'] })
+      // A bike can be created with a strava_gear_id already set (the
+      // gear-mapping screen's "create new bike" flow), so the unmapped-gear
+      // list needs to reflect that too.
+      queryClient.invalidateQueries({ queryKey: ['strava'] })
+    },
   })
 }
 
