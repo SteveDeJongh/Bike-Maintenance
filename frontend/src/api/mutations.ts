@@ -144,3 +144,11 @@ export function useSyncStrava() {
     },
   })
 }
+
+export function useRefreshGear() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<void>('/strava/refresh_gear', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['strava'] }),
+  })
+}

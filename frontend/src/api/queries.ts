@@ -6,6 +6,7 @@ import type {
   ComponentAssignment,
   ComponentDetail,
   MaintenanceEvent,
+  StravaGear,
   StravaStatus,
 } from '../types/models'
 
@@ -63,6 +64,6 @@ export function useStravaStatus() {
 export function useUnmappedGear() {
   return useQuery({
     queryKey: ['strava', 'unmapped_gear'],
-    queryFn: () => apiGet<string[]>('/strava/unmapped_gear'),
+    queryFn: () => apiGet<StravaGear[]>('/strava/unmapped_gear'),
   })
 }

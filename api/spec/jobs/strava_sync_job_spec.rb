@@ -20,6 +20,11 @@ RSpec.describe StravaSyncJob, type: :job do
   before do
     credential
     allow(Strava::Client).to receive(:new).and_return(client)
+    # StravaSyncJob also runs Strava::GearSync after paging activities; give
+    # it harmless defaults so tests that don't care about gear details don't
+    # need to stub these individually.
+    allow(client).to receive(:fetch_athlete).and_return({})
+    allow(client).to receive(:fetch_gear).and_return({})
   end
 
   it "does nothing when the user has no credential" do
@@ -101,5 +106,65 @@ RSpec.describe StravaSyncJob, type: :job do
     StravaSyncJob.perform_now(user.id)
 
     expect(client).to have_received(:fetch_activities).once
+  end
+
+  it "stores the analytics fields present on the raw activity, and nil for fields Strava omits" do
+    ride_with_power = ride(id: 1).merge(
+      "trainer" => true, "commute" => true, "moving_time" => 3600, "elapsed_time" => 3700,
+      "average_speed" => 5.5, "max_speed" => 12.1, "total_elevation_gain" => 250.0,
+      "average_watts" => 180.5, "weighted_average_watts" => 190, "device_watts" => true,
+      "kilojoules" => 650.0, "average_heartrate" => 140.0, "max_heartrate" => 170.0,
+      "average_cadence" => 85.0,
+    )
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([ride_with_power])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 2, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id)
+
+    activity = StravaActivity.find_by(strava_id: 1)
+    expect(activity.trainer).to be true
+    expect(activity.commute).to be true
+    expect(activity.moving_time).to eq(3600)
+    expect(activity.average_watts).to eq(180.5)
+    expect(activity.device_watts).to be true
+    expect(activity.average_heartrate).to eq(140.0)
+  end
+
+  it "stores nil for analytics fields absent from the raw activity (no power meter/HR monitor)" do
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([ride(id: 1)])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 2, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id)
+
+    activity = StravaActivity.find_by(strava_id: 1)
+    expect(activity.average_watts).to be_nil
+    expect(activity.average_heartrate).to be_nil
+    expect(activity.trainer).to be false
+    expect(activity.commute).to be false
+  end
+
+  it "also runs a gear sync after paging activities" do
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([ride(id: 1, gear_id: "g1")])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 2, per_page: 100)
+      .and_return([])
+    allow(client).to receive(:fetch_gear).with("g1", access_token: anything)
+      .and_return("name" => "My Gravel Bike", "retired" => false)
+
+    StravaSyncJob.perform_now(user.id)
+
+    gear = StravaGear.find_by(user: user, strava_gear_id: "g1")
+    expect(gear).to be_present
+    expect(gear.name).to eq("My Gravel Bike")
   end
 end

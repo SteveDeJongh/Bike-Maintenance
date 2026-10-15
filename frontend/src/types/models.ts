@@ -45,3 +45,11 @@ export interface StravaStatus {
   connected: boolean
   athlete_id: number | null
 }
+
+export interface StravaGear {
+  gear_id: string
+  name: string | null
+  brand_name: string | null
+  model_name: string | null
+  retired: boolean
+}

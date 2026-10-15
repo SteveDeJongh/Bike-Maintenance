@@ -22,6 +22,8 @@ class StravaSyncJob < ApplicationJob
       activities.each { |raw| upsert_activity(user, raw) }
       page += 1
     end
+
+    Strava::GearSync.new(user).call
   end
 
   private
@@ -39,6 +41,20 @@ class StravaSyncJob < ApplicationJob
       gear_id: raw["gear_id"],
       bike_id: user.bikes.find_by(strava_gear_id: raw["gear_id"])&.id,
       synced_at: Time.current,
+      trainer: raw["trainer"] || false,
+      commute: raw["commute"] || false,
+      moving_time: raw["moving_time"],
+      elapsed_time: raw["elapsed_time"],
+      average_speed: raw["average_speed"],
+      max_speed: raw["max_speed"],
+      total_elevation_gain: raw["total_elevation_gain"],
+      average_watts: raw["average_watts"],
+      weighted_average_watts: raw["weighted_average_watts"],
+      device_watts: raw["device_watts"],
+      kilojoules: raw["kilojoules"],
+      average_heartrate: raw["average_heartrate"],
+      max_heartrate: raw["max_heartrate"],
+      average_cadence: raw["average_cadence"],
     )
   end
 end

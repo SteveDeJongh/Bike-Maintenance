@@ -55,8 +55,19 @@ docker build .`), not the repo root.
   distance_meters, moved_at (timestamp — the ride's start), name, activity_type (set
   from Strava's `sport_type`, not `type` — every stored row is already filtered to
   `type == "Ride"`, so `sport_type`'s finer granularity is the useful part), synced_at.
+  Also carries ride-analytics fields captured for later use (not yet surfaced in the
+  UI): `trainer`, `commute`, `moving_time`, `elapsed_time`, `average_speed`, `max_speed`,
+  `total_elevation_gain`, `average_watts`, `weighted_average_watts`, `device_watts`,
+  `kilojoules`, `average_heartrate`, `max_heartrate`, `average_cadence` — all nullable
+  except `trainer`/`commute`, since Strava omits them entirely (not even `null`) when an
+  activity has no power meter/HR monitor/cadence sensor.
 - `StravaCredential`: user_id (unique — one row per user), access_token, refresh_token,
   expires_at, athlete_id, scope
+- `StravaGear`: user_id, strava_gear_id, name, brand_name, model (DB column — the
+  obvious `model_name` collides with `ActiveModel::Naming#model_name`, which every
+  ActiveRecord model inherits; the API's JSON still calls it `model_name` for clarity),
+  retired, distance_meters, synced_at — unique per (user_id, strava_gear_id). A cache
+  populated by `Strava::GearSync`, not derived from activity history alone.
 
 ## Core logic
 
@@ -73,13 +84,20 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
 
 ## Strava integration
 
-- OAuth scope: activity:read_all. `app/services/strava/client.rb` wraps the HTTP calls
-  (token exchange/refresh, paginated activity fetch) via Faraday; `StravaCredential#ensure_fresh_access_token!`
-  decides when to refresh (6-hour access token expiry) and persists Strava's rotated
-  refresh_token. `client_id`/`client_secret` live in `config/credentials.yml.enc` under
-  a `strava:` key (`bin/rails credentials:edit`) — required before `/strava/authorize`
-  will work. `redirect_uri` is built from the current request's host (the
-  `strava_callback_url` route helper), not a fixed config value.
+- OAuth scope: `activity:read_all,profile:read_all`. The `profile:read_all` half was
+  added after the fact (originally just `activity:read_all`) specifically so
+  `GET /athlete` returns the athlete's `bikes` array — confirmed empirically that
+  without it, `GET /athlete` omits `bikes`/`shoes` entirely. Scope is granted at
+  authorization time, so any credential connected before this addition needs the user
+  to click "Connect to Strava" again to pick up the new permission.
+- `app/services/strava/client.rb` wraps the HTTP calls (token exchange/refresh,
+  paginated activity fetch, `GET /athlete`, `GET /gear/{id}`) via Faraday;
+  `StravaCredential#ensure_fresh_access_token!` decides when to refresh (6-hour access
+  token expiry) and persists Strava's rotated refresh_token. `client_id`/`client_secret`
+  live in `config/credentials.yml.enc` under a `strava:` key (`bin/rails
+  credentials:edit`) — required before `/strava/authorize` will work. `redirect_uri` is
+  built from the current request's host (the `strava_callback_url` route helper), not a
+  fixed config value.
 - Sync is triggered manually for now (`POST /strava/sync` enqueues `StravaSyncJob`) via
   a "Sync now" button on the frontend's `/strava` page. `bin/rails strava:sync_all`
   exists for a future production scheduler (e.g. a Render Cron Job) to call once the app
@@ -87,13 +105,23 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   deployed host. No webhook until there's a public URL.
 - `StravaSyncJob` pages `GET /athlete/activities` incrementally, using
   `StravaActivity.maximum(:moved_at)` as the `after` cursor (no separate "last synced"
-  column). Only `type == "Ride"` activities are stored.
+  column). Only `type == "Ride"` activities are stored. It also runs `Strava::GearSync`
+  once after paging finishes, so the gear cache stays current on every routine sync.
+- `Strava::GearSync` (`app/services/strava/gear_sync.rb`) populates `StravaGear`: the
+  known gear id set is the union of the athlete's current `GET /athlete` bikes list and
+  every `gear_id` ever seen in synced activity history (kept even if Strava's athlete
+  summary omits retired gear — unconfirmed either way, so the union avoids silently
+  losing a known id), then each id gets enriched via `GET /gear/{id}` (name, brand,
+  model, retired — none of which the activity or athlete endpoints provide). Runs on
+  every sync, and via a dedicated "Refresh gear list" button (`POST
+  /strava/refresh_gear`) for picking up a newly-added, not-yet-ridden bike immediately.
 - Gear-to-bike mapping has no separate screen — it reuses the existing Bike edit form's
   "Strava gear ID" field (`PATCH /bikes/:id`), surfaced through the `/strava` page's
-  list of currently-unmapped gear ids (`GET /strava/unmapped_gear`). Setting/changing a
-  bike's `strava_gear_id` triggers `StravaActivity.reconcile_for_bike!` automatically
-  (a `Bike` `after_update` callback), backfilling `bike_id` on any already-synced,
-  previously-unmapped rows for that gear.
+  list of currently-unmapped gear (`GET /strava/unmapped_gear`, sourced from the
+  `StravaGear` cache, not activities directly — shows name/brand/model/retired status).
+  Setting/changing a bike's `strava_gear_id` triggers `StravaActivity.reconcile_for_bike!`
+  automatically (a `Bike` `after_update` callback), backfilling `bike_id` on any
+  already-synced, previously-unmapped rows for that gear.
 
 ## Build order (work one phase at a time; don't jump ahead)
 

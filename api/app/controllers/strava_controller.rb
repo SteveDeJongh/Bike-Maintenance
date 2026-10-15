@@ -33,12 +33,17 @@ class StravaController < ApplicationController
   end
 
   def unmapped_gear
-    gear_ids = current_user.strava_activities
-      .where(bike_id: nil)
-      .where.not(gear_id: [nil, ""])
-      .distinct
-      .pluck(:gear_id)
-    render json: gear_ids
+    mapped_ids = current_user.bikes.where.not(strava_gear_id: [nil, ""]).pluck(:strava_gear_id)
+    gears = current_user.strava_gears.where.not(strava_gear_id: mapped_ids)
+    render json: gears.map { |g|
+      { gear_id: g.strava_gear_id, name: g.name, brand_name: g.brand_name,
+        model_name: g.model, retired: g.retired }
+    }
+  end
+
+  def refresh_gear
+    Strava::GearSync.new(current_user).call
+    head :no_content
   end
 
   private
@@ -49,7 +54,7 @@ class StravaController < ApplicationController
       client_id: creds[:client_id],
       redirect_uri: strava_callback_url,
       response_type: "code",
-      scope: "activity:read_all",
+      scope: "activity:read_all,profile:read_all",
       approval_prompt: "auto",
     }.to_query
     "https://www.strava.com/oauth/authorize?#{query}"

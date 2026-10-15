@@ -15,17 +15,29 @@ module Strava
     end
 
     def fetch_activities(access_token:, after: nil, page: 1, per_page: 100)
-      params = { page: page, per_page: per_page, after: after }.compact
-      response = connection.get("/api/v3/athlete/activities", params) do |req|
-        req.headers["Authorization"] = "Bearer #{access_token}"
-      end
+      get("/api/v3/athlete/activities", access_token: access_token,
+        params: { page: page, per_page: per_page, after: after })
+    end
 
-      raise Error, "Strava activities request failed: #{response.status}" unless response.success?
+    def fetch_athlete(access_token:)
+      get("/api/v3/athlete", access_token: access_token)
+    end
 
-      response.body
+    def fetch_gear(gear_id, access_token:)
+      get("/api/v3/gear/#{gear_id}", access_token: access_token)
     end
 
     private
+
+    def get(path, access_token:, params: {})
+      response = connection.get(path, params.compact) do |req|
+        req.headers["Authorization"] = "Bearer #{access_token}"
+      end
+
+      raise Error, "Strava request to #{path} failed: #{response.status}" unless response.success?
+
+      response.body
+    end
 
     def request_token(extra_params)
       response = connection.post("/oauth/token", {

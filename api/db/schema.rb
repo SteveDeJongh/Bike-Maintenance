@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_13_224713) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_15_223548) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -70,6 +70,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_224713) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.string "gear_id"
+    t.boolean "trainer", default: false, null: false
+    t.boolean "commute", default: false, null: false
+    t.integer "moving_time"
+    t.integer "elapsed_time"
+    t.float "average_speed"
+    t.float "max_speed"
+    t.float "total_elevation_gain"
+    t.float "average_watts"
+    t.integer "weighted_average_watts"
+    t.boolean "device_watts"
+    t.float "kilojoules"
+    t.float "average_heartrate"
+    t.float "max_heartrate"
+    t.float "average_cadence"
     t.index ["bike_id"], name: "index_strava_activities_on_bike_id"
     t.index ["strava_id"], name: "index_strava_activities_on_strava_id", unique: true
     t.index ["user_id"], name: "index_strava_activities_on_user_id"
@@ -85,6 +99,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_224713) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_strava_credentials_on_user_id", unique: true
+  end
+
+  create_table "strava_gears", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "strava_gear_id", null: false
+    t.string "name"
+    t.string "brand_name"
+    t.string "model"
+    t.boolean "retired", default: false, null: false
+    t.integer "distance_meters"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "strava_gear_id"], name: "index_strava_gears_on_user_id_and_strava_gear_id", unique: true
+    t.index ["user_id"], name: "index_strava_gears_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -103,4 +132,5 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_224713) do
   add_foreign_key "strava_activities", "bikes"
   add_foreign_key "strava_activities", "users"
   add_foreign_key "strava_credentials", "users"
+  add_foreign_key "strava_gears", "users"
 end

@@ -31,16 +31,34 @@ RSpec.describe "Strava", type: :request do
   end
 
   describe "GET /strava/unmapped_gear" do
-    it "lists distinct gear ids with no mapped bike, scoped to the current user" do
-      bike = create(:bike, user: current_user)
-      create(:strava_activity, user: current_user, bike: nil, gear_id: "g1")
-      create(:strava_activity, user: current_user, bike: nil, gear_id: "g1")
-      create(:strava_activity, user: current_user, bike: bike, gear_id: "g2")
-      create(:strava_activity, gear_id: "g3") # another user's activity
+    it "lists cached gear with no mapped bike, scoped to the current user, with enriched details" do
+      bike = create(:bike, user: current_user, strava_gear_id: "g2")
+      create(:strava_gear, user: current_user, strava_gear_id: "g1",
+        name: "Gravel Bike", brand_name: "Specialized", model: "Diverge", retired: true)
+      create(:strava_gear, user: current_user, strava_gear_id: "g2") # already mapped to a bike
+      create(:strava_gear, strava_gear_id: "g3") # another user's gear
 
       get "/strava/unmapped_gear"
 
-      expect(JSON.parse(response.body)).to eq(["g1"])
+      expect(JSON.parse(response.body)).to eq(
+        [{ "gear_id" => "g1", "name" => "Gravel Bike", "brand_name" => "Specialized",
+           "model_name" => "Diverge", "retired" => true }],
+      )
+    end
+  end
+
+  describe "POST /strava/refresh_gear" do
+    it "runs a gear sync for the current user" do
+      create(:strava_credential, user: current_user)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_athlete).and_return("bikes" => [{ "id" => "g1" }])
+      allow(client).to receive(:fetch_gear).and_return("name" => "Synced Bike")
+
+      post "/strava/refresh_gear"
+
+      expect(response).to have_http_status(:no_content)
+      expect(StravaGear.find_by(user: current_user, strava_gear_id: "g1").name).to eq("Synced Bike")
     end
   end
 
