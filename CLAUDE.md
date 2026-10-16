@@ -95,6 +95,17 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
 - `Component#distance_since(event_type:)` = same sum, filtered to activities after the
   most recent MaintenanceEvent of that type.
 
+Both of the above loop over the component's assignments in Ruby, issuing one
+date-bounded query per assignment — unlike `Bike`'s stats, which batch into a single
+grouped query per stat in `BikesController#index`. This is fine today because every
+current caller (`ComponentDetail`, and a bike's own small "Installed components"
+table) only ever renders a handful of components at once. Future idea, not built yet:
+if this mileage ever needs to show on a table listing *many* components at once
+(e.g. a column on the standalone Components list), these would need the same
+batched treatment — a `component_assignments` ⨝ `strava_activities` join on
+`bike_id` plus a `moved_at` range condition, `GROUP BY component_id` — replacing the
+per-assignment loop.
+
 ## Strava integration
 
 - OAuth scope: `activity:read_all,profile:read_all`. The `profile:read_all` half was
