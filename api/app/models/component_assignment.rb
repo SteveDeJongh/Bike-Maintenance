@@ -8,6 +8,40 @@ class ComponentAssignment < ApplicationRecord
   validate :no_overlapping_assignment_for_bike_slot
   validate :component_and_bike_have_same_owner
 
+  # Activities on this assignment's bike from range_start onward, clipped to
+  # ended_at if this assignment has already ended. The shared windowing
+  # primitive both this assignment's own stats and Component's lifetime
+  # stats (which need a custom, clipped range_start for distance_since) are
+  # built on.
+  def activities_from(range_start)
+    scope = StravaActivity.where(bike_id: bike_id)
+    return StravaActivity.none if ended_at && range_start >= ended_at
+
+    ended_at ? scope.where(moved_at: range_start...ended_at) : scope.where(moved_at: range_start..)
+  end
+
+  def activities
+    activities_from(started_at)
+  end
+
+  def distance_meters
+    activities.sum(:distance_meters)
+  end
+
+  def moving_time
+    activities.sum(:moving_time)
+  end
+
+  def elevation_gain
+    activities.sum(:total_elevation_gain)
+  end
+
+  # nil (not 0) when this installation period has no device-metered
+  # activities, consistent with Bike#average_power's "no data" convention.
+  def average_power
+    activities.where(device_watts: true).average(:average_watts)&.round
+  end
+
   private
 
   def component_and_bike_have_same_owner

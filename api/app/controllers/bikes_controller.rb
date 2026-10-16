@@ -33,7 +33,18 @@ class BikesController < ApplicationController
     render json: @bike.as_json(
       methods: %i[ total_distance total_moving_time first_ride_on last_ride_on
                    average_power total_elevation_gain installed_components_count ],
-      include: :bike_component_slots,
+      include: {
+        bike_component_slots: {},
+        component_assignments: {
+          methods: %i[ distance_meters moving_time elevation_gain average_power ],
+          include: {
+            component: {
+              methods: %i[ total_distance total_moving_time total_elevation_gain
+                            average_power distance_since_wax ],
+            },
+          },
+        },
+      },
     )
   end
 

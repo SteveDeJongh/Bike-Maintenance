@@ -59,6 +59,58 @@ RSpec.describe Component, type: :model do
     end
   end
 
+  describe "#total_moving_time" do
+    it "sums moving_time across all of the component's assignment windows" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15), moving_time: 1_800)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 20), moving_time: 3_600)
+
+      expect(component.total_moving_time).to eq(5_400)
+    end
+  end
+
+  describe "#total_elevation_gain" do
+    it "sums elevation gain across all of the component's assignment windows" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15), total_elevation_gain: 100.0)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 20), total_elevation_gain: 250.5)
+
+      expect(component.total_elevation_gain).to eq(350.5)
+    end
+  end
+
+  describe "#average_power" do
+    it "pools device-metered activities across assignments into one real average" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 1, 31))
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10),
+        device_watts: true, average_watts: 200.0)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 20),
+        device_watts: true, average_watts: 220.0)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15),
+        device_watts: false, average_watts: 500.0)
+
+      expect(component.average_power).to eq(210)
+    end
+
+    it "is nil when the component has no device-metered activities" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+
+      expect(component.average_power).to be_nil
+    end
+  end
+
   describe "#distance_since" do
     it "only counts activity after the most recent maintenance event of that type" do
       bike = create(:bike)

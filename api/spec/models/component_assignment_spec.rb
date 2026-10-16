@@ -147,4 +147,51 @@ RSpec.describe ComponentAssignment, type: :model do
       expect(swap_in.errors[:base]).to include(a_string_matching(/already has a chain/))
     end
   end
+
+  describe "per-installation-period stats" do
+    it "sums distance/time/elevation only within this assignment's own window" do
+      bike = create(:bike)
+      assignment = create(:component_assignment, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 1, 31, 23, 59))
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 15, 9, 0),
+        distance_meters: 5_000, moving_time: 1_800, total_elevation_gain: 100.0)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 2, 1, 9, 0),
+        distance_meters: 9_999, moving_time: 3_600, total_elevation_gain: 200.0)
+
+      expect(assignment.distance_meters).to eq(5_000)
+      expect(assignment.moving_time).to eq(1_800)
+      expect(assignment.elevation_gain).to eq(100.0)
+    end
+
+    it "includes activity after started_at with no end when still ongoing" do
+      bike = create(:bike)
+      assignment = create(:component_assignment, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 3, 1), distance_meters: 7_000)
+
+      expect(assignment.distance_meters).to eq(7_000)
+    end
+
+    describe "#average_power" do
+      it "averages only device-metered activities within this assignment's window" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          device_watts: true, average_watts: 200.0)
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 6),
+          device_watts: false, average_watts: 500.0)
+
+        expect(assignment.average_power).to eq(200)
+      end
+
+      it "is nil when there are no device-metered activities in the window" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+
+        expect(assignment.average_power).to be_nil
+      end
+    end
+  end
 end
