@@ -153,8 +153,8 @@ export const HISTORY_COLUMN_LABELS: Record<HistoryColumn, string> = {
   component_total_elevation: 'Total Elevation',
   component_avg_power: 'Total Avg Power',
   distance_since_wax: 'Since Wax',
-  started_on: 'Started',
-  ended_on: 'Ended',
+  started_on: 'Installed',
+  ended_on: 'Uninstalled',
 }
 
 export const DEFAULT_HISTORY_COLUMNS: HistoryColumn[] = ['started_on', 'ended_on', 'period_distance']
