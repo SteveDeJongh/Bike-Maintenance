@@ -8,6 +8,18 @@ class Bike < ApplicationRecord
 
   after_save :reconcile_strava_activities, if: :saved_change_to_strava_gear_id?
 
+  def total_distance
+    strava_activities.sum(:distance_meters)
+  end
+
+  def total_moving_time
+    strava_activities.sum(:moving_time)
+  end
+
+  def first_ride_on
+    strava_activities.minimum(:moved_at)
+  end
+
   private
 
   def reconcile_strava_activities

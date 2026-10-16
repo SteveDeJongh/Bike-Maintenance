@@ -5,6 +5,8 @@ import { useBikes } from '../api/queries'
 import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import BikeFormModal from '../components/forms/BikeFormModal'
+import { formatDistance } from '../utils/distance'
+import { formatDuration } from '../utils/duration'
 import type { Bike } from '../types/models'
 
 export default function Bikes() {
@@ -55,6 +57,8 @@ export default function Bikes() {
             <Table.Tr>
               <Table.Th>Name</Table.Th>
               <Table.Th>Make / Model</Table.Th>
+              <Table.Th>Distance</Table.Th>
+              <Table.Th>Time</Table.Th>
               <Table.Th />
               <Table.Th />
             </Table.Tr>
@@ -72,6 +76,8 @@ export default function Bikes() {
                     ? [bike.make, bike.model].filter(Boolean).join(' ')
                     : 'Unknown make/model'}
                 </Table.Td>
+                <Table.Td>{formatDistance(bike.total_distance)}</Table.Td>
+                <Table.Td>{formatDuration(bike.total_moving_time)}</Table.Td>
                 <Table.Td>
                   {bike.retired_on && <Badge color="gray">Retired</Badge>}
                 </Table.Td>

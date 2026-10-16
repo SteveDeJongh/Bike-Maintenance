@@ -17,7 +17,9 @@ import { useBike, useComponentAssignments, useComponents } from '../api/queries'
 import ComponentAssignmentFormModal from '../components/forms/ComponentAssignmentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import { categoryLabel } from '../constants'
-import { formatDateTime } from '../utils/datetime'
+import { formatDate, formatDateTime } from '../utils/datetime'
+import { formatDistance } from '../utils/distance'
+import { formatDuration } from '../utils/duration'
 import type { ComponentAssignment } from '../types/models'
 
 export default function BikeDetail() {
@@ -83,6 +85,27 @@ export default function BikeDetail() {
           {[bike.make, bike.model].filter(Boolean).join(' ') || 'Unknown make/model'}
         </Text>
       </div>
+
+      <Group gap="xl">
+        <div>
+          <Text size="sm" c="dimmed">
+            Total distance
+          </Text>
+          <Text fw={500}>{formatDistance(bike.total_distance)}</Text>
+        </div>
+        <div>
+          <Text size="sm" c="dimmed">
+            Total time
+          </Text>
+          <Text fw={500}>{formatDuration(bike.total_moving_time)}</Text>
+        </div>
+        <div>
+          <Text size="sm" c="dimmed">
+            First ride
+          </Text>
+          <Text fw={500}>{bike.first_ride_on ? formatDate(bike.first_ride_on) : 'No rides yet'}</Text>
+        </div>
+      </Group>
 
       <Group justify="space-between">
         <Title order={3}>Installed components</Title>

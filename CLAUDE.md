@@ -119,9 +119,18 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   "Strava gear ID" field (`PATCH /bikes/:id`), surfaced through the `/strava` page's
   list of currently-unmapped gear (`GET /strava/unmapped_gear`, sourced from the
   `StravaGear` cache, not activities directly — shows name/brand/model/retired status).
-  Setting/changing a bike's `strava_gear_id` triggers `StravaActivity.reconcile_for_bike!`
-  automatically (a `Bike` `after_update` callback), backfilling `bike_id` on any
-  already-synced, previously-unmapped rows for that gear.
+  Setting/changing a bike's `strava_gear_id` triggers reconciliation automatically (a
+  `Bike` `after_save` callback, not `after_update` — it has to also fire when a bike is
+  *created* with `strava_gear_id` already set, e.g. from the gear-mapping screen's
+  "create new bike" flow). It handles both directions via
+  `saved_change_to_strava_gear_id`'s old/new pair: activities matching the old gear id
+  get `bike_id` nulled out, activities matching the new one get backfilled — needed for
+  "unlink"/reassign on the Mapped gear section to be correct, not just additive.
+- Bike-level mileage (`Bike#total_distance`/`#total_moving_time`/`#first_ride_on`,
+  shown on the Bikes list and detail page) sums/mins directly over `strava_activities`.
+  Future idea, not built yet: an average-power figure should only average activities
+  where `device_watts` is true (a real power meter, not Strava's estimate) — that flag
+  is already captured per activity for exactly this future use.
 
 ## Build order (work one phase at a time; don't jump ahead)
 

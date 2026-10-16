@@ -20,4 +20,52 @@ RSpec.describe Bike, type: :model do
 
     expect(ComponentAssignment.exists?(assignment.id)).to be false
   end
+
+  describe "#total_distance" do
+    it "sums distance_meters across the bike's strava activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, distance_meters: 1_000)
+      create(:strava_activity, bike: bike, user: bike.user, distance_meters: 2_000)
+
+      expect(bike.total_distance).to eq(3_000)
+    end
+
+    it "is zero when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.total_distance).to eq(0)
+    end
+  end
+
+  describe "#total_moving_time" do
+    it "sums moving_time across the bike's strava activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, moving_time: 1_800)
+      create(:strava_activity, bike: bike, user: bike.user, moving_time: 3_600)
+
+      expect(bike.total_moving_time).to eq(5_400)
+    end
+
+    it "is zero when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.total_moving_time).to eq(0)
+    end
+  end
+
+  describe "#first_ride_on" do
+    it "returns the earliest moved_at across the bike's strava activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, moved_at: Time.zone.local(2026, 3, 1))
+      earliest = create(:strava_activity, bike: bike, user: bike.user, moved_at: Time.zone.local(2026, 1, 1))
+
+      expect(bike.first_ride_on).to eq(earliest.moved_at)
+    end
+
+    it "is nil when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.first_ride_on).to be_nil
+    end
+  end
 end

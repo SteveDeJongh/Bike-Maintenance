@@ -7,6 +7,12 @@ export interface Bike {
   retired_on: string | null
 }
 
+export interface BikeWithStats extends Bike {
+  total_distance: number
+  total_moving_time: number
+  first_ride_on: string | null
+}
+
 export interface Component {
   id: number
   label: string

@@ -4,12 +4,22 @@ class BikesController < ApplicationController
   # GET /bikes
   def index
     @bikes = current_user.bikes
-    render json: @bikes
+    distances = current_user.strava_activities.group(:bike_id).sum(:distance_meters)
+    times = current_user.strava_activities.group(:bike_id).sum(:moving_time)
+    first_rides = current_user.strava_activities.group(:bike_id).minimum(:moved_at)
+
+    render json: @bikes.map { |bike|
+      bike.as_json.merge(
+        total_distance: distances[bike.id] || 0,
+        total_moving_time: times[bike.id] || 0,
+        first_ride_on: first_rides[bike.id],
+      )
+    }
   end
 
   # GET /bikes/1
   def show
-    render json: @bike
+    render json: @bike.as_json(methods: %i[ total_distance total_moving_time first_ride_on ])
   end
 
   # POST /bikes

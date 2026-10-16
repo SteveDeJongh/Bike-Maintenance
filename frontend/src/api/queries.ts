@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
-  Bike,
+  BikeWithStats,
   Component,
   ComponentAssignment,
   ComponentDetail,
@@ -14,14 +14,14 @@ import type {
 export function useBikes() {
   return useQuery({
     queryKey: ['bikes'],
-    queryFn: () => apiGet<Bike[]>('/bikes'),
+    queryFn: () => apiGet<BikeWithStats[]>('/bikes'),
   })
 }
 
 export function useBike(id: number) {
   return useQuery({
     queryKey: ['bikes', id],
-    queryFn: () => apiGet<Bike>(`/bikes/${id}`),
+    queryFn: () => apiGet<BikeWithStats>(`/bikes/${id}`),
     enabled: Number.isFinite(id),
   })
 }
