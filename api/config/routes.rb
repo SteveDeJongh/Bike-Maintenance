@@ -9,7 +9,8 @@ Rails.application.routes.draw do
   post "strava/sync",          to: "strava#sync"
   get  "strava/status",        to: "strava#status"
   get  "strava/unmapped_gear", to: "strava#unmapped_gear"
-  get  "strava/mapped_gear",   to: "strava#mapped_gear"
+  get   "strava/mapped_gear",       to: "strava#mapped_gear"
+  patch "strava/mapped_gear/:gear_id", to: "strava#reassign_gear"
   post "strava/refresh_gear",  to: "strava#refresh_gear"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

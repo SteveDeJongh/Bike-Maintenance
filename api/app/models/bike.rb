@@ -11,6 +11,10 @@ class Bike < ApplicationRecord
   private
 
   def reconcile_strava_activities
-    StravaActivity.reconcile_for_bike!(self)
+    old_gear_id, new_gear_id = saved_change_to_strava_gear_id
+    if old_gear_id.present?
+      StravaActivity.where(user_id: user_id, gear_id: old_gear_id, bike_id: id).update_all(bike_id: nil)
+    end
+    StravaActivity.reconcile_for_bike!(self) if new_gear_id.present?
   end
 end

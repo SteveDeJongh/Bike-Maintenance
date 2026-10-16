@@ -112,6 +112,50 @@ RSpec.describe "Strava", type: :request do
     end
   end
 
+  describe "PATCH /strava/mapped_gear/:gear_id" do
+    it "unlinks the mapping and nullifies the activities' bike_id" do
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      activity = create(:strava_activity, user: current_user, bike: bike, gear_id: "g1")
+
+      patch "/strava/mapped_gear/g1", params: { bike_id: nil }
+
+      expect(response).to have_http_status(:no_content)
+      expect(bike.reload.strava_gear_id).to be_nil
+      expect(activity.reload.bike_id).to be_nil
+    end
+
+    it "reassigns the mapping and the activities to a different, currently-unmapped bike" do
+      old_bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      new_bike = create(:bike, user: current_user, strava_gear_id: nil)
+      activity = create(:strava_activity, user: current_user, bike: old_bike, gear_id: "g1")
+
+      patch "/strava/mapped_gear/g1", params: { bike_id: new_bike.id }
+
+      expect(response).to have_http_status(:no_content)
+      expect(old_bike.reload.strava_gear_id).to be_nil
+      expect(new_bike.reload.strava_gear_id).to eq("g1")
+      expect(activity.reload.bike_id).to eq(new_bike.id)
+    end
+
+    it "rejects a target bike that is already mapped to a different gear" do
+      create(:bike, user: current_user, strava_gear_id: "g1")
+      other_bike = create(:bike, user: current_user, strava_gear_id: "g2")
+
+      patch "/strava/mapped_gear/g1", params: { bike_id: other_bike.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(other_bike.reload.strava_gear_id).to eq("g2")
+    end
+
+    it "is scoped to the current user" do
+      other_bike = create(:bike, strava_gear_id: "g1")
+
+      patch "/strava/mapped_gear/g1", params: { bike_id: nil }
+
+      expect(other_bike.reload.strava_gear_id).to eq("g1")
+    end
+  end
+
   describe "POST /strava/refresh_gear" do
     it "runs a gear sync for the current user" do
       create(:strava_credential, user: current_user)

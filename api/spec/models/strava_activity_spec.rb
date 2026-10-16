@@ -65,5 +65,25 @@ RSpec.describe StravaActivity, type: :model do
 
       expect(activity.reload.bike_id).to eq(bike.id)
     end
+
+    it "nullifies bike_id on activities matching the old gear_id when it changes away (unlink)" do
+      bike = create(:bike, strava_gear_id: "g1")
+      activity = create(:strava_activity, user: bike.user, bike_id: bike.id, gear_id: "g1")
+
+      bike.update!(strava_gear_id: nil)
+
+      expect(activity.reload.bike_id).to be_nil
+    end
+
+    it "moves activities from the old bike to the new one when a gear is reassigned" do
+      old_bike = create(:bike, strava_gear_id: "g1")
+      new_bike = create(:bike, user: old_bike.user, strava_gear_id: nil)
+      activity = create(:strava_activity, user: old_bike.user, bike_id: old_bike.id, gear_id: "g1")
+
+      old_bike.update!(strava_gear_id: nil)
+      new_bike.update!(strava_gear_id: "g1")
+
+      expect(activity.reload.bike_id).to eq(new_bike.id)
+    end
   end
 end

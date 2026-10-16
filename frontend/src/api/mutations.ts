@@ -158,3 +158,15 @@ export function useRefreshGear() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['strava'] }),
   })
 }
+
+export function useReassignGear() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ gearId, bikeId }: { gearId: string; bikeId: number | null }) =>
+      apiPatch<void>(`/strava/mapped_gear/${gearId}`, { bike_id: bikeId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['strava'] })
+      queryClient.invalidateQueries({ queryKey: ['bikes'] })
+    },
+  })
+}

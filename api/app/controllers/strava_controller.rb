@@ -72,6 +72,28 @@ class StravaController < ApplicationController
     }
   end
 
+  def reassign_gear
+    gear_id = params[:gear_id]
+    current_bike = current_user.bikes.find_by(strava_gear_id: gear_id)
+
+    if params[:bike_id].present?
+      target_bike = current_user.bikes.find(params[:bike_id])
+      if target_bike.strava_gear_id.present? && target_bike.strava_gear_id != gear_id
+        return render json: { base: ["Bike is already mapped to a different gear"] },
+          status: :unprocessable_content
+      end
+
+      ActiveRecord::Base.transaction do
+        current_bike&.update!(strava_gear_id: nil) if current_bike != target_bike
+        target_bike.update!(strava_gear_id: gear_id)
+      end
+    else
+      current_bike&.update!(strava_gear_id: nil)
+    end
+
+    head :no_content
+  end
+
   private
 
   def strava_authorize_url

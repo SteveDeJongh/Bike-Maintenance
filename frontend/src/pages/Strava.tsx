@@ -1,26 +1,15 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core'
+import { useSearchParams } from 'react-router-dom'
+import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text, Title } from '@mantine/core'
 import { API_BASE_URL } from '../api/client'
 import { useBikes, useMappedGear, useStravaStatus, useUnmappedGear } from '../api/queries'
-import { useRefreshGear, useSyncStrava, useUpdateBike } from '../api/mutations'
+import { useReassignGear, useRefreshGear, useSyncStrava, useUpdateBike } from '../api/mutations'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import { formatDistance } from '../utils/distance'
 import type { StravaGear, StravaMappedBike } from '../types/models'
 
 const CREATE_NEW_BIKE = '__create_new__'
+const UNLINK_BIKE = '__unlink__'
 
 export default function Strava() {
   const [searchParams] = useSearchParams()
@@ -112,8 +101,8 @@ function MappedGearSection() {
         <Table>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Bike</Table.Th>
               <Table.Th>Strava gear</Table.Th>
+              <Table.Th>Bike</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -128,16 +117,32 @@ function MappedGearSection() {
 }
 
 function MappedGearRow({ bike }: { bike: StravaMappedBike }) {
+  const { data: allBikes } = useBikes()
+  const reassignGear = useReassignGear()
+
   const brandModel = [bike.brand_name, bike.model_name].filter(Boolean).join(' ')
   const rideLabel = `${bike.activity_count} ${bike.activity_count === 1 ? 'ride' : 'rides'}`
 
+  function handleChange(value: string | null) {
+    if (!value) return
+    const bikeId = value === UNLINK_BIKE ? null : Number(value)
+    reassignGear.mutate({ gearId: bike.gear_id, bikeId })
+  }
+
+  // Reassignment targets are limited to bikes with no existing mapping, plus
+  // the bike already assigned here (so its label still resolves) — the
+  // strict one-gear-per-bike rule means an already-mapped bike can't be
+  // offered as a target.
+  const availableBikes = (allBikes ?? []).filter(
+    (b) => b.id === bike.bike_id || !b.strava_gear_id,
+  )
+  const bikeOptions = [
+    ...availableBikes.map((b) => ({ value: String(b.id), label: b.name })),
+    { value: UNLINK_BIKE, label: 'Unlink' },
+  ]
+
   return (
     <Table.Tr>
-      <Table.Td>
-        <Anchor component={Link} to={`/bikes/${bike.bike_id}`}>
-          {bike.bike_name}
-        </Anchor>
-      </Table.Td>
       <Table.Td>
         <Group gap="xs">
           <div>
@@ -153,6 +158,14 @@ function MappedGearRow({ bike }: { bike: StravaMappedBike }) {
           </div>
           {bike.retired && <Badge color="gray">Retired</Badge>}
         </Group>
+      </Table.Td>
+      <Table.Td>
+        <Select
+          data={bikeOptions}
+          value={String(bike.bike_id)}
+          onChange={handleChange}
+          disabled={reassignGear.isPending}
+        />
       </Table.Td>
     </Table.Tr>
   )
@@ -181,8 +194,8 @@ function UnmappedGearSection() {
         <Table>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Gear</Table.Th>
-              <Table.Th>Map to bike</Table.Th>
+              <Table.Th>Strava gear</Table.Th>
+              <Table.Th>Bike</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
