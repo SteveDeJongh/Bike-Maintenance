@@ -32,10 +32,13 @@ export interface BikeDetail extends BikeWithStats {
   bike_component_slots: BikeComponentSlot[]
 }
 
-// The raw shape GET /user_preferences returns — a fresh user's is `{}`, so
-// every field is optional; the frontend applies its own defaults when unset.
-export interface BikeListPreferences {
-  visible_columns?: string[]
+// The raw shape GET /table_view_preferences/:table_key returns under "data" —
+// a table a user hasn't configured yet gets `{}`, so every field is
+// optional; the frontend applies its own defaults when unset. `columns` is
+// both the visible set AND its display order (position = order), not a
+// separate unordered list.
+export interface TableViewPreferenceData {
+  columns?: string[]
   sort_column?: string | null
   sort_direction?: 'asc' | 'desc'
 }

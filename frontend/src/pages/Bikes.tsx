@@ -1,22 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Loader,
-  MultiSelect,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
-import { parseApiError } from '../api/errors'
-import { useBikeListPreferences, useBikes } from '../api/queries'
-import { useDeleteBike, useUpdateBikeListPreferences } from '../api/mutations'
+import { useBikes, useTableViewPreference } from '../api/queries'
+import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import BikeFormModal from '../components/forms/BikeFormModal'
+import ColumnPicker from '../components/datatable/ColumnPicker'
+import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
+import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   BIKE_LIST_COLUMNS,
   BIKE_LIST_COLUMN_LABELS,
@@ -30,15 +21,7 @@ import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
 import { formatElevation } from '../utils/elevation'
 import { formatPower } from '../utils/power'
-import type { Bike, BikeListPreferences, BikeWithStats } from '../types/models'
-
-function isBikeListColumn(value: string): value is BikeListColumn {
-  return (BIKE_LIST_COLUMNS as readonly string[]).includes(value)
-}
-
-function isBikeListSortColumn(value: string | null | undefined): value is BikeListSortColumn {
-  return typeof value === 'string' && (BIKE_LIST_SORT_COLUMNS as readonly string[]).includes(value)
-}
+import type { Bike, BikeWithStats, TableViewPreferenceData } from '../types/models'
 
 // Extracts each sortable column's comparable value from a bike. null means
 // "unknown"/"not applicable" (e.g. a bike with no power-meter data) — these
@@ -67,9 +50,14 @@ const columnRenderer: Record<BikeListColumn, (bike: BikeWithStats) => ReactNode>
   installed_components_count: (bike) => String(bike.installed_components_count),
 }
 
+const BIKE_LIST_COLUMN_OPTIONS = BIKE_LIST_COLUMNS.map((column) => ({
+  key: column,
+  label: BIKE_LIST_COLUMN_LABELS[column],
+}))
+
 export default function Bikes() {
   const { data, isPending, isError, error } = useBikes()
-  const { data: preferencesData, isPending: preferencesPending } = useBikeListPreferences()
+  const { data: preferenceData, isPending: preferencePending } = useTableViewPreference('bikes')
   const deleteBike = useDeleteBike()
 
   const [modalOpened, setModalOpened] = useState(false)
@@ -100,7 +88,7 @@ export default function Bikes() {
         <Button onClick={openCreate}>+ New Bike</Button>
       </Group>
 
-      {(isPending || preferencesPending) && <Loader />}
+      {(isPending || preferencePending) && <Loader />}
 
       {isError && (
         <Alert color="red" title="Failed to load bikes">
@@ -110,10 +98,10 @@ export default function Bikes() {
 
       {data && data.length === 0 && <Text c="dimmed">No bikes yet.</Text>}
 
-      {data && data.length > 0 && preferencesData && (
+      {data && data.length > 0 && preferenceData && (
         <BikesTable
           bikes={data}
-          initialPreferences={preferencesData.bike_list_preferences}
+          initialData={preferenceData.data}
           onEdit={openEdit}
           onDelete={handleDelete}
         />
@@ -130,58 +118,24 @@ export default function Bikes() {
 
 function BikesTable({
   bikes,
-  initialPreferences,
+  initialData,
   onEdit,
   onDelete,
 }: {
   bikes: BikeWithStats[]
-  initialPreferences: BikeListPreferences
+  initialData: TableViewPreferenceData
   onEdit: (bike: Bike) => void
   onDelete: (bike: Bike) => void
 }) {
-  const [visibleColumns, setVisibleColumns] = useState<BikeListColumn[]>(
-    () => initialPreferences.visible_columns?.filter(isBikeListColumn) ?? DEFAULT_BIKE_LIST_COLUMNS,
-  )
-  const [sortColumn, setSortColumn] = useState<BikeListSortColumn>(() =>
-    isBikeListSortColumn(initialPreferences.sort_column) ? initialPreferences.sort_column : 'name',
-  )
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(
-    initialPreferences.sort_direction === 'desc' ? 'desc' : 'asc',
-  )
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const updatePreferences = useUpdateBikeListPreferences()
-
-  function save(next: {
-    visibleColumns: BikeListColumn[]
-    sortColumn: BikeListSortColumn
-    sortDirection: 'asc' | 'desc'
-  }) {
-    setSaveError(null)
-    updatePreferences.mutate(
-      {
-        visible_columns: next.visibleColumns,
-        sort_column: next.sortColumn,
-        sort_direction: next.sortDirection,
-      },
-      { onError: (error) => setSaveError(parseApiError(error).baseErrors.join(', ') || 'Could not save your preferences.') },
-    )
-  }
-
-  function handleColumnsChange(values: string[]) {
-    const next = values.filter(isBikeListColumn)
-    setVisibleColumns(next)
-    save({ visibleColumns: next, sortColumn, sortDirection })
-  }
-
-  function handleSort(column: BikeListSortColumn) {
-    const nextDirection: 'asc' | 'desc' =
-      column === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc'
-    setSortColumn(column)
-    setSortDirection(nextDirection)
-    save({ visibleColumns, sortColumn: column, sortDirection: nextDirection })
-  }
-
-  const orderedColumns = BIKE_LIST_COLUMNS.filter((column) => visibleColumns.includes(column))
+  const { orderedColumns, toggleColumn, reorderColumn, sortColumn, sortDirection, setSort, saveError, clearSaveError } =
+    useTableViewPreferences<BikeListColumn, BikeListSortColumn>({
+      tableKey: 'bikes',
+      initialData,
+      allColumns: BIKE_LIST_COLUMNS,
+      defaultColumns: DEFAULT_BIKE_LIST_COLUMNS,
+      sortColumns: BIKE_LIST_SORT_COLUMNS,
+      defaultSort: { column: 'name', direction: 'asc' },
+    })
 
   const sortedBikes = useMemo(() => {
     const accessor = columnValue[sortColumn]
@@ -199,30 +153,21 @@ function BikesTable({
       .map(({ bike }) => bike)
   }, [bikes, sortColumn, sortDirection])
 
-  function sortIndicator(column: BikeListSortColumn) {
-    if (column !== sortColumn) return null
-    return sortDirection === 'asc' ? ' ▲' : ' ▼'
-  }
-
   return (
     <>
       <Group justify="flex-end" mb="sm">
-        <MultiSelect
-          label="Columns"
-          placeholder="Add a column"
-          data={BIKE_LIST_COLUMNS.map((column) => ({
-            value: column,
-            label: BIKE_LIST_COLUMN_LABELS[column],
-          }))}
-          value={visibleColumns}
-          onChange={handleColumnsChange}
-          clearable
-          w={320}
+        <ColumnPicker
+          allColumns={BIKE_LIST_COLUMN_OPTIONS}
+          orderedVisible={orderedColumns}
+          onToggle={(key) => toggleColumn(key as BikeListColumn)}
+          onReorder={(activeKey, overKey) =>
+            reorderColumn(activeKey as BikeListColumn, overKey as BikeListColumn)
+          }
         />
       </Group>
 
       {saveError && (
-        <Alert color="red" mb="sm" onClose={() => setSaveError(null)} withCloseButton>
+        <Alert color="red" mb="sm" withCloseButton onClose={clearSaveError}>
           {saveError}
         </Alert>
       )}
@@ -230,18 +175,20 @@ function BikesTable({
       <Table striped highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-              Name{sortIndicator('name')}
-            </Table.Th>
+            <SortableHeaderCell
+              label="Name"
+              active={sortColumn === 'name'}
+              direction={sortDirection}
+              onClick={() => setSort('name')}
+            />
             {orderedColumns.map((column) => (
-              <Table.Th
+              <SortableHeaderCell
                 key={column}
-                onClick={() => handleSort(column)}
-                style={{ cursor: 'pointer', userSelect: 'none' }}
-              >
-                {BIKE_LIST_COLUMN_LABELS[column]}
-                {sortIndicator(column)}
-              </Table.Th>
+                label={BIKE_LIST_COLUMN_LABELS[column]}
+                active={sortColumn === column}
+                direction={sortDirection}
+                onClick={() => setSort(column)}
+              />
             ))}
             <Table.Th />
             <Table.Th />

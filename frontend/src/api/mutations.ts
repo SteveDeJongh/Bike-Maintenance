@@ -3,10 +3,10 @@ import { apiDelete, apiPatch, apiPost } from './client'
 import type {
   Bike,
   BikeComponentSlot,
-  BikeListPreferences,
   Component,
   ComponentAssignment,
   MaintenanceEvent,
+  TableViewPreferenceData,
 } from '../types/models'
 
 export type BikePayload = Omit<Bike, 'id' | 'created_at'>
@@ -200,17 +200,17 @@ export function useReassignGear() {
   })
 }
 
-// UserPreferences
-// A PATCH replaces the whole bike_list_preferences JSONB value (no deep
-// merge server-side), so the caller must always send the complete object.
+// TableViewPreference
+// A PATCH replaces the whole data JSONB value (no deep merge server-side),
+// so the caller must always send the complete object.
 
-export function useUpdateBikeListPreferences() {
+export function useUpdateTableViewPreference(tableKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (preferences: BikeListPreferences) =>
-      apiPatch<{ bike_list_preferences: BikeListPreferences }>('/user_preferences', {
-        user_preferences: { bike_list_preferences: preferences },
+    mutationFn: (data: TableViewPreferenceData) =>
+      apiPatch<{ data: TableViewPreferenceData }>(`/table_view_preferences/${tableKey}`, {
+        table_view_preference: { data },
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user_preferences'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['table_view_preferences', tableKey] }),
   })
 }

@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   BikeDetail,
-  BikeListPreferences,
   BikeWithStats,
   Component,
   ComponentAssignment,
@@ -11,6 +10,7 @@ import type {
   StravaGear,
   StravaMappedBike,
   StravaStatus,
+  TableViewPreferenceData,
 } from '../types/models'
 
 export function useBikes() {
@@ -78,9 +78,9 @@ export function useMappedGear() {
   })
 }
 
-export function useBikeListPreferences() {
+export function useTableViewPreference(tableKey: string) {
   return useQuery({
-    queryKey: ['user_preferences', 'bike_list'],
-    queryFn: () => apiGet<{ bike_list_preferences: BikeListPreferences }>('/user_preferences'),
+    queryKey: ['table_view_preferences', tableKey],
+    queryFn: () => apiGet<{ data: TableViewPreferenceData }>(`/table_view_preferences/${tableKey}`),
   })
 }

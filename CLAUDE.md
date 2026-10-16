@@ -18,8 +18,9 @@ attributed to the right chain.
   `api/config/initializers/cors.rb`) — no server-rendered views, no
   Hotwire/Turbo/Stimulus/importmap. This replaced the original Hotwire-based UI
   plan. Lives in `frontend/`, a sibling directory alongside `api/`. Uses
-  `react-router-dom` for routing, `@tanstack/react-query` for data fetching, and
-  Mantine (`@mantine/core`) for UI components.
+  `react-router-dom` for routing, `@tanstack/react-query` for data fetching, Mantine
+  (`@mantine/core`) for UI components, and `@dnd-kit/*` for the column-reorder drag
+  interaction in sortable tables (see "Sortable, configurable tables" below).
 - Hosting TBD (Render or Fly.io are the leading candidates) — not needed until Phase 2
 
 ## Repo layout
@@ -32,17 +33,22 @@ docker build .`), not the repo root.
 
 ## Data model
 
-- `User`: name, email (unique), bike_list_preferences (jsonb, default `{}`) — no auth
-  fields yet (no password/session). The app is single-user in practice, but every owned
-  record is scoped to a `User` so real login can slot in later without another retrofit
-  migration. `ApplicationController#current_user` is an explicit placeholder
-  (`User.first!`) standing in for real login. `bike_list_preferences` holds the Bikes
-  list's visible-column set and sort choice (`visible_columns`/`sort_column`/
-  `sort_direction`) — validated only as "must be a Hash"; like `Component#category`, the
-  actual allowed keys/values live only on the frontend (`constants.ts`'s
-  `BIKE_LIST_COLUMNS`), not enforced server-side. Exposed via the singleton
-  `GET/PATCH /user_preferences` endpoint — a `PATCH` replaces the whole JSONB value
-  (no deep merge), so the frontend always sends the complete object.
+- `User`: name, email (unique) — no auth fields yet (no password/session). The app is
+  single-user in practice, but every owned record is scoped to a `User` so real login
+  can slot in later without another retrofit migration. `ApplicationController#current_user`
+  is an explicit placeholder (`User.first!`) standing in for real login.
+- `TableViewPreference`: user_id, table_key (string, e.g. `"bikes"`), data (jsonb,
+  default `{}`) — unique per `(user_id, table_key)`. The generic backing store for any
+  sortable/configurable-column table in the app (see "Sortable, configurable tables"
+  below), not Bikes-specific — a second list page gets its own `table_key`, reusing the
+  same model/endpoint. `data` holds `{ columns: [...], sort_column, sort_direction }`;
+  validated only as "must be a Hash" — like `Component#category`, the actual allowed
+  column keys live only on each page's own frontend constant (e.g. `constants.ts`'s
+  `BIKE_LIST_COLUMNS`), not enforced server-side. Exposed via `GET/PATCH
+  /table_view_preferences/:table_key` — `update` upserts (a user may not have a row for
+  that key yet), and a `PATCH` always replaces the whole `data` value (no deep merge),
+  so the frontend must send the complete object on every change, not just the changed
+  field.
 - `Bike`: user_id, name, make, model, strava_gear_id, retired_on
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
   tire_rear, ...), acquired_on, retired_on — category doubles as a "slot" for validation
@@ -144,6 +150,37 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   Future idea, not built yet: a "needs maintenance" column (e.g. a chain overdue for
   wax) — there's no due-date/threshold concept anywhere yet (just `MaintenanceEvent`
   history), so this needs real design work before it can be built.
+
+## Sortable, configurable tables
+
+The Bikes list's sortable, column-configurable table is built from reusable pieces,
+not a Bikes-specific implementation, so a future page can adopt the same UX without
+rework:
+- `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
+  column order/visibility and sort state, backed by `TableViewPreference` via
+  `useTableViewPreference`/`useUpdateTableViewPreference` (`api/queries.ts`/
+  `api/mutations.ts`). Takes a `tableKey` plus the page's own column/sort constants
+  (e.g. `BIKE_LIST_COLUMNS`) — it doesn't know about Bikes specifically. Its
+  `useState` initializers seed from the preferences query's data **once**, on mount —
+  the calling page must not render the component that calls this hook until that query
+  has resolved (`Bikes.tsx` gates on `preferencePending` before rendering
+  `BikesTable`), the same remount-on-stale-data lesson learned from a bug on the Bike
+  detail page. If a page ever needs to swap `tableKey` on an already-mounted
+  component (e.g. tabs that don't unmount), it must force a remount via `key={tableKey}`
+  rather than relying on the hook to notice the change.
+- `frontend/src/components/datatable/ColumnPicker.tsx` — the "+" icon/popover column
+  picker, with a draggable "Visible" section and a static "Available" section.
+  Drag-and-drop (via `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities`) only
+  happens inside this popover's checklist, never on the live table headers — so
+  dragging to reorder and clicking to sort never conflict over the same gesture.
+  `columns` in `TableViewPreference#data` is one ordered array: presence means
+  visible, position means display order (no separate unordered "visible" list).
+- `frontend/src/components/datatable/SortableHeaderCell.tsx` — a `<Table.Th>` wrapper
+  for the ▲/▼ click-to-sort indicator.
+- A page still writes its own `<Table>` body — pinned/special-cased columns (Bikes'
+  linked Name column, the Retired badge, Edit/Delete) stay hand-coded around the
+  generic, hook-driven columns, rather than the reusable pieces trying to support
+  every possible column type generically.
 
 ## Build order (work one phase at a time; don't jump ahead)
 

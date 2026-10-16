@@ -27,18 +27,6 @@ RSpec.describe User, type: :model do
     expect(user.errors[:email]).to be_present
   end
 
-  it "defaults bike_list_preferences to an empty hash" do
-    expect(create(:user).bike_list_preferences).to eq({})
-  end
-
-  it "is invalid when bike_list_preferences is not a hash" do
-    user = build(:user)
-    user.bike_list_preferences = ["not", "a", "hash"]
-
-    expect(user).not_to be_valid
-    expect(user.errors[:bike_list_preferences]).to be_present
-  end
-
   it "destroys its bikes and components when destroyed" do
     user = create(:user)
     bike = create(:bike, user: user)
@@ -48,6 +36,15 @@ RSpec.describe User, type: :model do
 
     expect(Bike.exists?(bike.id)).to be false
     expect(Component.exists?(component.id)).to be false
+  end
+
+  it "destroys its table view preferences when destroyed" do
+    user = create(:user)
+    preference = create(:table_view_preference, user: user)
+
+    user.destroy
+
+    expect(TableViewPreference.exists?(preference.id)).to be false
   end
 
   it "destroys its strava activities when destroyed" do

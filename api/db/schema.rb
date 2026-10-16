@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_16_212418) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_16_214634) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -125,12 +125,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_212418) do
     t.index ["user_id"], name: "index_strava_gears_on_user_id"
   end
 
+  create_table "table_view_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "table_key", null: false
+    t.jsonb "data", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "table_key"], name: "index_table_view_preferences_on_user_id_and_table_key", unique: true
+    t.index ["user_id"], name: "index_table_view_preferences_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "name", null: false
     t.string "email", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "bike_list_preferences", default: {}, null: false
     t.index ["email"], name: "index_users_on_email", unique: true
   end
 
@@ -144,4 +153,5 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_212418) do
   add_foreign_key "strava_activities", "users"
   add_foreign_key "strava_credentials", "users"
   add_foreign_key "strava_gears", "users"
+  add_foreign_key "table_view_preferences", "users"
 end
