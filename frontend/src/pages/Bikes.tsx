@@ -1,12 +1,16 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Anchor, Badge, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { DndContext, closestCenter } from '@dnd-kit/core'
+import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
 import { useBikes, useTableViewPreference } from '../api/queries'
 import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import ColumnPicker from '../components/datatable/ColumnPicker'
+import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
+import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   BIKE_LIST_COLUMNS,
@@ -127,15 +131,25 @@ function BikesTable({
   onEdit: (bike: Bike) => void
   onDelete: (bike: Bike) => void
 }) {
-  const { orderedColumns, toggleColumn, reorderColumn, sortColumn, sortDirection, setSort, saveError, clearSaveError } =
-    useTableViewPreferences<BikeListColumn, BikeListSortColumn>({
-      tableKey: 'bikes',
-      initialData,
-      allColumns: BIKE_LIST_COLUMNS,
-      defaultColumns: DEFAULT_BIKE_LIST_COLUMNS,
-      sortColumns: BIKE_LIST_SORT_COLUMNS,
-      defaultSort: { column: 'name', direction: 'asc' },
-    })
+  const {
+    orderedColumns,
+    toggleColumn,
+    reorderColumn,
+    onHeaderDragEnd,
+    sortColumn,
+    sortDirection,
+    setSort,
+    saveError,
+    clearSaveError,
+  } = useTableViewPreferences<BikeListColumn, BikeListSortColumn>({
+    tableKey: 'bikes',
+    initialData,
+    allColumns: BIKE_LIST_COLUMNS,
+    defaultColumns: DEFAULT_BIKE_LIST_COLUMNS,
+    sortColumns: BIKE_LIST_SORT_COLUMNS,
+    defaultSort: { column: 'name', direction: 'asc' },
+  })
+  const headerDragSensors = useColumnDragSensors()
 
   const sortedBikes = useMemo(() => {
     const accessor = columnValue[sortColumn]
@@ -155,17 +169,6 @@ function BikesTable({
 
   return (
     <>
-      <Group justify="flex-end" mb="sm">
-        <ColumnPicker
-          allColumns={BIKE_LIST_COLUMN_OPTIONS}
-          orderedVisible={orderedColumns}
-          onToggle={(key) => toggleColumn(key as BikeListColumn)}
-          onReorder={(activeKey, overKey) =>
-            reorderColumn(activeKey as BikeListColumn, overKey as BikeListColumn)
-          }
-        />
-      </Group>
-
       {saveError && (
         <Alert color="red" mb="sm" withCloseButton onClose={clearSaveError}>
           {saveError}
@@ -174,25 +177,40 @@ function BikesTable({
 
       <Table striped highlightOnHover>
         <Table.Thead>
-          <Table.Tr>
-            <SortableHeaderCell
-              label="Name"
-              active={sortColumn === 'name'}
-              direction={sortDirection}
-              onClick={() => setSort('name')}
-            />
-            {orderedColumns.map((column) => (
-              <SortableHeaderCell
-                key={column}
-                label={BIKE_LIST_COLUMN_LABELS[column]}
-                active={sortColumn === column}
-                direction={sortDirection}
-                onClick={() => setSort(column)}
-              />
-            ))}
-            <Table.Th />
-            <Table.Th />
-          </Table.Tr>
+          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+              <Table.Tr>
+                <SortableHeaderCell
+                  label="Name"
+                  active={sortColumn === 'name'}
+                  direction={sortDirection}
+                  onClick={() => setSort('name')}
+                />
+                {orderedColumns.map((column) => (
+                  <DraggableHeaderCell
+                    key={column}
+                    columnKey={column}
+                    label={BIKE_LIST_COLUMN_LABELS[column]}
+                    active={sortColumn === column}
+                    direction={sortDirection}
+                    onSort={() => setSort(column)}
+                  />
+                ))}
+                <Table.Th />
+                <Table.Th />
+                <Table.Th>
+                  <ColumnPicker
+                    allColumns={BIKE_LIST_COLUMN_OPTIONS}
+                    orderedVisible={orderedColumns}
+                    onToggle={(key) => toggleColumn(key as BikeListColumn)}
+                    onReorder={(activeKey, overKey) =>
+                      reorderColumn(activeKey as BikeListColumn, overKey as BikeListColumn)
+                    }
+                  />
+                </Table.Th>
+              </Table.Tr>
+            </SortableContext>
+          </DndContext>
         </Table.Thead>
         <Table.Tbody>
           {sortedBikes.map((bike) => (
@@ -216,6 +234,7 @@ function BikesTable({
                   </Button>
                 </Group>
               </Table.Td>
+              <Table.Td />
             </Table.Tr>
           ))}
         </Table.Tbody>

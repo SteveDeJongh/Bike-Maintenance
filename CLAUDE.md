@@ -160,27 +160,58 @@ rework:
   column order/visibility and sort state, backed by `TableViewPreference` via
   `useTableViewPreference`/`useUpdateTableViewPreference` (`api/queries.ts`/
   `api/mutations.ts`). Takes a `tableKey` plus the page's own column/sort constants
-  (e.g. `BIKE_LIST_COLUMNS`) — it doesn't know about Bikes specifically. Its
-  `useState` initializers seed from the preferences query's data **once**, on mount —
-  the calling page must not render the component that calls this hook until that query
-  has resolved (`Bikes.tsx` gates on `preferencePending` before rendering
-  `BikesTable`), the same remount-on-stale-data lesson learned from a bug on the Bike
-  detail page. If a page ever needs to swap `tableKey` on an already-mounted
-  component (e.g. tabs that don't unmount), it must force a remount via `key={tableKey}`
-  rather than relying on the hook to notice the change.
+  (e.g. `BIKE_LIST_COLUMNS`) — it doesn't know about Bikes specifically. Returns
+  `orderedColumns`, `toggleColumn`, `reorderColumn`, `onHeaderDragEnd` (a ready-made
+  dnd-kit `DragEndEvent` handler — wire it straight into a `<DndContext>`, no need to
+  hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
+  `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
+  the preferences query's data **once**, on mount — the calling page must not render
+  the component that calls this hook until that query has resolved (`Bikes.tsx` gates
+  on `preferencePending` before rendering `BikesTable`), the same remount-on-stale-data
+  lesson learned from a bug on the Bike detail page. If a page ever needs to swap
+  `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
+  force a remount via `key={tableKey}` rather than relying on the hook to notice the
+  change.
 - `frontend/src/components/datatable/ColumnPicker.tsx` — the "+" icon/popover column
-  picker, with a draggable "Visible" section and a static "Available" section.
-  Drag-and-drop (via `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities`) only
-  happens inside this popover's checklist, never on the live table headers — so
-  dragging to reorder and clicking to sort never conflict over the same gesture.
+  picker (rendered as the last `<Table.Th>` in the header row, not floated above the
+  table), with a draggable "Visible" section and a static "Available" section.
+  `frontend/src/components/datatable/DraggableHeaderCell.tsx` — the configurable
+  columns' header cell: also draggable, directly in the live table, via the same
+  `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities` machinery. Both the popover
+  and the live headers can reorder columns; they write through the same hook state, so
+  either one stays in sync with the other. Dragging and click-to-sort never conflict
+  on the same header cell because each `DraggableHeaderCell` has a **separate drag
+  handle glyph** next to its clickable sort label — drag listeners only attach to the
+  handle (see `useColumnDragHandle`), not the whole cell, which is the standard dnd-kit
+  pattern for combining drag with another click behavior on the same element.
   `columns` in `TableViewPreference#data` is one ordered array: presence means
   visible, position means display order (no separate unordered "visible" list).
+- `frontend/src/components/datatable/useColumnDragHandle.ts` /
+  `useColumnDragSensors.ts` — small shared pieces behind both drag surfaces (the
+  popover rows and the live headers): a `useSortable` wrapper returning ref/style/
+  handle props, and the `PointerSensor` activation-distance setup (so a plain click
+  doesn't register as a drag attempt).
 - `frontend/src/components/datatable/SortableHeaderCell.tsx` — a `<Table.Th>` wrapper
-  for the ▲/▼ click-to-sort indicator.
+  for the ▲/▼ click-to-sort indicator, used for pinned (non-draggable) columns like
+  Bikes' Name.
 - A page still writes its own `<Table>` body — pinned/special-cased columns (Bikes'
   linked Name column, the Retired badge, Edit/Delete) stay hand-coded around the
   generic, hook-driven columns, rather than the reusable pieces trying to support
   every possible column type generically.
+
+**To adopt this on a new or existing table**, define on the frontend (nothing to
+build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
+already generic): a `tableKey` string unique to that table; a column-keys constant +
+display-label map + default-visible subset (mirroring `BIKE_LIST_COLUMNS`/
+`BIKE_LIST_COLUMN_LABELS`/`DEFAULT_BIKE_LIST_COLUMNS` in `constants.ts`); a
+sort-keys constant if any pinned column should be sortable too (mirroring
+`BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
+`columnValue` map (comparable value per sortable column, `null` for "not
+applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
+column) keyed the same way `Bikes.tsx` does. Call `useTableViewPreferences` with
+those constants, then render pinned columns by hand and map the configurable ones
+through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
+header cell — `Bikes.tsx` is the reference implementation to copy the shape from.
 
 ## Build order (work one phase at a time; don't jump ahead)
 

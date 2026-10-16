@@ -1,15 +1,9 @@
 import { useState } from 'react'
 import { ActionIcon, Checkbox, Divider, Group, Popover, Stack, Text, Tooltip } from '@mantine/core'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useColumnDragHandle } from './useColumnDragHandle'
+import { useColumnDragSensors } from './useColumnDragSensors'
 
 export interface ColumnOption {
   key: string
@@ -29,7 +23,7 @@ interface ColumnPickerProps {
 // table headers, so there's no gesture conflict with click-to-sort.
 export default function ColumnPicker({ allColumns, orderedVisible, onToggle, onReorder }: ColumnPickerProps) {
   const [opened, setOpened] = useState(false)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const sensors = useColumnDragSensors()
 
   const labelByKey = new Map(allColumns.map((column) => [column.key, column.label]))
   const visible = orderedVisible.map((key) => ({ key, label: labelByKey.get(key) ?? key }))
@@ -106,16 +100,11 @@ function DraggableColumnRow({
   label: string
   onToggle: (key: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: columnKey })
+  const { setNodeRef, containerStyle, handleProps } = useColumnDragHandle(columnKey)
 
   return (
-    <Group
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      gap="xs"
-      wrap="nowrap"
-    >
-      <Text span style={{ cursor: 'grab', touchAction: 'none' }} {...attributes} {...listeners}>
+    <Group ref={setNodeRef} style={containerStyle} gap="xs" wrap="nowrap">
+      <Text span {...handleProps}>
         {'⠿'}
       </Text>
       <Checkbox label={label} checked onChange={() => onToggle(columnKey)} style={{ flex: 1 }} />

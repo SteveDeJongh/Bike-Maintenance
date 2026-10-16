@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { parseApiError } from '../api/errors'
 import { useUpdateTableViewPreference } from '../api/mutations'
@@ -85,10 +86,21 @@ export function useTableViewPreferences<Column extends string, SortColumn extend
     save({ columns: orderedColumns, sortColumn: column, sortDirection: nextDirection })
   }
 
+  // Translates a dnd-kit drag-end event into a reorderColumn call — lets a
+  // page just wire <DndContext onDragEnd={onHeaderDragEnd}> around its
+  // header row without hand-rolling this translation itself.
+  function onHeaderDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (over && active.id !== over.id && isColumn(String(active.id)) && isColumn(String(over.id))) {
+      reorderColumn(String(active.id) as Column, String(over.id) as Column)
+    }
+  }
+
   return {
     orderedColumns,
     toggleColumn,
     reorderColumn,
+    onHeaderDragEnd,
     sortColumn,
     sortDirection,
     setSort,
