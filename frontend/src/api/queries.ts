@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   BikeDetail,
+  BikeListPreferences,
   BikeWithStats,
   Component,
   ComponentAssignment,
@@ -74,5 +75,12 @@ export function useMappedGear() {
   return useQuery({
     queryKey: ['strava', 'mapped_gear'],
     queryFn: () => apiGet<StravaMappedBike[]>('/strava/mapped_gear'),
+  })
+}
+
+export function useBikeListPreferences() {
+  return useQuery({
+    queryKey: ['user_preferences', 'bike_list'],
+    queryFn: () => apiGet<{ bike_list_preferences: BikeListPreferences }>('/user_preferences'),
   })
 }

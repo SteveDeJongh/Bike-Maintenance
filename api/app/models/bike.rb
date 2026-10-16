@@ -21,6 +21,24 @@ class Bike < ApplicationRecord
     strava_activities.minimum(:moved_at)
   end
 
+  def last_ride_on
+    strava_activities.maximum(:moved_at)
+  end
+
+  # nil (not 0) when the bike has no real-power-meter activities, since 0 W
+  # would misleadingly read as "rode with no effort" rather than "no data".
+  def average_power
+    strava_activities.where(device_watts: true).average(:average_watts)&.round
+  end
+
+  def total_elevation_gain
+    strava_activities.sum(:total_elevation_gain)
+  end
+
+  def installed_components_count
+    component_assignments.where(ended_at: nil).count
+  end
+
   private
 
   def reconcile_strava_activities

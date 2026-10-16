@@ -3,6 +3,7 @@ import { apiDelete, apiPatch, apiPost } from './client'
 import type {
   Bike,
   BikeComponentSlot,
+  BikeListPreferences,
   Component,
   ComponentAssignment,
   MaintenanceEvent,
@@ -196,5 +197,20 @@ export function useReassignGear() {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
     },
+  })
+}
+
+// UserPreferences
+// A PATCH replaces the whole bike_list_preferences JSONB value (no deep
+// merge server-side), so the caller must always send the complete object.
+
+export function useUpdateBikeListPreferences() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (preferences: BikeListPreferences) =>
+      apiPatch<{ bike_list_preferences: BikeListPreferences }>('/user_preferences', {
+        user_preferences: { bike_list_preferences: preferences },
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user_preferences'] }),
   })
 }

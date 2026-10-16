@@ -10,4 +10,14 @@ class User < ApplicationRecord
 
   validates :name, :email, presence: true
   validates :email, uniqueness: true
+  validate :bike_list_preferences_is_a_hash
+
+  private
+
+  # Column keys and sort values are intentionally not enforced here, matching
+  # how Component#category has no backend allow-list either — the frontend's
+  # BIKE_LIST_COLUMNS constant is the sole source of truth for valid keys.
+  def bike_list_preferences_is_a_hash
+    errors.add(:bike_list_preferences, "must be a JSON object") unless bike_list_preferences.is_a?(Hash)
+  end
 end

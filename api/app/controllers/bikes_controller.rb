@@ -7,12 +7,23 @@ class BikesController < ApplicationController
     distances = current_user.strava_activities.group(:bike_id).sum(:distance_meters)
     times = current_user.strava_activities.group(:bike_id).sum(:moving_time)
     first_rides = current_user.strava_activities.group(:bike_id).minimum(:moved_at)
+    last_rides = current_user.strava_activities.group(:bike_id).maximum(:moved_at)
+    elevations = current_user.strava_activities.group(:bike_id).sum(:total_elevation_gain)
+    average_powers = current_user.strava_activities
+      .where(device_watts: true)
+      .group(:bike_id)
+      .average(:average_watts)
+    installed_counts = current_user.component_assignments.where(ended_at: nil).group(:bike_id).count
 
     render json: @bikes.map { |bike|
       bike.as_json.merge(
         total_distance: distances[bike.id] || 0,
         total_moving_time: times[bike.id] || 0,
         first_ride_on: first_rides[bike.id],
+        last_ride_on: last_rides[bike.id],
+        average_power: average_powers[bike.id]&.round,
+        total_elevation_gain: elevations[bike.id] || 0,
+        installed_components_count: installed_counts[bike.id] || 0,
       )
     }
   end
@@ -20,7 +31,8 @@ class BikesController < ApplicationController
   # GET /bikes/1
   def show
     render json: @bike.as_json(
-      methods: %i[ total_distance total_moving_time first_ride_on ],
+      methods: %i[ total_distance total_moving_time first_ride_on last_ride_on
+                   average_power total_elevation_gain installed_components_count ],
       include: :bike_component_slots,
     )
   end

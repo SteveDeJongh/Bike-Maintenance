@@ -36,3 +36,43 @@ export function categoryLabel(category: string): string {
 
 // Must match MaintenanceEvent::EVENT_TYPES in api/app/models/maintenance_event.rb exactly.
 export const MAINTENANCE_EVENT_TYPES = ['wax', 'clean', 'replace', 'inspect'] as const
+
+// The toggleable columns on the Bikes list. Canonical order (used both for display
+// order and the fixed order columns appear in regardless of toggle order). Name is
+// always shown (the link column) and isn't part of this list, but is still sortable
+// — see BIKE_LIST_SORT_COLUMNS. Not enforced server-side: User#bike_list_preferences
+// stores whatever keys it's given, so this list is the sole source of truth.
+export const BIKE_LIST_COLUMNS = [
+  'make_model',
+  'total_distance',
+  'total_moving_time',
+  'first_ride_on',
+  'last_ride_on',
+  'average_power',
+  'total_elevation_gain',
+  'installed_components_count',
+] as const
+
+export type BikeListColumn = (typeof BIKE_LIST_COLUMNS)[number]
+
+export const BIKE_LIST_COLUMN_LABELS: Record<BikeListColumn, string> = {
+  make_model: 'Make / Model',
+  total_distance: 'Distance',
+  total_moving_time: 'Time',
+  first_ride_on: 'First Ride',
+  last_ride_on: 'Last Ride',
+  average_power: 'Avg Power',
+  total_elevation_gain: 'Elevation',
+  installed_components_count: 'Installed Components',
+}
+
+export const DEFAULT_BIKE_LIST_COLUMNS: BikeListColumn[] = [
+  'make_model',
+  'total_distance',
+  'total_moving_time',
+  'first_ride_on',
+]
+
+export const BIKE_LIST_SORT_COLUMNS = ['name', ...BIKE_LIST_COLUMNS] as const
+
+export type BikeListSortColumn = (typeof BIKE_LIST_SORT_COLUMNS)[number]

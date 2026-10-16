@@ -18,12 +18,26 @@ export interface BikeWithStats extends Bike {
   total_distance: number
   total_moving_time: number
   first_ride_on: string | null
+  last_ride_on: string | null
+  // nil when the bike has no device-metered (real power meter) activities —
+  // distinct from 0, which would misleadingly read as "rode with no effort".
+  average_power: number | null
+  total_elevation_gain: number
+  installed_components_count: number
 }
 
 // bike_component_slots is only present on GET /bikes/:id (see BikesController#show),
 // not on the index list used by useBikes() — same convention as ComponentDetail below.
 export interface BikeDetail extends BikeWithStats {
   bike_component_slots: BikeComponentSlot[]
+}
+
+// The raw shape GET /user_preferences returns — a fresh user's is `{}`, so
+// every field is optional; the frontend applies its own defaults when unset.
+export interface BikeListPreferences {
+  visible_columns?: string[]
+  sort_column?: string | null
+  sort_direction?: 'asc' | 'desc'
 }
 
 export interface Component {

@@ -32,10 +32,17 @@ docker build .`), not the repo root.
 
 ## Data model
 
-- `User`: name, email (unique) — no auth fields yet (no password/session). The app is
-  single-user in practice, but every owned record is scoped to a `User` so real login
-  can slot in later without another retrofit migration. `ApplicationController#current_user`
-  is an explicit placeholder (`User.first!`) standing in for real login.
+- `User`: name, email (unique), bike_list_preferences (jsonb, default `{}`) — no auth
+  fields yet (no password/session). The app is single-user in practice, but every owned
+  record is scoped to a `User` so real login can slot in later without another retrofit
+  migration. `ApplicationController#current_user` is an explicit placeholder
+  (`User.first!`) standing in for real login. `bike_list_preferences` holds the Bikes
+  list's visible-column set and sort choice (`visible_columns`/`sort_column`/
+  `sort_direction`) — validated only as "must be a Hash"; like `Component#category`, the
+  actual allowed keys/values live only on the frontend (`constants.ts`'s
+  `BIKE_LIST_COLUMNS`), not enforced server-side. Exposed via the singleton
+  `GET/PATCH /user_preferences` endpoint — a `PATCH` replaces the whole JSONB value
+  (no deep merge), so the frontend always sends the complete object.
 - `Bike`: user_id, name, make, model, strava_gear_id, retired_on
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
   tire_rear, ...), acquired_on, retired_on — category doubles as a "slot" for validation
@@ -126,11 +133,17 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   `saved_change_to_strava_gear_id`'s old/new pair: activities matching the old gear id
   get `bike_id` nulled out, activities matching the new one get backfilled — needed for
   "unlink"/reassign on the Mapped gear section to be correct, not just additive.
-- Bike-level mileage (`Bike#total_distance`/`#total_moving_time`/`#first_ride_on`,
-  shown on the Bikes list and detail page) sums/mins directly over `strava_activities`.
-  Future idea, not built yet: an average-power figure should only average activities
-  where `device_watts` is true (a real power meter, not Strava's estimate) — that flag
-  is already captured per activity for exactly this future use.
+- Bike-level stats (`Bike#total_distance`/`#total_moving_time`/`#first_ride_on`/
+  `#last_ride_on`/`#total_elevation_gain`/`#installed_components_count`, shown on the
+  Bikes list and detail page) sum/min/count directly over `strava_activities`/
+  `component_assignments` — computed, not stored. `Bike#average_power` is the same,
+  but restricted to `device_watts: true` activities (real power meter, not Strava's
+  estimate) and **nil** (not 0) when the bike has none, so the UI can show "N/A"
+  instead of a misleading "0 W". `BikesController#index` computes all of these via
+  grouped queries (one per stat) to avoid per-bike N+1 on the list.
+  Future idea, not built yet: a "needs maintenance" column (e.g. a chain overdue for
+  wax) — there's no due-date/threshold concept anywhere yet (just `MaintenanceEvent`
+  history), so this needs real design work before it can be built.
 
 ## Build order (work one phase at a time; don't jump ahead)
 

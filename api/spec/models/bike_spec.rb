@@ -77,4 +77,78 @@ RSpec.describe Bike, type: :model do
       expect(bike.first_ride_on).to be_nil
     end
   end
+
+  describe "#last_ride_on" do
+    it "returns the latest moved_at across the bike's strava activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, moved_at: Time.zone.local(2026, 1, 1))
+      latest = create(:strava_activity, bike: bike, user: bike.user, moved_at: Time.zone.local(2026, 3, 1))
+
+      expect(bike.last_ride_on).to eq(latest.moved_at)
+    end
+
+    it "is nil when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.last_ride_on).to be_nil
+    end
+  end
+
+  describe "#average_power" do
+    it "averages average_watts across only device-metered activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, device_watts: true, average_watts: 200.0)
+      create(:strava_activity, bike: bike, user: bike.user, device_watts: true, average_watts: 220.0)
+      # Estimated (non-metered) wattage must be excluded even though it's present.
+      create(:strava_activity, bike: bike, user: bike.user, device_watts: false, average_watts: 500.0)
+
+      expect(bike.average_power).to eq(210)
+    end
+
+    it "is nil when the bike has no device-metered activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, device_watts: false, average_watts: 300.0)
+
+      expect(bike.average_power).to be_nil
+    end
+
+    it "is nil when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.average_power).to be_nil
+    end
+  end
+
+  describe "#total_elevation_gain" do
+    it "sums total_elevation_gain across the bike's strava activities" do
+      bike = create(:bike)
+      create(:strava_activity, bike: bike, user: bike.user, total_elevation_gain: 100.0)
+      create(:strava_activity, bike: bike, user: bike.user, total_elevation_gain: 250.5)
+
+      expect(bike.total_elevation_gain).to eq(350.5)
+    end
+
+    it "is zero when the bike has no strava activities" do
+      bike = create(:bike)
+
+      expect(bike.total_elevation_gain).to eq(0)
+    end
+  end
+
+  describe "#installed_components_count" do
+    it "counts only currently active component assignments" do
+      bike = create(:bike)
+      create(:component_assignment, bike: bike, ended_at: nil)
+      create(:component_assignment, bike: bike, component: create(:component, user: bike.user, category: "cassette"),
+        ended_at: Time.zone.local(2026, 2, 1))
+
+      expect(bike.installed_components_count).to eq(1)
+    end
+
+    it "is zero when the bike has no component assignments" do
+      bike = create(:bike)
+
+      expect(bike.installed_components_count).to eq(0)
+    end
+  end
 end
