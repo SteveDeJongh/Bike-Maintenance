@@ -76,3 +76,89 @@ export const DEFAULT_BIKE_LIST_COLUMNS: BikeListColumn[] = [
 export const BIKE_LIST_SORT_COLUMNS = ['name', ...BIKE_LIST_COLUMNS] as const
 
 export type BikeListSortColumn = (typeof BIKE_LIST_SORT_COLUMNS)[number]
+
+// The toggleable columns on the Bike detail page's two component tables
+// (Installed components, History). Category and Component are always-shown,
+// leading (pinned) columns on both tables — not part of either list below,
+// but still sortable (see the *_SORT_COLUMNS exports). "period_*" columns are
+// accrued only during one specific installation (this stint on this bike);
+// "component_*" columns are the mounted component's lifetime totals across
+// every bike it's ever been on — both are wanted side by side, not as
+// alternatives to each other.
+export const INSTALLED_COMPONENT_COLUMNS = [
+  'period_distance',
+  'period_time',
+  'period_elevation',
+  'period_avg_power',
+  'component_total_distance',
+  'component_total_time',
+  'component_total_elevation',
+  'component_avg_power',
+  'distance_since_wax',
+  'installed_on',
+] as const
+
+export type InstalledComponentColumn = (typeof INSTALLED_COMPONENT_COLUMNS)[number]
+
+export const INSTALLED_COMPONENT_COLUMN_LABELS: Record<InstalledComponentColumn, string> = {
+  period_distance: 'Distance',
+  period_time: 'Time',
+  period_elevation: 'Elevation',
+  period_avg_power: 'Avg Power',
+  component_total_distance: 'Lifetime Distance',
+  component_total_time: 'Lifetime Time',
+  component_total_elevation: 'Lifetime Elevation',
+  component_avg_power: 'Lifetime Avg Power',
+  distance_since_wax: 'Since Wax',
+  installed_on: 'Installed On',
+}
+
+export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [
+  'period_distance',
+  'installed_on',
+  'distance_since_wax',
+]
+
+export const INSTALLED_COMPONENT_SORT_COLUMNS = [
+  'category',
+  'component_label',
+  ...INSTALLED_COMPONENT_COLUMNS,
+] as const
+
+export type InstalledComponentSortColumn = (typeof INSTALLED_COMPONENT_SORT_COLUMNS)[number]
+
+export const HISTORY_COLUMNS = [
+  'period_distance',
+  'period_time',
+  'period_elevation',
+  'period_avg_power',
+  'component_total_distance',
+  'component_total_time',
+  'component_total_elevation',
+  'component_avg_power',
+  'distance_since_wax',
+  'started_on',
+  'ended_on',
+] as const
+
+export type HistoryColumn = (typeof HISTORY_COLUMNS)[number]
+
+export const HISTORY_COLUMN_LABELS: Record<HistoryColumn, string> = {
+  period_distance: 'Distance',
+  period_time: 'Time',
+  period_elevation: 'Elevation',
+  period_avg_power: 'Avg Power',
+  component_total_distance: 'Lifetime Distance',
+  component_total_time: 'Lifetime Time',
+  component_total_elevation: 'Lifetime Elevation',
+  component_avg_power: 'Lifetime Avg Power',
+  distance_since_wax: 'Since Wax',
+  started_on: 'Started',
+  ended_on: 'Ended',
+}
+
+export const DEFAULT_HISTORY_COLUMNS: HistoryColumn[] = ['started_on', 'ended_on', 'period_distance']
+
+export const HISTORY_SORT_COLUMNS = ['category', 'component_label', ...HISTORY_COLUMNS] as const
+
+export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
