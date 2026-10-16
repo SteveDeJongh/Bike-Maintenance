@@ -21,6 +21,15 @@ RSpec.describe Bike, type: :model do
     expect(ComponentAssignment.exists?(assignment.id)).to be false
   end
 
+  it "destroys its bike component slots when destroyed" do
+    bike = create(:bike)
+    slot = create(:bike_component_slot, bike: bike)
+
+    bike.destroy
+
+    expect(BikeComponentSlot.exists?(slot.id)).to be false
+  end
+
   describe "#total_distance" do
     it "sums distance_meters across the bike's strava activities" do
       bike = create(:bike)

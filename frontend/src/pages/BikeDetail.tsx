@@ -7,20 +7,40 @@ import {
   Button,
   Group,
   Loader,
+  Select,
   Stack,
   Table,
   Text,
   Title,
 } from '@mantine/core'
+import { DateTimePicker } from '@mantine/dates'
 import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponents } from '../api/queries'
-import ComponentAssignmentFormModal from '../components/forms/ComponentAssignmentFormModal'
+import {
+  useCreateBikeComponentSlot,
+  useCreateComponentAssignment,
+  useDeleteBikeComponentSlot,
+} from '../api/mutations'
+import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
-import { categoryLabel } from '../constants'
-import { formatDate, formatDateTime } from '../utils/datetime'
+import { COMPONENT_CATEGORIES, categoryLabel } from '../constants'
+import {
+  formatDate,
+  formatDateTime,
+  isoUtcToDate,
+  mantineLocalStringToIsoUtc,
+  nowIsoUtc,
+} from '../utils/datetime'
 import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
-import type { ComponentAssignment } from '../types/models'
+import type {
+  BikeComponentSlot,
+  BikeDetail as BikeDetailData,
+  Component,
+  ComponentAssignment,
+} from '../types/models'
+
+const CREATE_NEW_COMPONENT = '__create_new__'
 
 export default function BikeDetail() {
   const { id } = useParams<{ id: string }>()
@@ -30,8 +50,9 @@ export default function BikeDetail() {
   const { data: assignments, isPending: assignmentsPending } = useComponentAssignments()
   const { data: components } = useComponents()
 
-  const [installOpened, setInstallOpened] = useState(false)
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignment | null>(null)
+  const [addCategory, setAddCategory] = useState<string | null>(null)
+  const createSlot = useCreateBikeComponentSlot()
 
   if (!Number.isFinite(bikeId) || (bikeError instanceof ApiError && bikeError.status === 404)) {
     return (
@@ -60,19 +81,42 @@ export default function BikeDetail() {
     return components?.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
   }
 
+  function rawCategory(componentId: number): string | undefined {
+    return components?.find((c) => c.id === componentId)?.category
+  }
+
   function componentCategory(componentId: number) {
-    const category = components?.find((c) => c.id === componentId)?.category
+    const category = rawCategory(componentId)
     return category ? categoryLabel(category) : ''
   }
 
   const bikeAssignments = (assignments ?? []).filter((a) => a.bike_id === bikeId)
-  const activeAssignments = bikeAssignments.filter((a) => a.ended_at === null)
   const historyAssignments = bikeAssignments
     .filter((a) => a.ended_at !== null)
     .sort((a, b) => b.started_at.localeCompare(a.started_at))
   const activeComponentIdsEverywhere = (assignments ?? [])
     .filter((a) => a.ended_at === null)
     .map((a) => a.component_id)
+
+  const orderedSlots = COMPONENT_CATEGORIES.map((category) =>
+    bike.bike_component_slots.find((slot) => slot.category === category),
+  ).filter((slot): slot is BikeComponentSlot => slot !== undefined)
+
+  const untrackedCategories = COMPONENT_CATEGORIES.filter(
+    (category) => !bike.bike_component_slots.some((slot) => slot.category === category),
+  )
+
+  const confirmedBikeId = bike.id
+
+  function handleAddCategory(value: string | null) {
+    setAddCategory(value)
+    if (value) {
+      createSlot.mutate(
+        { bike_id: confirmedBikeId, category: value },
+        { onSuccess: () => setAddCategory(null) },
+      )
+    }
+  }
 
   return (
     <Stack>
@@ -107,49 +151,52 @@ export default function BikeDetail() {
         </div>
       </Group>
 
-      <Group justify="space-between">
-        <Title order={3}>Installed components</Title>
-        <Button onClick={() => setInstallOpened(true)}>Install component</Button>
-      </Group>
+      <Title order={3}>Installed components</Title>
 
-      {activeAssignments.length === 0 && <Text c="dimmed">No components installed.</Text>}
+      {orderedSlots.length === 0 && <Text c="dimmed">No component types tracked yet.</Text>}
 
-      {activeAssignments.length > 0 && (
+      {orderedSlots.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Category</Table.Th>
               <Table.Th>Component</Table.Th>
-              <Table.Th>Since</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {activeAssignments.map((assignment) => (
-              <Table.Tr key={assignment.id}>
-                <Table.Td>{componentCategory(assignment.component_id)}</Table.Td>
-                <Table.Td>
-                  <Anchor component={Link} to={`/components/${assignment.component_id}`}>
-                    {componentLabel(assignment.component_id)}
-                  </Anchor>
-                </Table.Td>
-                <Table.Td>{formatDateTime(assignment.started_at)}</Table.Td>
-                <Table.Td>
-                  <Group justify="flex-end">
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="red"
-                      onClick={() => setEndingAssignment(assignment)}
-                    >
-                      Remove
-                    </Button>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
+            {orderedSlots.map((slot) => (
+              <SlotRow
+                key={slot.id}
+                bike={bike}
+                slot={slot}
+                assignment={bikeAssignments.find(
+                  (a) => a.ended_at === null && rawCategory(a.component_id) === slot.category,
+                )}
+                hasHistory={bikeAssignments.some(
+                  (a) => rawCategory(a.component_id) === slot.category,
+                )}
+                components={components ?? []}
+                activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+                componentLabel={componentLabel}
+                onEndAssignment={setEndingAssignment}
+              />
             ))}
           </Table.Tbody>
         </Table>
+      )}
+
+      {untrackedCategories.length > 0 && (
+        <Select
+          placeholder="+ Track a new component type"
+          data={untrackedCategories.map((category) => ({
+            value: category,
+            label: categoryLabel(category),
+          }))}
+          value={addCategory}
+          onChange={handleAddCategory}
+          disabled={createSlot.isPending}
+        />
       )}
 
       <Title order={3}>History</Title>
@@ -179,13 +226,6 @@ export default function BikeDetail() {
         </Table>
       )}
 
-      <ComponentAssignmentFormModal
-        opened={installOpened}
-        onClose={() => setInstallOpened(false)}
-        lockBike={bike}
-        excludeComponentIds={activeComponentIdsEverywhere}
-      />
-
       <EndAssignmentModal
         opened={endingAssignment !== null}
         onClose={() => setEndingAssignment(null)}
@@ -193,5 +233,127 @@ export default function BikeDetail() {
         componentLabel={endingAssignment ? componentLabel(endingAssignment.component_id) : ''}
       />
     </Stack>
+  )
+}
+
+function SlotRow({
+  bike,
+  slot,
+  assignment,
+  hasHistory,
+  components,
+  activeComponentIdsEverywhere,
+  componentLabel,
+  onEndAssignment,
+}: {
+  bike: BikeDetailData
+  slot: BikeComponentSlot
+  assignment: ComponentAssignment | undefined
+  hasHistory: boolean
+  components: Component[]
+  activeComponentIdsEverywhere: number[]
+  componentLabel: (componentId: number) => string
+  onEndAssignment: (assignment: ComponentAssignment) => void
+}) {
+  const [componentId, setComponentId] = useState<string | null>(null)
+  // A slot being assigned for the first time defaults to the bike's own
+  // created_at (it was presumably already mounted when the bike was added
+  // to the tracker); a slot with prior history defaults to now.
+  const [startedAt, setStartedAt] = useState<string | null>(
+    hasHistory ? nowIsoUtc() : bike.created_at,
+  )
+  const [createOpened, setCreateOpened] = useState(false)
+  const createAssignment = useCreateComponentAssignment()
+  const deleteSlot = useDeleteBikeComponentSlot()
+
+  const availableComponents = components.filter(
+    (component) =>
+      component.category === slot.category && !activeComponentIdsEverywhere.includes(component.id),
+  )
+
+  function assign(targetComponentId: number) {
+    createAssignment.mutate({
+      component_id: targetComponentId,
+      bike_id: bike.id,
+      started_at: startedAt ?? nowIsoUtc(),
+      ended_at: null,
+    })
+  }
+
+  function handleChange(value: string | null) {
+    if (value === CREATE_NEW_COMPONENT) {
+      setCreateOpened(true)
+      return
+    }
+    setComponentId(value)
+    if (value) assign(Number(value))
+  }
+
+  if (assignment) {
+    return (
+      <Table.Tr>
+        <Table.Td>{categoryLabel(slot.category)}</Table.Td>
+        <Table.Td>
+          <Anchor component={Link} to={`/components/${assignment.component_id}`}>
+            {componentLabel(assignment.component_id)}
+          </Anchor>
+          <Text size="sm" c="dimmed">
+            Since {formatDateTime(assignment.started_at)}
+          </Text>
+        </Table.Td>
+        <Table.Td>
+          <Group justify="flex-end">
+            <Button size="xs" variant="subtle" color="red" onClick={() => onEndAssignment(assignment)}>
+              Remove
+            </Button>
+          </Group>
+        </Table.Td>
+      </Table.Tr>
+    )
+  }
+
+  const options = [
+    ...availableComponents.map((component) => ({
+      value: String(component.id),
+      label: component.label,
+    })),
+    { value: CREATE_NEW_COMPONENT, label: `+ Create new ${categoryLabel(slot.category)}` },
+  ]
+
+  return (
+    <Table.Tr>
+      <Table.Td>{categoryLabel(slot.category)}</Table.Td>
+      <Table.Td>
+        <Group gap="xs" wrap="nowrap" align="flex-end">
+          <Select
+            data={options}
+            value={componentId}
+            onChange={handleChange}
+            placeholder="Pick a component"
+            disabled={createAssignment.isPending}
+          />
+          <DateTimePicker
+            label="Started"
+            size="sm"
+            value={isoUtcToDate(startedAt)}
+            onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
+          />
+        </Group>
+
+        <ComponentFormModal
+          opened={createOpened}
+          onClose={() => setCreateOpened(false)}
+          createDefaults={{ category: slot.category }}
+          onCreateSuccess={(component) => assign(component.id)}
+        />
+      </Table.Td>
+      <Table.Td>
+        <Group justify="flex-end">
+          <Button size="xs" variant="subtle" onClick={() => deleteSlot.mutate(slot.id)}>
+            Stop tracking
+          </Button>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
   )
 }

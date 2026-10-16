@@ -3,6 +3,7 @@ Rails.application.routes.draw do
   resources :component_assignments, except: %i[ new edit ]
   resources :components, except: %i[ new edit ]
   resources :bikes, except: %i[ new edit ]
+  resources :bike_component_slots, only: %i[ create destroy ]
 
   get  "strava/authorize",     to: "strava#authorize"
   get  "strava/callback",      to: "strava#callback", as: :strava_callback

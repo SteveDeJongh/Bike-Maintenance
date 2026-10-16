@@ -1,11 +1,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiDelete, apiPatch, apiPost } from './client'
-import type { Bike, Component, ComponentAssignment, MaintenanceEvent } from '../types/models'
+import type {
+  Bike,
+  BikeComponentSlot,
+  Component,
+  ComponentAssignment,
+  MaintenanceEvent,
+} from '../types/models'
 
-export type BikePayload = Omit<Bike, 'id'>
+export type BikePayload = Omit<Bike, 'id' | 'created_at'>
 export type ComponentPayload = Omit<Component, 'id'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id'>
+export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
 
 // Bike
 
@@ -41,6 +48,27 @@ export function useDeleteBike() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/bikes/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+  })
+}
+
+// BikeComponentSlot
+// Slots are embedded in GET /bikes/:id, so invalidating ['bikes'] (which also
+// covers ['bikes', id] via react-query's prefix matching) is enough to refresh them.
+
+export function useCreateBikeComponentSlot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: BikeComponentSlotPayload) =>
+      apiPost<BikeComponentSlot>('/bike_component_slots', { bike_component_slot: values }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+  })
+}
+
+export function useDeleteBikeComponentSlot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/bike_component_slots/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
   })
 }

@@ -19,7 +19,10 @@ class BikesController < ApplicationController
 
   # GET /bikes/1
   def show
-    render json: @bike.as_json(methods: %i[ total_distance total_moving_time first_ride_on ])
+    render json: @bike.as_json(
+      methods: %i[ total_distance total_moving_time first_ride_on ],
+      include: :bike_component_slots,
+    )
   end
 
   # POST /bikes

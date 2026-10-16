@@ -47,17 +47,31 @@ interface ComponentFormModalProps {
   opened: boolean
   onClose: () => void
   component?: Component
+  // Pre-fills a new component's fields (e.g. from a bike detail page's
+  // per-slot "+ Create new" flow) — ignored when editing an existing component.
+  createDefaults?: Partial<Pick<ComponentFormValues, 'category'>>
+  // Fired right before onClose, only when a new component was just created
+  // (never on edit) — lets a caller chain e.g. assigning it to a bike.
+  onCreateSuccess?: (component: Component) => void
 }
 
 export default function ComponentFormModal({
   opened,
   onClose,
   component,
+  createDefaults,
+  onCreateSuccess,
 }: ComponentFormModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={component ? 'Edit Component' : 'New Component'}>
       {opened && (
-        <ComponentForm key={component?.id ?? 'new'} onClose={onClose} component={component} />
+        <ComponentForm
+          key={component?.id ?? 'new'}
+          onClose={onClose}
+          component={component}
+          createDefaults={createDefaults}
+          onCreateSuccess={onCreateSuccess}
+        />
       )}
     </Modal>
   )
@@ -66,15 +80,19 @@ export default function ComponentFormModal({
 function ComponentForm({
   onClose,
   component,
+  createDefaults,
+  onCreateSuccess,
 }: {
   onClose: () => void
   component?: Component
+  createDefaults?: Partial<Pick<ComponentFormValues, 'category'>>
+  onCreateSuccess?: (component: Component) => void
 }) {
   const isEdit = Boolean(component)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<ComponentFormValues>({
-    initialValues: component ? toFormValues(component) : emptyValues,
+    initialValues: component ? toFormValues(component) : { ...emptyValues, ...createDefaults },
     validate: {
       label: (value) => (value.trim() ? null : 'Label is required'),
       category: (value) => (value ? null : 'Category is required'),
@@ -89,7 +107,10 @@ function ComponentForm({
   function handleSubmit(values: ComponentFormValues) {
     setBaseErrors([])
     mutation.mutate(toPayload(values), {
-      onSuccess: () => onClose(),
+      onSuccess: (result) => {
+        if (!isEdit) onCreateSuccess?.(result)
+        onClose()
+      },
       onError: (error) => setBaseErrors(applyApiErrors(form, error)),
     })
   }
@@ -109,6 +130,7 @@ function ComponentForm({
         <Select
           label="Category"
           required
+          disabled={!isEdit && Boolean(createDefaults?.category)}
           data={COMPONENT_CATEGORIES.map((category) => ({
             value: category,
             label: categoryLabel(category),

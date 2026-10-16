@@ -5,12 +5,25 @@ export interface Bike {
   model: string | null
   strava_gear_id: string | null
   retired_on: string | null
+  created_at: string
+}
+
+export interface BikeComponentSlot {
+  id: number
+  bike_id: number
+  category: string
 }
 
 export interface BikeWithStats extends Bike {
   total_distance: number
   total_moving_time: number
   first_ride_on: string | null
+}
+
+// bike_component_slots is only present on GET /bikes/:id (see BikesController#show),
+// not on the index list used by useBikes() — same convention as ComponentDetail below.
+export interface BikeDetail extends BikeWithStats {
+  bike_component_slots: BikeComponentSlot[]
 }
 
 export interface Component {
