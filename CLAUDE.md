@@ -164,9 +164,12 @@ per-assignment loop.
 
 ## Sortable, configurable tables
 
-The Bikes list's sortable, column-configurable table is built from reusable pieces,
-not a Bikes-specific implementation, so a future page can adopt the same UX without
-rework:
+Built from reusable pieces, not a one-off for any single page — in production use
+on six tables: the Bikes list, the Bike detail page's Installed components and
+History tables, and the Components/Maintenance Events/Assignments lists (each its
+own `table_key`: `bikes`, `bike_installed_components`, `bike_history`,
+`components`, `maintenance_events`, `assignments`). A future page can adopt the
+same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
   `useTableViewPreference`/`useUpdateTableViewPreference` (`api/queries.ts`/
@@ -205,10 +208,18 @@ rework:
 - `frontend/src/components/datatable/SortableHeaderCell.tsx` — a `<Table.Th>` wrapper
   for the ▲/▼ click-to-sort indicator, used for pinned (non-draggable) columns like
   Bikes' Name.
-- A page still writes its own `<Table>` body — pinned/special-cased columns (Bikes'
-  linked Name column, the Retired badge, Edit/Delete) stay hand-coded around the
-  generic, hook-driven columns, rather than the reusable pieces trying to support
-  every possible column type generically.
+- A page still writes its own `<Table>` body — pinned/special-cased columns stay
+  hand-coded around the generic, hook-driven columns, rather than the reusable
+  pieces trying to support every possible column type generically. A pinned
+  column is specifically one with a real navigation target (consistently true
+  across every adopter so far: Bikes' Name, Components' Label, the Bike detail
+  tables' Category+Component, Maintenance Events' Component, Assignments'
+  Component+Bike) — not just "the most important field." A row can have more than
+  one pinned column when its identity genuinely needs more than one coordinate
+  (Category+Component; Component+Bike) rather than one. Where a page didn't
+  previously link a column that becomes pinned (Maintenance Events' Component;
+  Assignments' Component and Bike), the link gets added as part of adopting this —
+  "pinned" is expected to mean "clickable" everywhere in the app.
 
 **To adopt this on a new or existing table**, define on the frontend (nothing to
 build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
@@ -223,6 +234,10 @@ column) keyed the same way `Bikes.tsx` does. Call `useTableViewPreferences` with
 those constants, then render pinned columns by hand and map the configurable ones
 through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
 header cell — `Bikes.tsx` is the reference implementation to copy the shape from.
+Don't add new per-row computed/aggregated columns to a list page without checking
+whether the underlying data is already batched for that scale (see
+`Component#total_distance`'s note above) — this mechanism makes columns easy to
+add, but doesn't change the cost of computing what's behind them.
 
 ## Build order (work one phase at a time; don't jump ahead)
 
