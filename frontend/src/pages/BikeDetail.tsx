@@ -278,7 +278,7 @@ export default function BikeDetail() {
         />
       )}
 
-      <Title order={3}>History</Title>
+      <Title order={3}>Component History</Title>
 
       {historyAssignments.length === 0 && <Text c="dimmed">No past assignments.</Text>}
 
