@@ -162,3 +162,80 @@ export const DEFAULT_HISTORY_COLUMNS: HistoryColumn[] = ['started_on', 'ended_on
 export const HISTORY_SORT_COLUMNS = ['category', 'component_label', ...HISTORY_COLUMNS] as const
 
 export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
+
+// The toggleable columns on the Components list. Label is the always-shown,
+// leading (pinned) linked column — not part of this list, but still sortable.
+export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on'] as const
+
+export type ComponentListColumn = (typeof COMPONENT_LIST_COLUMNS)[number]
+
+export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> = {
+  category: 'Category',
+  acquired_on: 'Acquired',
+  retired_on: 'Retired',
+}
+
+export const DEFAULT_COMPONENT_LIST_COLUMNS: ComponentListColumn[] = [
+  'category',
+  'acquired_on',
+  'retired_on',
+]
+
+export const COMPONENT_LIST_SORT_COLUMNS = ['label', ...COMPONENT_LIST_COLUMNS] as const
+
+export type ComponentListSortColumn = (typeof COMPONENT_LIST_SORT_COLUMNS)[number]
+
+// The toggleable columns on the Maintenance Events list. Component is the
+// always-shown, leading (pinned) linked column — there's no other natural
+// anchor, since an event has no detail page of its own.
+export const MAINTENANCE_EVENT_LIST_COLUMNS = ['performed_at', 'event_type', 'notes'] as const
+
+export type MaintenanceEventListColumn = (typeof MAINTENANCE_EVENT_LIST_COLUMNS)[number]
+
+export const MAINTENANCE_EVENT_LIST_COLUMN_LABELS: Record<MaintenanceEventListColumn, string> = {
+  performed_at: 'Performed At',
+  event_type: 'Type',
+  notes: 'Notes',
+}
+
+export const DEFAULT_MAINTENANCE_EVENT_LIST_COLUMNS: MaintenanceEventListColumn[] = [
+  'performed_at',
+  'event_type',
+  'notes',
+]
+
+export const MAINTENANCE_EVENT_LIST_SORT_COLUMNS = [
+  'component_label',
+  ...MAINTENANCE_EVENT_LIST_COLUMNS,
+] as const
+
+export type MaintenanceEventListSortColumn = (typeof MAINTENANCE_EVENT_LIST_SORT_COLUMNS)[number]
+
+// The toggleable columns on the Assignments list. Component and Bike are both
+// always-shown, leading (pinned) linked columns — a row's identity needs both
+// coordinates, same reasoning as Category+Component on the Bike detail
+// tables. Category (derived from the component) is just a regular
+// configurable column here, not pinned.
+export const ASSIGNMENT_LIST_COLUMNS = ['category', 'started_at', 'ended_at'] as const
+
+export type AssignmentListColumn = (typeof ASSIGNMENT_LIST_COLUMNS)[number]
+
+export const ASSIGNMENT_LIST_COLUMN_LABELS: Record<AssignmentListColumn, string> = {
+  category: 'Category',
+  started_at: 'Started',
+  ended_at: 'Ended',
+}
+
+export const DEFAULT_ASSIGNMENT_LIST_COLUMNS: AssignmentListColumn[] = [
+  'category',
+  'started_at',
+  'ended_at',
+]
+
+export const ASSIGNMENT_LIST_SORT_COLUMNS = [
+  'component_label',
+  'bike_name',
+  ...ASSIGNMENT_LIST_COLUMNS,
+] as const
+
+export type AssignmentListSortColumn = (typeof ASSIGNMENT_LIST_SORT_COLUMNS)[number]
