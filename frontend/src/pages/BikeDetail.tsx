@@ -342,10 +342,7 @@ function EmptySlotRow({
         ended_at: null,
       },
       {
-        onError: (error) => {
-          setComponentId(null)
-          setBaseErrors(parseApiError(error).baseErrors)
-        },
+        onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
       },
     )
   }
@@ -356,7 +353,6 @@ function EmptySlotRow({
       return
     }
     setComponentId(value)
-    if (value) assign(Number(value))
   }
 
   const options = [
@@ -385,6 +381,14 @@ function EmptySlotRow({
             value={isoUtcToDate(startedAt)}
             onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
           />
+          <Button
+            size="sm"
+            disabled={!componentId}
+            loading={createAssignment.isPending}
+            onClick={() => componentId && assign(Number(componentId))}
+          >
+            Install
+          </Button>
         </Group>
 
         {baseErrors.length > 0 && (
@@ -399,7 +403,7 @@ function EmptySlotRow({
           opened={createOpened}
           onClose={() => setCreateOpened(false)}
           createDefaults={{ category: slot.category }}
-          onCreateSuccess={(component) => assign(component.id)}
+          onCreateSuccess={(component) => setComponentId(String(component.id))}
         />
       </Table.Td>
       <Table.Td>
