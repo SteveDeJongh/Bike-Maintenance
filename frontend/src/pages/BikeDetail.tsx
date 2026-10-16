@@ -15,6 +15,7 @@ import {
 } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { ApiError } from '../api/client'
+import { parseApiError } from '../api/errors'
 import { useBike, useComponentAssignments, useComponents } from '../api/queries'
 import {
   useCreateBikeComponentSlot,
@@ -165,23 +166,27 @@ export default function BikeDetail() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {orderedSlots.map((slot) => (
-              <SlotRow
-                key={slot.id}
-                bike={bike}
-                slot={slot}
-                assignment={bikeAssignments.find(
-                  (a) => a.ended_at === null && rawCategory(a.component_id) === slot.category,
-                )}
-                hasHistory={bikeAssignments.some(
-                  (a) => rawCategory(a.component_id) === slot.category,
-                )}
-                components={components ?? []}
-                activeComponentIdsEverywhere={activeComponentIdsEverywhere}
-                componentLabel={componentLabel}
-                onEndAssignment={setEndingAssignment}
-              />
-            ))}
+            {orderedSlots.map((slot) => {
+              const categoryAssignments = bikeAssignments.filter(
+                (a) => rawCategory(a.component_id) === slot.category,
+              )
+              const endedCount = categoryAssignments.filter((a) => a.ended_at !== null).length
+
+              return (
+                <SlotRow
+                  key={slot.id}
+                  bike={bike}
+                  slot={slot}
+                  assignment={categoryAssignments.find((a) => a.ended_at === null)}
+                  hasHistory={categoryAssignments.length > 0}
+                  endedCount={endedCount}
+                  components={components ?? []}
+                  activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+                  componentLabel={componentLabel}
+                  onEndAssignment={setEndingAssignment}
+                />
+              )
+            })}
           </Table.Tbody>
         </Table>
       )}
@@ -241,6 +246,7 @@ function SlotRow({
   slot,
   assignment,
   hasHistory,
+  endedCount,
   components,
   activeComponentIdsEverywhere,
   componentLabel,
@@ -250,45 +256,12 @@ function SlotRow({
   slot: BikeComponentSlot
   assignment: ComponentAssignment | undefined
   hasHistory: boolean
+  endedCount: number
   components: Component[]
   activeComponentIdsEverywhere: number[]
   componentLabel: (componentId: number) => string
   onEndAssignment: (assignment: ComponentAssignment) => void
 }) {
-  const [componentId, setComponentId] = useState<string | null>(null)
-  // A slot being assigned for the first time defaults to the bike's own
-  // created_at (it was presumably already mounted when the bike was added
-  // to the tracker); a slot with prior history defaults to now.
-  const [startedAt, setStartedAt] = useState<string | null>(
-    hasHistory ? nowIsoUtc() : bike.created_at,
-  )
-  const [createOpened, setCreateOpened] = useState(false)
-  const createAssignment = useCreateComponentAssignment()
-  const deleteSlot = useDeleteBikeComponentSlot()
-
-  const availableComponents = components.filter(
-    (component) =>
-      component.category === slot.category && !activeComponentIdsEverywhere.includes(component.id),
-  )
-
-  function assign(targetComponentId: number) {
-    createAssignment.mutate({
-      component_id: targetComponentId,
-      bike_id: bike.id,
-      started_at: startedAt ?? nowIsoUtc(),
-      ended_at: null,
-    })
-  }
-
-  function handleChange(value: string | null) {
-    if (value === CREATE_NEW_COMPONENT) {
-      setCreateOpened(true)
-      return
-    }
-    setComponentId(value)
-    if (value) assign(Number(value))
-  }
-
   if (assignment) {
     return (
       <Table.Tr>
@@ -310,6 +283,80 @@ function SlotRow({
         </Table.Td>
       </Table.Tr>
     )
+  }
+
+  // Keyed on endedCount so this remounts (and recomputes its default start
+  // date) the moment a prior assignment in this slot ends — otherwise the
+  // row would keep whatever "now" it first mounted with, which can end up
+  // earlier than the just-ended assignment's end date and get rejected by
+  // the backend's overlap validation with no visible error.
+  return (
+    <EmptySlotRow
+      key={endedCount}
+      bike={bike}
+      slot={slot}
+      hasHistory={hasHistory}
+      components={components}
+      activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+    />
+  )
+}
+
+function EmptySlotRow({
+  bike,
+  slot,
+  hasHistory,
+  components,
+  activeComponentIdsEverywhere,
+}: {
+  bike: BikeDetailData
+  slot: BikeComponentSlot
+  hasHistory: boolean
+  components: Component[]
+  activeComponentIdsEverywhere: number[]
+}) {
+  const [componentId, setComponentId] = useState<string | null>(null)
+  // A slot being assigned for the first time defaults to the bike's own
+  // created_at (it was presumably already mounted when the bike was added
+  // to the tracker); a slot with prior history defaults to now.
+  const [startedAt, setStartedAt] = useState<string | null>(
+    hasHistory ? nowIsoUtc() : bike.created_at,
+  )
+  const [createOpened, setCreateOpened] = useState(false)
+  const [baseErrors, setBaseErrors] = useState<string[]>([])
+  const createAssignment = useCreateComponentAssignment()
+  const deleteSlot = useDeleteBikeComponentSlot()
+
+  const availableComponents = components.filter(
+    (component) =>
+      component.category === slot.category && !activeComponentIdsEverywhere.includes(component.id),
+  )
+
+  function assign(targetComponentId: number) {
+    setBaseErrors([])
+    createAssignment.mutate(
+      {
+        component_id: targetComponentId,
+        bike_id: bike.id,
+        started_at: startedAt ?? nowIsoUtc(),
+        ended_at: null,
+      },
+      {
+        onError: (error) => {
+          setComponentId(null)
+          setBaseErrors(parseApiError(error).baseErrors)
+        },
+      },
+    )
+  }
+
+  function handleChange(value: string | null) {
+    if (value === CREATE_NEW_COMPONENT) {
+      setCreateOpened(true)
+      return
+    }
+    setComponentId(value)
+    if (value) assign(Number(value))
   }
 
   const options = [
@@ -339,6 +386,14 @@ function SlotRow({
             onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
           />
         </Group>
+
+        {baseErrors.length > 0 && (
+          <Alert color="red" mt="xs">
+            {baseErrors.map((message) => (
+              <div key={message}>{message}</div>
+            ))}
+          </Alert>
+        )}
 
         <ComponentFormModal
           opened={createOpened}
