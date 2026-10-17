@@ -30,6 +30,7 @@ import {
   useDeleteBikeComponentSlot,
 } from '../api/mutations'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
+import EditAssignmentDatesModal from '../components/forms/EditAssignmentDatesModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
@@ -162,6 +163,7 @@ export default function BikeDetail() {
   const { data: components } = useComponents()
 
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
+  const [editingAssignment, setEditingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [addCategory, setAddCategory] = useState<string | null>(null)
   const createSlot = useCreateBikeComponentSlot()
 
@@ -280,6 +282,7 @@ export default function BikeDetail() {
           components={components ?? []}
           activeComponentIdsEverywhere={activeComponentIdsEverywhere}
           onEndAssignment={setEndingAssignment}
+          onEditDates={setEditingAssignment}
         />
       )}
 
@@ -300,13 +303,22 @@ export default function BikeDetail() {
 
       {historyAssignments.length === 0 && <Text c="dimmed">No past assignments.</Text>}
 
-      {historyAssignments.length > 0 && <HistoryTable historyAssignments={historyAssignments} />}
+      {historyAssignments.length > 0 && (
+        <HistoryTable historyAssignments={historyAssignments} onEditDates={setEditingAssignment} />
+      )}
 
       <EndAssignmentModal
         opened={endingAssignment !== null}
         onClose={() => setEndingAssignment(null)}
         assignment={endingAssignment}
         componentLabel={endingAssignment?.component.label ?? ''}
+      />
+
+      <EditAssignmentDatesModal
+        opened={editingAssignment !== null}
+        onClose={() => setEditingAssignment(null)}
+        assignment={editingAssignment}
+        componentLabel={editingAssignment?.component.label ?? ''}
       />
     </Stack>
   )
@@ -318,12 +330,14 @@ function InstalledComponentsTable({
   components,
   activeComponentIdsEverywhere,
   onEndAssignment,
+  onEditDates,
 }: {
   bike: BikeDetailData
   orderedSlots: BikeComponentSlot[]
   components: Component[]
   activeComponentIdsEverywhere: number[]
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
+  onEditDates: (assignment: ComponentAssignmentWithStats) => void
 }) {
   const { data: preferenceData, isPending } = useTableViewPreference('bike_installed_components')
 
@@ -336,6 +350,7 @@ function InstalledComponentsTable({
       components={components}
       activeComponentIdsEverywhere={activeComponentIdsEverywhere}
       onEndAssignment={onEndAssignment}
+      onEditDates={onEditDates}
       initialData={preferenceData.data}
     />
   )
@@ -347,6 +362,7 @@ function InstalledComponentsTableInner({
   components,
   activeComponentIdsEverywhere,
   onEndAssignment,
+  onEditDates,
   initialData,
 }: {
   bike: BikeDetailData
@@ -354,6 +370,7 @@ function InstalledComponentsTableInner({
   components: Component[]
   activeComponentIdsEverywhere: number[]
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
+  onEditDates: (assignment: ComponentAssignmentWithStats) => void
   initialData: TableViewPreferenceData
 }) {
   const {
@@ -466,6 +483,7 @@ function InstalledComponentsTableInner({
                 components={components}
                 activeComponentIdsEverywhere={activeComponentIdsEverywhere}
                 onEndAssignment={onEndAssignment}
+                onEditDates={onEditDates}
                 orderedColumns={orderedColumns}
               />
             )
@@ -485,6 +503,7 @@ function SlotRow({
   components,
   activeComponentIdsEverywhere,
   onEndAssignment,
+  onEditDates,
   orderedColumns,
 }: {
   bike: BikeDetailData
@@ -495,6 +514,7 @@ function SlotRow({
   components: Component[]
   activeComponentIdsEverywhere: number[]
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
+  onEditDates: (assignment: ComponentAssignmentWithStats) => void
   orderedColumns: InstalledComponentColumn[]
 }) {
   if (assignment) {
@@ -510,7 +530,10 @@ function SlotRow({
           <Table.Td key={column}>{installedComponentRenderer[column](assignment)}</Table.Td>
         ))}
         <Table.Td>
-          <Group justify="flex-end">
+          <Group justify="flex-end" gap="xs">
+            <Button size="xs" variant="subtle" onClick={() => onEditDates(assignment)}>
+              Edit dates
+            </Button>
             <Button size="xs" variant="subtle" color="red" onClick={() => onEndAssignment(assignment)}>
               Remove
             </Button>
@@ -657,19 +680,33 @@ function EmptySlotRow({
   )
 }
 
-function HistoryTable({ historyAssignments }: { historyAssignments: ComponentAssignmentWithStats[] }) {
+function HistoryTable({
+  historyAssignments,
+  onEditDates,
+}: {
+  historyAssignments: ComponentAssignmentWithStats[]
+  onEditDates: (assignment: ComponentAssignmentWithStats) => void
+}) {
   const { data: preferenceData, isPending } = useTableViewPreference('bike_history')
 
   if (isPending || !preferenceData) return <Loader />
 
-  return <HistoryTableInner historyAssignments={historyAssignments} initialData={preferenceData.data} />
+  return (
+    <HistoryTableInner
+      historyAssignments={historyAssignments}
+      onEditDates={onEditDates}
+      initialData={preferenceData.data}
+    />
+  )
 }
 
 function HistoryTableInner({
   historyAssignments,
+  onEditDates,
   initialData,
 }: {
   historyAssignments: ComponentAssignmentWithStats[]
+  onEditDates: (assignment: ComponentAssignmentWithStats) => void
   initialData: TableViewPreferenceData
 }) {
   const {
@@ -769,7 +806,13 @@ function HistoryTableInner({
               {orderedColumns.map((column) => (
                 <Table.Td key={column}>{historyRenderer[column](assignment)}</Table.Td>
               ))}
-              <Table.Td />
+              <Table.Td>
+                <Group justify="flex-end">
+                  <Button size="xs" variant="subtle" onClick={() => onEditDates(assignment)}>
+                    Edit dates
+                  </Button>
+                </Group>
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

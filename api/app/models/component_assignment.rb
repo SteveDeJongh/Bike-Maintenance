@@ -68,14 +68,31 @@ class ComponentAssignment < ApplicationRecord
   def no_overlapping_assignment_for_bike_slot
     return if bike_id.blank? || started_at.blank? || component.blank?
 
-    conflicts = ComponentAssignment
-      .joins(:component)
+    conflicting = ComponentAssignment
+      .includes(:component)
       .where(bike_id: bike_id, components: { category: component.category })
       .where.not(id: id)
+      .order(:started_at)
+      .find { |other| overlaps?(other) }
 
-    if conflicts.any? { |other| overlaps?(other) }
-      errors.add(:base, "This bike already has a #{component.category} assigned during that period")
+    return if conflicting.nil?
+
+    timeframe = conflicting.ended_at ? "#{format_timestamp(conflicting.started_at)} to " \
+      "#{format_timestamp(conflicting.ended_at)}" : "#{format_timestamp(conflicting.started_at)} with no end date yet"
+
+    if conflicting.ended_at
+      errors.add(:base, "#{conflicting.component.label} was already installed as the #{component.category} " \
+        "on this bike from #{timeframe}. The earliest this component can be installed is " \
+        "#{format_timestamp(conflicting.ended_at)}.")
+    else
+      errors.add(:base, "#{conflicting.component.label} is already installed as the #{component.category} " \
+        "on this bike, starting #{timeframe}. Remove or end that assignment before installing another " \
+        "#{component.category} during an overlapping period.")
     end
+  end
+
+  def format_timestamp(time)
+    time.strftime("%B %-d, %Y at %-I:%M %p")
   end
 
   # Two [started_at, ended_at] ranges overlap unless one entirely precedes

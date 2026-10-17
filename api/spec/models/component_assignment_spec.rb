@@ -85,17 +85,22 @@ RSpec.describe ComponentAssignment, type: :model do
   end
 
   describe "overlap validation for the same bike + category slot" do
-    it "rejects a different component of the same category overlapping on the same bike" do
+    it "names the conflicting component when it is still ongoing, with no earliest-date claim" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+      existing = create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain A", category: "chain", user: bike.user),
         started_at: Date.new(2026, 1, 1), ended_at: nil)
 
       overlapping = build(:component_assignment, bike: bike,
-        component: create(:component, category: "chain", user: bike.user),
+        component: create(:component, label: "Chain B", category: "chain", user: bike.user),
         started_at: Date.new(2026, 2, 1), ended_at: nil)
 
       expect(overlapping).not_to be_valid
-      expect(overlapping.errors[:base]).to include(a_string_matching(/already has a chain/))
+      message = overlapping.errors[:base].first
+      expect(message).to include("Chain A")
+      expect(message).to include(existing.started_at.strftime("%B"))
+      expect(message).to include("Remove or end that assignment")
+      expect(message).not_to include("earliest")
     end
 
     it "allows different categories on the same bike to overlap" do
@@ -136,15 +141,52 @@ RSpec.describe ComponentAssignment, type: :model do
 
     it "rejects a same-day chain swap when the incoming assignment starts at the exact instant the outgoing one ends" do
       bike = create(:bike)
-      create(:component_assignment, bike: bike, component: create(:component, category: "chain", user: bike.user),
+      outgoing = create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain A", category: "chain", user: bike.user),
         started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
 
       swap_in = build(:component_assignment, bike: bike,
-        component: create(:component, category: "chain", user: bike.user),
+        component: create(:component, label: "Chain B", category: "chain", user: bike.user),
         started_at: Time.zone.local(2026, 3, 1, 9, 0), ended_at: nil)
 
       expect(swap_in).not_to be_valid
-      expect(swap_in.errors[:base]).to include(a_string_matching(/already has a chain/))
+      message = swap_in.errors[:base].first
+      expect(message).to include("Chain A")
+      expect(message).to include("earliest this component can be installed")
+      expect(message).to include(outgoing.ended_at.strftime("%-I:%M %p"))
+    end
+
+    it "names the specific conflicting assignment when more than one exists, ordered by started_at" do
+      bike = create(:bike)
+      create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain A", category: "chain", user: bike.user),
+        started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 1, 31))
+      create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain B", category: "chain", user: bike.user),
+        started_at: Date.new(2026, 3, 1), ended_at: Date.new(2026, 3, 31))
+
+      spanning = build(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain C", category: "chain", user: bike.user),
+        started_at: Date.new(2026, 1, 15), ended_at: Date.new(2026, 4, 1))
+
+      expect(spanning).not_to be_valid
+      expect(spanning.errors[:base].first).to include("Chain A")
+    end
+
+    it "reports the same message when editing an existing assignment's started_at into a conflict" do
+      bike = create(:bike)
+      create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain A", category: "chain", user: bike.user),
+        started_at: Date.new(2026, 1, 1), ended_at: Date.new(2026, 1, 31))
+
+      being_edited = create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain B", category: "chain", user: bike.user),
+        started_at: Date.new(2026, 2, 1), ended_at: nil)
+
+      being_edited.started_at = Date.new(2026, 1, 15)
+
+      expect(being_edited).not_to be_valid
+      expect(being_edited.errors[:base].first).to include("Chain A")
     end
   end
 
