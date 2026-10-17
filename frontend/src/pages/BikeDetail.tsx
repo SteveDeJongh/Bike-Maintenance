@@ -104,12 +104,23 @@ const installedComponentRenderer: Record<InstalledComponentColumn, (a: Component
   installed_on: (a) => formatDate(a.started_at),
 }
 
+// One row in the Installed-components table: either an occupied row
+// (assignment set), a fully-empty row (neither set, offers the full
+// ride-context choice), or an affordance row for the one remaining,
+// non-conflicting ride context alongside an existing restricted-context
+// assignment in the same slot (forcedRideContext set, assignment unset).
+interface InstalledComponentRowEntry {
+  slot: BikeComponentSlot
+  assignment?: ComponentAssignmentWithStats
+  forcedRideContext?: 'outdoor_only' | 'indoor_only'
+}
+
 // Installed-components sorting has to account for empty (unoccupied) slots,
 // which have no assignment yet — null sorts last, same convention used
 // everywhere else in this app.
 const installedComponentValue: Record<
   InstalledComponentSortColumn,
-  (data: { slot: BikeComponentSlot; assignment?: ComponentAssignmentWithStats }) => string | number | null
+  (data: InstalledComponentRowEntry) => string | number | null
 > = {
   category: ({ slot }) => slot.category,
   component_label: ({ assignment }) => assignment?.component.label ?? null,
@@ -395,15 +406,35 @@ function InstalledComponentsTableInner({
   })
   const headerDragSensors = useColumnDragSensors()
 
-  const sortedSlots = useMemo(() => {
-    const slotsWithAssignments = orderedSlots.map((slot) => ({
-      slot,
-      assignment: bike.component_assignments.find(
+  // Each category slot can have 0 active assignments (an empty row offering
+  // the full ride-context choice), 1 (either fully occupied if "both", or
+  // paired with an affordance row offering the one remaining,
+  // non-conflicting ride context), or 2 (an outdoor+indoor pair, both
+  // occupied, no affordance row) -- see the overlap-relaxation rule on
+  // ComponentAssignment#no_overlapping_assignment_for_bike_slot.
+  const rowEntries = useMemo(() => {
+    const entries: InstalledComponentRowEntry[] = []
+    for (const slot of orderedSlots) {
+      const activeAssignments = bike.component_assignments.filter(
         (a) => a.ended_at === null && a.component.category === slot.category,
-      ),
-    }))
+      )
+      if (activeAssignments.length === 0) {
+        entries.push({ slot })
+      } else if (activeAssignments.length === 1) {
+        entries.push({ slot, assignment: activeAssignments[0] })
+        const context = activeAssignments[0].ride_context
+        if (context === 'outdoor_only') entries.push({ slot, forcedRideContext: 'indoor_only' })
+        if (context === 'indoor_only') entries.push({ slot, forcedRideContext: 'outdoor_only' })
+      } else {
+        for (const assignment of activeAssignments) entries.push({ slot, assignment })
+      }
+    }
+    return entries
+  }, [bike, orderedSlots])
+
+  const sortedEntries = useMemo(() => {
     const accessor = installedComponentValue[sortColumn]
-    return slotsWithAssignments
+    return rowEntries
       .map((entry, index) => ({ entry, index }))
       .sort((a, b) => {
         const av = accessor(a.entry)
@@ -415,7 +446,7 @@ function InstalledComponentsTableInner({
         return sortDirection === 'asc' ? cmp : -cmp
       })
       .map(({ entry }) => entry)
-  }, [bike, orderedSlots, sortColumn, sortDirection])
+  }, [rowEntries, sortColumn, sortDirection])
 
   return (
     <>
@@ -468,18 +499,22 @@ function InstalledComponentsTableInner({
           </DndContext>
         </Table.Thead>
         <Table.Tbody>
-          {sortedSlots.map(({ slot, assignment }) => {
+          {sortedEntries.map(({ slot, assignment, forcedRideContext }) => {
             const categoryAssignments = bike.component_assignments.filter(
               (a) => a.component.category === slot.category,
             )
             const endedCount = categoryAssignments.filter((a) => a.ended_at !== null).length
+            const key = assignment
+              ? `assignment-${assignment.id}`
+              : `empty-${slot.id}-${forcedRideContext ?? 'any'}`
 
             return (
               <SlotRow
-                key={slot.id}
+                key={key}
                 bike={bike}
                 slot={slot}
                 assignment={assignment}
+                forcedRideContext={forcedRideContext}
                 hasHistory={categoryAssignments.length > 0}
                 endedCount={endedCount}
                 components={components}
@@ -500,6 +535,7 @@ function SlotRow({
   bike,
   slot,
   assignment,
+  forcedRideContext,
   hasHistory,
   endedCount,
   components,
@@ -511,6 +547,7 @@ function SlotRow({
   bike: BikeDetailData
   slot: BikeComponentSlot
   assignment: ComponentAssignmentWithStats | undefined
+  forcedRideContext?: 'outdoor_only' | 'indoor_only'
   hasHistory: boolean
   endedCount: number
   components: Component[]
@@ -522,7 +559,16 @@ function SlotRow({
   if (assignment) {
     return (
       <Table.Tr onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
-        <Table.Td>{categoryLabel(slot.category)}</Table.Td>
+        <Table.Td>
+          <Group gap="xs" wrap="nowrap">
+            <span>{categoryLabel(slot.category)}</span>
+            {assignment.ride_context !== 'both' && (
+              <Badge size="sm" color={assignment.ride_context === 'indoor_only' ? 'grape' : 'blue'}>
+                {RIDE_CONTEXT_LABELS[assignment.ride_context]}
+              </Badge>
+            )}
+          </Group>
+        </Table.Td>
         <Table.Td>
           <Anchor
             component={Link}
@@ -555,20 +601,22 @@ function SlotRow({
     )
   }
 
-  // Keyed on endedCount so this remounts (and recomputes its default start
-  // date) the moment a prior assignment in this slot ends — otherwise the
-  // row would keep whatever "now" it first mounted with, which can end up
-  // earlier than the just-ended assignment's end date and get rejected by
-  // the backend's overlap validation with no visible error.
+  // Keyed on endedCount (and forcedRideContext) so this remounts (and
+  // recomputes its default start date/ride context) the moment a prior
+  // assignment in this slot ends — otherwise the row would keep whatever
+  // "now" it first mounted with, which can end up earlier than the
+  // just-ended assignment's end date and get rejected by the backend's
+  // overlap validation with no visible error.
   return (
     <EmptySlotRow
-      key={endedCount}
+      key={`${endedCount}-${forcedRideContext ?? 'any'}`}
       bike={bike}
       slot={slot}
       hasHistory={hasHistory}
       components={components}
       activeComponentIdsEverywhere={activeComponentIdsEverywhere}
       columnSpan={1 + orderedColumns.length}
+      forcedRideContext={forcedRideContext}
     />
   )
 }
@@ -580,6 +628,7 @@ function EmptySlotRow({
   components,
   activeComponentIdsEverywhere,
   columnSpan,
+  forcedRideContext,
 }: {
   bike: BikeDetailData
   slot: BikeComponentSlot
@@ -587,6 +636,11 @@ function EmptySlotRow({
   components: Component[]
   activeComponentIdsEverywhere: number[]
   columnSpan: number
+  // Set when this row is the "add the complementary variant" affordance
+  // next to an existing restricted-context assignment in the same slot —
+  // the only ride context that wouldn't conflict with it, so it's fixed
+  // rather than user-chosen.
+  forcedRideContext?: 'outdoor_only' | 'indoor_only'
 }) {
   const [componentId, setComponentId] = useState<string | null>(null)
   // A slot being assigned for the first time defaults to the bike's own
@@ -599,7 +653,7 @@ function EmptySlotRow({
   const defaultAccruesIndoor =
     categorySettings?.find((setting) => setting.category === slot.category)?.accrues_indoor_mileage ?? true
   const [rideContext, setRideContext] = useState<string | null>(
-    defaultAccruesIndoor ? 'both' : 'outdoor_only',
+    forcedRideContext ?? (defaultAccruesIndoor ? 'both' : 'outdoor_only'),
   )
   const [createOpened, setCreateOpened] = useState(false)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
@@ -664,9 +718,14 @@ function EmptySlotRow({
           <Select
             label="Ride context"
             size="sm"
-            data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
+            data={
+              forcedRideContext
+                ? [{ value: forcedRideContext, label: RIDE_CONTEXT_LABELS[forcedRideContext] }]
+                : RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))
+            }
             value={rideContext}
             onChange={setRideContext}
+            disabled={Boolean(forcedRideContext)}
             allowDeselect={false}
           />
           <Button
@@ -695,11 +754,16 @@ function EmptySlotRow({
         />
       </Table.Td>
       <Table.Td>
-        <Group justify="flex-end">
-          <Button size="xs" variant="subtle" onClick={() => deleteSlot.mutate(slot.id)}>
-            Stop tracking
-          </Button>
-        </Group>
+        {/* A forced row sits alongside an existing active assignment in this
+            slot, so the slot as a whole isn't actually untracked — only a
+            genuinely empty row can stop tracking it. */}
+        {!forcedRideContext && (
+          <Group justify="flex-end">
+            <Button size="xs" variant="subtle" onClick={() => deleteSlot.mutate(slot.id)}>
+              Stop tracking
+            </Button>
+          </Group>
+        )}
       </Table.Td>
       <Table.Td />
     </Table.Tr>
