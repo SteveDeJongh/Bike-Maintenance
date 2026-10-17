@@ -5,6 +5,7 @@ Rails.application.routes.draw do
   resources :bikes, except: %i[ new edit ]
   resources :bike_component_slots, only: %i[ create destroy ]
   resources :table_view_preferences, param: :table_key, only: %i[ show update ]
+  resources :component_category_settings, param: :category, only: %i[ index update ]
 
   get  "strava/authorize",     to: "strava#authorize"
   get  "strava/callback",      to: "strava#callback", as: :strava_callback

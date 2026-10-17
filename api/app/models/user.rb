@@ -8,6 +8,7 @@ class User < ApplicationRecord
   has_many :strava_gears, dependent: :destroy
   has_one :strava_credential, dependent: :destroy
   has_many :table_view_preferences, dependent: :destroy
+  has_many :component_category_settings, dependent: :destroy
 
   validates :name, :email, presence: true
   validates :email, uniqueness: true

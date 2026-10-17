@@ -40,6 +40,17 @@ RSpec.describe ComponentAssignment, type: :model do
     expect(assignment.errors[:base]).to include(a_string_matching(/same user/))
   end
 
+  it "defaults ride_context to both" do
+    expect(create(:component_assignment).ride_context).to eq("both")
+  end
+
+  it "is invalid with a ride_context outside the known set" do
+    assignment = build(:component_assignment, ride_context: "upside_down")
+
+    expect(assignment).not_to be_valid
+    expect(assignment.errors[:ride_context]).to be_present
+  end
+
   describe "overlap validation for the same component" do
     it "rejects a second open-ended assignment for a component already mounted elsewhere" do
       component = create(:component)
@@ -188,6 +199,63 @@ RSpec.describe ComponentAssignment, type: :model do
       expect(being_edited).not_to be_valid
       expect(being_edited.errors[:base].first).to include("Chain A")
     end
+
+    describe "mutually exclusive ride contexts (indoor-only + outdoor-only)" do
+      it "allows an outdoor-only and an indoor-only cassette to overlap on the same bike" do
+        bike = create(:bike)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        indoor = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Trainer Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(indoor).to be_valid
+      end
+
+      it "still rejects two outdoor-only cassettes overlapping on the same bike" do
+        bike = create(:bike)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        second_outdoor = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Spare Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        expect(second_outdoor).not_to be_valid
+      end
+
+      it "still rejects an indoor-only assignment overlapping a both assignment" do
+        bike = create(:bike)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "both")
+
+        indoor = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Trainer Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(indoor).not_to be_valid
+      end
+
+      it "rejects a third overlapping assignment once outdoor-only and indoor-only are both taken" do
+        bike = create(:bike)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Trainer Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        third = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Spare Cassette", category: "cassette", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        expect(third).not_to be_valid
+      end
+    end
   end
 
   describe "per-installation-period stats" do
@@ -233,6 +301,44 @@ RSpec.describe ComponentAssignment, type: :model do
           started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
 
         expect(assignment.average_power).to be_nil
+      end
+    end
+
+    describe "ride_context filtering (indoor vs outdoor)" do
+      it "an outdoor_only assignment ignores trainer activities" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          distance_meters: 10_000, trainer: false)
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 6),
+          distance_meters: 20_000, trainer: true)
+
+        expect(assignment.distance_meters).to eq(10_000)
+      end
+
+      it "an indoor_only assignment ignores non-trainer activities" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          distance_meters: 10_000, trainer: false)
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 6),
+          distance_meters: 20_000, trainer: true)
+
+        expect(assignment.distance_meters).to eq(20_000)
+      end
+
+      it "a both assignment counts every activity regardless of trainer flag" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil, ride_context: "both")
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          distance_meters: 10_000, trainer: false)
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 6),
+          distance_meters: 20_000, trainer: true)
+
+        expect(assignment.distance_meters).to eq(30_000)
       end
     end
   end

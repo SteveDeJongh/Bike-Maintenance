@@ -3,18 +3,25 @@ class ComponentAssignment < ApplicationRecord
   belongs_to :bike
 
   validates :started_at, presence: true
+  validates :ride_context, inclusion: { in: %w[both outdoor_only indoor_only] }
   validate :ended_at_after_started_at
   validate :no_overlapping_assignment_for_component
   validate :no_overlapping_assignment_for_bike_slot
   validate :component_and_bike_have_same_owner
 
   # Activities on this assignment's bike from range_start onward, clipped to
-  # ended_at if this assignment has already ended. The shared windowing
-  # primitive both this assignment's own stats and Component's lifetime
-  # stats (which need a custom, clipped range_start for distance_since) are
-  # built on.
+  # ended_at if this assignment has already ended, and to only outdoor or only
+  # indoor (trainer) rides if ride_context restricts it -- this is what makes
+  # a dedicated indoor-only component (e.g. a trainer cassette) only accrue
+  # mileage from trainer rides, and its outdoor-only counterpart only from
+  # real rides, even while both are "installed" on the same bike at once.
+  # The shared windowing primitive both this assignment's own stats and
+  # Component's lifetime stats (which need a custom, clipped range_start for
+  # distance_since) are built on.
   def activities_from(range_start)
     scope = StravaActivity.where(bike_id: bike_id)
+    scope = scope.where(trainer: false) if ride_context == "outdoor_only"
+    scope = scope.where(trainer: true) if ride_context == "indoor_only"
     return StravaActivity.none if ended_at && range_start >= ended_at
 
     ended_at ? scope.where(moved_at: range_start...ended_at) : scope.where(moved_at: range_start..)
@@ -73,7 +80,7 @@ class ComponentAssignment < ApplicationRecord
       .where(bike_id: bike_id, components: { category: component.category })
       .where.not(id: id)
       .order(:started_at)
-      .find { |other| overlaps?(other) }
+      .find { |other| overlaps?(other) && !mutually_exclusive_ride_contexts?(other) }
 
     return if conflicting.nil?
 
@@ -93,6 +100,16 @@ class ComponentAssignment < ApplicationRecord
 
   def format_timestamp(time)
     time.strftime("%B %-d, %Y at %-I:%M %p")
+  end
+
+  # An outdoor-only assignment and an indoor-only assignment never actually
+  # compete for the same mileage, so they're allowed to overlap in the same
+  # bike+category slot -- e.g. a dedicated trainer cassette alongside a
+  # dedicated road cassette. Any other pairing (two of the same restricted
+  # context, or either paired with "both") can still claim the same ride, so
+  # it's still a real conflict.
+  def mutually_exclusive_ride_contexts?(other)
+    [ride_context, other.ride_context].sort == %w[indoor_only outdoor_only]
   end
 
   # Two [started_at, ended_at] ranges overlap unless one entirely precedes

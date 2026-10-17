@@ -50,7 +50,7 @@ class ComponentAssignmentsController < ApplicationController
     end
 
     def component_assignment_params
-      params.require(:component_assignment).permit(:component_id, :bike_id, :started_at, :ended_at)
+      params.require(:component_assignment).permit(:component_id, :bike_id, :started_at, :ended_at, :ride_context)
     end
 
     # Only checks ownership for keys actually present — update often omits

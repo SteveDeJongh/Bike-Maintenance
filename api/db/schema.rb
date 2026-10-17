@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_16_214634) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_17_004922) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -42,8 +42,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_214634) do
     t.datetime "ended_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "ride_context", default: "both", null: false
     t.index ["bike_id"], name: "index_component_assignments_on_bike_id"
     t.index ["component_id"], name: "index_component_assignments_on_component_id"
+  end
+
+  create_table "component_category_settings", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "category", null: false
+    t.boolean "accrues_indoor_mileage", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "category"], name: "index_component_category_settings_on_user_id_and_category", unique: true
+    t.index ["user_id"], name: "index_component_category_settings_on_user_id"
   end
 
   create_table "components", force: :cascade do |t|
@@ -147,6 +158,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_214634) do
   add_foreign_key "bikes", "users"
   add_foreign_key "component_assignments", "bikes"
   add_foreign_key "component_assignments", "components"
+  add_foreign_key "component_category_settings", "users"
   add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
   add_foreign_key "strava_activities", "bikes"
