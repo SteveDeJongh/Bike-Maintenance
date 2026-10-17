@@ -8,8 +8,8 @@ import {
   useUpdateComponentAssignment,
   type ComponentAssignmentPayload,
 } from '../../api/mutations'
-import { useBikes, useComponents } from '../../api/queries'
-import { categoryLabel } from '../../constants'
+import { useBikes, useComponentCategorySettings, useComponents } from '../../api/queries'
+import { categoryLabel, RIDE_CONTEXTS, RIDE_CONTEXT_LABELS } from '../../constants'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { Bike, Component, ComponentAssignment } from '../../types/models'
 
@@ -19,6 +19,7 @@ interface AssignmentFormValues {
   bike_id: string
   started_at: string | null
   ended_at: string | null
+  ride_context: string
 }
 
 function emptyValues(lockBike?: Bike): AssignmentFormValues {
@@ -28,6 +29,7 @@ function emptyValues(lockBike?: Bike): AssignmentFormValues {
     bike_id: lockBike ? String(lockBike.id) : '',
     started_at: nowIsoUtc(),
     ended_at: null,
+    ride_context: 'both',
   }
 }
 
@@ -37,6 +39,7 @@ function toPayload(values: AssignmentFormValues): ComponentAssignmentPayload {
     bike_id: Number(values.bike_id),
     started_at: values.started_at ?? '',
     ended_at: values.ended_at,
+    ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
   }
 }
 
@@ -95,6 +98,7 @@ function AssignmentForm({
 
   const { data: components } = useComponents()
   const { data: bikes } = useBikes()
+  const { data: categorySettings } = useComponentCategorySettings()
 
   const initialComponent = assignment
     ? (components ?? []).find((c) => c.id === assignment.component_id)
@@ -108,6 +112,7 @@ function AssignmentForm({
           bike_id: String(assignment.bike_id),
           started_at: assignment.started_at,
           ended_at: assignment.ended_at,
+          ride_context: assignment.ride_context,
         }
       : emptyValues(lockBike),
     validate: {
@@ -164,6 +169,11 @@ function AssignmentForm({
           onChange={(value) => {
             form.setFieldValue('category', value ?? '')
             form.setFieldValue('component_id', '')
+            if (!isEdit) {
+              const accruesIndoor =
+                categorySettings?.find((setting) => setting.category === value)?.accrues_indoor_mileage ?? true
+              form.setFieldValue('ride_context', accruesIndoor ? 'both' : 'outdoor_only')
+            }
           }}
         />
 
@@ -183,6 +193,14 @@ function AssignmentForm({
         ) : (
           <Select label="Bike" required data={bikeOptions} {...form.getInputProps('bike_id')} />
         )}
+
+        <Select
+          label="Ride context"
+          required
+          allowDeselect={false}
+          data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
+          {...form.getInputProps('ride_context')}
+        />
 
         <DateTimePicker
           label="Started on"

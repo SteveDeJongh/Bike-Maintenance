@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Divider, Group, Modal, Stack, Text } from '@mantine/core'
+import { Alert, Anchor, Button, Divider, Group, Modal, Select, Stack, Text } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { Link } from 'react-router-dom'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
-import { categoryLabel } from '../../constants'
+import { categoryLabel, RIDE_CONTEXTS, RIDE_CONTEXT_LABELS } from '../../constants'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
@@ -16,6 +16,7 @@ import type { ComponentAssignmentWithStats } from '../../types/models'
 interface AssignmentDetailFormValues {
   started_at: string | null
   ended_at: string | null
+  ride_context: string
 }
 
 interface AssignmentDetailModalProps {
@@ -61,7 +62,11 @@ function AssignmentDetailContent({
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<AssignmentDetailFormValues>({
-    initialValues: { started_at: assignment.started_at, ended_at: assignment.ended_at },
+    initialValues: {
+      started_at: assignment.started_at,
+      ended_at: assignment.ended_at,
+      ride_context: assignment.ride_context,
+    },
     validate: {
       started_at: (value) => (value ? null : 'Installed date is required'),
       ended_at: (value) => (isPast && !value ? 'Uninstalled date is required' : null),
@@ -73,8 +78,15 @@ function AssignmentDetailContent({
   function handleSubmit(values: AssignmentDetailFormValues) {
     setBaseErrors([])
     const payload = isPast
-      ? { started_at: values.started_at ?? '', ended_at: values.ended_at }
-      : { started_at: values.started_at ?? '' }
+      ? {
+          started_at: values.started_at ?? '',
+          ended_at: values.ended_at,
+          ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
+        }
+      : {
+          started_at: values.started_at ?? '',
+          ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
+        }
 
     updateAssignment.mutate(payload, {
       onSuccess: () => onClose(),
@@ -116,7 +128,7 @@ function AssignmentDetailContent({
           )}
         </Group>
 
-        <Divider label="Edit dates" labelPosition="left" />
+        <Divider label="Edit" labelPosition="left" />
 
         {baseErrors.length > 0 && (
           <Alert color="red">
@@ -143,6 +155,14 @@ function AssignmentDetailContent({
             error={form.errors.ended_at}
           />
         )}
+
+        <Select
+          label="Ride context"
+          required
+          allowDeselect={false}
+          data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
+          {...form.getInputProps('ride_context')}
+        />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

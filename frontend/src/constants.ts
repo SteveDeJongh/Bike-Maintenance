@@ -37,6 +37,17 @@ export function categoryLabel(category: string): string {
 // Must match MaintenanceEvent::EVENT_TYPES in api/app/models/maintenance_event.rb exactly.
 export const MAINTENANCE_EVENT_TYPES = ['wax', 'clean', 'replace', 'inspect'] as const
 
+// Must match the inclusion list on ComponentAssignment#ride_context in
+// api/app/models/component_assignment.rb exactly. Just display labels for a
+// backend-real enum, not a classification rule.
+export const RIDE_CONTEXTS = ['both', 'outdoor_only', 'indoor_only'] as const
+
+export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string> = {
+  both: 'Both',
+  outdoor_only: 'Outdoor only',
+  indoor_only: 'Indoor only',
+}
+
 // The toggleable columns on the Bikes list. Canonical order (used both for display
 // order and the fixed order columns appear in regardless of toggle order). Name is
 // always shown (the link column) and isn't part of this list, but is still sortable

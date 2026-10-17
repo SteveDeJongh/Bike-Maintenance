@@ -5,6 +5,7 @@ import type {
   BikeWithStats,
   Component,
   ComponentAssignment,
+  ComponentCategorySetting,
   ComponentDetail,
   MaintenanceEvent,
   StravaGear,
@@ -75,6 +76,13 @@ export function useMappedGear() {
   return useQuery({
     queryKey: ['strava', 'mapped_gear'],
     queryFn: () => apiGet<StravaMappedBike[]>('/strava/mapped_gear'),
+  })
+}
+
+export function useComponentCategorySettings() {
+  return useQuery({
+    queryKey: ['component_category_settings'],
+    queryFn: () => apiGet<ComponentCategorySetting[]>('/component_category_settings'),
   })
 }
 

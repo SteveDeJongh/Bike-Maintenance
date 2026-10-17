@@ -21,6 +21,7 @@ import { parseApiError } from '../api/errors'
 import {
   useBike,
   useComponentAssignments,
+  useComponentCategorySettings,
   useComponents,
   useTableViewPreference,
 } from '../api/queries'
@@ -48,6 +49,8 @@ import {
   INSTALLED_COMPONENT_COLUMN_LABELS,
   INSTALLED_COMPONENT_COLUMNS,
   INSTALLED_COMPONENT_SORT_COLUMNS,
+  RIDE_CONTEXTS,
+  RIDE_CONTEXT_LABELS,
   type HistoryColumn,
   type HistorySortColumn,
   type InstalledComponentColumn,
@@ -592,6 +595,12 @@ function EmptySlotRow({
   const [startedAt, setStartedAt] = useState<string | null>(
     hasHistory ? nowIsoUtc() : bike.created_at,
   )
+  const { data: categorySettings } = useComponentCategorySettings()
+  const defaultAccruesIndoor =
+    categorySettings?.find((setting) => setting.category === slot.category)?.accrues_indoor_mileage ?? true
+  const [rideContext, setRideContext] = useState<string | null>(
+    defaultAccruesIndoor ? 'both' : 'outdoor_only',
+  )
   const [createOpened, setCreateOpened] = useState(false)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
   const createAssignment = useCreateComponentAssignment()
@@ -610,6 +619,7 @@ function EmptySlotRow({
         bike_id: bike.id,
         started_at: startedAt ?? nowIsoUtc(),
         ended_at: null,
+        ride_context: (rideContext ?? 'both') as 'both' | 'outdoor_only' | 'indoor_only',
       },
       {
         onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
@@ -650,6 +660,14 @@ function EmptySlotRow({
             size="sm"
             value={isoUtcToDate(startedAt)}
             onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
+          />
+          <Select
+            label="Ride context"
+            size="sm"
+            data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
+            value={rideContext}
+            onChange={setRideContext}
+            allowDeselect={false}
           />
           <Button
             size="sm"

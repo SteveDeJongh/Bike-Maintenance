@@ -95,6 +95,21 @@ export interface ComponentAssignment {
   bike_id: number
   started_at: string
   ended_at: string | null
+  // Which rides this assignment's mileage is drawn from — 'both' (default),
+  // 'outdoor_only', or 'indoor_only' (StravaActivity#trainer rides only).
+  // Lets a dedicated indoor-only component and a dedicated outdoor-only one
+  // of the same category both be "installed" on the same bike at once.
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+}
+
+// A user-serviceable default suggestion for which ride_context to pre-select
+// when installing a new component of this category — not a restriction on
+// what any individual assignment's ride_context can be set to. Missing
+// categories (no explicit row yet) default to true, matching ride_context's
+// own "both" default.
+export interface ComponentCategorySetting {
+  category: string
+  accrues_indoor_mileage: boolean
 }
 
 export interface MaintenanceEvent {

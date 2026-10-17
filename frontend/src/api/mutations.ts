@@ -5,6 +5,7 @@ import type {
   BikeComponentSlot,
   Component,
   ComponentAssignment,
+  ComponentCategorySetting,
   MaintenanceEvent,
   TableViewPreferenceData,
 } from '../types/models'
@@ -197,6 +198,19 @@ export function useReassignGear() {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
     },
+  })
+}
+
+// ComponentCategorySetting
+
+export function useUpdateComponentCategorySetting(category: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (accrues_indoor_mileage: boolean) =>
+      apiPatch<ComponentCategorySetting>(`/component_category_settings/${category}`, {
+        component_category_setting: { accrues_indoor_mileage },
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['component_category_settings'] }),
   })
 }
 
