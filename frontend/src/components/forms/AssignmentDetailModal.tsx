@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Divider, Group, Modal, Select, Stack, Text } from '@mantine/core'
+import { Alert, Anchor, Button, Divider, Group, Modal, Stack, Text } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { Link } from 'react-router-dom'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
-import { categoryLabel, RIDE_CONTEXTS, RIDE_CONTEXT_LABELS } from '../../constants'
+import { categoryLabel } from '../../constants'
+import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
@@ -16,7 +17,7 @@ import type { ComponentAssignmentWithStats } from '../../types/models'
 interface AssignmentDetailFormValues {
   started_at: string | null
   ended_at: string | null
-  ride_context: string
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
 interface AssignmentDetailModalProps {
@@ -78,15 +79,8 @@ function AssignmentDetailContent({
   function handleSubmit(values: AssignmentDetailFormValues) {
     setBaseErrors([])
     const payload = isPast
-      ? {
-          started_at: values.started_at ?? '',
-          ended_at: values.ended_at,
-          ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
-        }
-      : {
-          started_at: values.started_at ?? '',
-          ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
-        }
+      ? { started_at: values.started_at ?? '', ended_at: values.ended_at, ride_context: values.ride_context }
+      : { started_at: values.started_at ?? '', ride_context: values.ride_context }
 
     updateAssignment.mutate(payload, {
       onSuccess: () => onClose(),
@@ -156,12 +150,9 @@ function AssignmentDetailContent({
           />
         )}
 
-        <Select
-          label="Ride context"
-          required
-          allowDeselect={false}
-          data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
-          {...form.getInputProps('ride_context')}
+        <RideContextCheckboxes
+          value={form.values.ride_context}
+          onChange={(value) => form.setFieldValue('ride_context', value)}
         />
 
         <Group justify="flex-end">

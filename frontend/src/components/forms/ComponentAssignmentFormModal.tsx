@@ -9,7 +9,8 @@ import {
   type ComponentAssignmentPayload,
 } from '../../api/mutations'
 import { useBikes, useComponentCategorySettings, useComponents } from '../../api/queries'
-import { categoryLabel, RIDE_CONTEXTS, RIDE_CONTEXT_LABELS } from '../../constants'
+import { categoryLabel } from '../../constants'
+import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { Bike, Component, ComponentAssignment } from '../../types/models'
 
@@ -19,7 +20,7 @@ interface AssignmentFormValues {
   bike_id: string
   started_at: string | null
   ended_at: string | null
-  ride_context: string
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
 function emptyValues(lockBike?: Bike): AssignmentFormValues {
@@ -39,7 +40,7 @@ function toPayload(values: AssignmentFormValues): ComponentAssignmentPayload {
     bike_id: Number(values.bike_id),
     started_at: values.started_at ?? '',
     ended_at: values.ended_at,
-    ride_context: values.ride_context as 'both' | 'outdoor_only' | 'indoor_only',
+    ride_context: values.ride_context,
   }
 }
 
@@ -194,12 +195,9 @@ function AssignmentForm({
           <Select label="Bike" required data={bikeOptions} {...form.getInputProps('bike_id')} />
         )}
 
-        <Select
-          label="Ride context"
-          required
-          allowDeselect={false}
-          data={RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))}
-          {...form.getInputProps('ride_context')}
+        <RideContextCheckboxes
+          value={form.values.ride_context}
+          onChange={(value) => form.setFieldValue('ride_context', value)}
         />
 
         <DateTimePicker

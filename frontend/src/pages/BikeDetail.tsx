@@ -33,6 +33,7 @@ import {
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
+import RideContextCheckboxes from '../components/RideContextCheckboxes'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
@@ -49,7 +50,6 @@ import {
   INSTALLED_COMPONENT_COLUMN_LABELS,
   INSTALLED_COMPONENT_COLUMNS,
   INSTALLED_COMPONENT_SORT_COLUMNS,
-  RIDE_CONTEXTS,
   RIDE_CONTEXT_LABELS,
   type HistoryColumn,
   type HistorySortColumn,
@@ -652,7 +652,7 @@ function EmptySlotRow({
   const { data: categorySettings } = useComponentCategorySettings()
   const defaultAccruesIndoor =
     categorySettings?.find((setting) => setting.category === slot.category)?.accrues_indoor_mileage ?? true
-  const [rideContext, setRideContext] = useState<string | null>(
+  const [rideContext, setRideContext] = useState<'both' | 'outdoor_only' | 'indoor_only'>(
     forcedRideContext ?? (defaultAccruesIndoor ? 'both' : 'outdoor_only'),
   )
   const [createOpened, setCreateOpened] = useState(false)
@@ -673,7 +673,7 @@ function EmptySlotRow({
         bike_id: bike.id,
         started_at: startedAt ?? nowIsoUtc(),
         ended_at: null,
-        ride_context: (rideContext ?? 'both') as 'both' | 'outdoor_only' | 'indoor_only',
+        ride_context: rideContext,
       },
       {
         onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
@@ -715,19 +715,7 @@ function EmptySlotRow({
             value={isoUtcToDate(startedAt)}
             onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
           />
-          <Select
-            label="Ride context"
-            size="sm"
-            data={
-              forcedRideContext
-                ? [{ value: forcedRideContext, label: RIDE_CONTEXT_LABELS[forcedRideContext] }]
-                : RIDE_CONTEXTS.map((context) => ({ value: context, label: RIDE_CONTEXT_LABELS[context] }))
-            }
-            value={rideContext}
-            onChange={setRideContext}
-            disabled={Boolean(forcedRideContext)}
-            allowDeselect={false}
-          />
+          <RideContextCheckboxes value={rideContext} onChange={setRideContext} locked={forcedRideContext} />
           <Button
             size="sm"
             disabled={!componentId}

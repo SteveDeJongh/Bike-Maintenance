@@ -10,10 +10,10 @@ export default function CategorySettings() {
     <Stack>
       <Title order={2}>Category Settings</Title>
       <Text c="dimmed">
-        Controls which component categories accrue mileage from indoor (trainer) rides by
-        default when a new assignment is installed. This is just a default — any individual
-        assignment can still be set to "Both", "Outdoor only", or "Indoor only" regardless of
-        its category's setting here.
+        Controls whether a component category accrues mileage on the trainer by default when a
+        new assignment is installed. This is just a default — any individual assignment's
+        Outdoor/Trainer checkboxes can still be set however it needs, regardless of its
+        category's setting here.
       </Text>
 
       {isPending && <Loader />}
@@ -29,7 +29,7 @@ export default function CategorySettings() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Category</Table.Th>
-              <Table.Th>Accrues mileage indoors</Table.Th>
+              <Table.Th>Accrues mileage on the trainer</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
