@@ -102,14 +102,27 @@ export interface ComponentAssignment {
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
-// A user-serviceable default suggestion for which ride_context to pre-select
-// when installing a new component of this category — not a restriction on
-// what any individual assignment's ride_context can be set to. Missing
-// categories (no explicit row yet) default to true, matching ride_context's
-// own "both" default.
+// User-serviceable per-category settings, upserted by category via
+// GET/PATCH /component_category_settings/:category. A missing row (category
+// never touched) behaves as default_ride_context: 'both', trackable: true,
+// allows_multiple_assignments: false -- the same values these columns default
+// to in the database.
 export interface ComponentCategorySetting {
   category: string
-  accrues_indoor_mileage: boolean
+  // Which ride_context to pre-select when installing a new component of this
+  // category -- not a restriction on what any individual assignment's own
+  // ride_context can be set to.
+  default_ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+  // Whether this category is offered anywhere a new slot/component is
+  // created (the Bike detail "+ Track a new component type" dropdown, the
+  // standalone Components page's category picker). Never retroactive --
+  // already-tracked slots/components keep working regardless.
+  trackable: boolean
+  // Whether the backend permits a second, mutually-exclusive-ride-context
+  // component installed in the same (bike, category) slot at once (e.g. a
+  // dedicated outdoor cassette alongside a dedicated trainer cassette).
+  // Enforced server-side in ComponentAssignment, not just a frontend hint.
+  allows_multiple_assignments: boolean
 }
 
 export interface MaintenanceEvent {

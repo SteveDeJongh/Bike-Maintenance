@@ -80,7 +80,7 @@ class ComponentAssignment < ApplicationRecord
       .where(bike_id: bike_id, components: { category: component.category })
       .where.not(id: id)
       .order(:started_at)
-      .find { |other| overlaps?(other) && !mutually_exclusive_ride_contexts?(other) }
+      .find { |other| overlaps?(other) && !(allows_multiple_assignments? && mutually_exclusive_ride_contexts?(other)) }
 
     return if conflicting.nil?
 
@@ -110,6 +110,16 @@ class ComponentAssignment < ApplicationRecord
   # it's still a real conflict.
   def mutually_exclusive_ride_contexts?(other)
     [ride_context, other.ride_context].sort == %w[indoor_only outdoor_only]
+  end
+
+  # Whether this component's category is one the user has explicitly marked
+  # as allowed to have a second, complementary-context component installed at
+  # once (e.g. cassette) -- a per-category setting, not a blanket rule. No
+  # setting row yet means "no" (single-install is the safe default, matching
+  # how every category behaved before the ride-context feature existed).
+  def allows_multiple_assignments?
+    ComponentCategorySetting.find_by(user_id: component.user_id, category: component.category)
+      &.allows_multiple_assignments || false
   end
 
   # Two [started_at, ended_at] ranges overlap unless one entirely precedes

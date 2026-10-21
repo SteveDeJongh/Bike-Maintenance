@@ -7,7 +7,7 @@ const navLinks = [
   { to: '/maintenance-events', label: 'Maintenance Events' },
   { to: '/assignments', label: 'Assignments' },
   { to: '/strava', label: 'Strava' },
-  { to: '/category-settings', label: 'Category Settings' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 export default function Layout() {

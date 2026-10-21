@@ -8,8 +8,8 @@ RSpec.describe "ComponentCategorySettings", type: :request do
 
   describe "GET /component_category_settings" do
     it "returns only the current user's settings" do
-      create(:component_category_setting, user: current_user, category: "chain", accrues_indoor_mileage: true)
-      create(:component_category_setting, category: "chain", accrues_indoor_mileage: false)
+      create(:component_category_setting, user: current_user, category: "chain", default_ride_context: "both")
+      create(:component_category_setting, category: "chain", default_ride_context: "outdoor_only")
 
       get "/component_category_settings"
 
@@ -17,7 +17,7 @@ RSpec.describe "ComponentCategorySettings", type: :request do
       body = JSON.parse(response.body)
       expect(body.length).to eq(1)
       expect(body.first["category"]).to eq("chain")
-      expect(body.first["accrues_indoor_mileage"]).to be true
+      expect(body.first["default_ride_context"]).to eq("both")
     end
   end
 
@@ -25,24 +25,27 @@ RSpec.describe "ComponentCategorySettings", type: :request do
     it "creates a setting on first write" do
       expect {
         patch "/component_category_settings/cassette", params: {
-          component_category_setting: { accrues_indoor_mileage: false },
+          component_category_setting: { default_ride_context: "outdoor_only", trackable: false, allows_multiple_assignments: true },
         }
       }.to change(ComponentCategorySetting, :count).by(1)
 
       expect(response).to have_http_status(:ok)
-      expect(current_user.component_category_settings.find_by(category: "cassette").accrues_indoor_mileage).to be false
+      setting = current_user.component_category_settings.find_by(category: "cassette")
+      expect(setting.default_ride_context).to eq("outdoor_only")
+      expect(setting.trackable).to be false
+      expect(setting.allows_multiple_assignments).to be true
     end
 
     it "updates an existing setting rather than duplicating it" do
-      create(:component_category_setting, user: current_user, category: "cassette", accrues_indoor_mileage: false)
+      create(:component_category_setting, user: current_user, category: "cassette", default_ride_context: "outdoor_only")
 
       expect {
         patch "/component_category_settings/cassette", params: {
-          component_category_setting: { accrues_indoor_mileage: true },
+          component_category_setting: { default_ride_context: "indoor_only" },
         }
       }.not_to change(ComponentCategorySetting, :count)
 
-      expect(current_user.component_category_settings.find_by(category: "cassette").accrues_indoor_mileage).to be true
+      expect(current_user.component_category_settings.find_by(category: "cassette").default_ride_context).to eq("indoor_only")
     end
   end
 end

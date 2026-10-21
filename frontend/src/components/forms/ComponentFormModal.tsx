@@ -8,6 +8,7 @@ import {
   useUpdateComponent,
   type ComponentPayload,
 } from '../../api/mutations'
+import { useComponentCategorySettings } from '../../api/queries'
 import { COMPONENT_CATEGORIES, categoryLabel } from '../../constants'
 import type { Component } from '../../types/models'
 
@@ -90,6 +91,7 @@ function ComponentForm({
 }) {
   const isEdit = Boolean(component)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
+  const { data: categorySettings } = useComponentCategorySettings()
 
   const form = useForm<ComponentFormValues>({
     initialValues: component ? toFormValues(component) : { ...emptyValues, ...createDefaults },
@@ -115,6 +117,16 @@ function ComponentForm({
     })
   }
 
+  // Hides disabled/not-trackable categories from the picker -- but always
+  // keeps the form's current category in the list, so a pre-filled
+  // (BikeDetail's per-slot "+ Create new" flow) or already-set category that
+  // was since marked not-trackable still displays correctly.
+  const categoryOptions = COMPONENT_CATEGORIES.filter(
+    (category) =>
+      category === form.values.category ||
+      (categorySettings?.find((setting) => setting.category === category)?.trackable ?? true),
+  ).map((category) => ({ value: category, label: categoryLabel(category) }))
+
   return (
     <form onSubmit={form.onSubmit(handleSubmit)}>
       <Stack>
@@ -131,10 +143,7 @@ function ComponentForm({
           label="Category"
           required
           disabled={!isEdit && Boolean(createDefaults?.category)}
-          data={COMPONENT_CATEGORIES.map((category) => ({
-            value: category,
-            label: categoryLabel(category),
-          }))}
+          data={categoryOptions}
           {...form.getInputProps('category')}
         />
         <DateInput label="Acquired on" required {...form.getInputProps('acquired_on')} />

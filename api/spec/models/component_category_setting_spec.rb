@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe ComponentCategorySetting, type: :model do
-  it "is valid with a user, category, and accrues_indoor_mileage" do
+  it "is valid with a user, category, default_ride_context, trackable, and allows_multiple_assignments" do
     expect(build(:component_category_setting)).to be_valid
   end
 
@@ -10,6 +10,13 @@ RSpec.describe ComponentCategorySetting, type: :model do
 
     expect(setting).not_to be_valid
     expect(setting.errors[:category]).to be_present
+  end
+
+  it "is invalid with a default_ride_context outside the known set" do
+    setting = build(:component_category_setting, default_ride_context: "upside_down")
+
+    expect(setting).not_to be_valid
+    expect(setting.errors[:default_ride_context]).to be_present
   end
 
   it "is invalid with a duplicate category for the same user" do

@@ -203,6 +203,7 @@ RSpec.describe ComponentAssignment, type: :model do
     describe "mutually exclusive ride contexts (indoor-only + outdoor-only)" do
       it "allows an outdoor-only and an indoor-only cassette to overlap on the same bike" do
         bike = create(:bike)
+        create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, bike: bike,
           component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
@@ -242,6 +243,7 @@ RSpec.describe ComponentAssignment, type: :model do
 
       it "rejects a third overlapping assignment once outdoor-only and indoor-only are both taken" do
         bike = create(:bike)
+        create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, bike: bike,
           component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
@@ -254,6 +256,33 @@ RSpec.describe ComponentAssignment, type: :model do
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
 
         expect(third).not_to be_valid
+      end
+
+      it "rejects an outdoor-only and indoor-only pair for a category with no allows_multiple_assignments setting" do
+        bike = create(:bike)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Front Tire", category: "tire_front", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        indoor = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Trainer Front Tire", category: "tire_front", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(indoor).not_to be_valid
+      end
+
+      it "rejects the pair when allows_multiple_assignments is explicitly false" do
+        bike = create(:bike)
+        create(:component_category_setting, user: bike.user, category: "tire_front", allows_multiple_assignments: false)
+        create(:component_assignment, bike: bike,
+          component: create(:component, label: "Front Tire", category: "tire_front", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        indoor = build(:component_assignment, bike: bike,
+          component: create(:component, label: "Trainer Front Tire", category: "tire_front", user: bike.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(indoor).not_to be_valid
       end
     end
   end

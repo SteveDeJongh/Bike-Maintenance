@@ -171,9 +171,9 @@ function AssignmentForm({
             form.setFieldValue('category', value ?? '')
             form.setFieldValue('component_id', '')
             if (!isEdit) {
-              const accruesIndoor =
-                categorySettings?.find((setting) => setting.category === value)?.accrues_indoor_mileage ?? true
-              form.setFieldValue('ride_context', accruesIndoor ? 'both' : 'outdoor_only')
+              const defaultRideContext =
+                categorySettings?.find((setting) => setting.category === value)?.default_ride_context ?? 'both'
+              form.setFieldValue('ride_context', defaultRideContext)
             }
           }}
         />

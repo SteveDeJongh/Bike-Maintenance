@@ -206,9 +206,9 @@ export function useReassignGear() {
 export function useUpdateComponentCategorySetting(category: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (accrues_indoor_mileage: boolean) =>
+    mutationFn: (changes: Partial<Omit<ComponentCategorySetting, 'category'>>) =>
       apiPatch<ComponentCategorySetting>(`/component_category_settings/${category}`, {
-        component_category_setting: { accrues_indoor_mileage },
+        component_category_setting: changes,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['component_category_settings'] }),
   })

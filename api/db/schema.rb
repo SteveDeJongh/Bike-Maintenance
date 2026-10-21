@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_17_004922) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_21_233121) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -50,9 +50,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_004922) do
   create_table "component_category_settings", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "category", null: false
-    t.boolean "accrues_indoor_mileage", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "default_ride_context", default: "both", null: false
+    t.boolean "trackable", default: true, null: false
+    t.boolean "allows_multiple_assignments", default: false, null: false
     t.index ["user_id", "category"], name: "index_component_category_settings_on_user_id_and_category", unique: true
     t.index ["user_id"], name: "index_component_category_settings_on_user_id"
   end

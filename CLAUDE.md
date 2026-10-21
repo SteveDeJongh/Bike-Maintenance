@@ -57,29 +57,43 @@ docker build .`), not the repo root.
   `"both"`, backend-validated — unlike `category`, this one directly drives computation,
   so it's a real enum, not a free-text frontend-owned concept). No overlapping
   assignments for the same component, and no overlapping assignments for the same
-  (bike, category) slot — *except* an `outdoor_only` + `indoor_only` pair, which are
-  allowed to overlap since they never actually claim the same ride (e.g. a dedicated
-  trainer cassette installed alongside a dedicated road cassette on the same bike at
-  the same time). Timestamps, not dates: a component can be swapped more than once in
-  a day. Validates that `component.user_id == bike.user_id` (no cross-user
-  assignments). Reachable from a `User` via `has_many through:` on `bikes` — no direct
-  `user_id` column of its own.
-- `ComponentCategorySetting`: user_id, category, accrues_indoor_mileage (boolean) —
-  unique per `(user_id, category)`. User-serviceable (`GET/PATCH
-  /component_category_settings/:category`, upsert-by-key like `TableViewPreference`)
-  default-suggestion for which `ride_context` to pre-select when installing a new
-  component of that category — it does *not* restrict what any individual
-  assignment's `ride_context` can actually be set to, which is what makes the
-  indoor/outdoor-cassette scenario above possible (the category default can say
-  "outdoor only" while one specific assignment is still manually set to
-  `indoor_only`). A missing row defaults to `true` (accrues everywhere, matching
-  `ride_context`'s own `"both"` default). Seeded with a one-time, fully editable
-  starting point (cassette/tire_front/tire_rear/wheel_front/wheel_rear/
-  brake_pads_front/brake_pads_rear → `false`; chain/chainring/bottom_bracket/
-  handlebar_tape/saddle → `true`) — deliberately *not* hardcoded logic; every row is
-  changeable via the Category Settings page. A "frame" category and fully
-  user-definable categories were raised during design but are an explicitly deferred
-  future idea, not built — categories stay free-text exactly as they are today.
+  (bike, category) slot — *except* an `outdoor_only` + `indoor_only` pair, and even then
+  only when that category's `ComponentCategorySetting#allows_multiple_assignments` is
+  `true` (e.g. a dedicated trainer cassette installed alongside a dedicated road
+  cassette on the same bike at the same time) — a category with no such setting (or an
+  explicit `false`) stays single-install-only even for a mutually-exclusive-context
+  pair. Timestamps, not dates: a component can be swapped more than once in a day.
+  Validates that `component.user_id == bike.user_id` (no cross-user assignments).
+  Reachable from a `User` via `has_many through:` on `bikes` — no direct `user_id`
+  column of its own.
+- `ComponentCategorySetting`: user_id, category, default_ride_context (string, same
+  3-value enum/validation as `ComponentAssignment#ride_context`, DB default `"both"`),
+  trackable (boolean, DB default `true`), allows_multiple_assignments (boolean, DB
+  default `false`) — unique per `(user_id, category)`. User-serviceable (`GET/PATCH
+  /component_category_settings/:category`, upsert-by-key like `TableViewPreference`),
+  surfaced on the Settings page's "Component Categories" section:
+  - `default_ride_context` is a default-suggestion only — which `ride_context` to
+    pre-select when installing a new component of that category. It does *not*
+    restrict what any individual assignment's `ride_context` can actually be set to,
+    which is what makes the indoor/outdoor-cassette scenario above possible (the
+    category default can say `outdoor_only` while one specific assignment is still
+    manually set to `indoor_only`).
+  - `trackable` gates every "start something new in this category" flow (the Bike
+    detail "+ Track a new component type" dropdown, the standalone Components page's
+    "+ New Component" category picker) — purely a frontend creation-time filter, never
+    retroactive against already-tracked slots or already-created components.
+  - `allows_multiple_assignments` is the one setting with real backend teeth — it's
+    what `ComponentAssignment`'s overlap validation reads to decide whether a
+    mutually-exclusive-context pair is permitted for that category at all (see above).
+  A missing row behaves as each column's own DB default (`"both"`/`true`/`false`).
+  Seeded with a one-time, fully editable starting point (cassette/tire_front/
+  tire_rear/wheel_front/wheel_rear/brake_pads_front/brake_pads_rear →
+  `default_ride_context: "outdoor_only"`; chain/chainring/bottom_bracket/
+  handlebar_tape/saddle → `"both"`; only `cassette` seeded
+  `allows_multiple_assignments: true`) — deliberately *not* hardcoded logic; every row
+  is changeable via the Settings page. A "frame" category and fully user-definable
+  categories were raised during design but are an explicitly deferred future idea, not
+  built — categories stay free-text exactly as they are today.
 - `MaintenanceEvent`: component_id, event_type (wax, clean, replace, inspect),
   performed_at (timestamp), notes. Reachable from a `User` via `has_many through:` on
   `components` — no direct `user_id` column of its own.

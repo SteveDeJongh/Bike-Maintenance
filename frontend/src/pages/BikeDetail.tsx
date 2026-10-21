@@ -175,6 +175,7 @@ export default function BikeDetail() {
   const { data: bike, isPending: bikePending, error: bikeError } = useBike(bikeId)
   const { data: assignments, isPending: assignmentsPending } = useComponentAssignments()
   const { data: components } = useComponents()
+  const { data: categorySettings } = useComponentCategorySettings()
 
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [selectedAssignment, setSelectedAssignment] = useState<ComponentAssignmentWithStats | null>(null)
@@ -217,7 +218,9 @@ export default function BikeDetail() {
   ).filter((slot): slot is BikeComponentSlot => slot !== undefined)
 
   const untrackedCategories = COMPONENT_CATEGORIES.filter(
-    (category) => !bike.bike_component_slots.some((slot) => slot.category === category),
+    (category) =>
+      !bike.bike_component_slots.some((slot) => slot.category === category) &&
+      (categorySettings?.find((setting) => setting.category === category)?.trackable ?? true),
   )
 
   const historyAssignments = bike.component_assignments.filter((a) => a.ended_at !== null)
@@ -650,10 +653,10 @@ function EmptySlotRow({
     hasHistory ? nowIsoUtc() : bike.created_at,
   )
   const { data: categorySettings } = useComponentCategorySettings()
-  const defaultAccruesIndoor =
-    categorySettings?.find((setting) => setting.category === slot.category)?.accrues_indoor_mileage ?? true
+  const defaultRideContext =
+    categorySettings?.find((setting) => setting.category === slot.category)?.default_ride_context ?? 'both'
   const [rideContext, setRideContext] = useState<'both' | 'outdoor_only' | 'indoor_only'>(
-    forcedRideContext ?? (defaultAccruesIndoor ? 'both' : 'outdoor_only'),
+    forcedRideContext ?? defaultRideContext,
   )
   const [createOpened, setCreateOpened] = useState(false)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
