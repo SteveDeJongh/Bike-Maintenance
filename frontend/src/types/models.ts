@@ -8,10 +8,16 @@ export interface Bike {
   created_at: string
 }
 
+// A slot is independently created/removed per (category, ride_context) --
+// 'both' (the default, one slot per category) unless the category's
+// ComponentCategorySetting#allows_multiple_assignments permits splitting
+// into separate outdoor_only/indoor_only slots that are tracked and removed
+// independently of each other.
 export interface BikeComponentSlot {
   id: number
   bike_id: number
   category: string
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
 export interface BikeWithStats extends Bike {

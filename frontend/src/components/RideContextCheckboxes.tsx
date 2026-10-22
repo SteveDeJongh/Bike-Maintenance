@@ -5,15 +5,11 @@ type RideContext = 'both' | 'outdoor_only' | 'indoor_only'
 interface RideContextCheckboxesProps {
   value: RideContext
   onChange: (value: RideContext) => void
-  // Set on the "add the complementary component" affordance row (see
-  // BikeDetail.tsx's SlotRow) — pins both checkboxes to the one valid
-  // remaining context and disables them.
-  locked?: 'outdoor_only' | 'indoor_only'
 }
 
-export default function RideContextCheckboxes({ value, onChange, locked }: RideContextCheckboxesProps) {
-  const outdoor = locked ? locked === 'outdoor_only' : value !== 'indoor_only'
-  const trainer = locked ? locked === 'indoor_only' : value !== 'outdoor_only'
+export default function RideContextCheckboxes({ value, onChange }: RideContextCheckboxesProps) {
+  const outdoor = value !== 'indoor_only'
+  const trainer = value !== 'outdoor_only'
 
   function setOutdoor(checked: boolean) {
     if (!checked && !trainer) return // the enum has no "neither" state
@@ -27,18 +23,8 @@ export default function RideContextCheckboxes({ value, onChange, locked }: RideC
 
   return (
     <Group gap="sm" wrap="nowrap">
-      <Checkbox
-        label="Outdoor"
-        checked={outdoor}
-        disabled={Boolean(locked)}
-        onChange={(event) => setOutdoor(event.currentTarget.checked)}
-      />
-      <Checkbox
-        label="Trainer"
-        checked={trainer}
-        disabled={Boolean(locked)}
-        onChange={(event) => setTrainer(event.currentTarget.checked)}
-      />
+      <Checkbox label="Outdoor" checked={outdoor} onChange={(event) => setOutdoor(event.currentTarget.checked)} />
+      <Checkbox label="Trainer" checked={trainer} onChange={(event) => setTrainer(event.currentTarget.checked)} />
     </Group>
   )
 }

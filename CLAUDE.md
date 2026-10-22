@@ -52,6 +52,20 @@ docker build .`), not the repo root.
 - `Bike`: user_id, name, make, model, strava_gear_id, retired_on
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
   tire_rear, ...), acquired_on, retired_on — category doubles as a "slot" for validation
+- `BikeComponentSlot`: bike_id, category, ride_context (string: `"both"`/`"outdoor_only"`/
+  `"indoor_only"`, same enum/validation as `ComponentAssignment#ride_context`, DB default
+  `"both"`) — unique per `(bike_id, category, ride_context)`. What "+ Track a new
+  component type" on the Bike detail page creates; each row is independently
+  created/removed. A category normally has at most one slot (`"both"`) per bike, but a
+  category with `ComponentCategorySetting#allows_multiple_assignments` can have up to
+  two, one `outdoor_only` and one `indoor_only` — real, separate rows a user tracks and
+  stops tracking on their own (e.g. a dedicated outdoor cassette slot and a separate
+  indoor/trainer cassette slot on the same bike), not a computed pairing. A non-`"both"`
+  `ride_context` is only valid when the category actually allows it. `before_destroy`
+  blocks removing a slot that still has a matching active assignment — for a `"both"`
+  slot, any active assignment of that category; for a split slot, only one whose own
+  `ride_context` matches, so stopping tracking one variant is never blocked by the
+  other's still-active assignment.
 - `ComponentAssignment`: component_id, bike_id, started_at, ended_at (nullable = currently
   mounted), ride_context (string: `"both"`/`"outdoor_only"`/`"indoor_only"`, default
   `"both"`, backend-validated — unlike `category`, this one directly drives computation,
@@ -60,9 +74,9 @@ docker build .`), not the repo root.
   (bike, category) slot, with two exceptions, both gated behind that category's
   `ComponentCategorySetting#allows_multiple_assignments` being `true` (a category with no
   such setting, or an explicit `false`, stays strictly single-install-only):
-  - same bike, same category slot: an `outdoor_only` + `indoor_only` pair (e.g. a
-    dedicated trainer cassette installed alongside a dedicated road cassette on the same
-    bike at the same time).
+  - same bike, same category: an `outdoor_only` + `indoor_only` pair, one per
+    independent `BikeComponentSlot` (e.g. a dedicated trainer cassette installed
+    alongside a dedicated road cassette on the same bike at the same time).
   - same component, different bikes: two concurrent `indoor_only` assignments (e.g. a
     cassette that physically lives on the trainer, not on any one bike's frame — "which
     bike" is just an attribution label for a ride, not a claim about where the part is
@@ -90,13 +104,14 @@ docker build .`), not the repo root.
     "+ New Component" category picker) — purely a frontend creation-time filter, never
     retroactive against already-tracked slots or already-created components.
   - `allows_multiple_assignments` is the one setting with real backend teeth — it's
-    what `ComponentAssignment`'s overlap validation reads to decide whether a
-    mutually-exclusive-context pair in one slot, or the same component shared
-    indoor_only across bikes, is permitted for that category at all (see above). One
-    setting deliberately backs both cases rather than two separate columns — they're
-    the same underlying idea for a category ("not strictly one-active-installation-at-
-    a-time"), and splitting them isn't justified until a real need for independent
-    control over each surfaces.
+    what lets a category's `BikeComponentSlot` be split into independent
+    `outdoor_only`/`indoor_only` slots at all, and what `ComponentAssignment`'s overlap
+    validation reads to decide whether an outdoor_only+indoor_only pair (one slot each),
+    or the same component shared indoor_only across bikes, is permitted for that
+    category (see above). One setting deliberately backs both cases rather than two
+    separate columns — they're the same underlying idea for a category ("not strictly
+    one-active-installation-at-a-time"), and splitting them isn't justified until a real
+    need for independent control over each surfaces.
   A missing row behaves as each column's own DB default (`"both"`/`true`/`false`).
   Seeded with a one-time, fully editable starting point (cassette/tire_front/
   tire_rear/wheel_front/wheel_rear/brake_pads_front/brake_pads_rear →

@@ -4,7 +4,7 @@ class BikeComponentSlotsController < ApplicationController
   # POST /bike_component_slots
   def create
     bike = current_user.bikes.find(bike_component_slot_params[:bike_id])
-    @bike_component_slot = bike.bike_component_slots.new(category: bike_component_slot_params[:category])
+    @bike_component_slot = bike.bike_component_slots.new(bike_component_slot_params.except(:bike_id))
 
     if @bike_component_slot.save
       render json: @bike_component_slot, status: :created
@@ -28,6 +28,6 @@ class BikeComponentSlotsController < ApplicationController
     end
 
     def bike_component_slot_params
-      params.require(:bike_component_slot).permit(:bike_id, :category)
+      params.require(:bike_component_slot).permit(:bike_id, :category, :ride_context)
     end
 end
