@@ -409,12 +409,15 @@ function InstalledComponentsTableInner({
     defaultSort: { column: 'category', direction: 'asc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const { data: categorySettings } = useComponentCategorySettings()
 
   // Each category slot can have 0 active assignments (an empty row offering
-  // the full ride-context choice), 1 (either fully occupied if "both", or
-  // paired with an affordance row offering the one remaining,
-  // non-conflicting ride context), or 2 (an outdoor+indoor pair, both
-  // occupied, no affordance row) -- see the overlap-relaxation rule on
+  // the full ride-context choice), 1 (either fully occupied if "both", or --
+  // only when the category's allows_multiple_assignments setting permits it
+  // (see Settings' Component Categories page) -- paired with an affordance
+  // row offering the one remaining, non-conflicting ride context), or 2 (an
+  // outdoor+indoor pair, both occupied, no affordance row) -- see the
+  // overlap-relaxation rule on
   // ComponentAssignment#no_overlapping_assignment_for_bike_slot.
   const rowEntries = useMemo(() => {
     const entries: InstalledComponentRowEntry[] = []
@@ -422,19 +425,23 @@ function InstalledComponentsTableInner({
       const activeAssignments = bike.component_assignments.filter(
         (a) => a.ended_at === null && a.component.category === slot.category,
       )
+      const allowsMultiple =
+        categorySettings?.find((setting) => setting.category === slot.category)?.allows_multiple_assignments ??
+        false
+
       if (activeAssignments.length === 0) {
         entries.push({ slot })
       } else if (activeAssignments.length === 1) {
         entries.push({ slot, assignment: activeAssignments[0] })
         const context = activeAssignments[0].ride_context
-        if (context === 'outdoor_only') entries.push({ slot, forcedRideContext: 'indoor_only' })
-        if (context === 'indoor_only') entries.push({ slot, forcedRideContext: 'outdoor_only' })
+        if (allowsMultiple && context === 'outdoor_only') entries.push({ slot, forcedRideContext: 'indoor_only' })
+        if (allowsMultiple && context === 'indoor_only') entries.push({ slot, forcedRideContext: 'outdoor_only' })
       } else {
         for (const assignment of activeAssignments) entries.push({ slot, assignment })
       }
     }
     return entries
-  }, [bike, orderedSlots])
+  }, [bike, orderedSlots, categorySettings])
 
   const sortedEntries = useMemo(() => {
     const accessor = installedComponentValue[sortColumn]
