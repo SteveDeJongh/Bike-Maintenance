@@ -103,12 +103,17 @@ docker build .`), not the repo root.
   retroactively backfill them — see `StravaActivity.reconcile_for_bike!`),
   distance_meters, moved_at (timestamp — the ride's start), name, activity_type (set
   from Strava's `sport_type`, not `type` — every stored row is already filtered to
-  `type == "Ride"`, so `sport_type`'s finer granularity is the useful part), synced_at.
-  Also carries ride-analytics fields captured for later use (not yet surfaced in the
-  UI): `trainer`, `commute`, `moving_time`, `elapsed_time`, `average_speed`, `max_speed`,
-  `total_elevation_gain`, `average_watts`, `weighted_average_watts`, `device_watts`,
-  `kilojoules`, `average_heartrate`, `max_heartrate`, `average_cadence` — all nullable
-  except `trainer`/`commute`, since Strava omits them entirely (not even `null`) when an
+  `type` being `"Ride"` or `"VirtualRide"` (`StravaSyncJob::SYNCED_TYPES`), so
+  `sport_type`'s finer granularity is the useful part), synced_at. `#indoor`/`#outdoor`
+  scopes are the actual signal mileage attribution uses for indoor/outdoor, not the raw
+  `trainer` column alone — confirmed empirically that Zwift's Strava integration does
+  not reliably set `trainer: true` on its own uploads, so `activity_type == "VirtualRide"`
+  also counts as indoor regardless of `trainer`. Also carries ride-analytics fields
+  captured for later use (not yet surfaced in the UI): `trainer`, `commute`,
+  `moving_time`, `elapsed_time`, `average_speed`, `max_speed`, `total_elevation_gain`,
+  `average_watts`, `weighted_average_watts`, `device_watts`, `kilojoules`,
+  `average_heartrate`, `max_heartrate`, `average_cadence` — all nullable except
+  `trainer`/`commute`, since Strava omits them entirely (not even `null`) when an
   activity has no power meter/HR monitor/cadence sensor.
 - `StravaCredential`: user_id (unique — one row per user), access_token, refresh_token,
   expires_at, athlete_id, scope
@@ -128,9 +133,10 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   half-open [started_at, ended_at) window — or [started_at, ∞) while still mounted —
   summed across all the component's assignments. The window is half-open so that an
   activity on a swap boundary is credited to exactly one assignment, never both.
-  Each assignment's own `ride_context` additionally restricts this to only
-  non-trainer activities (`outdoor_only`), only trainer activities (`indoor_only`),
-  or no restriction (`"both"`, the default) — see `ComponentAssignment#activities_from`,
+  Each assignment's own `ride_context` additionally restricts this to only outdoor
+  activities (`outdoor_only`), only indoor activities (`indoor_only`, via
+  `StravaActivity#indoor` — trainer rides and Zwift/virtual rides both count), or no
+  restriction (`"both"`, the default) — see `ComponentAssignment#activities_from`,
   the one shared windowing+filtering primitive every mileage computation (lifetime
   and per-installation-period alike) funnels through.
 - `Component#distance_since(event_type:)` = same sum, filtered to activities after the
@@ -170,8 +176,16 @@ per-assignment loop.
   deployed host. No webhook until there's a public URL.
 - `StravaSyncJob` pages `GET /athlete/activities` incrementally, using
   `StravaActivity.maximum(:moved_at)` as the `after` cursor (no separate "last synced"
-  column). Only `type == "Ride"` activities are stored. It also runs `Strava::GearSync`
-  once after paging finishes, so the gear cache stays current on every routine sync.
+  column). Only `Ride`/`VirtualRide`-type activities are stored (`SYNCED_TYPES`) — the
+  latter is what Zwift/virtual-trainer rides come back as, a distinct `type` from plain
+  `"Ride"`, not a flag on a Ride. It also runs `Strava::GearSync` once after paging
+  finishes, so the gear cache stays current on every routine sync. `perform(user_id,
+  full_resync: true)` ignores the incremental cursor and re-fetches from the beginning of
+  the user's history — the cursor only looks forward from the latest already-stored
+  activity, so it can't backfill history from before a change like widening
+  `SYNCED_TYPES`; safe to run repeatedly since `upsert_activity`'s
+  `find_or_initialize_by` is idempotent. `bin/rails strava:resync_all` runs it for every
+  connected user.
 - `Strava::GearSync` (`app/services/strava/gear_sync.rb`) populates `StravaGear`: the
   known gear id set is the union of the athlete's current `GET /athlete` bikes list and
   every `gear_id` ever seen in synced activity history (kept even if Strava's athlete

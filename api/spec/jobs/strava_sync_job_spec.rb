@@ -34,17 +34,17 @@ RSpec.describe StravaSyncJob, type: :job do
     StravaSyncJob.perform_now(other_user.id)
   end
 
-  it "stores only Ride-type activities" do
+  it "stores Ride and VirtualRide activities, excluding other types" do
     allow(client).to receive(:fetch_activities)
       .with(access_token: anything, after: nil, page: 1, per_page: 100)
-      .and_return([ride(id: 1, type: "Ride"), ride(id: 2, type: "Run")])
+      .and_return([ride(id: 1, type: "Ride"), ride(id: 2, type: "VirtualRide"), ride(id: 3, type: "Run")])
     allow(client).to receive(:fetch_activities)
       .with(access_token: anything, after: nil, page: 2, per_page: 100)
       .and_return([])
 
     StravaSyncJob.perform_now(user.id)
 
-    expect(StravaActivity.pluck(:strava_id)).to eq([1])
+    expect(StravaActivity.pluck(:strava_id)).to contain_exactly(1, 2)
   end
 
   it "upserts rather than duplicates on a repeat strava_id" do
@@ -106,6 +106,19 @@ RSpec.describe StravaSyncJob, type: :job do
     StravaSyncJob.perform_now(user.id)
 
     expect(client).to have_received(:fetch_activities).once
+  end
+
+  it "ignores the stored cursor and fetches from the beginning when full_resync is true" do
+    create(:strava_activity, user: user, bike: create(:bike, user: user),
+      moved_at: Time.zone.local(2026, 5, 1, 9, 0))
+
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id, full_resync: true)
+
+    expect(client).to have_received(:fetch_activities).with(access_token: anything, after: nil, page: 1, per_page: 100)
   end
 
   it "stores the analytics fields present on the raw activity, and nil for fields Strava omits" do

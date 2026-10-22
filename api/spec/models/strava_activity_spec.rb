@@ -20,6 +20,31 @@ RSpec.describe StravaActivity, type: :model do
     expect(activity.errors[:strava_id]).to be_present
   end
 
+  describe ".indoor / .outdoor" do
+    it "treats a trainer: true activity as indoor" do
+      activity = create(:strava_activity, trainer: true, activity_type: "Ride")
+
+      expect(StravaActivity.indoor).to include(activity)
+      expect(StravaActivity.outdoor).not_to include(activity)
+    end
+
+    it "treats a VirtualRide activity as indoor even when trainer is false" do
+      # The real-world Zwift shape: Strava's own trainer flag is not set,
+      # but activity_type is the trustworthy signal.
+      activity = create(:strava_activity, trainer: false, activity_type: "VirtualRide")
+
+      expect(StravaActivity.indoor).to include(activity)
+      expect(StravaActivity.outdoor).not_to include(activity)
+    end
+
+    it "treats a plain Ride with trainer false as outdoor" do
+      activity = create(:strava_activity, trainer: false, activity_type: "Ride")
+
+      expect(StravaActivity.outdoor).to include(activity)
+      expect(StravaActivity.indoor).not_to include(activity)
+    end
+  end
+
   describe ".reconcile_for_bike!" do
     it "backfills bike_id for activities matching the bike's gear_id and user" do
       bike = create(:bike, strava_gear_id: "g1")

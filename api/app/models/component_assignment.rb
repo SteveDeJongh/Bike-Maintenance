@@ -11,17 +11,18 @@ class ComponentAssignment < ApplicationRecord
 
   # Activities on this assignment's bike from range_start onward, clipped to
   # ended_at if this assignment has already ended, and to only outdoor or only
-  # indoor (trainer) rides if ride_context restricts it -- this is what makes
-  # a dedicated indoor-only component (e.g. a trainer cassette) only accrue
-  # mileage from trainer rides, and its outdoor-only counterpart only from
-  # real rides, even while both are "installed" on the same bike at once.
-  # The shared windowing primitive both this assignment's own stats and
-  # Component's lifetime stats (which need a custom, clipped range_start for
-  # distance_since) are built on.
+  # indoor rides if ride_context restricts it (see StravaActivity#indoor/
+  # #outdoor -- trainer rides and Zwift/virtual rides both count as indoor)
+  # -- this is what makes a dedicated indoor-only component (e.g. a trainer
+  # cassette) only accrue mileage from indoor rides, and its outdoor-only
+  # counterpart only from real rides, even while both are "installed" on the
+  # same bike at once. The shared windowing primitive both this assignment's
+  # own stats and Component's lifetime stats (which need a custom, clipped
+  # range_start for distance_since) are built on.
   def activities_from(range_start)
     scope = StravaActivity.where(bike_id: bike_id)
-    scope = scope.where(trainer: false) if ride_context == "outdoor_only"
-    scope = scope.where(trainer: true) if ride_context == "indoor_only"
+    scope = scope.outdoor if ride_context == "outdoor_only"
+    scope = scope.indoor if ride_context == "indoor_only"
     return StravaActivity.none if ended_at && range_start >= ended_at
 
     ended_at ? scope.where(moved_at: range_start...ended_at) : scope.where(moved_at: range_start..)

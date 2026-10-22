@@ -3,13 +3,19 @@ class StravaSyncJob < ApplicationJob
 
   MAX_PAGES = 50
 
-  def perform(user_id)
+  # full_resync: true ignores the incremental cursor and re-fetches from the
+  # beginning of the user's Strava history -- needed after loosening which
+  # activity types get synced (e.g. VirtualRide), since the cursor only looks
+  # forward from the latest already-stored activity and has no way to know
+  # history before that point is missing anything. Safe to run repeatedly:
+  # upsert_activity's find_or_initialize_by makes every call idempotent.
+  def perform(user_id, full_resync: false)
     user = User.find(user_id)
     credential = user.strava_credential
     return if credential.nil?
 
     access_token = credential.ensure_fresh_access_token!
-    after = user.strava_activities.maximum(:moved_at)&.to_i
+    after = full_resync ? nil : user.strava_activities.maximum(:moved_at)&.to_i
     client = Strava::Client.new
     page = 1
 
@@ -28,8 +34,10 @@ class StravaSyncJob < ApplicationJob
 
   private
 
+  SYNCED_TYPES = %w[Ride VirtualRide].freeze
+
   def upsert_activity(user, raw)
-    return unless raw["type"] == "Ride"
+    return unless SYNCED_TYPES.include?(raw["type"])
 
     activity = StravaActivity.find_or_initialize_by(strava_id: raw["id"])
     activity.update!(

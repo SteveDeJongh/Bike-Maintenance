@@ -358,6 +358,28 @@ RSpec.describe ComponentAssignment, type: :model do
         expect(assignment.distance_meters).to eq(20_000)
       end
 
+      it "an indoor_only assignment counts a VirtualRide activity even when trainer is false" do
+        # The real-world Zwift shape: Strava's own trainer flag is not set
+        # reliably on virtual rides, so activity_type is what actually counts.
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          distance_meters: 15_000, trainer: false, activity_type: "VirtualRide")
+
+        expect(assignment.distance_meters).to eq(15_000)
+      end
+
+      it "an outdoor_only assignment excludes a VirtualRide activity even when trainer is false" do
+        bike = create(:bike)
+        assignment = create(:component_assignment, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+        create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5),
+          distance_meters: 15_000, trainer: false, activity_type: "VirtualRide")
+
+        expect(assignment.distance_meters).to eq(0)
+      end
+
       it "a both assignment counts every activity regardless of trainer flag" do
         bike = create(:bike)
         assignment = create(:component_assignment, bike: bike,
