@@ -29,7 +29,9 @@ import {
   useCreateBikeComponentSlot,
   useCreateComponentAssignment,
   useDeleteBikeComponentSlot,
+  useDeleteComponentAssignment,
 } from '../api/mutations'
+import { confirmDelete } from '../components/confirmDelete'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
@@ -861,6 +863,16 @@ function HistoryTableInner({
     defaultSort: { column: 'started_on', direction: 'desc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const deleteAssignment = useDeleteComponentAssignment()
+
+  function handleDelete(assignment: ComponentAssignmentWithStats) {
+    const category = categoryLabel(assignment.component.category)
+    confirmDelete({
+      title: 'Delete installation record',
+      message: `Delete the record of "${assignment.component.label}" having been installed as the ${category} on this bike? This cannot be undone.`,
+      onConfirm: () => deleteAssignment.mutate(assignment.id),
+    })
+  }
 
   const sortedAssignments = useMemo(() => {
     const accessor = historyValue[sortColumn]
@@ -913,6 +925,7 @@ function HistoryTableInner({
                     onSort={() => setSort(column)}
                   />
                 ))}
+                <Table.Th>Action</Table.Th>
                 <Table.Th>
                   <ColumnPicker
                     allColumns={HISTORY_COLUMN_OPTIONS}
@@ -943,6 +956,21 @@ function HistoryTableInner({
               {orderedColumns.map((column) => (
                 <Table.Td key={column}>{historyRenderer[column](assignment)}</Table.Td>
               ))}
+              <Table.Td>
+                <Group justify="flex-end">
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleDelete(assignment)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+              </Table.Td>
               <Table.Td />
             </Table.Tr>
           ))}
