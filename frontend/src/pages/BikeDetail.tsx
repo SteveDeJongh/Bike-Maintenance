@@ -123,6 +123,7 @@ const installedComponentValue: Record<
   (data: InstalledComponentRowEntry) => string | number | null
 > = {
   category: ({ slot }) => slot.category,
+  ride_context: ({ assignment }) => assignment?.ride_context ?? null,
   component_label: ({ assignment }) => assignment?.component.label ?? null,
   period_distance: ({ assignment }) => assignment?.distance_meters ?? null,
   period_time: ({ assignment }) => assignment?.moving_time ?? null,
@@ -478,7 +479,12 @@ function InstalledComponentsTableInner({
                   direction={sortDirection}
                   onClick={() => setSort('category')}
                 />
-                <Table.Th>Ride Context</Table.Th>
+                <SortableHeaderCell
+                  label="Ride Context"
+                  active={sortColumn === 'ride_context'}
+                  direction={sortDirection}
+                  onClick={() => setSort('ride_context')}
+                />
                 <SortableHeaderCell
                   label="Component"
                   active={sortColumn === 'component_label'}

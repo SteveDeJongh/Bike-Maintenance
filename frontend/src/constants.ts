@@ -144,6 +144,7 @@ export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [
 
 export const INSTALLED_COMPONENT_SORT_COLUMNS = [
   'category',
+  'ride_context',
   'component_label',
   ...INSTALLED_COMPONENT_COLUMNS,
 ] as const
