@@ -478,6 +478,7 @@ function InstalledComponentsTableInner({
                   direction={sortDirection}
                   onClick={() => setSort('category')}
                 />
+                <Table.Th>Ride Context</Table.Th>
                 <SortableHeaderCell
                   label="Component"
                   active={sortColumn === 'component_label'}
@@ -494,7 +495,7 @@ function InstalledComponentsTableInner({
                     onSort={() => setSort(column)}
                   />
                 ))}
-                <Table.Th />
+                <Table.Th>Action</Table.Th>
                 <Table.Th>
                   <ColumnPicker
                     allColumns={INSTALLED_COMPONENT_COLUMN_OPTIONS}
@@ -570,15 +571,15 @@ function SlotRow({
   if (assignment) {
     return (
       <Table.Tr onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
+        <Table.Td>{categoryLabel(slot.category)}</Table.Td>
         <Table.Td>
-          <Group gap="xs" wrap="nowrap">
-            <span>{categoryLabel(slot.category)}</span>
-            {assignment.ride_context !== 'both' && (
-              <Badge size="sm" color={assignment.ride_context === 'indoor_only' ? 'grape' : 'blue'}>
-                {RIDE_CONTEXT_LABELS[assignment.ride_context]}
-              </Badge>
-            )}
-          </Group>
+          {assignment.ride_context === 'both' ? (
+            RIDE_CONTEXT_LABELS.both
+          ) : (
+            <Badge size="sm" color={assignment.ride_context === 'indoor_only' ? 'grape' : 'blue'}>
+              {RIDE_CONTEXT_LABELS[assignment.ride_context]}
+            </Badge>
+          )}
         </Table.Td>
         <Table.Td>
           <Anchor
@@ -711,6 +712,7 @@ function EmptySlotRow({
   return (
     <Table.Tr>
       <Table.Td>{categoryLabel(slot.category)}</Table.Td>
+      <Table.Td />
       <Table.Td colSpan={columnSpan}>
         <Group gap="xs" wrap="nowrap" align="flex-end">
           <Select
