@@ -64,11 +64,21 @@ class ComponentAssignment < ApplicationRecord
     errors.add(:ended_at, "must be at or after started_at") if ended_at < started_at
   end
 
+  # Normally a component can only have one active assignment at a time --
+  # it's a physical part, it can't be bolted to two bikes at once. The one
+  # exception: a category with allows_multiple_assignments set (e.g.
+  # cassette) also permits the SAME component to have concurrent indoor_only
+  # assignments on different bikes -- for a part that actually lives on a
+  # trainer rather than on any one bike's frame, "which bike" is just an
+  # attribution label for a given ride, not a claim about where the part is
+  # physically mounted. Both sides have to be indoor_only (not a
+  # one-each-context pairing like the bike-slot carve-out below) since both
+  # assignments are genuinely claiming the same kind of ride data.
   def no_overlapping_assignment_for_component
-    return if component_id.blank? || started_at.blank?
+    return if component_id.blank? || component.blank? || started_at.blank?
 
     conflicts = ComponentAssignment.where(component_id: component_id).where.not(id: id)
-    if conflicts.any? { |other| overlaps?(other) }
+    if conflicts.any? { |other| overlaps?(other) && !(allows_multiple_assignments? && ride_context == "indoor_only" && other.ride_context == "indoor_only") }
       errors.add(:base, "This component is already assigned to a bike during that period")
     end
   end
@@ -114,10 +124,14 @@ class ComponentAssignment < ApplicationRecord
   end
 
   # Whether this component's category is one the user has explicitly marked
-  # as allowed to have a second, complementary-context component installed at
-  # once (e.g. cassette) -- a per-category setting, not a blanket rule. No
-  # setting row yet means "no" (single-install is the safe default, matching
-  # how every category behaved before the ride-context feature existed).
+  # as allowed to have more than one active installation at once (e.g.
+  # cassette) -- a per-category setting, not a blanket rule. Backs both: a
+  # second, complementary-context component in the same bike+category slot
+  # (no_overlapping_assignment_for_bike_slot), and the same component shared
+  # across multiple bikes while indoor_only
+  # (no_overlapping_assignment_for_component). No setting row yet means "no"
+  # (single-install is the safe default, matching how every category
+  # behaved before the ride-context feature existed).
   def allows_multiple_assignments?
     ComponentCategorySetting.find_by(user_id: component.user_id, category: component.category)
       &.allows_multiple_assignments || false

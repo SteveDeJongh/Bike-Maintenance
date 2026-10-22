@@ -57,12 +57,19 @@ docker build .`), not the repo root.
   `"both"`, backend-validated — unlike `category`, this one directly drives computation,
   so it's a real enum, not a free-text frontend-owned concept). No overlapping
   assignments for the same component, and no overlapping assignments for the same
-  (bike, category) slot — *except* an `outdoor_only` + `indoor_only` pair, and even then
-  only when that category's `ComponentCategorySetting#allows_multiple_assignments` is
-  `true` (e.g. a dedicated trainer cassette installed alongside a dedicated road
-  cassette on the same bike at the same time) — a category with no such setting (or an
-  explicit `false`) stays single-install-only even for a mutually-exclusive-context
-  pair. Timestamps, not dates: a component can be swapped more than once in a day.
+  (bike, category) slot, with two exceptions, both gated behind that category's
+  `ComponentCategorySetting#allows_multiple_assignments` being `true` (a category with no
+  such setting, or an explicit `false`, stays strictly single-install-only):
+  - same bike, same category slot: an `outdoor_only` + `indoor_only` pair (e.g. a
+    dedicated trainer cassette installed alongside a dedicated road cassette on the same
+    bike at the same time).
+  - same component, different bikes: two concurrent `indoor_only` assignments (e.g. a
+    cassette that physically lives on the trainer, not on any one bike's frame — "which
+    bike" is just an attribution label for a ride, not a claim about where the part is
+    mounted, so the same component can be "installed" on whichever bike is currently
+    clipped into the trainer). Both sides must be `indoor_only` here — unlike the
+    same-slot case, there's no one-each-context pairing across bikes.
+  Timestamps, not dates: a component can be swapped more than once in a day.
   Validates that `component.user_id == bike.user_id` (no cross-user assignments).
   Reachable from a `User` via `has_many through:` on `bikes` — no direct `user_id`
   column of its own.
@@ -84,7 +91,12 @@ docker build .`), not the repo root.
     retroactive against already-tracked slots or already-created components.
   - `allows_multiple_assignments` is the one setting with real backend teeth — it's
     what `ComponentAssignment`'s overlap validation reads to decide whether a
-    mutually-exclusive-context pair is permitted for that category at all (see above).
+    mutually-exclusive-context pair in one slot, or the same component shared
+    indoor_only across bikes, is permitted for that category at all (see above). One
+    setting deliberately backs both cases rather than two separate columns — they're
+    the same underlying idea for a category ("not strictly one-active-installation-at-
+    a-time"), and splitting them isn't justified until a real need for independent
+    control over each surfaces.
   A missing row behaves as each column's own DB default (`"both"`/`true`/`false`).
   Seeded with a one-time, fully editable starting point (cassette/tire_front/
   tire_rear/wheel_front/wheel_rear/brake_pads_front/brake_pads_rear →

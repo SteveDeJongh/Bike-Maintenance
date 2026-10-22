@@ -93,6 +93,43 @@ RSpec.describe ComponentAssignment, type: :model do
 
       expect(assignment).to be_valid
     end
+
+    describe "sharing one component across multiple bikes (indoor_only, allows_multiple_assignments)" do
+      it "allows the same component to have concurrent indoor_only assignments on different bikes" do
+        component = create(:component, category: "cassette")
+        create(:component_category_setting, user: component.user, category: "cassette", allows_multiple_assignments: true)
+        create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        shared = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 2, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(shared).to be_valid
+      end
+
+      it "still rejects when the other bike's assignment is not indoor_only" do
+        component = create(:component, category: "cassette")
+        create(:component_category_setting, user: component.user, category: "cassette", allows_multiple_assignments: true)
+        create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
+
+        shared = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 2, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(shared).not_to be_valid
+      end
+
+      it "still rejects cross-bike sharing for a category without allows_multiple_assignments" do
+        component = create(:component, category: "tire_front")
+        create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
+
+        shared = build(:component_assignment, component: component, bike: create(:bike, user: component.user),
+          started_at: Date.new(2026, 2, 1), ended_at: nil, ride_context: "indoor_only")
+
+        expect(shared).not_to be_valid
+      end
+    end
   end
 
   describe "overlap validation for the same bike + category slot" do

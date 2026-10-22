@@ -208,12 +208,20 @@ export default function BikeDetail() {
   if (!bike) return null
 
   // Cross-bike check: a component already actively mounted on a *different*
-  // bike shouldn't be offered in this bike's assign dropdown. Inherently
-  // cross-bike, so this still needs the global assignments list rather than
-  // the new bike-scoped, enriched bike.component_assignments.
-  const activeComponentIdsEverywhere = (assignments ?? [])
-    .filter((a) => a.ended_at === null)
-    .map((a) => a.component_id)
+  // bike shouldn't normally be offered in this bike's assign dropdown --
+  // unless every one of its active-elsewhere assignments is indoor_only and
+  // its category allows_multiple_assignments, in which case it's offered
+  // with its ride context locked to indoor_only (see EmptySlotRow) -- e.g. a
+  // cassette that physically lives on the trainer, not on any one bike's
+  // frame. Inherently cross-bike, so this still needs the global assignments
+  // list rather than the new bike-scoped, enriched bike.component_assignments.
+  const activeAssignmentsElsewhereByComponentId = new Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>()
+  for (const a of assignments ?? []) {
+    if (a.ended_at !== null || a.bike_id === bike.id) continue
+    const rideContexts = activeAssignmentsElsewhereByComponentId.get(a.component_id) ?? []
+    rideContexts.push(a.ride_context)
+    activeAssignmentsElsewhereByComponentId.set(a.component_id, rideContexts)
+  }
 
   const orderedSlots = allCategories.map((category) =>
     bike.bike_component_slots.find((slot) => slot.category === category),
@@ -299,7 +307,7 @@ export default function BikeDetail() {
           bike={bike}
           orderedSlots={orderedSlots}
           components={components ?? []}
-          activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+          activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
           onEndAssignment={setEndingAssignment}
           onRowClick={setSelectedAssignment}
         />
@@ -346,14 +354,14 @@ function InstalledComponentsTable({
   bike,
   orderedSlots,
   components,
-  activeComponentIdsEverywhere,
+  activeAssignmentsElsewhereByComponentId,
   onEndAssignment,
   onRowClick,
 }: {
   bike: BikeDetailData
   orderedSlots: BikeComponentSlot[]
   components: Component[]
-  activeComponentIdsEverywhere: number[]
+  activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
   onRowClick: (assignment: ComponentAssignmentWithStats) => void
 }) {
@@ -366,7 +374,7 @@ function InstalledComponentsTable({
       bike={bike}
       orderedSlots={orderedSlots}
       components={components}
-      activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+      activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
       onEndAssignment={onEndAssignment}
       onRowClick={onRowClick}
       initialData={preferenceData.data}
@@ -378,7 +386,7 @@ function InstalledComponentsTableInner({
   bike,
   orderedSlots,
   components,
-  activeComponentIdsEverywhere,
+  activeAssignmentsElsewhereByComponentId,
   onEndAssignment,
   onRowClick,
   initialData,
@@ -386,7 +394,7 @@ function InstalledComponentsTableInner({
   bike: BikeDetailData
   orderedSlots: BikeComponentSlot[]
   components: Component[]
-  activeComponentIdsEverywhere: number[]
+  activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
   onRowClick: (assignment: ComponentAssignmentWithStats) => void
   initialData: TableViewPreferenceData
@@ -536,7 +544,7 @@ function InstalledComponentsTableInner({
                 hasHistory={categoryAssignments.length > 0}
                 endedCount={endedCount}
                 components={components}
-                activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+                activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
                 onEndAssignment={onEndAssignment}
                 onRowClick={onRowClick}
                 orderedColumns={orderedColumns}
@@ -557,7 +565,7 @@ function SlotRow({
   hasHistory,
   endedCount,
   components,
-  activeComponentIdsEverywhere,
+  activeAssignmentsElsewhereByComponentId,
   onEndAssignment,
   onRowClick,
   orderedColumns,
@@ -569,7 +577,7 @@ function SlotRow({
   hasHistory: boolean
   endedCount: number
   components: Component[]
-  activeComponentIdsEverywhere: number[]
+  activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
   onEndAssignment: (assignment: ComponentAssignmentWithStats) => void
   onRowClick: (assignment: ComponentAssignmentWithStats) => void
   orderedColumns: InstalledComponentColumn[]
@@ -632,7 +640,7 @@ function SlotRow({
       slot={slot}
       hasHistory={hasHistory}
       components={components}
-      activeComponentIdsEverywhere={activeComponentIdsEverywhere}
+      activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
       columnSpan={1 + orderedColumns.length}
       forcedRideContext={forcedRideContext}
     />
@@ -644,7 +652,7 @@ function EmptySlotRow({
   slot,
   hasHistory,
   components,
-  activeComponentIdsEverywhere,
+  activeAssignmentsElsewhereByComponentId,
   columnSpan,
   forcedRideContext,
 }: {
@@ -652,7 +660,7 @@ function EmptySlotRow({
   slot: BikeComponentSlot
   hasHistory: boolean
   components: Component[]
-  activeComponentIdsEverywhere: number[]
+  activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
   columnSpan: number
   // Set when this row is the "add the complementary variant" affordance
   // next to an existing restricted-context assignment in the same slot —
@@ -678,10 +686,28 @@ function EmptySlotRow({
   const createAssignment = useCreateComponentAssignment()
   const deleteSlot = useDeleteBikeComponentSlot()
 
-  const availableComponents = components.filter(
-    (component) =>
-      component.category === slot.category && !activeComponentIdsEverywhere.includes(component.id),
-  )
+  const categoryAllowsMultiple =
+    categorySettings?.find((setting) => setting.category === slot.category)?.allows_multiple_assignments ?? false
+
+  // A component already active on a different bike is normally excluded --
+  // unless every one of its active-elsewhere assignments is indoor_only and
+  // this category allows sharing, in which case it's offered with its ride
+  // context locked to indoor_only (e.g. a cassette that physically lives on
+  // the trainer, not on any one bike's frame). A shared component is always
+  // indoor_only, so it's excluded outright when this row's forced context
+  // (the one remaining non-conflicting choice for this slot, if any) is
+  // anything else -- it could never satisfy that.
+  const availableComponents = components
+    .filter((component) => component.category === slot.category)
+    .flatMap((component): { component: Component; lockedRideContext?: 'indoor_only' }[] => {
+      const elsewhere = activeAssignmentsElsewhereByComponentId.get(component.id) ?? []
+      if (elsewhere.length === 0) return [{ component, lockedRideContext: undefined }]
+
+      const sharable = categoryAllowsMultiple && elsewhere.every((context) => context === 'indoor_only')
+      if (!sharable || (forcedRideContext && forcedRideContext !== 'indoor_only')) return []
+
+      return [{ component, lockedRideContext: 'indoor_only' as const }]
+    })
 
   function assign(targetComponentId: number) {
     setBaseErrors([])
@@ -705,12 +731,22 @@ function EmptySlotRow({
       return
     }
     setComponentId(value)
+    // Keep the actually-submitted ride_context in sync with the lock a
+    // shared component implies -- RideContextCheckboxes' `locked` prop only
+    // overrides what's *displayed*, not what's held in state, so without
+    // this the checkboxes could show "Trainer" checked while rideContext
+    // itself still held some other, stale value.
+    const selected = availableComponents.find((entry) => String(entry.component.id) === value)
+    setRideContext(selected?.lockedRideContext ?? forcedRideContext ?? defaultRideContext)
   }
 
+  const selectedComponentEntry = availableComponents.find((entry) => String(entry.component.id) === componentId)
+  const effectiveLock = forcedRideContext ?? selectedComponentEntry?.lockedRideContext
+
   const options = [
-    ...availableComponents.map((component) => ({
+    ...availableComponents.map(({ component, lockedRideContext }) => ({
       value: String(component.id),
-      label: component.label,
+      label: lockedRideContext ? `${component.label} — shared, indoor only` : component.label,
     })),
     { value: CREATE_NEW_COMPONENT, label: `+ Create new ${categoryLabel(slot.category)}` },
   ]
@@ -734,7 +770,7 @@ function EmptySlotRow({
             value={isoUtcToDate(startedAt)}
             onChange={(value) => setStartedAt(mantineLocalStringToIsoUtc(value))}
           />
-          <RideContextCheckboxes value={rideContext} onChange={setRideContext} locked={forcedRideContext} />
+          <RideContextCheckboxes value={rideContext} onChange={setRideContext} locked={effectiveLock} />
           <Button
             size="sm"
             disabled={!componentId}
