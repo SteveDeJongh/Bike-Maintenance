@@ -804,7 +804,17 @@ function EmptySlotRow({
             genuinely empty row can stop tracking it. */}
         {!forcedRideContext && (
           <Group justify="flex-end">
-            <Button size="xs" variant="subtle" onClick={() => deleteSlot.mutate(slot.id)}>
+            <Button
+              size="xs"
+              variant="subtle"
+              loading={deleteSlot.isPending}
+              onClick={() => {
+                setBaseErrors([])
+                deleteSlot.mutate(slot.id, {
+                  onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
+                })
+              }}
+            >
               Stop tracking
             </Button>
           </Group>
