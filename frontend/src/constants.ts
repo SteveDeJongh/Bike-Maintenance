@@ -55,7 +55,7 @@ export const MAINTENANCE_EVENT_TYPES = ['wax', 'clean', 'replace', 'inspect'] as
 export const RIDE_CONTEXTS = ['both', 'outdoor_only', 'indoor_only'] as const
 
 export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string> = {
-  both: 'Both',
+  both: 'All',
   outdoor_only: 'Outdoor only',
   indoor_only: 'Trainer only',
 }
