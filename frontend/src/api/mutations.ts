@@ -203,13 +203,22 @@ export function useReassignGear() {
 
 // ComponentCategorySetting
 
-export function useUpdateComponentCategorySetting(category: string) {
+// Fires one PATCH per dirty category (the per-category upsert endpoint
+// already creates a row for a category that's never been saved before --
+// "adding" a new category is just upserting a previously-unused name), then
+// invalidates once -- backs the Settings page's single page-level Save,
+// which commits every pending row at once rather than auto-saving per click.
+export function useSaveComponentCategorySettings() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (changes: Partial<Omit<ComponentCategorySetting, 'category'>>) =>
-      apiPatch<ComponentCategorySetting>(`/component_category_settings/${category}`, {
-        component_category_setting: changes,
-      }),
+    mutationFn: (rows: { category: string; changes: Partial<Omit<ComponentCategorySetting, 'category'>> }[]) =>
+      Promise.all(
+        rows.map(({ category, changes }) =>
+          apiPatch<ComponentCategorySetting>(`/component_category_settings/${category}`, {
+            component_category_setting: changes,
+          }),
+        ),
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['component_category_settings'] }),
   })
 }

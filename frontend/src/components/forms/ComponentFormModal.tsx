@@ -9,7 +9,8 @@ import {
   type ComponentPayload,
 } from '../../api/mutations'
 import { useComponentCategorySettings } from '../../api/queries'
-import { COMPONENT_CATEGORIES, categoryLabel } from '../../constants'
+import { categoryLabel } from '../../constants'
+import { useAllCategories } from '../../hooks/useAllCategories'
 import type { Component } from '../../types/models'
 
 interface ComponentFormValues {
@@ -92,6 +93,7 @@ function ComponentForm({
   const isEdit = Boolean(component)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
   const { data: categorySettings } = useComponentCategorySettings()
+  const allCategories = useAllCategories()
 
   const form = useForm<ComponentFormValues>({
     initialValues: component ? toFormValues(component) : { ...emptyValues, ...createDefaults },
@@ -121,7 +123,7 @@ function ComponentForm({
   // keeps the form's current category in the list, so a pre-filled
   // (BikeDetail's per-slot "+ Create new" flow) or already-set category that
   // was since marked not-trackable still displays correctly.
-  const categoryOptions = COMPONENT_CATEGORIES.filter(
+  const categoryOptions = allCategories.filter(
     (category) =>
       category === form.values.category ||
       (categorySettings?.find((setting) => setting.category === category)?.trackable ?? true),

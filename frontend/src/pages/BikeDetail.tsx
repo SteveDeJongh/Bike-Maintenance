@@ -39,8 +39,8 @@ import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
+import { useAllCategories } from '../hooks/useAllCategories'
 import {
-  COMPONENT_CATEGORIES,
   categoryLabel,
   DEFAULT_HISTORY_COLUMNS,
   DEFAULT_INSTALLED_COMPONENT_COLUMNS,
@@ -176,6 +176,7 @@ export default function BikeDetail() {
   const { data: assignments, isPending: assignmentsPending } = useComponentAssignments()
   const { data: components } = useComponents()
   const { data: categorySettings } = useComponentCategorySettings()
+  const allCategories = useAllCategories()
 
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [selectedAssignment, setSelectedAssignment] = useState<ComponentAssignmentWithStats | null>(null)
@@ -213,11 +214,11 @@ export default function BikeDetail() {
     .filter((a) => a.ended_at === null)
     .map((a) => a.component_id)
 
-  const orderedSlots = COMPONENT_CATEGORIES.map((category) =>
+  const orderedSlots = allCategories.map((category) =>
     bike.bike_component_slots.find((slot) => slot.category === category),
   ).filter((slot): slot is BikeComponentSlot => slot !== undefined)
 
-  const untrackedCategories = COMPONENT_CATEGORIES.filter(
+  const untrackedCategories = allCategories.filter(
     (category) =>
       !bike.bike_component_slots.some((slot) => slot.category === category) &&
       (categorySettings?.find((setting) => setting.category === category)?.trackable ?? true),

@@ -30,8 +30,20 @@ export const COMPONENT_CATEGORY_LABELS: Record<ComponentCategory, string> = {
   saddle: 'Saddle',
 }
 
+// Known baseline categories use their hand-authored label; a custom category
+// (added via the Settings page) has no stored display label, so this
+// titleizes its lower_snake_case key instead -- a plain round-trip, so
+// unusual capitalization/acronyms (e.g. "MTB Fork") won't come back exactly
+// as typed.
 export function categoryLabel(category: string): string {
-  return COMPONENT_CATEGORY_LABELS[category as ComponentCategory] ?? category
+  const known = COMPONENT_CATEGORY_LABELS[category as ComponentCategory]
+  if (known) return known
+
+  return category
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 // Must match MaintenanceEvent::EVENT_TYPES in api/app/models/maintenance_event.rb exactly.

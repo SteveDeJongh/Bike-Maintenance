@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Landing from './pages/Landing'
 import Bikes from './pages/Bikes'
@@ -8,7 +8,8 @@ import ComponentDetail from './pages/ComponentDetail'
 import Assignments from './pages/Assignments'
 import MaintenanceEvents from './pages/MaintenanceEvents'
 import Strava from './pages/Strava'
-import Settings from './pages/Settings'
+import SettingsLayout from './pages/settings/SettingsLayout'
+import ComponentCategorySettingsPage from './pages/settings/ComponentCategorySettingsPage'
 
 export const router = createBrowserRouter([
   {
@@ -23,7 +24,14 @@ export const router = createBrowserRouter([
       { path: 'assignments', element: <Assignments /> },
       { path: 'maintenance-events', element: <MaintenanceEvents /> },
       { path: 'strava', element: <Strava /> },
-      { path: 'settings', element: <Settings /> },
+      {
+        path: 'settings',
+        element: <SettingsLayout />,
+        children: [
+          { index: true, element: <Navigate to="component-categories" replace /> },
+          { path: 'component-categories', element: <ComponentCategorySettingsPage /> },
+        ],
+      },
     ],
   },
 ])
