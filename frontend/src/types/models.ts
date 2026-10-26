@@ -131,10 +131,18 @@ export interface ComponentCategorySetting {
   allows_multiple_assignments: boolean
 }
 
+// User-defined kind of maintenance (wax, sealant top-up, brake bleed, ...) --
+// replaces the old hardcoded event_type enum, since this now drives real
+// computation (service intervals) rather than being descriptive free text.
+export interface ServiceType {
+  id: number
+  name: string
+}
+
 export interface MaintenanceEvent {
   id: number
   component_id: number
-  event_type: 'wax' | 'clean' | 'replace' | 'inspect'
+  service_type_id: number
   performed_at: string
   notes: string | null
 }

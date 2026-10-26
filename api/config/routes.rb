@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  resources :service_types, except: %i[ new edit ]
   resources :maintenance_events, except: %i[ new edit ]
   resources :component_assignments, except: %i[ new edit ]
   resources :components, except: %i[ new edit ]

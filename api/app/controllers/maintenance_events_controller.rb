@@ -50,7 +50,7 @@ class MaintenanceEventsController < ApplicationController
     end
 
     def maintenance_event_params
-      params.require(:maintenance_event).permit(:component_id, :event_type, :performed_at, :notes)
+      params.require(:maintenance_event).permit(:component_id, :service_type_id, :performed_at, :notes)
     end
 
     def owns_referenced_component?(attrs)

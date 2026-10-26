@@ -8,8 +8,15 @@ class ComponentsController < ApplicationController
   end
 
   # GET /components/1
+  # distance_since_wax here is a transitional computation, not a model
+  # method -- ComponentDetail.tsx's hardcoded chain/wax display is being
+  # replaced by the general service-intervals UI (increment 6), so this
+  # exists only to keep that field working in the meantime.
   def show
-    render json: @component.as_json(methods: %i[ total_distance distance_since_wax ])
+    wax_type = current_user.service_types.find_by(name: "wax")
+    distance_since_wax = wax_type ? @component.distance_since(service_type: wax_type) : @component.total_distance
+
+    render json: @component.as_json(methods: %i[ total_distance ]).merge(distance_since_wax: distance_since_wax)
   end
 
   # POST /components

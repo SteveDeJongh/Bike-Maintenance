@@ -112,31 +112,44 @@ RSpec.describe Component, type: :model do
   end
 
   describe "#distance_since" do
-    it "only counts activity after the most recent maintenance event of that type" do
+    it "only counts activity after the most recent maintenance event of that service type" do
       bike = create(:bike)
       component = create(:component, user: bike.user)
+      service_type = create(:service_type, user: bike.user, name: "wax")
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
-      create(:maintenance_event, component: component, event_type: "wax",
+      create(:maintenance_event, component: component, service_type: service_type,
         performed_at: Time.zone.local(2026, 1, 15, 12, 0))
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 3_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 20, 9, 0), distance_meters: 4_000)
 
-      expect(component.distance_since_wax).to eq(4_000)
+      expect(component.distance_since(service_type: service_type)).to eq(4_000)
     end
 
-    it "excludes a ride from earlier the same day as the wax" do
+    it "excludes a ride from earlier the same day as the service" do
       bike = create(:bike)
       component = create(:component, user: bike.user)
+      service_type = create(:service_type, user: bike.user, name: "wax")
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
-      create(:maintenance_event, component: component, event_type: "wax",
+      create(:maintenance_event, component: component, service_type: service_type,
         performed_at: Time.zone.local(2026, 1, 5, 14, 0))
 
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5, 9, 0), distance_meters: 20_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5, 17, 0), distance_meters: 30_000)
 
-      expect(component.distance_since_wax).to eq(30_000)
+      expect(component.distance_since(service_type: service_type)).to eq(30_000)
+    end
+
+    it "returns total_distance when there is no matching event yet" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user)
+      service_type = create(:service_type, user: bike.user, name: "wax")
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 3_000)
+
+      expect(component.distance_since(service_type: service_type)).to eq(component.total_distance)
     end
   end
 end

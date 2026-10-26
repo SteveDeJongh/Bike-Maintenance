@@ -46,9 +46,6 @@ export function categoryLabel(category: string): string {
     .join(' ')
 }
 
-// Must match MaintenanceEvent::EVENT_TYPES in api/app/models/maintenance_event.rb exactly.
-export const MAINTENANCE_EVENT_TYPES = ['wax', 'clean', 'replace', 'inspect'] as const
-
 // Must match the inclusion list on ComponentAssignment#ride_context in
 // api/app/models/component_assignment.rb exactly. Just display labels for a
 // backend-real enum, not a classification rule.
@@ -212,19 +209,19 @@ export type ComponentListSortColumn = (typeof COMPONENT_LIST_SORT_COLUMNS)[numbe
 // The toggleable columns on the Maintenance Events list. Component is the
 // always-shown, leading (pinned) linked column — there's no other natural
 // anchor, since an event has no detail page of its own.
-export const MAINTENANCE_EVENT_LIST_COLUMNS = ['performed_at', 'event_type', 'notes'] as const
+export const MAINTENANCE_EVENT_LIST_COLUMNS = ['performed_at', 'service_type', 'notes'] as const
 
 export type MaintenanceEventListColumn = (typeof MAINTENANCE_EVENT_LIST_COLUMNS)[number]
 
 export const MAINTENANCE_EVENT_LIST_COLUMN_LABELS: Record<MaintenanceEventListColumn, string> = {
   performed_at: 'Performed At',
-  event_type: 'Type',
+  service_type: 'Type',
   notes: 'Notes',
 }
 
 export const DEFAULT_MAINTENANCE_EVENT_LIST_COLUMNS: MaintenanceEventListColumn[] = [
   'performed_at',
-  'event_type',
+  'service_type',
   'notes',
 ]
 

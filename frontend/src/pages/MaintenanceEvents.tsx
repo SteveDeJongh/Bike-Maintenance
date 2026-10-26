@@ -3,7 +3,7 @@ import { Alert, Anchor, Button, Group, Loader, Table, Text, Title } from '@manti
 import { Link } from 'react-router-dom'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
-import { useComponents, useMaintenanceEvents, useTableViewPreference } from '../api/queries'
+import { useComponents, useMaintenanceEvents, useServiceTypes, useTableViewPreference } from '../api/queries'
 import { useDeleteMaintenanceEvent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
@@ -21,7 +21,7 @@ import {
   type MaintenanceEventListSortColumn,
 } from '../constants'
 import { formatDateTime } from '../utils/datetime'
-import type { Component, MaintenanceEvent, TableViewPreferenceData } from '../types/models'
+import type { Component, MaintenanceEvent, ServiceType, TableViewPreferenceData } from '../types/models'
 
 const RECENT_LIMIT = 10
 
@@ -30,15 +30,10 @@ const MAINTENANCE_EVENT_LIST_COLUMN_OPTIONS = MAINTENANCE_EVENT_LIST_COLUMNS.map
   label: MAINTENANCE_EVENT_LIST_COLUMN_LABELS[column],
 }))
 
-const maintenanceEventRenderer: Record<MaintenanceEventListColumn, (e: MaintenanceEvent) => ReactNode> = {
-  performed_at: (e) => formatDateTime(e.performed_at),
-  event_type: (e) => e.event_type,
-  notes: (e) => e.notes ?? '',
-}
-
 export default function MaintenanceEvents() {
   const { data, isPending, isError, error } = useMaintenanceEvents()
   const { data: components } = useComponents()
+  const { data: serviceTypes } = useServiceTypes()
   const { data: preferenceData, isPending: preferencePending } = useTableViewPreference('maintenance_events')
   const deleteEvent = useDeleteMaintenanceEvent()
 
@@ -98,6 +93,7 @@ export default function MaintenanceEvents() {
         <MaintenanceEventsTable
           events={recentEvents}
           components={components ?? []}
+          serviceTypes={serviceTypes ?? []}
           initialData={preferenceData.data}
           onEdit={openEdit}
           onDelete={handleDelete}
@@ -116,12 +112,14 @@ export default function MaintenanceEvents() {
 function MaintenanceEventsTable({
   events,
   components,
+  serviceTypes,
   initialData,
   onEdit,
   onDelete,
 }: {
   events: MaintenanceEvent[]
   components: Component[]
+  serviceTypes: ServiceType[]
   initialData: TableViewPreferenceData
   onEdit: (event: MaintenanceEvent) => void
   onDelete: (event: MaintenanceEvent) => void
@@ -150,11 +148,21 @@ function MaintenanceEventsTable({
     return components.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
   }
 
+  function serviceTypeName(serviceTypeId: number) {
+    return serviceTypes.find((t) => t.id === serviceTypeId)?.name ?? `Service type #${serviceTypeId}`
+  }
+
+  const maintenanceEventRenderer: Record<MaintenanceEventListColumn, (e: MaintenanceEvent) => ReactNode> = {
+    performed_at: (e) => formatDateTime(e.performed_at),
+    service_type: (e) => serviceTypeName(e.service_type_id),
+    notes: (e) => e.notes ?? '',
+  }
+
   const sortedEvents = useMemo(() => {
     const eventValue: Record<MaintenanceEventListSortColumn, (e: MaintenanceEvent) => string | number | null> = {
       component_label: (e) => components.find((c) => c.id === e.component_id)?.label ?? null,
       performed_at: (e) => e.performed_at,
-      event_type: (e) => e.event_type,
+      service_type: (e) => serviceTypes.find((t) => t.id === e.service_type_id)?.name ?? null,
       notes: (e) => e.notes,
     }
     const accessor = eventValue[sortColumn]
@@ -170,7 +178,7 @@ function MaintenanceEventsTable({
         return sortDirection === 'asc' ? cmp : -cmp
       })
       .map(({ event }) => event)
-  }, [events, components, sortColumn, sortDirection])
+  }, [events, components, serviceTypes, sortColumn, sortDirection])
 
   return (
     <>

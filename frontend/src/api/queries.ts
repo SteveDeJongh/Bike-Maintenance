@@ -8,6 +8,7 @@ import type {
   ComponentCategorySetting,
   ComponentDetail,
   MaintenanceEvent,
+  ServiceType,
   StravaGear,
   StravaMappedBike,
   StravaStatus,
@@ -48,6 +49,13 @@ export function useComponentAssignments() {
   return useQuery({
     queryKey: ['component_assignments'],
     queryFn: () => apiGet<ComponentAssignment[]>('/component_assignments'),
+  })
+}
+
+export function useServiceTypes() {
+  return useQuery({
+    queryKey: ['service_types'],
+    queryFn: () => apiGet<ServiceType[]>('/service_types'),
   })
 }
 

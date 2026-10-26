@@ -37,19 +37,15 @@ class Component < ApplicationRecord
   end
 
   # Same as total_distance, but only counting activity after the most
-  # recent MaintenanceEvent of the given type (or all of it, if there is
-  # no such event yet).
-  def distance_since(event_type:)
-    last_event = maintenance_events.where(event_type: event_type).order(performed_at: :desc).first
+  # recent MaintenanceEvent of the given service type (or all of it, if
+  # there is no such event yet).
+  def distance_since(service_type:)
+    last_event = maintenance_events.where(service_type: service_type).order(performed_at: :desc).first
     return total_distance if last_event.nil?
 
     component_assignments.sum do |assignment|
       range_start = [assignment.started_at, last_event.performed_at].max
       assignment.activities_from(range_start).sum(:distance_meters)
     end
-  end
-
-  def distance_since_wax
-    distance_since(event_type: "wax")
   end
 end

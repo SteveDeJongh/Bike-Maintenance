@@ -13,7 +13,7 @@ import {
   Title,
 } from '@mantine/core'
 import { ApiError } from '../api/client'
-import { useComponent, useMaintenanceEvents } from '../api/queries'
+import { useComponent, useMaintenanceEvents, useServiceTypes } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
 import { categoryLabel } from '../constants'
@@ -26,6 +26,7 @@ export default function ComponentDetail() {
 
   const { data: component, isPending, error } = useComponent(componentId)
   const { data: events } = useMaintenanceEvents()
+  const { data: serviceTypes } = useServiceTypes()
 
   const [editOpened, setEditOpened] = useState(false)
   const [logOpened, setLogOpened] = useState(false)
@@ -113,7 +114,7 @@ export default function ComponentDetail() {
             {history.map((event) => (
               <Table.Tr key={event.id}>
                 <Table.Td>{formatDateTime(event.performed_at)}</Table.Td>
-                <Table.Td>{event.event_type}</Table.Td>
+                <Table.Td>{serviceTypes?.find((t) => t.id === event.service_type_id)?.name ?? ''}</Table.Td>
                 <Table.Td>{event.notes ?? ''}</Table.Td>
               </Table.Tr>
             ))}

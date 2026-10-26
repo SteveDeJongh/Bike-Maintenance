@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_223301) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -73,12 +73,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_223301) do
 
   create_table "maintenance_events", force: :cascade do |t|
     t.bigint "component_id", null: false
-    t.string "event_type"
     t.datetime "performed_at"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "service_type_id", null: false
     t.index ["component_id"], name: "index_maintenance_events_on_component_id"
+    t.index ["service_type_id"], name: "index_maintenance_events_on_service_type_id"
+  end
+
+  create_table "service_types", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index "user_id, lower((name)::text)", name: "index_service_types_on_user_id_and_lower_name", unique: true
+    t.index ["user_id"], name: "index_service_types_on_user_id"
   end
 
   create_table "strava_activities", force: :cascade do |t|
@@ -164,6 +174,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_223301) do
   add_foreign_key "component_category_settings", "users"
   add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
+  add_foreign_key "maintenance_events", "service_types"
+  add_foreign_key "service_types", "users"
   add_foreign_key "strava_activities", "bikes"
   add_foreign_key "strava_activities", "users"
   add_foreign_key "strava_credentials", "users"

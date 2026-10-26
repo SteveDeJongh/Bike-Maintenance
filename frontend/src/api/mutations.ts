@@ -7,6 +7,7 @@ import type {
   ComponentAssignment,
   ComponentCategorySetting,
   MaintenanceEvent,
+  ServiceType,
   TableViewPreferenceData,
 } from '../types/models'
 
@@ -15,6 +16,7 @@ export type ComponentPayload = Omit<Component, 'id'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id'>
 export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
+export type ServiceTypePayload = Omit<ServiceType, 'id'>
 
 // Bike
 
@@ -137,6 +139,33 @@ export function useDeleteComponentAssignment() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/component_assignments/${id}`),
     onSuccess: () => invalidateAssignmentRelatedQueries(queryClient),
+  })
+}
+
+// ServiceType
+
+export function useCreateServiceType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: ServiceTypePayload) => apiPost<ServiceType>('/service_types', { service_type: values }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
+  })
+}
+
+export function useUpdateServiceType(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<ServiceTypePayload>) =>
+      apiPatch<ServiceType>(`/service_types/${id}`, { service_type: values }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
+  })
+}
+
+export function useDeleteServiceType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/service_types/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
   })
 }
 
