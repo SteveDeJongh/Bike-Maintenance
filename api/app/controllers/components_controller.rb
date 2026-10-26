@@ -4,7 +4,8 @@ class ComponentsController < ApplicationController
   # GET /components
   def index
     @components = current_user.components
-    render json: @components
+    statuses = Maintenance::IntervalStatus.worst_status_by_component(current_user)
+    render json: @components.map { |component| component.as_json.merge(service_status: statuses[component.id]) }
   end
 
   # GET /components/1

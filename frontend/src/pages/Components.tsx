@@ -7,6 +7,7 @@ import { useComponents, useTableViewPreference } from '../api/queries'
 import { useDeleteComponent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
+import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
@@ -18,28 +19,31 @@ import {
   COMPONENT_LIST_COLUMNS,
   COMPONENT_LIST_SORT_COLUMNS,
   DEFAULT_COMPONENT_LIST_COLUMNS,
+  SERVICE_STATUS_SEVERITY,
   type ComponentListColumn,
   type ComponentListSortColumn,
 } from '../constants'
 import { formatDate } from '../utils/datetime'
-import type { Component, TableViewPreferenceData } from '../types/models'
+import type { Component, ComponentWithServiceStatus, TableViewPreferenceData } from '../types/models'
 
 const COMPONENT_LIST_COLUMN_OPTIONS = COMPONENT_LIST_COLUMNS.map((column) => ({
   key: column,
   label: COMPONENT_LIST_COLUMN_LABELS[column],
 }))
 
-const componentRenderer: Record<ComponentListColumn, (c: Component) => ReactNode> = {
+const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceStatus) => ReactNode> = {
   category: (c) => categoryLabel(c.category),
   acquired_on: (c) => formatDate(c.acquired_on),
   retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
+  service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
 }
 
-const componentValue: Record<ComponentListSortColumn, (c: Component) => string | number | null> = {
+const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceStatus) => string | number | null> = {
   label: (c) => c.label,
   category: (c) => c.category,
   acquired_on: (c) => c.acquired_on,
   retired_on: (c) => c.retired_on,
+  service_status: (c) => (c.service_status ? SERVICE_STATUS_SEVERITY[c.service_status] : null),
 }
 
 export default function Components() {
@@ -109,7 +113,7 @@ function ComponentsTable({
   onEdit,
   onDelete,
 }: {
-  components: Component[]
+  components: ComponentWithServiceStatus[]
   initialData: TableViewPreferenceData
   onEdit: (component: Component) => void
   onDelete: (component: Component) => void

@@ -114,6 +114,7 @@ export const INSTALLED_COMPONENT_COLUMNS = [
   'component_total_time',
   'component_total_elevation',
   'component_avg_power',
+  'service_status',
   'installed_on',
 ] as const
 
@@ -128,12 +129,14 @@ export const INSTALLED_COMPONENT_COLUMN_LABELS: Record<InstalledComponentColumn,
   component_total_time: 'Total Time',
   component_total_elevation: 'Total Elevation',
   component_avg_power: 'Total Avg Power',
+  service_status: 'Service Status',
   installed_on: 'Installed On',
 }
 
 export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [
   'period_distance',
   'installed_on',
+  'service_status',
 ]
 
 export const INSTALLED_COMPONENT_SORT_COLUMNS = [
@@ -181,7 +184,7 @@ export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
 
 // The toggleable columns on the Components list. Label is the always-shown,
 // leading (pinned) linked column — not part of this list, but still sortable.
-export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on'] as const
+export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on', 'service_status'] as const
 
 export type ComponentListColumn = (typeof COMPONENT_LIST_COLUMNS)[number]
 
@@ -189,12 +192,31 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
   category: 'Category',
   acquired_on: 'Acquired',
   retired_on: 'Retired',
+  service_status: 'Service Status',
+}
+
+// Shared by every table/badge rendering a component's service_status --
+// color for the badge, numeric priority (due > warning > ok) for sorting a
+// column of them, same severity order the backend's
+// Maintenance::IntervalStatus.worst_status_by_component uses to pick one
+// status per component.
+export const SERVICE_STATUS_COLORS: Record<'ok' | 'warning' | 'due', string> = {
+  ok: 'green',
+  warning: 'yellow',
+  due: 'red',
+}
+
+export const SERVICE_STATUS_SEVERITY: Record<'ok' | 'warning' | 'due', number> = {
+  ok: 0,
+  warning: 1,
+  due: 2,
 }
 
 export const DEFAULT_COMPONENT_LIST_COLUMNS: ComponentListColumn[] = [
   'category',
   'acquired_on',
   'retired_on',
+  'service_status',
 ]
 
 export const COMPONENT_LIST_SORT_COLUMNS = ['label', ...COMPONENT_LIST_COLUMNS] as const

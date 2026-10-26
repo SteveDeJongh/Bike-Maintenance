@@ -30,7 +30,7 @@ class BikesController < ApplicationController
 
   # GET /bikes/1
   def show
-    render json: @bike.as_json(
+    payload = @bike.as_json(
       methods: %i[ total_distance total_moving_time first_ride_on last_ride_on
                    average_power total_elevation_gain installed_components_count ],
       include: {
@@ -45,6 +45,13 @@ class BikesController < ApplicationController
         },
       },
     )
+
+    statuses = Maintenance::IntervalStatus.worst_status_by_component(current_user)
+    payload["component_assignments"].each do |assignment|
+      assignment["component"]["service_status"] = statuses[assignment["component"]["id"]]
+    end
+
+    render json: payload
   end
 
   # POST /bikes

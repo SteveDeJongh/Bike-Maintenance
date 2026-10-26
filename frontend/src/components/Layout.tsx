@@ -1,5 +1,6 @@
 import { AppShell, Group, Anchor, Title } from '@mantine/core'
 import { NavLink as RouterNavLink, Outlet } from 'react-router-dom'
+import MaintenanceAlertBanners from './MaintenanceAlertBanners'
 
 const navLinks = [
   { to: '/bikes', label: 'Bikes' },
@@ -29,6 +30,7 @@ export default function Layout() {
       </AppShell.Header>
 
       <AppShell.Main>
+        <MaintenanceAlertBanners />
         <Outlet />
       </AppShell.Main>
     </AppShell>

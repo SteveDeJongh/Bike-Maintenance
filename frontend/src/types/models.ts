@@ -44,7 +44,7 @@ export interface BikeDetail extends BikeWithStats {
 // on any bike — distinct from ComponentAssignmentWithStats's per-installation
 // figures below. average_power is nil (not 0) when there's no device-metered
 // data, same convention as Bike#average_power.
-export interface ComponentWithLifetimeStats extends Component {
+export interface ComponentWithLifetimeStats extends ComponentWithServiceStatus {
   total_distance: number
   total_moving_time: number
   total_elevation_gain: number
@@ -76,6 +76,11 @@ export interface TableViewPreferenceData {
   sort_direction?: 'asc' | 'desc'
 }
 
+// null means no enabled service interval at all (not "ok") -- the Components
+// list and Bike detail's Installed components table render that as a dash
+// rather than a status badge.
+export type ServiceStatus = 'ok' | 'warning' | 'due'
+
 export interface Component {
   id: number
   label: string
@@ -84,6 +89,18 @@ export interface Component {
   retired_on: string | null
   // total_distance intentionally omitted: only present on GET /components/:id
   // (see ComponentDetail below), not on the index list used here.
+}
+
+// GET /components adds this read-only field on top of Component's own
+// columns -- kept separate from Component itself (rather than folded in
+// directly) so ComponentPayload (Omit<Component, 'id'>, used by
+// ComponentFormModal's create/update calls) doesn't end up requiring a
+// server-computed field no form could ever send.
+export interface ComponentWithServiceStatus extends Component {
+  // The worst status across this component's enabled service intervals --
+  // batched server-side (Maintenance::IntervalStatus.worst_status_by_component),
+  // not a per-row query.
+  service_status: ServiceStatus | null
 }
 
 export interface ComponentDetail extends Component {
@@ -165,7 +182,7 @@ export interface ComponentServiceIntervalWithStatus extends ComponentServiceInte
   effective_distance_interval_meters: number | null
   effective_time_interval_days: number | null
   service_type_name: string
-  status: 'ok' | 'warning' | 'due'
+  status: ServiceStatus
   distance_remaining_meters: number | null
   days_remaining: number | null
   driving_dimension: 'distance' | 'days'
@@ -178,6 +195,21 @@ export interface NotificationSetting {
   id: number | null
   notifications_enabled: boolean
   warning_threshold_percent: number
+}
+
+// GET /maintenance_alerts -- banner-eligible (installed, not retired,
+// notifications on, not currently dismissed) non-ok statuses across every
+// component. status is never 'ok' here (see ServiceStatus); only due/warning
+// alerts are ever eligible for the banners.
+export interface MaintenanceAlert {
+  component_service_interval_id: number
+  component_id: number
+  component_label: string
+  category: string
+  service_type_name: string
+  status: 'warning' | 'due'
+  distance_remaining_meters: number | null
+  days_remaining: number | null
 }
 
 // User-defined kind of maintenance (wax, sealant top-up, brake bleed, ...) --

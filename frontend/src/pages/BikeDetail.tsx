@@ -36,6 +36,7 @@ import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import RideContextCheckboxes from '../components/RideContextCheckboxes'
+import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
@@ -53,6 +54,7 @@ import {
   INSTALLED_COMPONENT_COLUMNS,
   INSTALLED_COMPONENT_SORT_COLUMNS,
   RIDE_CONTEXT_LABELS,
+  SERVICE_STATUS_SEVERITY,
   type HistoryColumn,
   type HistorySortColumn,
   type InstalledComponentColumn,
@@ -101,6 +103,7 @@ const installedComponentRenderer: Record<InstalledComponentColumn, (a: Component
   component_total_time: (a) => formatDuration(a.component.total_moving_time),
   component_total_elevation: (a) => formatElevation(a.component.total_elevation_gain),
   component_avg_power: (a) => formatPower(a.component.average_power),
+  service_status: (a) => <ServiceStatusBadge status={a.component.service_status} />,
   installed_on: (a) => formatDate(a.started_at),
 }
 
@@ -131,6 +134,8 @@ const installedComponentValue: Record<
   component_total_time: ({ assignment }) => assignment?.component.total_moving_time ?? null,
   component_total_elevation: ({ assignment }) => assignment?.component.total_elevation_gain ?? null,
   component_avg_power: ({ assignment }) => assignment?.component.average_power ?? null,
+  service_status: ({ assignment }) =>
+    assignment?.component.service_status ? SERVICE_STATUS_SEVERITY[assignment.component.service_status] : null,
   installed_on: ({ assignment }) => assignment?.started_at ?? null,
 }
 

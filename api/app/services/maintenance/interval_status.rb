@@ -52,6 +52,21 @@ module Maintenance
         .map { |interval| new(interval, distances[interval.id]).call }
     end
 
+    SEVERITY = { "ok" => 0, "warning" => 1, "due" => 2 }.freeze
+
+    # One status per component -- whichever of its enabled intervals is
+    # furthest along -- for table columns (Components list, Bike detail's
+    # Installed components) that show a single summary cell per row rather
+    # than every interval individually. A component with no enabled
+    # intervals has no entry in the returned hash.
+    def self.worst_status_by_component(user)
+      for_user(user).each_with_object({}) do |result, hash|
+        component_id = result.component_service_interval.component_id
+        current = hash[component_id]
+        hash[component_id] = result.status if current.nil? || SEVERITY[result.status] > SEVERITY[current]
+      end
+    end
+
     def initialize(interval, interval_distance)
       @interval = interval
       @interval_distance = interval_distance

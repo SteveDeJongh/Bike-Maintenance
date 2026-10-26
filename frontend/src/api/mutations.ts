@@ -385,3 +385,26 @@ export function useUpdateNotificationSetting() {
     },
   })
 }
+
+// ServiceAlertDismissal
+// A dismissal only ever affects banner visibility, not any interval's
+// computed status, so only the banners query needs invalidating.
+
+export function useDismissServiceAlert() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (componentServiceIntervalId: number) =>
+      apiPost<void>('/service_alert_dismissals', { component_service_interval_id: componentServiceIntervalId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] }),
+  })
+}
+
+// Dismisses every alert of one status (backs each banner's own "dismiss
+// all" -- it must not also clear the other banner's alerts).
+export function useDismissAllServiceAlerts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (status: 'warning' | 'due') => apiPost<void>('/service_alert_dismissals/dismiss_all', { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] }),
+  })
+}

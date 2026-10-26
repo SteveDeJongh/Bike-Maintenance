@@ -4,11 +4,12 @@ import type {
   BikeDetail,
   BikeWithStats,
   CategoryServiceInterval,
-  Component,
   ComponentAssignment,
   ComponentCategorySetting,
   ComponentDetail,
   ComponentServiceInterval,
+  ComponentWithServiceStatus,
+  MaintenanceAlert,
   MaintenanceEvent,
   NotificationSetting,
   ServiceType,
@@ -36,7 +37,7 @@ export function useBike(id: number) {
 export function useComponents() {
   return useQuery({
     queryKey: ['components'],
-    queryFn: () => apiGet<Component[]>('/components'),
+    queryFn: () => apiGet<ComponentWithServiceStatus[]>('/components'),
   })
 }
 
@@ -133,5 +134,16 @@ export function useNotificationSetting() {
   return useQuery({
     queryKey: ['notification_settings'],
     queryFn: () => apiGet<NotificationSetting>('/notification_settings'),
+  })
+}
+
+// Banner-eligible alerts, polled by Layout.tsx app-wide. Short staleTime
+// since logging a service, a sync, or a dismissal should reflect quickly in
+// the banners without needing a manual refresh.
+export function useMaintenanceAlerts() {
+  return useQuery({
+    queryKey: ['maintenance_alerts'],
+    queryFn: () => apiGet<MaintenanceAlert[]>('/maintenance_alerts'),
+    staleTime: 30_000,
   })
 }
