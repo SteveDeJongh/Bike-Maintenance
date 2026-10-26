@@ -49,7 +49,6 @@ export interface ComponentWithLifetimeStats extends Component {
   total_moving_time: number
   total_elevation_gain: number
   average_power: number | null
-  distance_since_wax: number
 }
 
 // Per-installation-period figures — accrued only between this one
@@ -83,14 +82,12 @@ export interface Component {
   category: string
   acquired_on: string
   retired_on: string | null
-  // total_distance / distance_since_wax intentionally omitted:
-  // only present on GET /components/:id (see ComponentDetail below), not on
-  // the index list used here.
+  // total_distance intentionally omitted: only present on GET /components/:id
+  // (see ComponentDetail below), not on the index list used here.
 }
 
 export interface ComponentDetail extends Component {
   total_distance: number
-  distance_since_wax: number
   service_intervals: ComponentServiceIntervalWithStatus[]
 }
 

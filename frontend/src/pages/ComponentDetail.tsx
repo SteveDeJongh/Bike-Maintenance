@@ -16,6 +16,7 @@ import { ApiError } from '../api/client'
 import { useComponent, useMaintenanceEvents, useServiceTypes } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
+import ServiceIntervalsSection from '../components/ServiceIntervalsSection'
 import { categoryLabel } from '../constants'
 import { formatDateTime } from '../utils/datetime'
 import { formatDistance } from '../utils/distance'
@@ -84,15 +85,9 @@ export default function ComponentDetail() {
           </Text>
           <Text fw={500}>{formatDistance(component.total_distance)}</Text>
         </div>
-        {component.category === 'chain' && (
-          <div>
-            <Text size="sm" c="dimmed">
-              Distance since last wax
-            </Text>
-            <Text fw={500}>{formatDistance(component.distance_since_wax)}</Text>
-          </div>
-        )}
       </Group>
+
+      <ServiceIntervalsSection component={component} />
 
       <Group justify="space-between">
         <Title order={3}>Maintenance history</Title>

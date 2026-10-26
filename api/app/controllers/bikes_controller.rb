@@ -39,8 +39,7 @@ class BikesController < ApplicationController
           methods: %i[ distance_meters moving_time elevation_gain average_power ],
           include: {
             component: {
-              methods: %i[ total_distance total_moving_time total_elevation_gain
-                            average_power distance_since_wax ],
+              methods: %i[ total_distance total_moving_time total_elevation_gain average_power ],
             },
           },
         },

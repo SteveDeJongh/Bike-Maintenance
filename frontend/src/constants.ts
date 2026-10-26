@@ -114,7 +114,6 @@ export const INSTALLED_COMPONENT_COLUMNS = [
   'component_total_time',
   'component_total_elevation',
   'component_avg_power',
-  'distance_since_wax',
   'installed_on',
 ] as const
 
@@ -129,14 +128,12 @@ export const INSTALLED_COMPONENT_COLUMN_LABELS: Record<InstalledComponentColumn,
   component_total_time: 'Total Time',
   component_total_elevation: 'Total Elevation',
   component_avg_power: 'Total Avg Power',
-  distance_since_wax: 'Since Wax',
   installed_on: 'Installed On',
 }
 
 export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [
   'period_distance',
   'installed_on',
-  'distance_since_wax',
 ]
 
 export const INSTALLED_COMPONENT_SORT_COLUMNS = [
@@ -157,7 +154,6 @@ export const HISTORY_COLUMNS = [
   'component_total_time',
   'component_total_elevation',
   'component_avg_power',
-  'distance_since_wax',
   'started_on',
   'ended_on',
 ] as const
@@ -173,7 +169,6 @@ export const HISTORY_COLUMN_LABELS: Record<HistoryColumn, string> = {
   component_total_time: 'Total Time',
   component_total_elevation: 'Total Elevation',
   component_avg_power: 'Total Avg Power',
-  distance_since_wax: 'Since Wax',
   started_on: 'Installed',
   ended_on: 'Uninstalled',
 }

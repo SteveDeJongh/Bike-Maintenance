@@ -176,13 +176,23 @@ export function useDeleteServiceType() {
 }
 
 // MaintenanceEvent
+// Logging an event is what resets a service interval's baseline, so every
+// mutation here also invalidates components (total_distance and each
+// interval's computed status) and the alert banners -- not just the event
+// list itself.
+
+function invalidateMaintenanceEventRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
+  queryClient.invalidateQueries({ queryKey: ['components'] })
+  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+}
 
 export function useCreateMaintenanceEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: MaintenanceEventPayload) =>
       apiPost<MaintenanceEvent>('/maintenance_events', { maintenance_event: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_events'] }),
+    onSuccess: () => invalidateMaintenanceEventRelatedQueries(queryClient),
   })
 }
 
@@ -191,7 +201,7 @@ export function useUpdateMaintenanceEvent(id: number) {
   return useMutation({
     mutationFn: (values: Partial<MaintenanceEventPayload>) =>
       apiPatch<MaintenanceEvent>(`/maintenance_events/${id}`, { maintenance_event: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_events'] }),
+    onSuccess: () => invalidateMaintenanceEventRelatedQueries(queryClient),
   })
 }
 

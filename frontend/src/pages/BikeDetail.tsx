@@ -101,8 +101,6 @@ const installedComponentRenderer: Record<InstalledComponentColumn, (a: Component
   component_total_time: (a) => formatDuration(a.component.total_moving_time),
   component_total_elevation: (a) => formatElevation(a.component.total_elevation_gain),
   component_avg_power: (a) => formatPower(a.component.average_power),
-  distance_since_wax: (a) =>
-    a.component.category === 'chain' ? formatDistance(a.component.distance_since_wax) : '—',
   installed_on: (a) => formatDate(a.started_at),
 }
 
@@ -133,8 +131,6 @@ const installedComponentValue: Record<
   component_total_time: ({ assignment }) => assignment?.component.total_moving_time ?? null,
   component_total_elevation: ({ assignment }) => assignment?.component.total_elevation_gain ?? null,
   component_avg_power: ({ assignment }) => assignment?.component.average_power ?? null,
-  distance_since_wax: ({ assignment }) =>
-    assignment && assignment.component.category === 'chain' ? assignment.component.distance_since_wax : null,
   installed_on: ({ assignment }) => assignment?.started_at ?? null,
 }
 
@@ -147,8 +143,6 @@ const historyRenderer: Record<HistoryColumn, (a: ComponentAssignmentWithStats) =
   component_total_time: (a) => formatDuration(a.component.total_moving_time),
   component_total_elevation: (a) => formatElevation(a.component.total_elevation_gain),
   component_avg_power: (a) => formatPower(a.component.average_power),
-  distance_since_wax: (a) =>
-    a.component.category === 'chain' ? formatDistance(a.component.distance_since_wax) : '—',
   started_on: (a) => formatDateTime(a.started_at),
   ended_on: (a) => formatDateTime(a.ended_at),
 }
@@ -164,7 +158,6 @@ const historyValue: Record<HistorySortColumn, (a: ComponentAssignmentWithStats) 
   component_total_time: (a) => a.component.total_moving_time,
   component_total_elevation: (a) => a.component.total_elevation_gain,
   component_avg_power: (a) => a.component.average_power,
-  distance_since_wax: (a) => (a.component.category === 'chain' ? a.component.distance_since_wax : null),
   started_on: (a) => a.started_at,
   ended_on: (a) => a.ended_at,
 }

@@ -20,10 +20,10 @@ interface MaintenanceEventFormValues {
   notes: string
 }
 
-function emptyValues(defaultComponentId?: number): MaintenanceEventFormValues {
+function emptyValues(defaultComponentId?: number, defaultServiceTypeId?: number): MaintenanceEventFormValues {
   return {
     component_id: defaultComponentId ? String(defaultComponentId) : '',
-    service_type_id: '',
+    service_type_id: defaultServiceTypeId ? String(defaultServiceTypeId) : '',
     performed_at: nowIsoUtc(),
     notes: '',
   }
@@ -52,6 +52,7 @@ interface MaintenanceEventFormModalProps {
   onClose: () => void
   event?: MaintenanceEvent
   defaultComponentId?: number
+  defaultServiceTypeId?: number
 }
 
 export default function MaintenanceEventFormModal({
@@ -59,6 +60,7 @@ export default function MaintenanceEventFormModal({
   onClose,
   event,
   defaultComponentId,
+  defaultServiceTypeId,
 }: MaintenanceEventFormModalProps) {
   return (
     <Modal
@@ -72,6 +74,7 @@ export default function MaintenanceEventFormModal({
           onClose={onClose}
           event={event}
           defaultComponentId={defaultComponentId}
+          defaultServiceTypeId={defaultServiceTypeId}
         />
       )}
     </Modal>
@@ -82,10 +85,12 @@ function MaintenanceEventForm({
   onClose,
   event,
   defaultComponentId,
+  defaultServiceTypeId,
 }: {
   onClose: () => void
   event?: MaintenanceEvent
   defaultComponentId?: number
+  defaultServiceTypeId?: number
 }) {
   const isEdit = Boolean(event)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
@@ -93,7 +98,7 @@ function MaintenanceEventForm({
   const { data: components } = useComponents()
 
   const form = useForm<MaintenanceEventFormValues>({
-    initialValues: event ? toFormValues(event) : emptyValues(defaultComponentId),
+    initialValues: event ? toFormValues(event) : emptyValues(defaultComponentId, defaultServiceTypeId),
     validate: {
       component_id: (value) => (value ? null : 'Component is required'),
       service_type_id: (value) =>

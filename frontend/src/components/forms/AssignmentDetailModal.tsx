@@ -59,7 +59,6 @@ function AssignmentDetailContent({
   // setting one here would duplicate what the dedicated "Remove" flow
   // (EndAssignmentModal) already does.
   const isPast = assignment.ended_at !== null
-  const isChain = assignment.component.category === 'chain'
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
   const form = useForm<AssignmentDetailFormValues>({
@@ -117,9 +116,6 @@ function AssignmentDetailContent({
           <Stat label="Total Time" value={formatDuration(assignment.component.total_moving_time)} />
           <Stat label="Total Elevation" value={formatElevation(assignment.component.total_elevation_gain)} />
           <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
-          {isChain && (
-            <Stat label="Since Wax" value={formatDistance(assignment.component.distance_since_wax)} />
-          )}
         </Group>
 
         <Divider label="Edit" labelPosition="left" />
