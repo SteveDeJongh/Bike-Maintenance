@@ -120,10 +120,73 @@ docker build .`), not the repo root.
   `allows_multiple_assignments: true`) — deliberately *not* hardcoded logic; every row
   is changeable via the Settings page. A "frame" category and fully user-definable
   categories were raised during design but are an explicitly deferred future idea, not
-  built — categories stay free-text exactly as they are today.
-- `MaintenanceEvent`: component_id, event_type (wax, clean, replace, inspect),
-  performed_at (timestamp), notes. Reachable from a `User` via `has_many through:` on
-  `components` — no direct `user_id` column of its own.
+  built — categories stay free-text exactly as they are today. Also carries two
+  nullable notification overrides, `notifications_enabled` and
+  `warning_threshold_percent` — `nil` means "inherit the global `NotificationSetting`"
+  (see below), the same missing-value-means-inherit convention this model's other
+  columns already use relative to their own DB defaults.
+- `ServiceType`: user_id, name — unique per `(user_id, lower(name))`. A user-defined
+  kind of maintenance (wax, sealant top-up, brake bleed, ...), replacing
+  `MaintenanceEvent`'s old hardcoded `event_type` enum — per this file's own rule,
+  something that now drives real computation (service intervals) gets a real model,
+  not free text like `category`. Renaming is safe everywhere (every reference is by
+  id); deleting a type still in use by any `MaintenanceEvent` or service interval is
+  blocked (`restrict_with_error`). Managed on the Settings page, and every
+  service-type picker in the app can also create one inline.
+- `MaintenanceEvent`: component_id, service_type_id, performed_at (timestamp), notes.
+  Reachable from a `User` via `has_many through:` on `components` — no direct
+  `user_id` column of its own. Logging one is what resets a service interval's
+  baseline (see "Service intervals and maintenance alerts" below) — nothing is stored
+  as a counter; progress is always computed from event history.
+- `CategoryServiceInterval`: user_id, category, service_type_id,
+  distance_interval_meters (nullable), time_interval_days (nullable) — unique per
+  `(user_id, category, service_type_id)`, at least one of distance/time required. A
+  suggested interval template for a category (e.g. chain → wax every 300 km),
+  user-managed on the Component Categories settings page. Creating a component in a
+  category auto-creates an enabled, linked `ComponentServiceInterval` for each of
+  that category's templates (`Component#after_create`); adding a template later does
+  **not** retroactively attach to existing components — that's an explicit "apply to
+  these components" action instead (`POST /category_service_intervals/:id/apply`).
+  Deleting a template deletes its linked `ComponentServiceInterval` rows; custom
+  (unlinked) rows are untouched.
+- `ComponentServiceInterval`: component_id, category_service_interval_id (nullable —
+  null means custom, not linked to a template), service_type_id,
+  distance_interval_meters (nullable), time_interval_days (nullable), enabled
+  (boolean, default `true`) — unique per `(component_id, service_type_id)`, at least
+  one of distance/time/linked-template required. What actually applies to one
+  component. A **linked** row (template id set) inherits the template's values live
+  through `#effective_distance_interval_meters`/`#effective_time_interval_days` —
+  its own value columns are nilable per-component overrides, `nil` meaning "use the
+  template" — callers always go through those two methods, never resolve the
+  inheritance themselves. A **custom** row (no template) carries its own values
+  directly. Disabling (`enabled: false`) keeps the row, evaluated as if absent, and
+  re-enablable in place; removing (destroy) is a real delete — the component loses
+  that category default entirely, and nothing re-adds it automatically. The component
+  page offers "+ Add from category defaults" (`POST
+  /component_service_intervals/apply_defaults`) listing the category's templates not
+  currently represented on this component by service type — this is also how a
+  previously-removed default gets added back, since there is no removal history:
+  "never had it" and "had it and removed it" are treated identically, both simply
+  available to add.
+- `NotificationSetting`: user_id (unique — one row per user), notifications_enabled
+  (boolean, default `true`), warning_threshold_percent (integer, default `5`). Global
+  per-user defaults for service alerts; a missing row behaves as the hardcoded
+  true/5% default, same convention as `ComponentCategorySetting`. A category's own
+  `notifications_enabled`/`warning_threshold_percent` override these when set;
+  `NotificationSetting.effective_for(user:, category:)` is the one place that
+  resolves category-override-then-global-then-hardcoded-default — callers never
+  chase that fallback chain themselves.
+- `ServiceAlertDismissal`: component_service_interval_id, dismissed_at (timestamp),
+  dismissed_status (`"warning"` or `"due"`). Recorded by `POST
+  /service_alert_dismissals` (one interval) or `POST
+  /service_alert_dismissals/dismiss_all` (every currently banner-eligible alert, or
+  just those of one status via an optional `status` param — backs each banner's own
+  "dismiss all" without clearing the other banner's alerts too). A dismissal only
+  suppresses its own status: it expires on the next completed sync after
+  `dismissed_at` (see `StravaCredential#last_synced_at` below), and it stops
+  suppressing immediately if the status has since escalated (a dismissed `warning`
+  that becomes `due` shows again right away). Logging the service clears it
+  implicitly, since the status just returns to `ok`.
 - `StravaActivity`: user_id, strava_id (unique), bike_id (resolved from gear_id,
   nullable until mapped), gear_id (Strava's raw per-activity identifier, stored
   separately from bike_id so a bike mapped *after* activities were already synced can
@@ -143,7 +206,11 @@ docker build .`), not the repo root.
   `trainer`/`commute`, since Strava omits them entirely (not even `null`) when an
   activity has no power meter/HR monitor/cadence sensor.
 - `StravaCredential`: user_id (unique — one row per user), access_token, refresh_token,
-  expires_at, athlete_id, scope
+  expires_at, athlete_id, scope, last_synced_at (nullable datetime). The latter is set
+  at the end of every `StravaSyncJob#perform`, including a run that finds no new
+  activities — the only "last completed sync" signal in the app (the incremental sync
+  cursor itself is still just `StravaActivity.maximum(:moved_at)`, unrelated). It's
+  what a `ServiceAlertDismissal` compares against to decide whether it's expired.
 - `StravaGear`: user_id, strava_gear_id, name, brand_name, model (DB column — the
   obvious `model_name` collides with `ActiveModel::Naming#model_name`, which every
   ActiveRecord model inherits; the API's JSON still calls it `model_name` for clarity),
@@ -166,19 +233,85 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   restriction (`"both"`, the default) — see `ComponentAssignment#activities_from`,
   the one shared windowing+filtering primitive every mileage computation (lifetime
   and per-installation-period alike) funnels through.
-- `Component#distance_since(event_type:)` = same sum, filtered to activities after the
-  most recent MaintenanceEvent of that type.
+- `Component#distance_since(service_type:)` = same sum, filtered to activities after
+  the most recent `MaintenanceEvent` of that `ServiceType`.
 
 Both of the above loop over the component's assignments in Ruby, issuing one
 date-bounded query per assignment — unlike `Bike`'s stats, which batch into a single
-grouped query per stat in `BikesController#index`. This is fine today because every
-current caller (`ComponentDetail`, and a bike's own small "Installed components"
-table) only ever renders a handful of components at once. Future idea, not built yet:
-if this mileage ever needs to show on a table listing *many* components at once
-(e.g. a column on the standalone Components list), these would need the same
-batched treatment — a `component_assignments` ⨝ `strava_activities` join on
-`bike_id` plus a `moved_at` range condition, `GROUP BY component_id` — replacing the
-per-assignment loop.
+grouped query per stat in `BikesController#index`. This is still fine today because
+every current caller of these two specific methods (`ComponentDetail`, and a bike's
+own small "Installed components" table) only ever renders a handful of components at
+once; neither is used to back a many-row table column. Previously-noted future idea,
+now resolved by a different, purpose-built query rather than by changing these two
+methods: `Maintenance::BatchedDistanceQuery` (see "Service intervals and maintenance
+alerts" below) implements exactly the batched join this note called for — a
+`component_assignments` ⨝ `strava_activities` join on `bike_id` with a `moved_at`
+range condition, `GROUP BY` the thing being measured — for service-interval
+distance-since-baseline instead of `total_distance`, since that's what actually
+needed to show on a many-row table (the Components list's and Bike detail's
+`service_status` columns). If `total_distance`/`distance_since` themselves ever need
+to back a many-row column too, the same pattern is now proven out and ready to reuse.
+
+## Service intervals and maintenance alerts
+
+User-defined "do service type X every N km and/or every N days" tracking, resolving
+the "needs maintenance" future idea originally noted under Bike-level stats below.
+Recording a service means creating a `MaintenanceEvent` of that type — nothing is
+stored as a counter, progress is always computed from event history, same as
+`Component#distance_since` above. See the `ServiceType`/`CategoryServiceInterval`/
+`ComponentServiceInterval`/`NotificationSetting`/`ServiceAlertDismissal` bullets
+above for the data model; this section covers how status gets computed and surfaced.
+
+- `Maintenance::BatchedDistanceQuery.call(user)` — one raw SQL query (a CTE computing
+  each enabled `ComponentServiceInterval`'s baseline — most recent matching
+  `MaintenanceEvent`, else the component's earliest assignment, else `acquired_on` —
+  joined to `strava_activities` the same way `ComponentAssignment#activities_from`
+  already filters by `ride_context`) returning `{component_service_interval_id =>
+  {distance_meters, baseline_at}}` for every one of the user's enabled intervals at
+  once. The one piece of real batching in this feature — everything below reads from
+  it rather than looping per interval.
+- `Maintenance::IntervalStatus` wraps one interval's status: distance/time fraction
+  used (whichever dimension is set; `days_used` is a cheap date subtraction, not
+  batched), `due` when either fraction reaches 1.0, `warning` when either is within
+  the effective `warning_threshold_percent` of 1.0, else `ok`. `.for_component`/
+  `.for_user` are the two entry points (both batched via `BatchedDistanceQuery`);
+  `.worst_status_by_component(user)` reduces that to one status per component
+  (due > warning > ok) for the `service_status` table column. A component with no
+  enabled interval has no entry — rendered as a dash, not an `ok` badge.
+- Banner eligibility (`Result#banner_eligible?`) is stricter than just "not ok": the
+  component must be currently installed (an assignment with `ended_at: nil`), not
+  retired, have notifications enabled for its category
+  (`NotificationSetting.effective_for`), and not be currently suppressed by a
+  `ServiceAlertDismissal`. Ineligible intervals still compute and show a real status
+  everywhere else (component page, table columns) — eligibility only gates the
+  app-wide banners.
+- API: `ServiceTypesController`, `CategoryServiceIntervalsController` (plus `POST
+  .../:id/apply`), `ComponentServiceIntervalsController` (plus `POST
+  .../apply_defaults`), `NotificationSettingsController` (singleton, upsert like
+  `TableViewPreference`), `MaintenanceAlertsController#index` (`GET
+  /maintenance_alerts`, banner-eligible statuses only), `ServiceAlertDismissalsController`
+  (`#create`, `#dismiss_all` with an optional `status` param). `ComponentsController#show`
+  includes every enabled interval's full computed status; `ComponentsController#index`
+  and `BikesController#show` (per installed component) include just the batched
+  `service_status` summary.
+- Frontend: `Layout.tsx` renders `MaintenanceAlertBanners` above every page — a red
+  "due" list and a collapsed-by-default yellow "warning" count, each item linking to
+  its component with a "dismiss until next sync" control, each banner with its own
+  "dismiss all" (scoped to that banner's own status via the `dismiss_all` endpoint's
+  `status` param, so dismissing the due banner never also clears warnings). No
+  modals/toasts. `ComponentDetail.tsx`'s "Service intervals" section is where a
+  component's intervals are enabled/disabled/overridden/removed/added (from a
+  category default or custom) and where a service gets logged
+  (`MaintenanceEventFormModal` with the interval's service type/component
+  prefilled). `ServiceStatusBadge`/`SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY`
+  back the `service_status` column on the Components list and Bike detail's
+  Installed Components table (through the existing configurable-table system).
+
+**Known limitation**: sync is still manual (see "Strava integration" below) — until a
+scheduler is deployed, a dismissed alert stays hidden only until the user next
+presses "Sync now". Time-based intervals keep advancing regardless of sync (`days_used`
+is a plain date calculation), but a dismissal only lifts on a completed sync or on
+escalation to a worse status.
 
 ## Strava integration
 
@@ -240,9 +373,11 @@ per-assignment loop.
   estimate) and **nil** (not 0) when the bike has none, so the UI can show "N/A"
   instead of a misleading "0 W". `BikesController#index` computes all of these via
   grouped queries (one per stat) to avoid per-bike N+1 on the list.
-  Future idea, not built yet: a "needs maintenance" column (e.g. a chain overdue for
-  wax) — there's no due-date/threshold concept anywhere yet (just `MaintenanceEvent`
-  history), so this needs real design work before it can be built.
+  Previously-noted future idea, now resolved: a "needs maintenance" column — see
+  "Service intervals and maintenance alerts" above for the due-date/threshold concept
+  that didn't exist when this note was written. `BikesController#show` merges each
+  installed component's batched `service_status` into the response the same way
+  `#index` merges its own grouped stats.
 
 ## Sortable, configurable tables
 
@@ -326,8 +461,8 @@ add, but doesn't change the cost of computing what's behind them.
 1. Skeleton — done once this file exists and `rails db:create` works.
 2. Core CRUD — Bike, Component, ComponentAssignment, MaintenanceEvent models +
    JSON REST controllers (index/show/create/update/destroy), consumed by the
-   separate Vite frontend. Done. `Component#show` returns `total_distance` and
-   `distance_since_wax`.
+   separate Vite frontend. Done. `Component#show` returns `total_distance`
+   (and, since Phase 4, each service interval's computed status).
 3. Strava OAuth + activity sync + gear-to-bike mapping. Done, with one
    intentional deferral: sync is manually triggered for now (`bin/rails
    strava:sync_all` is ready for a future scheduler once the app is deployed).
@@ -337,8 +472,13 @@ add, but doesn't change the cost of computing what's behind them.
    `current_user` is still a placeholder (`User.first!`), not real auth.
 4. Attribution dashboard (frontend) — surface total distance, distance since
    last maintenance event, and simple threshold alerts using the API from
-   Phase 2/3. **<- current phase**
-5. Polish — deploy, webhooks, charts, notifications.
+   Phase 2/3. Done — delivered as the full service-types/intervals/notifications/
+   dismissals system in "Service intervals and maintenance alerts" above, not just
+   a bare threshold check. One intentional deferral carried over, same root cause
+   as Phase 3's: sync is still manual, so a dismissed alert only clears on the next
+   "Sync now" press (see that section's "Known limitation").
+5. Polish — deploy, webhooks, charts. **<- current phase** (notifications,
+   originally slated here, shipped early as part of Phase 4 instead.)
 
 ## Conventions
 
