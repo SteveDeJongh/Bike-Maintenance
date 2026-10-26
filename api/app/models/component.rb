@@ -3,9 +3,12 @@ class Component < ApplicationRecord
   has_many :component_assignments, dependent: :destroy
   has_many :bikes, through: :component_assignments
   has_many :maintenance_events, dependent: :destroy
+  has_many :component_service_intervals, dependent: :destroy
 
   validates :label, presence: true
   validates :category, presence: true
+
+  after_create :apply_category_service_intervals
 
   # Lifetime sums across all this component's assignment windows, on the
   # bike it was mounted to for each one. Windows are half-open —
@@ -46,6 +49,22 @@ class Component < ApplicationRecord
     component_assignments.sum do |assignment|
       range_start = [assignment.started_at, last_event.performed_at].max
       assignment.activities_from(range_start).sum(:distance_meters)
+    end
+  end
+
+  private
+
+  # Creating a component in a category auto-creates an enabled, linked
+  # ComponentServiceInterval for each of that category's suggested
+  # templates -- adding a template later does NOT retroactively attach to
+  # existing components (that's a deliberate, explicit "apply to" action
+  # instead, since silently attaching to everything would be surprising).
+  def apply_category_service_intervals
+    CategoryServiceInterval.where(user_id: user_id, category: category).find_each do |template|
+      component_service_intervals.create!(
+        category_service_interval: template,
+        service_type_id: template.service_type_id,
+      )
     end
   end
 end

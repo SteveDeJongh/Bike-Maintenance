@@ -152,4 +152,35 @@ RSpec.describe Component, type: :model do
       expect(component.distance_since(service_type: service_type)).to eq(component.total_distance)
     end
   end
+
+  describe "#apply_category_service_intervals (after_create)" do
+    it "creates an enabled, linked interval for each of the category's templates" do
+      user = create(:user)
+      template = create(:category_service_interval, user: user, category: "chain")
+
+      component = create(:component, user: user, category: "chain")
+
+      interval = component.component_service_intervals.find_by(category_service_interval: template)
+      expect(interval).to be_present
+      expect(interval.enabled).to be true
+      expect(interval.service_type_id).to eq(template.service_type_id)
+    end
+
+    it "does not attach templates from a different category" do
+      user = create(:user)
+      create(:category_service_interval, user: user, category: "cassette")
+
+      component = create(:component, user: user, category: "chain")
+
+      expect(component.component_service_intervals).to be_empty
+    end
+
+    it "does not attach a different user's templates" do
+      create(:category_service_interval, category: "chain")
+
+      component = create(:component, category: "chain")
+
+      expect(component.component_service_intervals).to be_empty
+    end
+  end
 end

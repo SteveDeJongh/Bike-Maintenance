@@ -30,6 +30,7 @@ class StravaSyncJob < ApplicationJob
     end
 
     Strava::GearSync.new(user).call
+    credential.update!(last_synced_at: Time.current)
   end
 
   private

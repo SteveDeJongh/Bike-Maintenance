@@ -180,4 +180,12 @@ RSpec.describe StravaSyncJob, type: :job do
     expect(gear).to be_present
     expect(gear.name).to eq("My Gravel Bike")
   end
+
+  it "records last_synced_at on the credential after a successful sync, even with no new activities" do
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([])
+
+    expect { StravaSyncJob.perform_now(user.id) }.to change { credential.reload.last_synced_at }.from(nil)
+  end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_26_222624) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -36,6 +36,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
     t.index ["user_id"], name: "index_bikes_on_user_id"
   end
 
+  create_table "category_service_intervals", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "category", null: false
+    t.bigint "service_type_id", null: false
+    t.integer "distance_interval_meters"
+    t.integer "time_interval_days"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_type_id"], name: "index_category_service_intervals_on_service_type_id"
+    t.index ["user_id", "category", "service_type_id"], name: "index_csi_on_user_category_service_type", unique: true
+    t.index ["user_id"], name: "index_category_service_intervals_on_user_id"
+  end
+
   create_table "component_assignments", force: :cascade do |t|
     t.bigint "component_id", null: false
     t.bigint "bike_id", null: false
@@ -56,8 +69,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
     t.string "default_ride_context", default: "both", null: false
     t.boolean "trackable", default: true, null: false
     t.boolean "allows_multiple_assignments", default: false, null: false
+    t.boolean "notifications_enabled"
+    t.integer "warning_threshold_percent"
     t.index ["user_id", "category"], name: "index_component_category_settings_on_user_id_and_category", unique: true
     t.index ["user_id"], name: "index_component_category_settings_on_user_id"
+  end
+
+  create_table "component_service_intervals", force: :cascade do |t|
+    t.bigint "component_id", null: false
+    t.bigint "category_service_interval_id"
+    t.bigint "service_type_id", null: false
+    t.integer "distance_interval_meters"
+    t.integer "time_interval_days"
+    t.boolean "enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_service_interval_id"], name: "idx_on_category_service_interval_id_d73a69d3de"
+    t.index ["component_id", "service_type_id"], name: "index_csi_on_component_and_service_type", unique: true
+    t.index ["component_id"], name: "index_component_service_intervals_on_component_id"
+    t.index ["service_type_id"], name: "index_component_service_intervals_on_service_type_id"
   end
 
   create_table "components", force: :cascade do |t|
@@ -80,6 +110,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
     t.bigint "service_type_id", null: false
     t.index ["component_id"], name: "index_maintenance_events_on_component_id"
     t.index ["service_type_id"], name: "index_maintenance_events_on_service_type_id"
+  end
+
+  create_table "notification_settings", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.boolean "notifications_enabled", default: true, null: false
+    t.integer "warning_threshold_percent", default: 5, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_notification_settings_on_user_id", unique: true
+  end
+
+  create_table "service_alert_dismissals", force: :cascade do |t|
+    t.bigint "component_service_interval_id", null: false
+    t.datetime "dismissed_at", null: false
+    t.string "dismissed_status", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["component_service_interval_id"], name: "idx_on_component_service_interval_id_29f0d01c93"
   end
 
   create_table "service_types", force: :cascade do |t|
@@ -131,6 +179,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
     t.string "scope"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "last_synced_at"
     t.index ["user_id"], name: "index_strava_credentials_on_user_id", unique: true
   end
 
@@ -169,12 +218,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_221651) do
 
   add_foreign_key "bike_component_slots", "bikes"
   add_foreign_key "bikes", "users"
+  add_foreign_key "category_service_intervals", "service_types"
+  add_foreign_key "category_service_intervals", "users"
   add_foreign_key "component_assignments", "bikes"
   add_foreign_key "component_assignments", "components"
   add_foreign_key "component_category_settings", "users"
+  add_foreign_key "component_service_intervals", "category_service_intervals"
+  add_foreign_key "component_service_intervals", "components"
+  add_foreign_key "component_service_intervals", "service_types"
   add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
   add_foreign_key "maintenance_events", "service_types"
+  add_foreign_key "notification_settings", "users"
+  add_foreign_key "service_alert_dismissals", "component_service_intervals"
   add_foreign_key "service_types", "users"
   add_foreign_key "strava_activities", "bikes"
   add_foreign_key "strava_activities", "users"
