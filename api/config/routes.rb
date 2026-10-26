@@ -7,6 +7,18 @@ Rails.application.routes.draw do
   resources :bike_component_slots, only: %i[ create destroy ]
   resources :table_view_preferences, param: :table_key, only: %i[ show update ]
   resources :component_category_settings, param: :category, only: %i[ index update ]
+  resources :category_service_intervals, except: %i[ new edit ] do
+    member { post :apply }
+  end
+  resources :component_service_intervals, except: %i[ new edit ] do
+    collection { post :apply_defaults }
+  end
+  resources :service_alert_dismissals, only: %i[ create ] do
+    collection { post :dismiss_all }
+  end
+  get   "maintenance_alerts",    to: "maintenance_alerts#index"
+  get   "notification_settings", to: "notification_settings#show"
+  patch "notification_settings", to: "notification_settings#update"
 
   get  "strava/authorize",     to: "strava#authorize"
   get  "strava/callback",      to: "strava#callback", as: :strava_callback

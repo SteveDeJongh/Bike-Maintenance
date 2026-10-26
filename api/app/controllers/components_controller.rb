@@ -15,8 +15,12 @@ class ComponentsController < ApplicationController
   def show
     wax_type = current_user.service_types.find_by(name: "wax")
     distance_since_wax = wax_type ? @component.distance_since(service_type: wax_type) : @component.total_distance
+    service_intervals = Maintenance::IntervalStatus.for_component(@component).map { |status| serialize_interval_status(status) }
 
-    render json: @component.as_json(methods: %i[ total_distance ]).merge(distance_since_wax: distance_since_wax)
+    render json: @component.as_json(methods: %i[ total_distance ]).merge(
+      distance_since_wax: distance_since_wax,
+      service_intervals: service_intervals,
+    )
   end
 
   # POST /components
@@ -52,5 +56,19 @@ class ComponentsController < ApplicationController
 
     def component_params
       params.require(:component).permit(:label, :category, :acquired_on, :retired_on)
+    end
+
+    def serialize_interval_status(status)
+      interval = status.component_service_interval
+      interval.as_json(only: %i[ id category_service_interval_id service_type_id distance_interval_meters
+                                  time_interval_days enabled ]).merge(
+        effective_distance_interval_meters: interval.effective_distance_interval_meters,
+        effective_time_interval_days: interval.effective_time_interval_days,
+        service_type_name: interval.service_type.name,
+        status: status.status,
+        distance_remaining_meters: status.distance_remaining_meters,
+        days_remaining: status.days_remaining,
+        driving_dimension: status.driving_dimension,
+      )
     end
 end
