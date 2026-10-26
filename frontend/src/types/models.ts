@@ -91,6 +91,7 @@ export interface Component {
 export interface ComponentDetail extends Component {
   total_distance: number
   distance_since_wax: number
+  service_intervals: ComponentServiceIntervalWithStatus[]
 }
 
 // Fields suffixed _at are ISO-8601 timestamps; _on fields are date-only
@@ -129,6 +130,57 @@ export interface ComponentCategorySetting {
   // dedicated outdoor cassette alongside a dedicated trainer cassette).
   // Enforced server-side in ComponentAssignment, not just a frontend hint.
   allows_multiple_assignments: boolean
+  // Per-category notification overrides -- null means "inherit the global
+  // NotificationSetting", same missing-value-means-inherit convention as
+  // default_ride_context's own column default.
+  notifications_enabled: boolean | null
+  warning_threshold_percent: number | null
+}
+
+// A per-category suggested service interval ("wax every 300km"), applied to
+// that category's components as a linked ComponentServiceInterval -- see
+// ComponentServiceInterval below.
+export interface CategoryServiceInterval {
+  id: number
+  category: string
+  service_type_id: number
+  distance_interval_meters: number | null
+  time_interval_days: number | null
+}
+
+// What actually applies to one component: either linked to a
+// CategoryServiceInterval template (category_service_interval_id set,
+// inheriting the template's values live unless overridden here) or fully
+// custom (category_service_interval_id null, values always its own).
+export interface ComponentServiceInterval {
+  id: number
+  component_id: number
+  category_service_interval_id: number | null
+  service_type_id: number
+  distance_interval_meters: number | null
+  time_interval_days: number | null
+  enabled: boolean
+}
+
+// The enriched shape GET /components/:id returns for each interval --
+// ComponentServiceInterval's own columns plus the live-computed status.
+export interface ComponentServiceIntervalWithStatus extends ComponentServiceInterval {
+  effective_distance_interval_meters: number | null
+  effective_time_interval_days: number | null
+  service_type_name: string
+  status: 'ok' | 'warning' | 'due'
+  distance_remaining_meters: number | null
+  days_remaining: number | null
+  driving_dimension: 'distance' | 'days'
+}
+
+// Singleton per user, GET/PATCH /notification_settings. id is null when the
+// user has no row yet -- the response still carries the real hardcoded
+// defaults (true/5), never a separate "missing" shape to special-case.
+export interface NotificationSetting {
+  id: number | null
+  notifications_enabled: boolean
+  warning_threshold_percent: number
 }
 
 // User-defined kind of maintenance (wax, sealant top-up, brake bleed, ...) --

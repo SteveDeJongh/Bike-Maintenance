@@ -1,7 +1,11 @@
 import { Box, Group, Stack, Anchor, Title } from '@mantine/core'
 import { NavLink as RouterNavLink, Outlet } from 'react-router-dom'
 
-const settingsNavLinks = [{ to: '/settings/component-categories', label: 'Component Categories' }]
+const settingsNavLinks = [
+  { to: '/settings/component-categories', label: 'Component Categories' },
+  { to: '/settings/service-types', label: 'Service Types' },
+  { to: '/settings/notifications', label: 'Notifications' },
+]
 
 export default function SettingsLayout() {
   return (

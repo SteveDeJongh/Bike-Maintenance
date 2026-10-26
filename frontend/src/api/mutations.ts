@@ -3,10 +3,13 @@ import { apiDelete, apiPatch, apiPost } from './client'
 import type {
   Bike,
   BikeComponentSlot,
+  CategoryServiceInterval,
   Component,
   ComponentAssignment,
   ComponentCategorySetting,
+  ComponentServiceInterval,
   MaintenanceEvent,
+  NotificationSetting,
   ServiceType,
   TableViewPreferenceData,
 } from '../types/models'
@@ -17,6 +20,9 @@ export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id'>
 export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
 export type ServiceTypePayload = Omit<ServiceType, 'id'>
+export type CategoryServiceIntervalPayload = Omit<CategoryServiceInterval, 'id'>
+export type ComponentServiceIntervalPayload = Omit<ComponentServiceInterval, 'id'>
+export type NotificationSettingPayload = Omit<NotificationSetting, 'id'>
 
 // Bike
 
@@ -264,5 +270,108 @@ export function useUpdateTableViewPreference(tableKey: string) {
         table_view_preference: { data },
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['table_view_preferences', tableKey] }),
+  })
+}
+
+// CategoryServiceInterval / ComponentServiceInterval
+// Both affect components' live status, so every mutation here invalidates
+// broadly (components, their service intervals, and the alert banners) --
+// cheap at this data scale, same reasoning ComponentAssignment's mutations
+// already use.
+
+function invalidateIntervalRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['category_service_intervals'] })
+  queryClient.invalidateQueries({ queryKey: ['component_service_intervals'] })
+  queryClient.invalidateQueries({ queryKey: ['components'] })
+  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+}
+
+export function useCreateCategoryServiceInterval() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: CategoryServiceIntervalPayload) =>
+      apiPost<CategoryServiceInterval>('/category_service_intervals', { category_service_interval: values }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+export function useUpdateCategoryServiceInterval(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<CategoryServiceIntervalPayload>) =>
+      apiPatch<CategoryServiceInterval>(`/category_service_intervals/${id}`, { category_service_interval: values }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+export function useDeleteCategoryServiceInterval() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/category_service_intervals/${id}`),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+// Applies a category template to the given, not-yet-covered components.
+export function useApplyCategoryServiceInterval(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (componentIds: number[]) =>
+      apiPost<void>(`/category_service_intervals/${id}/apply`, { component_ids: componentIds }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+export function useCreateComponentServiceInterval() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: ComponentServiceIntervalPayload) =>
+      apiPost<ComponentServiceInterval>('/component_service_intervals', { component_service_interval: values }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+export function useUpdateComponentServiceInterval(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<ComponentServiceIntervalPayload>) =>
+      apiPatch<ComponentServiceInterval>(`/component_service_intervals/${id}`, { component_service_interval: values }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+export function useDeleteComponentServiceInterval() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/component_service_intervals/${id}`),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+// "+ Add from category defaults" on the component page.
+export function useApplyDefaultComponentServiceIntervals() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ componentId, categoryServiceIntervalIds }: { componentId: number; categoryServiceIntervalIds: number[] }) =>
+      apiPost<ComponentServiceInterval[]>('/component_service_intervals/apply_defaults', {
+        component_id: componentId,
+        category_service_interval_ids: categoryServiceIntervalIds,
+      }),
+    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+  })
+}
+
+// NotificationSetting
+// A singleton per user, upserted the same way as TableViewPreference.
+
+export function useUpdateNotificationSetting() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<NotificationSettingPayload>) =>
+      apiPatch<NotificationSetting>('/notification_settings', { notification_setting: values }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification_settings'] })
+      queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+    },
   })
 }

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Checkbox, Group, Loader, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Checkbox, Group, Loader, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import { useComponentCategorySettings } from '../../api/queries'
 import { useSaveComponentCategorySettings } from '../../api/mutations'
 import RideContextCheckboxes from '../../components/RideContextCheckboxes'
+import CategoryServiceIntervalsModal from '../../components/forms/CategoryServiceIntervalsModal'
 import { categoryLabel } from '../../constants'
 import type { ComponentCategorySetting } from '../../types/models'
 import { useAllCategories } from '../../hooks/useAllCategories'
@@ -11,12 +12,16 @@ interface CategoryFormValues {
   default_ride_context: 'both' | 'outdoor_only' | 'indoor_only'
   trackable: boolean
   allows_multiple_assignments: boolean
+  notifications_enabled: boolean | null
+  warning_threshold_percent: number | null
 }
 
 const DEFAULT_VALUES: CategoryFormValues = {
   default_ride_context: 'both',
   trackable: true,
   allows_multiple_assignments: false,
+  notifications_enabled: null,
+  warning_threshold_percent: null,
 }
 
 function settingToValues(setting: ComponentCategorySetting | undefined): CategoryFormValues {
@@ -24,7 +29,27 @@ function settingToValues(setting: ComponentCategorySetting | undefined): Categor
     default_ride_context: setting?.default_ride_context ?? DEFAULT_VALUES.default_ride_context,
     trackable: setting?.trackable ?? DEFAULT_VALUES.trackable,
     allows_multiple_assignments: setting?.allows_multiple_assignments ?? DEFAULT_VALUES.allows_multiple_assignments,
+    notifications_enabled: setting?.notifications_enabled ?? null,
+    warning_threshold_percent: setting?.warning_threshold_percent ?? null,
   }
+}
+
+// null (inherit global) is a real third state here, not just an unset
+// checkbox -- a plain Select with an explicit "Inherit global" option.
+const NOTIFICATIONS_OPTIONS = [
+  { value: 'inherit', label: 'Inherit global' },
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+]
+
+function notificationsToSelectValue(value: boolean | null): string {
+  if (value === null) return 'inherit'
+  return value ? 'on' : 'off'
+}
+
+function selectValueToNotifications(value: string): boolean | null {
+  if (value === 'inherit') return null
+  return value === 'on'
 }
 
 function slugifyCategory(label: string): string {
@@ -92,6 +117,7 @@ function CategoryTable({
   const [localValues, setLocalValues] = useState(baseline)
   const [newCategories, setNewCategories] = useState<string[]>([])
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [manageIntervalsCategory, setManageIntervalsCategory] = useState<string | null>(null)
   const saveSettings = useSaveComponentCategorySettings()
 
   const allRows = [...categories, ...newCategories]
@@ -133,6 +159,9 @@ function CategoryTable({
             <Table.Th>Default ride context</Table.Th>
             <Table.Th>Trackable</Table.Th>
             <Table.Th>Allows multiple installed at once</Table.Th>
+            <Table.Th>Notifications</Table.Th>
+            <Table.Th>Warning %</Table.Th>
+            <Table.Th>Service intervals</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -161,6 +190,36 @@ function CategoryTable({
                   disabled={saveSettings.isPending}
                 />
               </Table.Td>
+              <Table.Td>
+                <Select
+                  data={NOTIFICATIONS_OPTIONS}
+                  value={notificationsToSelectValue(localValues[category].notifications_enabled)}
+                  onChange={(value) =>
+                    updateLocal(category, { notifications_enabled: selectValueToNotifications(value ?? 'inherit') })
+                  }
+                  disabled={saveSettings.isPending}
+                  w={150}
+                  allowDeselect={false}
+                />
+              </Table.Td>
+              <Table.Td>
+                <NumberInput
+                  placeholder="Inherit"
+                  value={localValues[category].warning_threshold_percent ?? ''}
+                  onChange={(value) =>
+                    updateLocal(category, { warning_threshold_percent: value === '' ? null : Number(value) })
+                  }
+                  min={0}
+                  max={100}
+                  w={100}
+                  disabled={saveSettings.isPending}
+                />
+              </Table.Td>
+              <Table.Td>
+                <Button size="xs" variant="default" onClick={() => setManageIntervalsCategory(category)}>
+                  Manage
+                </Button>
+              </Table.Td>
             </Table.Tr>
           ))}
           <Table.Tr>
@@ -172,7 +231,7 @@ function CategoryTable({
                 disabled={saveSettings.isPending}
               />
             </Table.Td>
-            <Table.Td colSpan={3}>
+            <Table.Td colSpan={6}>
               <Button
                 size="sm"
                 variant="default"
@@ -185,6 +244,14 @@ function CategoryTable({
           </Table.Tr>
         </Table.Tbody>
       </Table>
+
+      {manageIntervalsCategory && (
+        <CategoryServiceIntervalsModal
+          opened
+          category={manageIntervalsCategory}
+          onClose={() => setManageIntervalsCategory(null)}
+        />
+      )}
 
       {saveSettings.isError && (
         <Alert color="red" title="Failed to save">

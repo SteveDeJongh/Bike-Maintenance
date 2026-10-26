@@ -10,6 +10,8 @@ import MaintenanceEvents from './pages/MaintenanceEvents'
 import Strava from './pages/Strava'
 import SettingsLayout from './pages/settings/SettingsLayout'
 import ComponentCategorySettingsPage from './pages/settings/ComponentCategorySettingsPage'
+import ServiceTypesPage from './pages/settings/ServiceTypesPage'
+import NotificationsPage from './pages/settings/NotificationsPage'
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +32,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="component-categories" replace /> },
           { path: 'component-categories', element: <ComponentCategorySettingsPage /> },
+          { path: 'service-types', element: <ServiceTypesPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
         ],
       },
     ],
