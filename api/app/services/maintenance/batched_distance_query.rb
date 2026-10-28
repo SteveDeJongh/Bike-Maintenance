@@ -10,7 +10,12 @@ module Maintenance
     IntervalDistance = Struct.new(:distance_meters, :baseline_at, keyword_init: true)
 
     # Returns { component_service_interval_id => IntervalDistance } for
-    # every enabled ComponentServiceInterval belonging to the given user.
+    # every ComponentServiceInterval belonging to the given user, enabled
+    # or not -- enabled-only filtering happens one layer up, in
+    # Maintenance::IntervalStatus.for_user (eligibility/banners/table
+    # columns); IntervalStatus.for_component (the component detail page)
+    # wants every interval's distance, including a disabled one's, so its
+    # status is still meaningful if it gets re-enabled.
     def self.call(user)
       sql = <<~SQL
         WITH baselines AS (
@@ -25,7 +30,7 @@ module Maintenance
             ) AS baseline_at
           FROM component_service_intervals csi
           JOIN components ON components.id = csi.component_id
-          WHERE csi.enabled = true AND components.user_id = #{user.id.to_i}
+          WHERE components.user_id = #{user.id.to_i}
         )
         SELECT
           b.component_service_interval_id,

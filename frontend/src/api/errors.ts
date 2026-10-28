@@ -17,6 +17,17 @@ export function parseApiError(error: unknown): ParsedApiErrors {
   }
 }
 
+// Flattens field-level and base errors into one display string, for the
+// plain-Alert forms in this feature that don't wire per-field errors
+// through @mantine/form's setErrors (see applyApiErrors for the ones that
+// do). parseApiError alone drops field errors -- e.g. a uniqueness
+// violation on service_type_id isn't a :base error, so baseErrors alone
+// would render an empty string.
+export function formatApiError(error: unknown): string {
+  const { fieldErrors, baseErrors } = parseApiError(error)
+  return [...Object.values(fieldErrors).flat(), ...baseErrors].join(', ')
+}
+
 // Applies field-level errors onto a @mantine/form instance and returns the
 // base (form-level, cross-field) errors for the caller to render separately.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

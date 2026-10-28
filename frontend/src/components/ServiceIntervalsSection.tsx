@@ -6,7 +6,7 @@ import {
   useDeleteComponentServiceInterval,
   useUpdateComponentServiceInterval,
 } from '../api/mutations'
-import { parseApiError } from '../api/errors'
+import { formatApiError } from '../api/errors'
 import { confirmDelete } from './confirmDelete'
 import AddCustomServiceIntervalModal from './forms/AddCustomServiceIntervalModal'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
@@ -210,7 +210,7 @@ function ServiceIntervalRow({
         </Group>
         {updateInterval.isError && (
           <Text c="red" size="xs" mt={4}>
-            {parseApiError(updateInterval.error).baseErrors.join(', ')}
+            {formatApiError(updateInterval.error)}
           </Text>
         )}
       </Table.Td>
@@ -257,7 +257,7 @@ function AddFromCategoryDefaults({
           onChange={() => toggle(template.id)}
         />
       ))}
-      {applyDefaults.isError && <Alert color="red">{parseApiError(applyDefaults.error).baseErrors.join(', ')}</Alert>}
+      {applyDefaults.isError && <Alert color="red">{formatApiError(applyDefaults.error)}</Alert>}
       <Group justify="flex-end">
         <Button variant="default" onClick={onDone}>
           Cancel

@@ -41,9 +41,15 @@ module Maintenance
       end
     end
 
+    # Every one of the component's intervals, enabled or not -- a disabled
+    # interval is still shown (with its own computed status) so its Switch
+    # can be flipped back on "in place", per CLAUDE.md's documented
+    # disable-vs-remove distinction. Eligibility/banner/table-column
+    # computations go through .for_user below instead, which does filter
+    # to enabled -- this method backs the component detail page only.
     def self.for_component(component)
       distances = BatchedDistanceQuery.call(component.user)
-      component.component_service_intervals.where(enabled: true).map { |interval| new(interval, distances[interval.id]).call }
+      component.component_service_intervals.map { |interval| new(interval, distances[interval.id]).call }
     end
 
     def self.for_user(user)

@@ -53,7 +53,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     expect(result[interval.id].distance_meters).to eq(7_000)
   end
 
-  it "ignores disabled intervals" do
+  it "includes disabled intervals too -- enabled-only filtering happens a layer up, in IntervalStatus.for_user" do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain")
     service_type = create(:service_type, user: bike.user, name: "wax")
@@ -63,7 +63,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
 
     result = described_class.call(bike.user)
 
-    expect(result).not_to have_key(interval.id)
+    expect(result[interval.id].distance_meters).to eq(5_000)
   end
 
   describe "parity with the existing per-assignment methods" do

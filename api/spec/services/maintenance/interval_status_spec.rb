@@ -70,6 +70,28 @@ RSpec.describe Maintenance::IntervalStatus do
     end
   end
 
+  describe "enabled-only filtering" do
+    it ".for_component still includes a disabled interval, with a real computed status, so it can be re-enabled in place" do
+      interval, bike = build_interval(distance_interval_meters: 300_000)
+      interval.update!(enabled: false)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
+
+      result = described_class.for_component(interval.component).first
+
+      expect(result.component_service_interval).to eq(interval)
+      expect(result.status).to eq("due")
+    end
+
+    it ".for_user excludes a disabled interval, so it doesn't drive banners or the service_status table column" do
+      interval, bike = build_interval(distance_interval_meters: 300_000)
+      interval.update!(enabled: false)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
+
+      expect(described_class.for_user(interval.component.user)).to be_empty
+      expect(described_class.worst_status_by_component(interval.component.user)).to eq({})
+    end
+  end
+
   describe "#banner_eligible?" do
     def status_for(interval)
       described_class.for_component(interval.component).first

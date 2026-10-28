@@ -22,14 +22,17 @@ RSpec.describe "Components", type: :request do
       expect(intervals.first["status"]).to eq("ok")
     end
 
-    it "excludes a disabled interval" do
+    it "still includes a disabled interval, with its own computed status, so it can be re-enabled in place" do
       component = create(:component, user: current_user, category: "chain")
       service_type = create(:service_type, user: current_user, name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, enabled: false)
+      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000, enabled: false)
 
       get "/components/#{component.id}"
 
-      expect(JSON.parse(response.body)["service_intervals"]).to eq([])
+      intervals = JSON.parse(response.body)["service_intervals"]
+      expect(intervals.length).to eq(1)
+      expect(intervals.first["enabled"]).to eq(false)
+      expect(intervals.first["status"]).to eq("ok")
     end
   end
 

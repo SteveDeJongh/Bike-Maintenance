@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Modal, NumberInput, Stack } from '@mantine/core'
 import { useCreateComponentServiceInterval } from '../../api/mutations'
-import { parseApiError } from '../../api/errors'
+import { formatApiError } from '../../api/errors'
 import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 
@@ -72,8 +72,8 @@ function AddCustomServiceIntervalForm({ onClose, componentId }: { onClose: () =>
         />
       </Group>
 
-      {createServiceTypeError && <Alert color="red">{parseApiError(createServiceTypeError).baseErrors.join(', ')}</Alert>}
-      {createInterval.isError && <Alert color="red">{parseApiError(createInterval.error).baseErrors.join(', ')}</Alert>}
+      {createServiceTypeError && <Alert color="red">{formatApiError(createServiceTypeError)}</Alert>}
+      {createInterval.isError && <Alert color="red">{formatApiError(createInterval.error)}</Alert>}
 
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose}>

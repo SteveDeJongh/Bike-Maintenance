@@ -8,7 +8,7 @@ import {
 } from '../../api/mutations'
 import { useAllComponentServiceIntervals, useCategoryServiceIntervals, useComponents, useServiceTypes } from '../../api/queries'
 import { categoryLabel } from '../../constants'
-import { parseApiError } from '../../api/errors'
+import { formatApiError } from '../../api/errors'
 import { confirmDelete } from '../confirmDelete'
 import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
@@ -135,8 +135,8 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
           Add
         </Button>
       </Group>
-      {createServiceTypeError && <Alert color="red">{parseApiError(createServiceTypeError).baseErrors.join(', ')}</Alert>}
-      {createTemplate.isError && <Alert color="red">{createTemplate.error.message}</Alert>}
+      {createServiceTypeError && <Alert color="red">{formatApiError(createServiceTypeError)}</Alert>}
+      {createTemplate.isError && <Alert color="red">{formatApiError(createTemplate.error)}</Alert>}
 
       {applyTemplate && (
         <ApplyToComponentsChecklist
