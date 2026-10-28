@@ -9,7 +9,7 @@ import {
 import { useAllComponentServiceIntervals, useCategoryServiceIntervals, useComponents, useServiceTypes } from '../../api/queries'
 import { categoryLabel } from '../../constants'
 import { confirmDelete } from '../confirmDelete'
-import ServiceTypeSelect from '../ServiceTypeSelect'
+import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 import type { CategoryServiceInterval } from '../../types/models'
 
 interface CategoryServiceIntervalsModalProps {
@@ -50,7 +50,7 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
   }
 
   function handleCreate() {
-    if (!newTypeId || (newKm === '' && newDays === '')) return
+    if (!newTypeId || newTypeId === CREATE_NEW_SERVICE_TYPE || (newKm === '' && newDays === '')) return
 
     createTemplate.mutate(
       {
@@ -117,7 +117,7 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
         />
         <Button
           onClick={handleCreate}
-          disabled={!newTypeId || (newKm === '' && newDays === '')}
+          disabled={!newTypeId || newTypeId === CREATE_NEW_SERVICE_TYPE || (newKm === '' && newDays === '')}
           loading={createTemplate.isPending}
         >
           Add

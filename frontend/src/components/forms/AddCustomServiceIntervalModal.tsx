@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, Button, Group, Modal, NumberInput, Stack } from '@mantine/core'
 import { useCreateComponentServiceInterval } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
-import ServiceTypeSelect from '../ServiceTypeSelect'
+import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 
 interface AddCustomServiceIntervalModalProps {
   opened: boolean
@@ -28,7 +28,7 @@ function AddCustomServiceIntervalForm({ onClose, componentId }: { onClose: () =>
   const [days, setDays] = useState<number | ''>('')
   const createInterval = useCreateComponentServiceInterval()
 
-  const canSubmit = Boolean(serviceTypeId) && (km !== '' || days !== '')
+  const canSubmit = Boolean(serviceTypeId) && serviceTypeId !== CREATE_NEW_SERVICE_TYPE && (km !== '' || days !== '')
 
   function handleSubmit() {
     if (!canSubmit) return

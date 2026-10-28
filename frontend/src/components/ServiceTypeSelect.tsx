@@ -53,7 +53,7 @@ export default function ServiceTypeSelect({ value, onChange, label = 'Service ty
             style={{ flex: 1 }}
           />
           <Button size="sm" disabled={!newTypeName.trim()} loading={createServiceType.isPending} onClick={handleCreate}>
-            Add
+            Create
           </Button>
         </Group>
       )}
