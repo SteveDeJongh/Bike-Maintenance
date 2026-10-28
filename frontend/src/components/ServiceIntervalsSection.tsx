@@ -121,6 +121,10 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
   )
 }
 
+function effectiveKm(interval: ComponentServiceIntervalWithStatus): number | '' {
+  return interval.effective_distance_interval_meters == null ? '' : interval.effective_distance_interval_meters / 1000
+}
+
 function ServiceIntervalRow({
   interval,
   onLogService,
@@ -131,15 +135,36 @@ function ServiceIntervalRow({
   const updateInterval = useUpdateComponentServiceInterval(interval.id)
   const deleteInterval = useDeleteComponentServiceInterval()
 
-  const [km, setKm] = useState<number | ''>(
-    interval.distance_interval_meters == null ? '' : interval.distance_interval_meters / 1000,
-  )
-  const [days, setDays] = useState<number | ''>(interval.time_interval_days ?? '')
+  const [editing, setEditing] = useState(false)
+  const [km, setKm] = useState<number | ''>(effectiveKm(interval))
+  const [days, setDays] = useState<number | ''>(interval.effective_time_interval_days ?? '')
 
   const isLinked = interval.category_service_interval_id !== null
+  const canSave = isLinked || km !== '' || days !== ''
 
   function handleToggleEnabled(checked: boolean) {
     updateInterval.mutate({ enabled: checked })
+  }
+
+  function handleStartEdit() {
+    setKm(effectiveKm(interval))
+    setDays(interval.effective_time_interval_days ?? '')
+    setEditing(true)
+  }
+
+  function handleCancelEdit() {
+    setEditing(false)
+  }
+
+  function handleSaveEdit() {
+    if (!canSave) return
+    updateInterval.mutate(
+      {
+        distance_interval_meters: km === '' ? null : Math.round(km * 1000),
+        time_interval_days: days === '' ? null : days,
+      },
+      { onSuccess: () => setEditing(false) },
+    )
   }
 
   function handleRemove() {
@@ -171,42 +196,50 @@ function ServiceIntervalRow({
         <Badge color={STATUS_COLORS[interval.status]}>{interval.status}</Badge>
       </Table.Td>
       <Table.Td>
-        <NumberInput
-          placeholder={isLinked ? 'template' : undefined}
-          value={km}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setKm(next)
-            updateInterval.mutate({ distance_interval_meters: next === '' ? null : Math.round(next * 1000) })
-          }}
-          min={0}
-          w={100}
-        />
+        {editing ? (
+          <NumberInput value={km} onChange={(v) => setKm(v === '' ? '' : Number(v))} min={0} w={100} />
+        ) : interval.effective_distance_interval_meters != null ? (
+          formatDistance(interval.effective_distance_interval_meters)
+        ) : (
+          '—'
+        )}
       </Table.Td>
       <Table.Td>
-        <NumberInput
-          placeholder={isLinked ? 'template' : undefined}
-          value={days}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setDays(next)
-            updateInterval.mutate({ time_interval_days: next === '' ? null : next })
-          }}
-          min={0}
-          w={100}
-        />
+        {editing ? (
+          <NumberInput value={days} onChange={(v) => setDays(v === '' ? '' : Number(v))} min={0} w={100} />
+        ) : interval.effective_time_interval_days != null ? (
+          `${interval.effective_time_interval_days} days`
+        ) : (
+          '—'
+        )}
       </Table.Td>
       <Table.Td>
         <Switch checked={interval.enabled} onChange={(event) => handleToggleEnabled(event.currentTarget.checked)} />
       </Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
-          <Button size="xs" onClick={onLogService}>
-            Log service
-          </Button>
-          <Button size="xs" variant="subtle" color="red" loading={deleteInterval.isPending} onClick={handleRemove}>
-            Remove
-          </Button>
+          {editing ? (
+            <>
+              <Button size="xs" onClick={handleSaveEdit} disabled={!canSave} loading={updateInterval.isPending}>
+                Save
+              </Button>
+              <Button size="xs" variant="default" onClick={handleCancelEdit}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="xs" onClick={onLogService}>
+                Log service
+              </Button>
+              <Button size="xs" variant="default" onClick={handleStartEdit}>
+                Edit
+              </Button>
+              <Button size="xs" variant="subtle" color="red" loading={deleteInterval.isPending} onClick={handleRemove}>
+                Remove
+              </Button>
+            </>
+          )}
         </Group>
         {updateInterval.isError && (
           <Text c="red" size="xs" mt={4}>
