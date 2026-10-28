@@ -8,8 +8,10 @@ import {
 } from '../../api/mutations'
 import { useAllComponentServiceIntervals, useCategoryServiceIntervals, useComponents, useServiceTypes } from '../../api/queries'
 import { categoryLabel } from '../../constants'
+import { parseApiError } from '../../api/errors'
 import { confirmDelete } from '../confirmDelete'
 import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
+import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 import type { CategoryServiceInterval } from '../../types/models'
 
 interface CategoryServiceIntervalsModalProps {
@@ -39,29 +41,38 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
   )
 
   const [newTypeId, setNewTypeId] = useState('')
+  const [newTypeName, setNewTypeName] = useState('')
   const [newKm, setNewKm] = useState<number | ''>('')
   const [newDays, setNewDays] = useState<number | ''>('')
   const [applyTemplateId, setApplyTemplateId] = useState<number | null>(null)
 
   const createTemplate = useCreateCategoryServiceInterval()
+  const { resolveServiceTypeId, isCreatingServiceType, createServiceTypeError } = useServiceTypeIdResolver()
 
   function serviceTypeName(id: number) {
     return serviceTypes?.find((t) => t.id === id)?.name ?? '—'
   }
 
-  function handleCreate() {
-    if (!newTypeId || newTypeId === CREATE_NEW_SERVICE_TYPE || (newKm === '' && newDays === '')) return
+  const typeReady = newTypeId !== '' && (newTypeId !== CREATE_NEW_SERVICE_TYPE || newTypeName.trim() !== '')
+  const canSubmit = typeReady && (newKm !== '' || newDays !== '')
+
+  async function handleCreate() {
+    if (!canSubmit) return
+
+    const serviceTypeId = await resolveServiceTypeId(newTypeId, newTypeName).catch(() => null)
+    if (serviceTypeId === null) return
 
     createTemplate.mutate(
       {
         category,
-        service_type_id: Number(newTypeId),
+        service_type_id: serviceTypeId,
         distance_interval_meters: newKm === '' ? null : Math.round(newKm * 1000),
         time_interval_days: newDays === '' ? null : newDays,
       },
       {
         onSuccess: (created) => {
           setNewTypeId('')
+          setNewTypeName('')
           setNewKm('')
           setNewDays('')
           setApplyTemplateId(created.id)
@@ -99,7 +110,12 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
       </Text>
       <Group align="flex-end" wrap="wrap">
         <div style={{ minWidth: 200 }}>
-          <ServiceTypeSelect value={newTypeId} onChange={setNewTypeId} />
+          <ServiceTypeSelect
+            value={newTypeId}
+            onChange={setNewTypeId}
+            newTypeName={newTypeName}
+            onNewTypeNameChange={setNewTypeName}
+          />
         </div>
         <NumberInput
           label="Every (km)"
@@ -115,14 +131,11 @@ function CategoryServiceIntervalsEditor({ category }: { category: string }) {
           min={0}
           w={120}
         />
-        <Button
-          onClick={handleCreate}
-          disabled={!newTypeId || newTypeId === CREATE_NEW_SERVICE_TYPE || (newKm === '' && newDays === '')}
-          loading={createTemplate.isPending}
-        >
+        <Button onClick={handleCreate} disabled={!canSubmit} loading={createTemplate.isPending || isCreatingServiceType}>
           Add
         </Button>
       </Group>
+      {createServiceTypeError && <Alert color="red">{parseApiError(createServiceTypeError).baseErrors.join(', ')}</Alert>}
       {createTemplate.isError && <Alert color="red">{createTemplate.error.message}</Alert>}
 
       {applyTemplate && (
