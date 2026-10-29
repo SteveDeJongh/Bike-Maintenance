@@ -4,7 +4,8 @@ import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Text, Title } from 
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
-import ComponentOverview from '../components/ComponentOverview'
+import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
+import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
 import { categoryLabel } from '../constants'
 import { formatDistance } from '../utils/distance'
 
@@ -56,16 +57,19 @@ export default function ComponentDetail() {
         </Button>
       </Group>
 
-      <ComponentOverview componentId={componentId} />
+      <ComponentIdentityStatus
+        componentId={componentId}
+        extra={
+          <div>
+            <Text size="sm" c="dimmed">
+              Total distance
+            </Text>
+            <Text fw={500}>{formatDistance(component.total_distance)}</Text>
+          </div>
+        }
+      />
 
-      <Group gap="xl">
-        <div>
-          <Text size="sm" c="dimmed">
-            Total distance
-          </Text>
-          <Text fw={500}>{formatDistance(component.total_distance)}</Text>
-        </div>
-      </Group>
+      <ComponentServiceAndHistory componentId={componentId} />
 
       <ComponentFormModal
         opened={editOpened}

@@ -4,7 +4,8 @@ import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
-import ComponentOverview from '../ComponentOverview'
+import ComponentIdentityStatus from '../ComponentIdentityStatus'
+import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -88,7 +89,7 @@ function AssignmentDetailContent({
 
   return (
     <Stack>
-      <ComponentOverview componentId={assignment.component_id} />
+      <ComponentIdentityStatus componentId={assignment.component_id} />
 
       <Divider label="This installation" labelPosition="left" />
       <Group gap="xl">
@@ -108,10 +109,10 @@ function AssignmentDetailContent({
 
       <Divider label="Edit this installation" labelPosition="left" />
 
-      {/* Scoped to just these fields -- ComponentOverview above renders its
-          own buttons/inputs (service intervals, logging a service) that
-          must not accidentally submit this installation's own edit form
-          on Enter. */}
+      {/* Scoped to just these fields -- ComponentServiceAndHistory below
+          renders its own buttons/inputs (service intervals, logging a
+          service) that must not accidentally submit this installation's
+          own edit form on Enter. */}
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack>
           {baseErrors.length > 0 && (
@@ -155,6 +156,9 @@ function AssignmentDetailContent({
           </Group>
         </Stack>
       </form>
+
+      <Divider label="Service intervals & maintenance history" labelPosition="left" />
+      <ComponentServiceAndHistory componentId={assignment.component_id} />
     </Stack>
   )
 }

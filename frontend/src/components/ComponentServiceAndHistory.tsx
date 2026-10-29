@@ -1,21 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Alert, Anchor, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core'
+import { Alert, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core'
 import { useComponent, useMaintenanceEvents, useServiceTypes } from '../api/queries'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
 import ServiceIntervalsSection from './ServiceIntervalsSection'
-import { categoryLabel } from '../constants'
 import { formatDateTime } from '../utils/datetime'
 
-// Shared between the standalone ComponentDetail page and the Bike page's
-// AssignmentDetailModal -- everything about a component beyond whatever
-// context-specific stats/header each caller already shows around it:
-// identity (category/component/status) up front, then service intervals
-// (with the ability to add/edit/remove/log a service against any of them),
-// and the full maintenance history with its own "+ Log maintenance event"
-// button. Fetches its own data from just a componentId so either caller
-// can drop it in without threading props through.
-export default function ComponentOverview({ componentId }: { componentId: number }) {
+// Shared by the standalone ComponentDetail page and the Bike page's
+// AssignmentDetailModal -- service intervals (add/edit/remove/log a
+// service against any of them) and the full maintenance history with its
+// own "+ Log maintenance event" button. Fetches its own data from just a
+// componentId so either caller can drop it in without threading props
+// through.
+export default function ComponentServiceAndHistory({ componentId }: { componentId: number }) {
   const { data: component, isPending, error } = useComponent(componentId)
   const { data: events } = useMaintenanceEvents()
   const { data: serviceTypes } = useServiceTypes()
@@ -41,43 +37,6 @@ export default function ComponentOverview({ componentId }: { componentId: number
 
   return (
     <Stack>
-      <Group gap="xl">
-        <div>
-          <Text size="sm" c="dimmed">
-            Category
-          </Text>
-          <Text fw={500}>{categoryLabel(component.category)}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Component
-          </Text>
-          <Anchor component={Link} to={`/components/${component.id}`} fw={500}>
-            {component.label}
-          </Anchor>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Status
-          </Text>
-          {component.current_bikes.length === 0 ? (
-            <Text fw={500}>Uninstalled</Text>
-          ) : (
-            <Text fw={500}>
-              Installed -{' '}
-              {component.current_bikes.map((bike, index) => (
-                <span key={bike.id}>
-                  {index > 0 && ', '}
-                  <Anchor component={Link} to={`/bikes/${bike.id}`}>
-                    {bike.name}
-                  </Anchor>
-                </span>
-              ))}
-            </Text>
-          )}
-        </div>
-      </Group>
-
       <ServiceIntervalsSection component={component} />
 
       <Group justify="space-between">
