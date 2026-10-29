@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Divider, Group, Modal, Stack, Text } from '@mantine/core'
+import { Alert, Button, Divider, Group, Modal, Stack, Text } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
-import { Link } from 'react-router-dom'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
-import { categoryLabel } from '../../constants'
 import ComponentOverview from '../ComponentOverview'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
@@ -90,17 +88,7 @@ function AssignmentDetailContent({
 
   return (
     <Stack>
-      <Group gap="xl">
-        <Stat label="Category" value={categoryLabel(assignment.component.category)} />
-        <div>
-          <Text size="sm" c="dimmed">
-            Component
-          </Text>
-          <Anchor component={Link} to={`/components/${assignment.component_id}`} fw={500}>
-            {assignment.component.label}
-          </Anchor>
-        </div>
-      </Group>
+      <ComponentOverview componentId={assignment.component_id} />
 
       <Divider label="This installation" labelPosition="left" />
       <Group gap="xl">
@@ -117,9 +105,6 @@ function AssignmentDetailContent({
         <Stat label="Total Elevation" value={formatElevation(assignment.component.total_elevation_gain)} />
         <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
       </Group>
-
-      <Divider label="Overview" labelPosition="left" />
-      <ComponentOverview componentId={assignment.component_id} />
 
       <Divider label="Edit this installation" labelPosition="left" />
 

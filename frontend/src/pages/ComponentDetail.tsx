@@ -56,6 +56,8 @@ export default function ComponentDetail() {
         </Button>
       </Group>
 
+      <ComponentOverview componentId={componentId} />
+
       <Group gap="xl">
         <div>
           <Text size="sm" c="dimmed">
@@ -64,8 +66,6 @@ export default function ComponentDetail() {
           <Text fw={500}>{formatDistance(component.total_distance)}</Text>
         </div>
       </Group>
-
-      <ComponentOverview componentId={componentId} />
 
       <ComponentFormModal
         opened={editOpened}
