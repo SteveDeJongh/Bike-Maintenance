@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { applyApiErrors } from '../../api/errors'
 import { useUpdateComponentAssignment } from '../../api/mutations'
 import { categoryLabel } from '../../constants'
+import ComponentOverview from '../ComponentOverview'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -28,7 +29,7 @@ interface AssignmentDetailModalProps {
 
 export default function AssignmentDetailModal({ opened, onClose, assignment }: AssignmentDetailModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={assignment?.component.label ?? ''} size="lg">
+    <Modal opened={opened} onClose={onClose} title={assignment?.component.label ?? ''} size="xl">
       {opened && assignment && (
         <AssignmentDetailContent key={assignment.id} onClose={onClose} assignment={assignment} />
       )}
@@ -88,78 +89,87 @@ function AssignmentDetailContent({
   }
 
   return (
-    <form onSubmit={form.onSubmit(handleSubmit)}>
-      <Stack>
-        <Group gap="xl">
-          <Stat label="Category" value={categoryLabel(assignment.component.category)} />
-          <div>
-            <Text size="sm" c="dimmed">
-              Component
-            </Text>
-            <Anchor component={Link} to={`/components/${assignment.component_id}`} fw={500}>
-              {assignment.component.label}
-            </Anchor>
-          </div>
-        </Group>
+    <Stack>
+      <Group gap="xl">
+        <Stat label="Category" value={categoryLabel(assignment.component.category)} />
+        <div>
+          <Text size="sm" c="dimmed">
+            Component
+          </Text>
+          <Anchor component={Link} to={`/components/${assignment.component_id}`} fw={500}>
+            {assignment.component.label}
+          </Anchor>
+        </div>
+      </Group>
 
-        <Divider label="This installation" labelPosition="left" />
-        <Group gap="xl">
-          <Stat label="Distance" value={formatDistance(assignment.distance_meters)} />
-          <Stat label="Time" value={formatDuration(assignment.moving_time)} />
-          <Stat label="Elevation" value={formatElevation(assignment.elevation_gain)} />
-          <Stat label="Avg Power" value={formatPower(assignment.average_power)} />
-        </Group>
+      <Divider label="This installation" labelPosition="left" />
+      <Group gap="xl">
+        <Stat label="Distance" value={formatDistance(assignment.distance_meters)} />
+        <Stat label="Time" value={formatDuration(assignment.moving_time)} />
+        <Stat label="Elevation" value={formatElevation(assignment.elevation_gain)} />
+        <Stat label="Avg Power" value={formatPower(assignment.average_power)} />
+      </Group>
 
-        <Divider label="Lifetime (all installations)" labelPosition="left" />
-        <Group gap="xl">
-          <Stat label="Total Distance" value={formatDistance(assignment.component.total_distance)} />
-          <Stat label="Total Time" value={formatDuration(assignment.component.total_moving_time)} />
-          <Stat label="Total Elevation" value={formatElevation(assignment.component.total_elevation_gain)} />
-          <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
-        </Group>
+      <Divider label="Lifetime (all installations)" labelPosition="left" />
+      <Group gap="xl">
+        <Stat label="Total Distance" value={formatDistance(assignment.component.total_distance)} />
+        <Stat label="Total Time" value={formatDuration(assignment.component.total_moving_time)} />
+        <Stat label="Total Elevation" value={formatElevation(assignment.component.total_elevation_gain)} />
+        <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
+      </Group>
 
-        <Divider label="Edit" labelPosition="left" />
+      <Divider label="Overview" labelPosition="left" />
+      <ComponentOverview componentId={assignment.component_id} />
 
-        {baseErrors.length > 0 && (
-          <Alert color="red">
-            {baseErrors.map((message) => (
-              <div key={message}>{message}</div>
-            ))}
-          </Alert>
-        )}
+      <Divider label="Edit this installation" labelPosition="left" />
 
-        <DateTimePicker
-          label="Installed on"
-          required
-          value={isoUtcToDate(form.values.started_at)}
-          onChange={(value) => form.setFieldValue('started_at', mantineLocalStringToIsoUtc(value))}
-          error={form.errors.started_at}
-        />
+      {/* Scoped to just these fields -- ComponentOverview above renders its
+          own buttons/inputs (service intervals, logging a service) that
+          must not accidentally submit this installation's own edit form
+          on Enter. */}
+      <form onSubmit={form.onSubmit(handleSubmit)}>
+        <Stack>
+          {baseErrors.length > 0 && (
+            <Alert color="red">
+              {baseErrors.map((message) => (
+                <div key={message}>{message}</div>
+              ))}
+            </Alert>
+          )}
 
-        {isPast && (
           <DateTimePicker
-            label="Uninstalled on"
+            label="Installed on"
             required
-            value={isoUtcToDate(form.values.ended_at)}
-            onChange={(value) => form.setFieldValue('ended_at', mantineLocalStringToIsoUtc(value))}
-            error={form.errors.ended_at}
+            value={isoUtcToDate(form.values.started_at)}
+            onChange={(value) => form.setFieldValue('started_at', mantineLocalStringToIsoUtc(value))}
+            error={form.errors.started_at}
           />
-        )}
 
-        <RideContextCheckboxes
-          value={form.values.ride_context}
-          onChange={(value) => form.setFieldValue('ride_context', value)}
-        />
+          {isPast && (
+            <DateTimePicker
+              label="Uninstalled on"
+              required
+              value={isoUtcToDate(form.values.ended_at)}
+              onChange={(value) => form.setFieldValue('ended_at', mantineLocalStringToIsoUtc(value))}
+              error={form.errors.ended_at}
+            />
+          )}
 
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={updateAssignment.isPending}>
-            Save
-          </Button>
-        </Group>
-      </Stack>
-    </form>
+          <RideContextCheckboxes
+            value={form.values.ride_context}
+            onChange={(value) => form.setFieldValue('ride_context', value)}
+          />
+
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateAssignment.isPending}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Stack>
   )
 }

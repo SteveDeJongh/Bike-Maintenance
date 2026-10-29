@@ -91,21 +91,33 @@ export interface Component {
   // (see ComponentDetail below), not on the index list used here.
 }
 
-// GET /components adds this read-only field on top of Component's own
+// One bike a component currently has an active (ended_at: nil) assignment
+// on. Usually at most one, but a component can be shared indoor_only
+// across two bikes at once (see ComponentAssignment's documented
+// allows_multiple_assignments exception) -- callers always treat this as
+// a list, never assume a single bike.
+export interface ComponentCurrentBike {
+  id: number
+  name: string
+}
+
+// GET /components adds these read-only fields on top of Component's own
 // columns -- kept separate from Component itself (rather than folded in
 // directly) so ComponentPayload (Omit<Component, 'id'>, used by
-// ComponentFormModal's create/update calls) doesn't end up requiring a
-// server-computed field no form could ever send.
+// ComponentFormModal's create/update calls) doesn't end up requiring
+// server-computed fields no form could ever send.
 export interface ComponentWithServiceStatus extends Component {
   // The worst status across this component's enabled service intervals --
   // batched server-side (Maintenance::IntervalStatus.worst_status_by_component),
   // not a per-row query.
   service_status: ServiceStatus | null
+  current_bikes: ComponentCurrentBike[]
 }
 
 export interface ComponentDetail extends Component {
   total_distance: number
   service_intervals: ComponentServiceIntervalWithStatus[]
+  current_bikes: ComponentCurrentBike[]
 }
 
 // Fields suffixed _at are ISO-8601 timestamps; _on fields are date-only

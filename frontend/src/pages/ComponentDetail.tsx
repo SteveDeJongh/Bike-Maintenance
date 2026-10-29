@@ -1,24 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
 import { ApiError } from '../api/client'
-import { useComponent, useMaintenanceEvents, useServiceTypes } from '../api/queries'
+import { useComponent } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
-import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
-import ServiceIntervalsSection from '../components/ServiceIntervalsSection'
+import ComponentOverview from '../components/ComponentOverview'
 import { categoryLabel } from '../constants'
-import { formatDateTime } from '../utils/datetime'
 import { formatDistance } from '../utils/distance'
 
 export default function ComponentDetail() {
@@ -26,17 +13,8 @@ export default function ComponentDetail() {
   const componentId = Number(id)
 
   const { data: component, isPending, error } = useComponent(componentId)
-  const { data: events } = useMaintenanceEvents()
-  const { data: serviceTypes } = useServiceTypes()
 
   const [editOpened, setEditOpened] = useState(false)
-  const [logOpened, setLogOpened] = useState(false)
-
-  const history = useMemo(() => {
-    return (events ?? [])
-      .filter((event) => event.component_id === componentId)
-      .sort((a, b) => b.performed_at.localeCompare(a.performed_at))
-  }, [events, componentId])
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -87,46 +65,12 @@ export default function ComponentDetail() {
         </div>
       </Group>
 
-      <ServiceIntervalsSection component={component} />
-
-      <Group justify="space-between">
-        <Title order={3}>Maintenance history</Title>
-        <Button onClick={() => setLogOpened(true)}>+ Log maintenance event</Button>
-      </Group>
-
-      {history.length === 0 && <Text c="dimmed">No maintenance events logged yet.</Text>}
-
-      {history.length > 0 && (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Performed At</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Notes</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {history.map((event) => (
-              <Table.Tr key={event.id}>
-                <Table.Td>{formatDateTime(event.performed_at)}</Table.Td>
-                <Table.Td>{serviceTypes?.find((t) => t.id === event.service_type_id)?.name ?? ''}</Table.Td>
-                <Table.Td>{event.notes ?? ''}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+      <ComponentOverview componentId={componentId} />
 
       <ComponentFormModal
         opened={editOpened}
         onClose={() => setEditOpened(false)}
         component={component}
-      />
-
-      <MaintenanceEventFormModal
-        opened={logOpened}
-        onClose={() => setLogOpened(false)}
-        defaultComponentId={componentId}
       />
     </Stack>
   )

@@ -36,6 +36,21 @@ const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceSta
   acquired_on: (c) => formatDate(c.acquired_on),
   retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
   service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
+  current_bikes: (c) =>
+    c.current_bikes.length === 0 ? (
+      '—'
+    ) : (
+      <>
+        {c.current_bikes.map((bike, index) => (
+          <span key={bike.id}>
+            {index > 0 && ', '}
+            <Anchor component={Link} to={`/bikes/${bike.id}`}>
+              {bike.name}
+            </Anchor>
+          </span>
+        ))}
+      </>
+    ),
 }
 
 const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceStatus) => string | number | null> = {
@@ -44,6 +59,7 @@ const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceSt
   acquired_on: (c) => c.acquired_on,
   retired_on: (c) => c.retired_on,
   service_status: (c) => (c.service_status ? SERVICE_STATUS_SEVERITY[c.service_status] : null),
+  current_bikes: (c) => c.current_bikes[0]?.name ?? null,
 }
 
 export default function Components() {

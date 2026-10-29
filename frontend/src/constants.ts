@@ -184,7 +184,7 @@ export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
 
 // The toggleable columns on the Components list. Label is the always-shown,
 // leading (pinned) linked column — not part of this list, but still sortable.
-export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on', 'service_status'] as const
+export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on', 'service_status', 'current_bikes'] as const
 
 export type ComponentListColumn = (typeof COMPONENT_LIST_COLUMNS)[number]
 
@@ -193,6 +193,7 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
   acquired_on: 'Acquired',
   retired_on: 'Retired',
   service_status: 'Service Status',
+  current_bikes: 'Current Bike',
 }
 
 // Shared by every table/badge rendering a component's service_status --
