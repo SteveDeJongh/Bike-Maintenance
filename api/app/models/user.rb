@@ -1,4 +1,12 @@
 class User < ApplicationRecord
+  normalizes :email, with: ->(email) { email.strip.downcase.presence }
+
+  # Password is optional -- a user who only ever signs in with Google/Strava
+  # has no password_digest. validations: false turns off has_secure_password's
+  # own presence-on-create requirement; the length validation below only
+  # kicks in when a password is actually being set.
+  has_secure_password validations: false
+
   has_many :bikes, dependent: :destroy
   has_many :components, dependent: :destroy
   has_many :component_assignments, through: :bikes
@@ -13,11 +21,17 @@ class User < ApplicationRecord
   has_many :category_service_intervals, dependent: :destroy
   has_many :component_service_intervals, through: :components
   has_one :notification_setting, dependent: :destroy
+  has_many :user_identities, dependent: :destroy
 
-  validates :name, :email, presence: true
-  validates :email, uniqueness: true
+  validates :name, presence: true
+  validates :email, uniqueness: true, allow_nil: true
+  validates :password, length: { minimum: 8 }, allow_blank: true
 
   after_create :provision_defaults!
+
+  def has_password?
+    password_digest.present?
+  end
 
   private
 

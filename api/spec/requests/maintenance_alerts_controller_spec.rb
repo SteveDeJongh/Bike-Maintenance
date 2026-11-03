@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "MaintenanceAlerts", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /maintenance_alerts" do
     it "returns a due, currently-installed interval" do

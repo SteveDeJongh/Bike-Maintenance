@@ -6,6 +6,7 @@ require "rails_helper"
 # exercise the JSON serialization layer).
 RSpec.describe "Components", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /components/:id" do
     it "includes each enabled interval's computed status" do

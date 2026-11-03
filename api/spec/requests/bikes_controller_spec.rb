@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "Bikes", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /bikes/:id" do
     it "succeeds for a bike with an installed component (regression: as_json methods must not reference a deleted model method)" do

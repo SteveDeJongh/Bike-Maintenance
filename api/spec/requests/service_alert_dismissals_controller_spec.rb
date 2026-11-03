@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "ServiceAlertDismissals", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   def due_interval(user)
     bike = create(:bike, user: user)

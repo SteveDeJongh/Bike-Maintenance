@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "CategoryServiceIntervals", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "POST /category_service_intervals" do
     it "does not create with another user's service_type_id" do

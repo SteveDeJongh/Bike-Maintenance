@@ -7,6 +7,7 @@ require "rails_helper"
 # a narrow regression spec here rather than a full request-spec suite.
 RSpec.describe "ComponentAssignments", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   it "persists ride_context on create" do
     bike = create(:bike, user: current_user)

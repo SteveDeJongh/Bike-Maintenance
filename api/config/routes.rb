@@ -20,6 +20,13 @@ Rails.application.routes.draw do
   get   "notification_settings", to: "notification_settings#show"
   patch "notification_settings", to: "notification_settings#update"
 
+  get    "me", to: "me#show"
+
+  post   "auth/register", to: "auth/registrations#create"
+  post   "auth/login",    to: "auth/sessions#create"
+  delete "auth/logout",   to: "auth/sessions#destroy"
+  get    "auth/csrf",     to: "auth/csrf#show"
+
   get  "strava/authorize",     to: "strava#authorize"
   get  "strava/callback",      to: "strava#callback", as: :strava_callback
   post "strava/sync",          to: "strava#sync"

@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "NotificationSettings", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /notification_settings" do
     it "returns the hardcoded defaults when the user has no row yet" do

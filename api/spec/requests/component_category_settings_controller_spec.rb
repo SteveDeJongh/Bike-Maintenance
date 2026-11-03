@@ -1,10 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "ComponentCategorySettings", type: :request do
-  # current_user resolves to User.first! — created first in each example so
-  # it reliably has the lowest id, ahead of any other user a factory call
-  # might incidentally create.
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /component_category_settings" do
     it "returns only the current user's settings" do

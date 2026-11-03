@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "MaintenanceEvents", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /maintenance_events" do
     it "returns only the current user's events" do

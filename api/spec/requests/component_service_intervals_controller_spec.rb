@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe "ComponentServiceIntervals", type: :request do
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "POST /component_service_intervals" do
     it "derives service_type_id from the template when linking, without it being sent explicitly" do

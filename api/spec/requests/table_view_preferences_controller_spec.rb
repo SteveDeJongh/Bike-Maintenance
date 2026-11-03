@@ -1,10 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "TableViewPreferences", type: :request do
-  # current_user resolves to User.first! — created first in each example so
-  # it reliably has the lowest id, ahead of any other user a factory call
-  # might incidentally create.
   let!(:current_user) { create(:user) }
+  before { sign_in(current_user) }
 
   describe "GET /table_view_preferences/:table_key" do
     it "returns an empty hash when no preference exists for that table_key yet" do
