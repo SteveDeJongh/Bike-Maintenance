@@ -17,7 +17,19 @@ import type {
   StravaMappedBike,
   StravaStatus,
   TableViewPreferenceData,
+  User,
 } from '../types/models'
+
+// retry: false -- a 401 here means "not signed in," not a transient
+// failure, so RequireAuth should see that right away rather than after
+// react-query's default retries.
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => apiGet<User>('/me'),
+    retry: false,
+  })
+}
 
 export function useBikes() {
   return useQuery({

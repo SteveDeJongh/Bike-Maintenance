@@ -1,3 +1,18 @@
+export interface UserIdentitySummary {
+  provider: string
+  email: string | null
+}
+
+export interface User {
+  id: number
+  name: string
+  email: string | null
+  email_verified: boolean
+  has_password: boolean
+  identities: UserIdentitySummary[]
+  strava_connected: boolean
+}
+
 export interface Bike {
   id: number
   name: string

@@ -247,7 +247,7 @@ function ApplyToComponentsChecklist({
   }
 
   return (
-    <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-gray-4)', borderRadius: 4 }}>
+    <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
       <Text fw={500} size="sm">
         Apply to existing components
       </Text>

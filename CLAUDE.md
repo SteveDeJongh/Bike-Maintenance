@@ -456,6 +456,48 @@ whether the underlying data is already batched for that scale (see
 `Component#total_distance`'s note above) — this mechanism makes columns easy to
 add, but doesn't change the cost of computing what's behind them.
 
+## Theming
+
+Light/dark/system appearance lives entirely in the frontend, built on
+Mantine's color-scheme support — nothing on the backend:
+- `frontend/src/main.tsx` — `theme.colors.dark` (near-black body + layered
+  grey surfaces) and `theme.colors.radar` (the phosphor-green accent,
+  `primaryColor: 'radar'`, scheme-aware `primaryShade`, `autoContrast: true`),
+  plus `defaultColorScheme="auto"` and `colorSchemeManager` on
+  `MantineProvider`.
+- `frontend/src/index.css` — a few `[data-mantine-color-scheme='dark']`
+  rules that lift Paper/Modal/AppShell-header one shade above the near-black
+  body (they default to the same `--mantine-color-body` var as the page).
+  Table rows and Popover/Menu dropdowns already layer correctly from the
+  `dark` palette alone, via Mantine's own CSS — no extra rules needed there.
+- `frontend/index.html` — a small inline script setting
+  `data-mantine-color-scheme` on `<html>` before React mounts, to avoid a
+  flash of the wrong theme on load (there's no SSR to render Mantine's
+  `ColorSchemeScript` component server-side, so it's hand-written instead,
+  reading the same localStorage key `localStorageColorSchemeManager` uses).
+- `frontend/src/pages/settings/AppearancePage.tsx` — the user-facing control
+  (a `SegmentedControl` calling `useMantineColorScheme().setColorScheme`).
+
+The accent is a custom 10-shade "radar" green used as `primaryColor` in both
+modes (a deep, readable-on-white shade in light mode; a bright phosphor-green
+shade in dark mode). `SERVICE_STATUS_COLORS` in `constants.ts` deliberately
+uses `teal`, not `green`, for "ok," so a service-status badge never reads as
+the same color as the accent.
+
+The choice is persisted with Mantine's `localStorageColorSchemeManager`
+(plain browser localStorage), not a backend preference in the style of
+`TableViewPreference`. `TableViewPreference` exists because column layout is
+account-level state a user expects to follow them to any device they log in
+on; appearance is a per-browser display preference, and — unlike a column
+layout — it has to be resolved *before* React even mounts to avoid a flash of
+the wrong theme, which a server round trip can't satisfy without SSR. Plain
+localStorage is simpler and sufficient here.
+
+Never hardcode a color (hex or otherwise) in a component. Use a Mantine theme
+token/CSS variable (`var(--mantine-color-*)`, a named color like `"teal"` or
+`"red"`, or `"radar"`) so every surface stays correct across both color
+schemes without a per-component light/dark branch.
+
 ## Build order (work one phase at a time; don't jump ahead)
 
 1. Skeleton — done once this file exists and `rails db:create` works.

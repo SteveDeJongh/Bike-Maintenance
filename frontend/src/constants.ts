@@ -202,7 +202,7 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
 // Maintenance::IntervalStatus.worst_status_by_component uses to pick one
 // status per component.
 export const SERVICE_STATUS_COLORS: Record<'ok' | 'warning' | 'due', string> = {
-  ok: 'green',
+  ok: 'teal', // not 'green' -- would collide with the primaryColor 'radar' accent in dark mode
   warning: 'yellow',
   due: 'red',
 }

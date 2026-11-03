@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert, Badge, Button, Checkbox, Group, NumberInput, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core'
 import { useCategoryServiceIntervals, useServiceTypes } from '../api/queries'
+import { SERVICE_STATUS_COLORS } from '../constants'
 import {
   useApplyDefaultComponentServiceIntervals,
   useDeleteComponentServiceInterval,
@@ -12,12 +13,6 @@ import AddCustomServiceIntervalModal from './forms/AddCustomServiceIntervalModal
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
 import { formatDistance } from '../utils/distance'
 import type { CategoryServiceInterval, ComponentDetail, ComponentServiceIntervalWithStatus } from '../types/models'
-
-const STATUS_COLORS: Record<ComponentServiceIntervalWithStatus['status'], string> = {
-  ok: 'green',
-  warning: 'yellow',
-  due: 'red',
-}
 
 function formatRemaining(distanceRemainingMeters: number | null, daysRemaining: number | null): string {
   const parts: string[] = []
@@ -189,11 +184,11 @@ function ServiceIntervalRow({
         </Badge>
       </Table.Td>
       <Table.Td miw={120}>
-        <Progress value={fraction * 100} color={STATUS_COLORS[interval.status]} />
+        <Progress value={fraction * 100} color={SERVICE_STATUS_COLORS[interval.status]} />
       </Table.Td>
       <Table.Td>{formatRemaining(interval.distance_remaining_meters, interval.days_remaining)}</Table.Td>
       <Table.Td>
-        <Badge color={STATUS_COLORS[interval.status]}>{interval.status}</Badge>
+        <Badge color={SERVICE_STATUS_COLORS[interval.status]}>{interval.status}</Badge>
       </Table.Td>
       <Table.Td>
         {editing ? (
@@ -278,7 +273,7 @@ function AddFromCategoryDefaults({
   }
 
   return (
-    <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-gray-4)', borderRadius: 4 }}>
+    <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
       <Text fw={500} size="sm">
         Add from category defaults
       </Text>

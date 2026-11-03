@@ -2,6 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Equivalent of Mantine's <ColorSchemeScript defaultColorScheme="auto" />
+      // for a Vite SPA (no SSR to render that component server-side). Sets
+      // data-mantine-color-scheme before React mounts so there's no flash of
+      // the wrong theme. Reads the same key localStorageColorSchemeManager()
+      // uses by default (see main.tsx).
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('mantine-color-scheme-value')
+          var scheme = stored === 'light' || stored === 'dark' || stored === 'auto' ? stored : 'auto'
+          var computed =
+            scheme !== 'auto'
+              ? scheme
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.setAttribute('data-mantine-color-scheme', computed)
+        } catch (e) {}
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bike Maintenance</title>

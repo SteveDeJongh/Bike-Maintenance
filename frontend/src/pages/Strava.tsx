@@ -24,7 +24,7 @@ export default function Strava() {
     <Stack>
       <Title order={2}>Strava</Title>
 
-      {connected && <Alert color="green">Connected to Strava.</Alert>}
+      {connected && <Alert color="teal">Connected to Strava.</Alert>}
       {error && (
         <Alert color="red">
           {error === 'access_denied' ? 'Strava connection was declined.' : `Connection failed: ${error}`}
@@ -48,7 +48,7 @@ export default function Strava() {
       {status && status.connected && (
         <>
           <Group>
-            <Badge color="green">Connected</Badge>
+            <Badge color="teal">Connected</Badge>
             <Text c="dimmed">Athlete #{status.athlete_id}</Text>
           </Group>
 

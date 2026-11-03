@@ -12,7 +12,45 @@ import type {
   NotificationSetting,
   ServiceType,
   TableViewPreferenceData,
+  User,
 } from '../types/models'
+
+// Auth
+
+export interface RegisterPayload {
+  name: string
+  email: string
+  password: string
+}
+
+export function useRegister() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: RegisterPayload) => apiPost<User>('/auth/register', { user: values }),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export interface LoginPayload {
+  email: string
+  password: string
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: LoginPayload) => apiPost<User>('/auth/login', values),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiDelete('/auth/logout'),
+    onSuccess: () => queryClient.clear(),
+  })
+}
 
 export type BikePayload = Omit<Bike, 'id' | 'created_at'>
 export type ComponentPayload = Omit<Component, 'id'>

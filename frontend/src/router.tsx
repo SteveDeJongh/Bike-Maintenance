@@ -1,5 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import RequireAuth from './components/RequireAuth'
+import Login from './pages/Login'
+import Register from './pages/Register'
 import Landing from './pages/Landing'
 import Bikes from './pages/Bikes'
 import BikeDetail from './pages/BikeDetail'
@@ -12,28 +15,37 @@ import SettingsLayout from './pages/settings/SettingsLayout'
 import ComponentCategorySettingsPage from './pages/settings/ComponentCategorySettingsPage'
 import ServiceTypesPage from './pages/settings/ServiceTypesPage'
 import NotificationsPage from './pages/settings/NotificationsPage'
+import AppearancePage from './pages/settings/AppearancePage'
 
 export const router = createBrowserRouter([
+  { path: '/login', element: <Login /> },
+  { path: '/register', element: <Register /> },
   {
-    path: '/',
-    element: <Layout />,
+    element: <RequireAuth />,
     children: [
-      { index: true, element: <Landing /> },
-      { path: 'bikes', element: <Bikes /> },
-      { path: 'bikes/:id', element: <BikeDetail /> },
-      { path: 'components', element: <Components /> },
-      { path: 'components/:id', element: <ComponentDetail /> },
-      { path: 'assignments', element: <Assignments /> },
-      { path: 'maintenance-events', element: <MaintenanceEvents /> },
-      { path: 'strava', element: <Strava /> },
       {
-        path: 'settings',
-        element: <SettingsLayout />,
+        path: '/',
+        element: <Layout />,
         children: [
-          { index: true, element: <Navigate to="component-categories" replace /> },
-          { path: 'component-categories', element: <ComponentCategorySettingsPage /> },
-          { path: 'service-types', element: <ServiceTypesPage /> },
-          { path: 'notifications', element: <NotificationsPage /> },
+          { index: true, element: <Landing /> },
+          { path: 'bikes', element: <Bikes /> },
+          { path: 'bikes/:id', element: <BikeDetail /> },
+          { path: 'components', element: <Components /> },
+          { path: 'components/:id', element: <ComponentDetail /> },
+          { path: 'assignments', element: <Assignments /> },
+          { path: 'maintenance-events', element: <MaintenanceEvents /> },
+          { path: 'strava', element: <Strava /> },
+          {
+            path: 'settings',
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <Navigate to="component-categories" replace /> },
+              { path: 'component-categories', element: <ComponentCategorySettingsPage /> },
+              { path: 'service-types', element: <ServiceTypesPage /> },
+              { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'appearance', element: <AppearancePage /> },
+            ],
+          },
         ],
       },
     ],

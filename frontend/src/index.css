@@ -9,3 +9,15 @@
 body {
   margin: 0;
 }
+
+/* Paper, Modal content, and the AppShell header all default their background
+   to var(--mantine-color-body) (theme.colors.dark[7], near-black in dark
+   mode) -- lift them one step to dark-6 so they read as distinct surfaces
+   instead of merging into the page background. Table rows and Popover/Menu
+   dropdowns (e.g. the column picker) already layer correctly from the dark
+   palette alone via Mantine's own CSS, so nothing else needs this. */
+[data-mantine-color-scheme='dark'] .mantine-Paper-root,
+[data-mantine-color-scheme='dark'] .mantine-Modal-content,
+[data-mantine-color-scheme='dark'] .mantine-AppShell-header {
+  background-color: var(--mantine-color-dark-6);
+}

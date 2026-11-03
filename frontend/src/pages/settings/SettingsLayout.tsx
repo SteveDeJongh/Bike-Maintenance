@@ -5,6 +5,7 @@ const settingsNavLinks = [
   { to: '/settings/component-categories', label: 'Component Categories' },
   { to: '/settings/service-types', label: 'Service Types' },
   { to: '/settings/notifications', label: 'Notifications' },
+  { to: '/settings/appearance', label: 'Appearance' },
 ]
 
 export default function SettingsLayout() {
