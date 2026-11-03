@@ -179,6 +179,8 @@ RSpec.describe "Strava", type: :request do
     end
 
     it "stores the credential and redirects to the frontend on success" do
+      state = authorize_and_capture_state
+
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:exchange_code).with("auth-code").and_return(
@@ -188,7 +190,7 @@ RSpec.describe "Strava", type: :request do
         "athlete" => { "id" => 999 },
       )
 
-      get "/strava/callback", params: { code: "auth-code", scope: "activity:read_all" }
+      get "/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
 
       expect(response).to redirect_to("http://localhost:5173/strava?connected=1")
       credential = current_user.reload.strava_credential
@@ -196,14 +198,55 @@ RSpec.describe "Strava", type: :request do
       expect(credential.athlete_id).to eq(999)
     end
 
+    it "redirects to the frontend with athlete_already_linked when the athlete is already linked to a different account" do
+      create(:strava_credential, athlete_id: 999)
+      state = authorize_and_capture_state
+
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:exchange_code).with("auth-code").and_return(
+        "access_token" => "at",
+        "refresh_token" => "rt",
+        "expires_at" => 6.hours.from_now.to_i,
+        "athlete" => { "id" => 999 },
+      )
+
+      get "/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
+
+      expect(response).to redirect_to("http://localhost:5173/strava?error=athlete_already_linked")
+      expect(current_user.reload.strava_credential).to be_nil
+    end
+
     it "redirects to the frontend with exchange_failed when the token exchange errors" do
+      state = authorize_and_capture_state
+
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:exchange_code).and_raise(Strava::Client::Error)
 
-      get "/strava/callback", params: { code: "bad-code" }
+      get "/strava/callback", params: { code: "bad-code", state: state }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=exchange_failed")
     end
+
+    it "redirects to the frontend with invalid_state when the state param doesn't match" do
+      authorize_and_capture_state
+
+      get "/strava/callback", params: { code: "auth-code", state: "not-the-real-state" }
+
+      expect(response).to redirect_to("http://localhost:5173/strava?error=invalid_state")
+    end
+
+    it "redirects to the frontend with invalid_state when no authorize step happened first" do
+      get "/strava/callback", params: { code: "auth-code", state: "anything" }
+
+      expect(response).to redirect_to("http://localhost:5173/strava?error=invalid_state")
+    end
+  end
+
+  def authorize_and_capture_state
+    allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
+    get "/strava/authorize"
+    session[:strava_oauth_state]
   end
 end

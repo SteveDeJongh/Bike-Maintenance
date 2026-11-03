@@ -39,8 +39,10 @@ RSpec.describe NotificationSetting, type: :model do
     it "prefers a set category override over the global setting" do
       user = create(:user)
       create(:notification_setting, user: user, notifications_enabled: true, warning_threshold_percent: 10)
-      create(:component_category_setting, user: user, category: "chain",
-        notifications_enabled: false, warning_threshold_percent: 20)
+      # chain is already auto-provisioned (see Users::Provision) -- override
+      # its existing row rather than creating a duplicate.
+      user.component_category_settings.find_by!(category: "chain")
+        .update!(notifications_enabled: false, warning_threshold_percent: 20)
 
       expect(NotificationSetting.effective_for(user: user, category: "chain"))
         .to eq(enabled: false, warning_threshold_percent: 20)
@@ -49,8 +51,8 @@ RSpec.describe NotificationSetting, type: :model do
     it "falls back per-field when only one category override field is set" do
       user = create(:user)
       create(:notification_setting, user: user, notifications_enabled: true, warning_threshold_percent: 10)
-      create(:component_category_setting, user: user, category: "chain",
-        notifications_enabled: nil, warning_threshold_percent: 20)
+      user.component_category_settings.find_by!(category: "chain")
+        .update!(notifications_enabled: nil, warning_threshold_percent: 20)
 
       expect(NotificationSetting.effective_for(user: user, category: "chain"))
         .to eq(enabled: true, warning_threshold_percent: 20)

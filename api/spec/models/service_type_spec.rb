@@ -13,16 +13,19 @@ RSpec.describe ServiceType, type: :model do
   end
 
   it "is invalid with a duplicate name for the same user, case-insensitively" do
+    # "Lube" is deliberately not one of the service types Users::Provision
+    # seeds automatically (wax/clean/replace/inspect), so this stays a clean
+    # test of the uniqueness validation itself.
     user = create(:user)
-    create(:service_type, user: user, name: "Wax")
-    duplicate = build(:service_type, user: user, name: "wax")
+    create(:service_type, user: user, name: "Lube")
+    duplicate = build(:service_type, user: user, name: "lube")
 
     expect(duplicate).not_to be_valid
   end
 
   it "allows the same name for different users" do
-    create(:service_type, name: "wax")
-    other_user_type = build(:service_type, name: "wax")
+    create(:service_type, name: "lube")
+    other_user_type = build(:service_type, name: "lube")
 
     expect(other_user_type).to be_valid
   end

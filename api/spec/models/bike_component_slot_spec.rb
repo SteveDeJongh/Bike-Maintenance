@@ -36,7 +36,6 @@ RSpec.describe BikeComponentSlot, type: :model do
 
   it "allows the same category with a different ride_context on the same bike when allowed" do
     bike = create(:bike)
-    create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
     create(:bike_component_slot, bike: bike, category: "cassette", ride_context: "outdoor_only")
     indoor_slot = build(:bike_component_slot, bike: bike, category: "cassette", ride_context: "indoor_only")
 
@@ -52,7 +51,6 @@ RSpec.describe BikeComponentSlot, type: :model do
 
   it "is valid with a restricted ride_context for a category with allows_multiple_assignments" do
     bike = create(:bike)
-    create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
     slot = build(:bike_component_slot, bike: bike, category: "cassette", ride_context: "outdoor_only")
 
     expect(slot).to be_valid
@@ -82,7 +80,6 @@ RSpec.describe BikeComponentSlot, type: :model do
 
     it "destroying a split slot is blocked only by an assignment matching its own ride_context" do
       bike = create(:bike)
-      create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
       outdoor_slot = create(:bike_component_slot, bike: bike, category: "cassette", ride_context: "outdoor_only")
       create(:bike_component_slot, bike: bike, category: "cassette", ride_context: "indoor_only")
 
@@ -97,7 +94,6 @@ RSpec.describe BikeComponentSlot, type: :model do
 
     it "destroying an emptied split slot is not blocked by the other slot's still-active assignment" do
       bike = create(:bike)
-      create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
       outdoor_slot = create(:bike_component_slot, bike: bike, category: "cassette", ride_context: "outdoor_only")
       create(:bike_component_slot, bike: bike, category: "cassette", ride_context: "indoor_only")
 

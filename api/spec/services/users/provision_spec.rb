@@ -1,0 +1,39 @@
+require "rails_helper"
+
+RSpec.describe Users::Provision, type: :model do
+  # Pins Users::Provision to the exact end state past migrations produced
+  # for existing users -- see 20261017004922_create_component_category_settings.rb
+  # through 20261021233121_add_trackable_and_allows_multiple_to_component_category_settings.rb
+  # (component_category_settings), and 20261026221651_replace_event_type_with_service_type_on_maintenance_events.rb's
+  # fallback branch (service_types). User#after_create calls this for every
+  # new user, so this spec exercises it indirectly via create(:user).
+  it "seeds one component_category_setting per known category, with the migration-seeded defaults" do
+    user = create(:user)
+
+    settings = user.component_category_settings.index_by(&:category)
+    expect(settings.keys).to match_array(%w[
+      chain cassette chainring tire_front tire_rear wheel_front wheel_rear
+      brake_pads_front brake_pads_rear bottom_bracket handlebar_tape saddle
+    ])
+
+    outdoor_only = %w[cassette tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear]
+    settings.each do |category, setting|
+      expect(setting.default_ride_context).to eq(outdoor_only.include?(category) ? "outdoor_only" : "both")
+      expect(setting.allows_multiple_assignments).to eq(category == "cassette")
+      expect(setting.trackable).to be true
+    end
+  end
+
+  it "seeds the wax/clean/replace/inspect service types" do
+    user = create(:user)
+
+    expect(user.service_types.pluck(:name)).to match_array(%w[wax clean replace inspect])
+  end
+
+  it "is idempotent -- calling it again does not create duplicates or raise" do
+    user = create(:user)
+
+    expect { described_class.new(user).call }.not_to change(user.component_category_settings, :count)
+    expect { described_class.new(user).call }.not_to change(user.service_types, :count)
+  end
+end

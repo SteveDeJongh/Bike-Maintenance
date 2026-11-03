@@ -33,16 +33,19 @@ RSpec.describe ComponentCategorySetting, type: :model do
   end
 
   it "is invalid with a duplicate category for the same user" do
+    # "frame" is deliberately not one of the categories Users::Provision
+    # seeds automatically, so this stays a clean test of the uniqueness
+    # validation itself rather than colliding with a provisioned default.
     user = create(:user)
-    create(:component_category_setting, user: user, category: "cassette")
-    duplicate = build(:component_category_setting, user: user, category: "cassette")
+    create(:component_category_setting, user: user, category: "frame")
+    duplicate = build(:component_category_setting, user: user, category: "frame")
 
     expect(duplicate).not_to be_valid
   end
 
   it "allows the same category for different users" do
-    create(:component_category_setting, category: "cassette")
-    other_user_setting = build(:component_category_setting, category: "cassette")
+    create(:component_category_setting, category: "frame")
+    other_user_setting = build(:component_category_setting, category: "frame")
 
     expect(other_user_setting).to be_valid
   end

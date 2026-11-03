@@ -11,6 +11,13 @@ RSpec.describe CategoryServiceInterval, type: :model do
     expect(interval).to be_valid
   end
 
+  it "is invalid when the service_type belongs to a different user" do
+    interval = build(:category_service_interval, user: create(:user), service_type: create(:service_type))
+
+    expect(interval).not_to be_valid
+    expect(interval.errors[:base]).to include(a_string_matching(/same user/))
+  end
+
   it "is invalid without a category" do
     interval = build(:category_service_interval, category: nil)
 
@@ -42,8 +49,12 @@ RSpec.describe CategoryServiceInterval, type: :model do
   end
 
   it "cascades to destroy its linked component service intervals when destroyed" do
+    # Creating a component in the same category auto-applies the template
+    # (Component#after_create -- see apply_category_service_intervals), so
+    # the linked row already exists; no need to create it explicitly.
     template = create(:category_service_interval)
-    linked = create(:component_service_interval, category_service_interval: template, service_type: template.service_type)
+    component = create(:component, user: template.user, category: template.category)
+    linked = component.component_service_intervals.find_by!(service_type: template.service_type)
 
     template.destroy!
 

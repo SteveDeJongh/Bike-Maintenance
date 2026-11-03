@@ -5,6 +5,7 @@ class StravaCredential < ApplicationRecord
 
   validates :access_token, :refresh_token, :athlete_id, :expires_at, presence: true
   validates :user_id, uniqueness: true
+  validates :athlete_id, uniqueness: true
 
   # Returns a valid access token, refreshing via the Strava API first if the
   # current one is at or near expiry. Strava rotates the refresh_token on

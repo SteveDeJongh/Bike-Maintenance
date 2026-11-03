@@ -16,6 +16,7 @@ class MaintenanceEventsController < ApplicationController
   def create
     event_params = maintenance_event_params
     return render_component_not_found unless owns_referenced_component?(event_params)
+    return render_service_type_not_found unless owns_referenced_service_type?(event_params)
 
     @maintenance_event = MaintenanceEvent.new(event_params)
 
@@ -30,6 +31,7 @@ class MaintenanceEventsController < ApplicationController
   def update
     event_params = maintenance_event_params
     return render_component_not_found unless owns_referenced_component?(event_params)
+    return render_service_type_not_found unless owns_referenced_service_type?(event_params)
 
     if @maintenance_event.update(event_params)
       render json: @maintenance_event
@@ -57,7 +59,15 @@ class MaintenanceEventsController < ApplicationController
       !attrs.key?(:component_id) || current_user.components.exists?(attrs[:component_id])
     end
 
+    def owns_referenced_service_type?(attrs)
+      !attrs.key?(:service_type_id) || current_user.service_types.exists?(attrs[:service_type_id])
+    end
+
     def render_component_not_found
       render json: { base: ["Component not found"] }, status: :not_found
+    end
+
+    def render_service_type_not_found
+      render json: { base: ["Service type not found"] }, status: :not_found
     end
 end

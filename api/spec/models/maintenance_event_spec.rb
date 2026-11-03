@@ -25,4 +25,11 @@ RSpec.describe MaintenanceEvent, type: :model do
     expect(event).not_to be_valid
     expect(event.errors[:component]).to be_present
   end
+
+  it "is invalid when the component and service type belong to different users" do
+    event = build(:maintenance_event, component: create(:component), service_type: create(:service_type))
+
+    expect(event).not_to be_valid
+    expect(event.errors[:base]).to include(a_string_matching(/same user/))
+  end
 end

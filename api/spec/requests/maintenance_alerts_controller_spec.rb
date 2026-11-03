@@ -7,7 +7,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
     it "returns a due, currently-installed interval" do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
-      service_type = create(:service_type, user: current_user, name: "wax")
+      service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -24,14 +24,14 @@ RSpec.describe "MaintenanceAlerts", type: :request do
     it "excludes an ok interval, and only current_user's intervals" do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
-      service_type = create(:service_type, user: current_user, name: "wax")
+      service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
       other_bike = create(:bike)
       other_component = create(:component, user: other_bike.user, category: "chain")
-      other_service_type = create(:service_type, user: other_bike.user, name: "wax")
+      other_service_type = other_bike.user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: other_component, bike: other_bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)

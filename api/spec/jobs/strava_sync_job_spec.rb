@@ -64,6 +64,21 @@ RSpec.describe StravaSyncJob, type: :job do
     expect(StravaActivity.find_by(strava_id: 1).distance_meters).to eq(5_000)
   end
 
+  it "does not silently reassign another user's activity to the same strava_id" do
+    other_user = create(:user)
+    create(:strava_activity, user: other_user, strava_id: 1)
+
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 1, per_page: 100)
+      .and_return([ride(id: 1)])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: nil, page: 2, per_page: 100)
+      .and_return([])
+
+    expect { StravaSyncJob.perform_now(user.id) }.to raise_error(ActiveRecord::RecordInvalid)
+    expect(StravaActivity.find_by(strava_id: 1).user_id).to eq(other_user.id)
+  end
+
   it "resolves bike_id only against the syncing user's own bikes" do
     bike = create(:bike, user: user, strava_gear_id: "g1")
     other_users_bike = create(:bike, strava_gear_id: "g1")

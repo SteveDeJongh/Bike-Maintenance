@@ -16,4 +16,12 @@ class User < ApplicationRecord
 
   validates :name, :email, presence: true
   validates :email, uniqueness: true
+
+  after_create :provision_defaults!
+
+  private
+
+  def provision_defaults!
+    Users::Provision.new(self).call
+  end
 end

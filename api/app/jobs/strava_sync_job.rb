@@ -40,7 +40,7 @@ class StravaSyncJob < ApplicationJob
   def upsert_activity(user, raw)
     return unless SYNCED_TYPES.include?(raw["type"])
 
-    activity = StravaActivity.find_or_initialize_by(strava_id: raw["id"])
+    activity = user.strava_activities.find_or_initialize_by(strava_id: raw["id"])
     activity.update!(
       user: user,
       name: raw["name"],

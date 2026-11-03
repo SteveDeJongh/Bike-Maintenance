@@ -10,7 +10,7 @@ RSpec.describe "Components", type: :request do
   describe "GET /components/:id" do
     it "includes each enabled interval's computed status" do
       component = create(:component, user: current_user, category: "chain")
-      service_type = create(:service_type, user: current_user, name: "wax")
+      service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
 
       get "/components/#{component.id}"
@@ -24,7 +24,7 @@ RSpec.describe "Components", type: :request do
 
     it "still includes a disabled interval, with its own computed status, so it can be re-enabled in place" do
       component = create(:component, user: current_user, category: "chain")
-      service_type = create(:service_type, user: current_user, name: "wax")
+      service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000, enabled: false)
 
       get "/components/#{component.id}"
@@ -54,7 +54,6 @@ RSpec.describe "Components", type: :request do
     end
 
     it "includes both bikes for a component concurrently shared indoor_only across two bikes" do
-      create(:component_category_setting, user: current_user, category: "cassette", allows_multiple_assignments: true)
       component = create(:component, user: current_user, category: "cassette")
       bike_a = create(:bike, user: current_user, name: "Road Bike")
       bike_b = create(:bike, user: current_user, name: "Trainer Bike")
@@ -72,7 +71,7 @@ RSpec.describe "Components", type: :request do
     it "includes each component's worst service_status, nil when it has no enabled intervals" do
       bike = create(:bike, user: current_user)
       due_component = create(:component, user: current_user, category: "chain")
-      service_type = create(:service_type, user: current_user, name: "wax")
+      service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_interval, component: due_component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: due_component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -87,7 +86,6 @@ RSpec.describe "Components", type: :request do
     end
 
     it "includes current_bikes per component, batched, including the two-bikes-at-once case" do
-      create(:component_category_setting, user: current_user, category: "cassette", allows_multiple_assignments: true)
       shared_component = create(:component, user: current_user, category: "cassette")
       bike_a = create(:bike, user: current_user, name: "Road Bike")
       bike_b = create(:bike, user: current_user, name: "Trainer Bike")

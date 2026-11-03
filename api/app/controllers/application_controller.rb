@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::API
+  include ActionController::Cookies
+
   # Placeholder until real login/sessions exist — returns the single seeded
   # User. Replace with a real session/token lookup once authentication is
   # built; see CLAUDE.md.

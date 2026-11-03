@@ -16,6 +16,31 @@ RSpec.describe "ComponentServiceIntervals", type: :request do
       body = JSON.parse(response.body)
       expect(body["service_type_id"]).to eq(template.service_type_id)
     end
+
+    it "does not create with another user's service_type_id, even alongside a valid category_service_interval_id" do
+      component = create(:component, user: current_user, category: "chain")
+      template = create(:category_service_interval, user: current_user, category: "chain")
+      other_service_type = create(:service_type)
+
+      post "/component_service_intervals", params: {
+        component_service_interval: {
+          component_id: component.id, category_service_interval_id: template.id, service_type_id: other_service_type.id,
+        },
+      }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not create with another user's category_service_interval_id" do
+      component = create(:component, user: current_user, category: "chain")
+      other_template = create(:category_service_interval)
+
+      post "/component_service_intervals", params: {
+        component_service_interval: { component_id: component.id, category_service_interval_id: other_template.id },
+      }
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "POST /component_service_intervals/apply_defaults" do

@@ -14,6 +14,15 @@ module BikeMaintenance
     # API-only backend; the frontend is a separate Vite-based SPA.
     config.api_only = true
 
+    # ActionController::API excludes cookie/session middleware by default.
+    # Added here (not just CSRF/current_user on ApplicationController, which
+    # come later) because the Strava OAuth `state` round-trip needs
+    # somewhere to stash a value between the authorize redirect and the
+    # callback. Full session-backed auth (CSRF, current_user) builds on top
+    # of this same session store -- see CLAUDE.md's Authentication section.
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_bike_maintenance_session"
+
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.

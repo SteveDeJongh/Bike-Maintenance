@@ -13,6 +13,8 @@ class CategoryServiceIntervalsController < ApplicationController
 
   # POST /category_service_intervals
   def create
+    return render_service_type_not_found unless owns_referenced_service_type?(category_service_interval_params)
+
     @category_service_interval = current_user.category_service_intervals.new(category_service_interval_params)
 
     if @category_service_interval.save
@@ -24,6 +26,8 @@ class CategoryServiceIntervalsController < ApplicationController
 
   # PATCH/PUT /category_service_intervals/1
   def update
+    return render_service_type_not_found unless owns_referenced_service_type?(category_service_interval_params)
+
     if @category_service_interval.update(category_service_interval_params)
       render json: @category_service_interval
     else
@@ -70,5 +74,13 @@ class CategoryServiceIntervalsController < ApplicationController
       params.require(:category_service_interval).permit(
         :category, :service_type_id, :distance_interval_meters, :time_interval_days,
       )
+    end
+
+    def owns_referenced_service_type?(attrs)
+      !attrs.key?(:service_type_id) || current_user.service_types.exists?(attrs[:service_type_id])
+    end
+
+    def render_service_type_not_found
+      render json: { base: ["Service type not found"] }, status: :not_found
     end
 end

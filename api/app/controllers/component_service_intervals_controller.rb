@@ -15,6 +15,9 @@ class ComponentServiceIntervalsController < ApplicationController
 
   # POST /component_service_intervals
   def create
+    return render_service_type_not_found unless owns_referenced_service_type?(component_service_interval_params)
+    return render_category_service_interval_not_found unless owns_referenced_category_service_interval?(component_service_interval_params)
+
     component = current_user.components.find(component_service_interval_params[:component_id])
     @component_service_interval = component.component_service_intervals.new(interval_attrs(component_service_interval_params))
 
@@ -28,6 +31,9 @@ class ComponentServiceIntervalsController < ApplicationController
   # PATCH/PUT /component_service_intervals/1
   # Covers enable/disable and value overrides.
   def update
+    return render_service_type_not_found unless owns_referenced_service_type?(component_service_interval_params)
+    return render_category_service_interval_not_found unless owns_referenced_category_service_interval?(component_service_interval_params)
+
     if @component_service_interval.update(interval_attrs(component_service_interval_params.except(:component_id)))
       render json: @component_service_interval
     else
@@ -80,5 +86,22 @@ class ComponentServiceIntervalsController < ApplicationController
 
       template = current_user.category_service_intervals.find(attrs[:category_service_interval_id])
       attrs.merge(service_type_id: template.service_type_id)
+    end
+
+    def owns_referenced_service_type?(attrs)
+      !attrs.key?(:service_type_id) || current_user.service_types.exists?(attrs[:service_type_id])
+    end
+
+    def owns_referenced_category_service_interval?(attrs)
+      !attrs.key?(:category_service_interval_id) ||
+        current_user.category_service_intervals.exists?(attrs[:category_service_interval_id])
+    end
+
+    def render_service_type_not_found
+      render json: { base: ["Service type not found"] }, status: :not_found
+    end
+
+    def render_category_service_interval_not_found
+      render json: { base: ["Category service interval not found"] }, status: :not_found
     end
 end

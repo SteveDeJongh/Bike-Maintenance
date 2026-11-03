@@ -4,7 +4,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
   it "sums only activity after the most recent matching maintenance event" do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain")
-    service_type = create(:service_type, user: bike.user, name: "wax")
+    service_type = bike.user.service_types.find_by!(name: "wax")
     interval = create(:component_service_interval, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike,
@@ -22,7 +22,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
   it "falls back to the earliest assignment start, then acquired_on, when there is no event" do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain", acquired_on: Date.new(2025, 1, 1))
-    service_type = create(:service_type, user: bike.user, name: "wax")
+    service_type = bike.user.service_types.find_by!(name: "wax")
     interval = create(:component_service_interval, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike,
@@ -38,7 +38,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
   it "respects each assignment's ride_context, matching StravaActivity#indoor/#outdoor" do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "cassette")
-    service_type = create(:service_type, user: bike.user, name: "wax")
+    service_type = bike.user.service_types.find_by!(name: "wax")
     interval = create(:component_service_interval, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike, ride_context: "indoor_only",
@@ -56,7 +56,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
   it "includes disabled intervals too -- enabled-only filtering happens a layer up, in IntervalStatus.for_user" do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain")
-    service_type = create(:service_type, user: bike.user, name: "wax")
+    service_type = bike.user.service_types.find_by!(name: "wax")
     interval = create(:component_service_interval, component: component, service_type: service_type, enabled: false)
     create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
     create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 5_000)
@@ -70,7 +70,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     it "matches Component#total_distance when there is no matching event yet" do
       bike = create(:bike)
       component = create(:component, user: bike.user, category: "chain")
-      service_type = create(:service_type, user: bike.user, name: "wax")
+      service_type = bike.user.service_types.find_by!(name: "wax")
       interval = create(:component_service_interval, component: component, service_type: service_type)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
@@ -87,7 +87,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     it "matches Component#distance_since when there is a matching event" do
       bike = create(:bike)
       component = create(:component, user: bike.user, category: "chain")
-      service_type = create(:service_type, user: bike.user, name: "wax")
+      service_type = bike.user.service_types.find_by!(name: "wax")
       interval = create(:component_service_interval, component: component, service_type: service_type)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)

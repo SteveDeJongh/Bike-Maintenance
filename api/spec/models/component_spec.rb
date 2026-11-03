@@ -115,7 +115,7 @@ RSpec.describe Component, type: :model do
     it "only counts activity after the most recent maintenance event of that service type" do
       bike = create(:bike)
       component = create(:component, user: bike.user)
-      service_type = create(:service_type, user: bike.user, name: "wax")
+      service_type = bike.user.service_types.find_by!(name: "wax")
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:maintenance_event, component: component, service_type: service_type,
@@ -129,7 +129,7 @@ RSpec.describe Component, type: :model do
     it "excludes a ride from earlier the same day as the service" do
       bike = create(:bike)
       component = create(:component, user: bike.user)
-      service_type = create(:service_type, user: bike.user, name: "wax")
+      service_type = bike.user.service_types.find_by!(name: "wax")
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:maintenance_event, component: component, service_type: service_type,
@@ -144,7 +144,7 @@ RSpec.describe Component, type: :model do
     it "returns total_distance when there is no matching event yet" do
       bike = create(:bike)
       component = create(:component, user: bike.user)
-      service_type = create(:service_type, user: bike.user, name: "wax")
+      service_type = bike.user.service_types.find_by!(name: "wax")
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 3_000)

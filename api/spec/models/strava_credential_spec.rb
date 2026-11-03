@@ -28,6 +28,14 @@ RSpec.describe StravaCredential, type: :model do
     expect(duplicate.errors[:user_id]).to be_present
   end
 
+  it "is invalid with the same athlete_id already linked to a different user" do
+    create(:strava_credential, athlete_id: 777)
+    duplicate = build(:strava_credential, athlete_id: 777)
+
+    expect(duplicate).not_to be_valid
+    expect(duplicate.errors[:athlete_id]).to be_present
+  end
+
   describe "#ensure_fresh_access_token!" do
     it "returns the current access_token when it is not near expiry" do
       credential = create(:strava_credential, access_token: "still-good", expires_at: 1.hour.from_now)

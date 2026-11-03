@@ -97,7 +97,6 @@ RSpec.describe ComponentAssignment, type: :model do
     describe "sharing one component across multiple bikes (indoor_only, allows_multiple_assignments)" do
       it "allows the same component to have concurrent indoor_only assignments on different bikes" do
         component = create(:component, category: "cassette")
-        create(:component_category_setting, user: component.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, component: component, bike: create(:bike, user: component.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "indoor_only")
 
@@ -109,7 +108,6 @@ RSpec.describe ComponentAssignment, type: :model do
 
       it "still rejects when the other bike's assignment is not indoor_only" do
         component = create(:component, category: "cassette")
-        create(:component_category_setting, user: component.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, component: component, bike: create(:bike, user: component.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
 
@@ -240,7 +238,6 @@ RSpec.describe ComponentAssignment, type: :model do
     describe "mutually exclusive ride contexts (indoor-only + outdoor-only)" do
       it "allows an outdoor-only and an indoor-only cassette to overlap on the same bike" do
         bike = create(:bike)
-        create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, bike: bike,
           component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
@@ -280,7 +277,6 @@ RSpec.describe ComponentAssignment, type: :model do
 
       it "rejects a third overlapping assignment once outdoor-only and indoor-only are both taken" do
         bike = create(:bike)
-        create(:component_category_setting, user: bike.user, category: "cassette", allows_multiple_assignments: true)
         create(:component_assignment, bike: bike,
           component: create(:component, label: "Road Cassette", category: "cassette", user: bike.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")
@@ -310,7 +306,6 @@ RSpec.describe ComponentAssignment, type: :model do
 
       it "rejects the pair when allows_multiple_assignments is explicitly false" do
         bike = create(:bike)
-        create(:component_category_setting, user: bike.user, category: "tire_front", allows_multiple_assignments: false)
         create(:component_assignment, bike: bike,
           component: create(:component, label: "Front Tire", category: "tire_front", user: bike.user),
           started_at: Date.new(2026, 1, 1), ended_at: nil, ride_context: "outdoor_only")

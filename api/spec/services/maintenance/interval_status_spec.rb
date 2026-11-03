@@ -61,7 +61,9 @@ RSpec.describe Maintenance::IntervalStatus do
 
     it "uses the category's effective warning threshold, not just the hardcoded default" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
-      create(:component_category_setting, user: interval.component.user, category: "chain", warning_threshold_percent: 50)
+      # chain is already auto-provisioned (see Users::Provision) -- override
+      # its existing row rather than creating a duplicate.
+      interval.component.user.component_category_settings.find_by!(category: "chain").update!(warning_threshold_percent: 50)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 200_000)
 
       result = described_class.for_component(interval.component).first
@@ -130,7 +132,7 @@ RSpec.describe Maintenance::IntervalStatus do
     it "is not eligible when notifications are disabled for the category" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
-      create(:component_category_setting, user: interval.component.user, category: "chain", notifications_enabled: false)
+      interval.component.user.component_category_settings.find_by!(category: "chain").update!(notifications_enabled: false)
 
       expect(status_for(interval).banner_eligible?(credential: nil)).to be false
     end

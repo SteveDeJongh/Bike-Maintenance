@@ -3,6 +3,33 @@ require "rails_helper"
 RSpec.describe "CategoryServiceIntervals", type: :request do
   let!(:current_user) { create(:user) }
 
+  describe "POST /category_service_intervals" do
+    it "does not create with another user's service_type_id" do
+      other_service_type = create(:service_type)
+
+      post "/category_service_intervals", params: {
+        category_service_interval: { category: "chain", service_type_id: other_service_type.id, distance_interval_meters: 300_000 },
+      }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "PATCH /category_service_intervals/:id" do
+    it "does not update to reference another user's service_type_id" do
+      service_type = current_user.service_types.find_by!(name: "wax")
+      interval = create(:category_service_interval, user: current_user, category: "chain", service_type: service_type)
+      other_service_type = create(:service_type)
+
+      patch "/category_service_intervals/#{interval.id}", params: {
+        category_service_interval: { service_type_id: other_service_type.id },
+      }
+
+      expect(response).to have_http_status(:not_found)
+      expect(interval.reload.service_type_id).to eq(service_type.id)
+    end
+  end
+
   describe "POST /category_service_intervals/:id/apply" do
     it "creates a linked interval for each given component not already covered" do
       service_type = create(:service_type, user: current_user)
