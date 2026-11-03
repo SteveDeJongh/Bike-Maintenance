@@ -27,8 +27,8 @@ Rails.application.routes.draw do
   delete "auth/logout",   to: "auth/sessions#destroy"
   get    "auth/csrf",     to: "auth/csrf#show"
 
-  get  "strava/authorize",     to: "strava#authorize"
-  get  "strava/callback",      to: "strava#callback", as: :strava_callback
+  get  "auth/strava",          to: "strava#authorize"
+  get  "auth/strava/callback", to: "strava#callback", as: :strava_callback
   post "strava/sync",          to: "strava#sync"
   get  "strava/status",        to: "strava#status"
   get  "strava/unmapped_gear", to: "strava#unmapped_gear"

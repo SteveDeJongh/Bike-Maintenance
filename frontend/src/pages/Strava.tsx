@@ -40,7 +40,7 @@ export default function Strava() {
       )}
 
       {status && !status.connected && (
-        <Button component="a" href={`${API_BASE_URL}/strava/authorize`}>
+        <Button component="a" href={`${API_BASE_URL}/auth/strava`}>
           Connect to Strava
         </Button>
       )}
@@ -63,7 +63,7 @@ export default function Strava() {
             >
               Refresh gear list
             </Button>
-            <Button component="a" href={`${API_BASE_URL}/strava/authorize`} variant="subtle">
+            <Button component="a" href={`${API_BASE_URL}/auth/strava`} variant="subtle">
               Reconnect to Strava
             </Button>
           </Group>

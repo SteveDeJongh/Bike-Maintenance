@@ -1,4 +1,10 @@
 class StravaController < ApplicationController
+  # Strava sign-in and the Strava data connection are the same OAuth grant
+  # -- this callback serves both, decided by whether a session user exists
+  # going in (see Auth::ResolveIdentity). So, unlike every other action
+  # here, these two must work without already being authenticated.
+  skip_before_action :require_authentication, only: %i[authorize callback]
+
   def authorize
     session[:strava_oauth_state] = SecureRandom.hex(24)
     redirect_to strava_authorize_url, allow_other_host: true
@@ -14,20 +20,39 @@ class StravaController < ApplicationController
       return redirect_to "#{frontend_url}/strava?error=invalid_state", allow_other_host: true
     end
 
+    signed_in_user = current_user
     token_data = Strava::Client.new.exchange_code(params[:code])
-    credential = current_user.strava_credential || current_user.build_strava_credential
+    athlete = token_data.fetch("athlete", {})
+
+    result = Auth::ResolveIdentity.new(
+      provider: "strava",
+      uid: athlete["id"].to_s,
+      name: [athlete["firstname"], athlete["lastname"]].compact.join(" ").presence,
+      current_user: signed_in_user,
+    ).call
+
+    reset_session if signed_in_user.nil? || signed_in_user.id != result.user.id
+    session[:user_id] = result.user.id
+
+    credential = result.user.strava_credential || result.user.build_strava_credential
     credential.update!(
       access_token: token_data.fetch("access_token"),
       refresh_token: token_data.fetch("refresh_token"),
       expires_at: Time.at(token_data.fetch("expires_at")),
-      athlete_id: token_data.dig("athlete", "id"),
+      athlete_id: athlete["id"],
       scope: params[:scope],
     )
-    redirect_to "#{frontend_url}/strava?connected=1", allow_other_host: true
+    # Landing on the Strava page only makes sense for the "connect while
+    # already signed in" path -- a fresh sign-in via Strava has nowhere
+    # Strava-specific to go back to, so it lands on the home page instead.
+    success_path = signed_in_user ? "/strava?connected=1" : "/"
+    redirect_to "#{frontend_url}#{success_path}", allow_other_host: true
   rescue Strava::Client::Error
     redirect_to "#{frontend_url}/strava?error=exchange_failed", allow_other_host: true
   rescue ActiveRecord::RecordInvalid
     redirect_to "#{frontend_url}/strava?error=athlete_already_linked", allow_other_host: true
+  rescue Auth::ResolveIdentity::AlreadyLinkedToAnotherUser
+    redirect_to "#{frontend_url}/strava?error=identity_already_linked", allow_other_host: true
   end
 
   def status

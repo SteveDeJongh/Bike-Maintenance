@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Center, Paper, Stack, Text, TextInput, PasswordInput, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Center, Divider, Paper, Stack, Text, TextInput, PasswordInput, Title } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { API_BASE_URL } from '../api/client'
 import { applyApiErrors } from '../api/errors'
 import { useLogin } from '../api/mutations'
 
@@ -68,6 +69,12 @@ export default function Login() {
 
             <Button type="submit" loading={login.isPending}>
               Sign in
+            </Button>
+
+            <Divider label="or" labelPosition="center" />
+
+            <Button component="a" href={`${API_BASE_URL}/auth/strava`} variant="default">
+              Continue with Strava
             </Button>
 
             <Text size="sm" ta="center">

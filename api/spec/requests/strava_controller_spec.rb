@@ -171,7 +171,7 @@ RSpec.describe "Strava", type: :request do
 
   describe "GET /strava/callback" do
     it "redirects to the frontend with an error when Strava reports one" do
-      get "/strava/callback", params: { error: "access_denied" }
+      get "/auth/strava/callback", params: { error: "access_denied" }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=access_denied")
     end
@@ -188,7 +188,7 @@ RSpec.describe "Strava", type: :request do
         "athlete" => { "id" => 999 },
       )
 
-      get "/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
+      get "/auth/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
 
       expect(response).to redirect_to("http://localhost:5173/strava?connected=1")
       credential = current_user.reload.strava_credential
@@ -209,7 +209,7 @@ RSpec.describe "Strava", type: :request do
         "athlete" => { "id" => 999 },
       )
 
-      get "/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
+      get "/auth/strava/callback", params: { code: "auth-code", scope: "activity:read_all", state: state }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=athlete_already_linked")
       expect(current_user.reload.strava_credential).to be_nil
@@ -222,7 +222,7 @@ RSpec.describe "Strava", type: :request do
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:exchange_code).and_raise(Strava::Client::Error)
 
-      get "/strava/callback", params: { code: "bad-code", state: state }
+      get "/auth/strava/callback", params: { code: "bad-code", state: state }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=exchange_failed")
     end
@@ -230,21 +230,82 @@ RSpec.describe "Strava", type: :request do
     it "redirects to the frontend with invalid_state when the state param doesn't match" do
       authorize_and_capture_state
 
-      get "/strava/callback", params: { code: "auth-code", state: "not-the-real-state" }
+      get "/auth/strava/callback", params: { code: "auth-code", state: "not-the-real-state" }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=invalid_state")
     end
 
     it "redirects to the frontend with invalid_state when no authorize step happened first" do
-      get "/strava/callback", params: { code: "auth-code", state: "anything" }
+      get "/auth/strava/callback", params: { code: "auth-code", state: "anything" }
 
       expect(response).to redirect_to("http://localhost:5173/strava?error=invalid_state")
+    end
+
+    it "refuses to link a Strava athlete already linked to a different account" do
+      create(:user_identity, provider: "strava", uid: "333")
+      state = authorize_and_capture_state
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:exchange_code).with("auth-code").and_return(
+        "access_token" => "at", "refresh_token" => "rt", "expires_at" => 6.hours.from_now.to_i,
+        "athlete" => { "id" => 333 },
+      )
+
+      get "/auth/strava/callback", params: { code: "auth-code", state: state }
+
+      expect(response).to redirect_to("http://localhost:5173/strava?error=identity_already_linked")
+    end
+  end
+
+  describe "GET /auth/strava/callback as a sign-in method (not already signed in)" do
+    before { delete "/auth/logout" }
+
+    it "creates a new user, provisions defaults, and signs them in when the athlete has never been seen" do
+      state = authorize_and_capture_state
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:exchange_code).with("auth-code").and_return(
+        "access_token" => "at", "refresh_token" => "rt", "expires_at" => 6.hours.from_now.to_i,
+        "athlete" => { "id" => 111, "firstname" => "Jamie", "lastname" => "Rivera" },
+      )
+
+      expect {
+        get "/auth/strava/callback", params: { code: "auth-code", state: state }
+      }.to change(User, :count).by(1)
+
+      expect(response).to redirect_to("http://localhost:5173/")
+      new_user = User.find_by(name: "Jamie Rivera")
+      expect(new_user).to be_present
+      expect(new_user.strava_credential.athlete_id).to eq(111)
+      expect(new_user.user_identities.find_by(provider: "strava", uid: "111")).to be_present
+      expect(new_user.service_types.count).to eq(4)
+
+      get "/me"
+      expect(JSON.parse(response.body)["id"]).to eq(new_user.id)
+    end
+
+    it "signs in the existing user already linked to that Strava athlete, without creating a new one" do
+      identity = create(:user_identity, provider: "strava", uid: "222")
+      state = authorize_and_capture_state
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:exchange_code).with("auth-code").and_return(
+        "access_token" => "at", "refresh_token" => "rt", "expires_at" => 6.hours.from_now.to_i,
+        "athlete" => { "id" => 222 },
+      )
+
+      expect {
+        get "/auth/strava/callback", params: { code: "auth-code", state: state }
+      }.not_to change(User, :count)
+
+      get "/me"
+      expect(JSON.parse(response.body)["id"]).to eq(identity.user_id)
     end
   end
 
   def authorize_and_capture_state
     allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
-    get "/strava/authorize"
+    get "/auth/strava"
     session[:strava_oauth_state]
   end
 end
