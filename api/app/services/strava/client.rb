@@ -58,6 +58,8 @@ module Strava
       @connection ||= Faraday.new(url: BASE_URL) do |f|
         f.request :url_encoded
         f.response :json
+        f.options.open_timeout = 10
+        f.options.timeout = 15
         f.adapter Faraday.default_adapter
       end
     end
