@@ -300,6 +300,7 @@ function invalidateMaintenanceEventRelatedQueries(queryClient: ReturnType<typeof
   queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
   queryClient.invalidateQueries({ queryKey: ['components'] })
   queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
 }
 
 export function useCreateMaintenanceEvent() {

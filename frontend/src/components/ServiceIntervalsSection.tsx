@@ -12,22 +12,8 @@ import { confirmDelete } from './confirmDelete'
 import AddCustomServiceIntervalModal from './forms/AddCustomServiceIntervalModal'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
 import { formatDistance } from '../utils/distance'
+import { formatRemaining } from '../utils/serviceInterval'
 import type { CategoryServiceInterval, ComponentDetail, ComponentServiceIntervalWithStatus } from '../types/models'
-
-function formatRemaining(distanceRemainingMeters: number | null, daysRemaining: number | null): string {
-  const parts: string[] = []
-  if (distanceRemainingMeters != null) {
-    parts.push(
-      distanceRemainingMeters >= 0
-        ? `${formatDistance(distanceRemainingMeters)} left`
-        : `${formatDistance(-distanceRemainingMeters)} overdue`,
-    )
-  }
-  if (daysRemaining != null) {
-    parts.push(daysRemaining >= 0 ? `${daysRemaining}d left` : `${-daysRemaining}d overdue`)
-  }
-  return parts.join(' · ') || '—'
-}
 
 interface ServiceIntervalsSectionProps {
   component: ComponentDetail

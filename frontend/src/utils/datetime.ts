@@ -25,3 +25,21 @@ export function formatDate(value: string | null): string {
   if (!value) return ''
   return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
+
+// Coarse, manual-sync-cadence relative time for the dashboard's sync strip
+// (e.g. "5 minutes ago") -- not meant for anything finer-grained than that.
+export function formatRelativeTime(value: string | null): string {
+  if (!value) return 'never'
+
+  const diffSeconds = Math.round((Date.now() - new Date(value).getTime()) / 1000)
+  if (diffSeconds < 60) return 'just now'
+
+  const diffMinutes = Math.round(diffSeconds / 60)
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+
+  const diffDays = Math.round(diffHours / 24)
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+}

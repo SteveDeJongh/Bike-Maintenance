@@ -9,6 +9,7 @@ import type {
   ComponentDetail,
   ComponentServiceInterval,
   ComponentWithServiceStatus,
+  DashboardSummary,
   MaintenanceAlert,
   MaintenanceEvent,
   NotificationSetting,
@@ -157,5 +158,18 @@ export function useMaintenanceAlerts() {
     queryKey: ['maintenance_alerts'],
     queryFn: () => apiGet<MaintenanceAlert[]>('/maintenance_alerts'),
     staleTime: 30_000,
+  })
+}
+
+// tz is the viewer's IANA zone name (Dashboard.tsx sends
+// Intl.DateTimeFormat().resolvedOptions().timeZone) -- only used server-side
+// to compute the current-month boundary for distance_this_month, nothing is
+// stored. refetchInterval lets SyncStrip poll for a completed sync without a
+// second query -- see Dashboard.tsx's post-"Sync now" polling.
+export function useDashboard(tz: string, options?: { refetchInterval?: number | false }) {
+  return useQuery({
+    queryKey: ['dashboard', tz],
+    queryFn: () => apiGet<DashboardSummary>(`/dashboard?tz=${encodeURIComponent(tz)}`),
+    refetchInterval: options?.refetchInterval ?? false,
   })
 }

@@ -6,7 +6,7 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import VerifyEmail from './pages/VerifyEmail'
-import Landing from './pages/Landing'
+import Dashboard from './pages/Dashboard'
 import Bikes from './pages/Bikes'
 import BikeDetail from './pages/BikeDetail'
 import Components from './pages/Components'
@@ -34,7 +34,7 @@ export const router = createBrowserRouter([
         path: '/',
         element: <Layout />,
         children: [
-          { index: true, element: <Landing /> },
+          { index: true, element: <Dashboard /> },
           { path: 'bikes', element: <Bikes /> },
           { path: 'bikes/:id', element: <BikeDetail /> },
           { path: 'components', element: <Components /> },

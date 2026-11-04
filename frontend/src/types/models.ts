@@ -281,3 +281,96 @@ export interface StravaMappedBike {
   activity_count: number
   distance_meters: number
 }
+
+// GET /dashboard -- assembled entirely from existing services (see
+// Dashboard::Summary); nothing here is computed freshly for this endpoint.
+export interface DashboardSyncBucket {
+  count: number
+  distance_meters: number
+}
+
+export interface DashboardSyncSection {
+  connected: boolean
+  last_synced_at: string | null
+  rides_total: number
+  unattributed: {
+    count: number
+    distance_meters: number
+    // Fixable via gear mapping (Strava has a gear id, just not mapped to a bike yet).
+    with_gear: DashboardSyncBucket
+    // Not fixable here -- Strava itself had no bike set on the ride.
+    without_gear: DashboardSyncBucket
+    unmapped_gear_count: number
+  }
+}
+
+// Meters/days only, same as everywhere else in the app (the API always
+// returns meters, the UI always converts via formatDistance) --
+// service_type_name: null means "no enabled interval," so distance_meters
+// is just the component's plain lifetime total, not a since-service figure.
+export interface DashboardDisplayMetric {
+  service_type_name: string | null
+  distance_meters: number | null
+  days: number | null
+}
+
+export interface DashboardMountedComponent {
+  component_id: number
+  label: string
+  category: string
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+  service_status: ServiceStatus | null
+  display_metric: DashboardDisplayMetric
+}
+
+export interface DashboardOffBikeComponent {
+  component_id: number
+  label: string
+  category: string
+  display_metric: DashboardDisplayMetric
+}
+
+export interface DashboardBike {
+  id: number
+  name: string
+  total_distance: number
+  ride_count: number
+  last_ride_on: string | null
+  distance_this_month: number
+  mounted: DashboardMountedComponent[]
+  off_bike: DashboardOffBikeComponent[]
+}
+
+// Broader than the alert banners (MaintenanceAlert) -- every non-ok,
+// non-retired interval, including ones a banner would hide (dismissed,
+// notifications off, not currently mounted). Those three are flags here
+// instead of exclusions, so the dashboard can label rather than hide them.
+export interface DashboardAttentionItem {
+  component_id: number
+  component_label: string
+  service_type_id: number
+  service_type_name: string
+  status: 'warning' | 'due'
+  driving_dimension: 'distance' | 'days'
+  distance_used_meters: number | null
+  effective_distance_interval_meters: number | null
+  days_used: number | null
+  effective_time_interval_days: number | null
+  distance_remaining_meters: number | null
+  days_remaining: number | null
+  fraction_used: number
+  dismissed: boolean
+  notifications_off: boolean
+  mounted: boolean
+  // The bike it's currently mounted on, or null if unmounted. A component
+  // can rarely be mounted on more than one bike at once (the documented
+  // shared indoor_only-cassette case) -- this is the first one, a
+  // deliberate display simplification.
+  bike: { id: number; name: string } | null
+}
+
+export interface DashboardSummary {
+  sync: DashboardSyncSection
+  bikes: DashboardBike[]
+  attention: DashboardAttentionItem[]
+}
