@@ -667,6 +667,94 @@ token/CSS variable (`var(--mantine-color-*)`, a named color like `"teal"` or
 `"red"`, or `"radar"`) so every surface stays correct across both color
 schemes without a per-component light/dark branch.
 
+## Dashboard
+
+The app's landing page (`frontend/src/pages/Dashboard.tsx`, at `/`) answers "is my
+data current?" and "what needs my attention?" at a glance — it replaced the old
+`Landing.tsx` (four link cards that just duplicated the nav bar). Backed by a single
+`GET /dashboard` request, assembled by `Dashboard::Summary.call(user, tz:)`
+(`app/services/dashboard/summary.rb`) entirely from existing primitives — no new
+distance/status computation happens here that doesn't already live elsewhere:
+
+- **`sync`** — `StravaCredential#last_synced_at`, a count/distance split of
+  `strava_activities` with `bike_id: nil` into `with_gear` (fixable via gear
+  mapping) vs `without_gear` (Strava itself had no bike set), and
+  `unmapped_gear_count` from `StravaGear.unmapped_for(user)` (promoted from a
+  `StravaController#unmapped_gear`-private query to a model class method — that
+  controller action now calls the same method, output unchanged).
+- **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
+  `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
+  `BikesController#index` already uses (no per-bike N+1), plus `mounted`
+  (currently-installed components, each with a `display_metric`: meters/days only,
+  same API-returns-meters/UI-converts convention as everywhere else — see
+  `formatDistance`) and `off_bike` (non-retired components whose most recent
+  assignment was on this bike but have no active one anywhere). Both draw their
+  per-component status from `Maintenance::IntervalStatus.worst_result_by_component`
+  (returns the full winning `Result`, not just its status string — a small,
+  justified extension over the pre-existing `worst_status_by_component`, now a
+  one-line wrapper over it) and their bike-grouping from
+  `Component.current_bikes_by_component` (promoted the same way as
+  `StravaGear.unmapped_for`, from a `ComponentsController`-private method).
+- **`attention`** — every enabled, non-ok, non-retired interval
+  (`Maintenance::IntervalStatus.for_user`), deliberately broader than the alert
+  banners' `Result#banner_eligible?`: a dismissed or notifications-off item, or one
+  on a currently-unmounted component, still appears here, just flagged
+  (`dismissed`/`notifications_off`/`mounted`) rather than hidden. Ordered
+  due-before-warning, then by `Result#fraction_used` (new, cheap arithmetic over
+  numbers the status computation already has) descending.
+- **`recent_rides`** — every activity in a rolling 14-day window (not
+  calendar-day-sensitive, so no `tz` needed) plus `summary: {count, distance_meters}`.
+  Each ride's `counted_toward` (which components its mileage counts toward) comes
+  from `Maintenance::CountedTowardQuery.call(user, since:)`
+  (`app/services/maintenance/counted_toward_query.rb`) — one batched SQL query
+  (`strava_activities` ⨝ `component_assignments` ⨝ `components` on `bike_id` + the
+  assignment window + ride_context) for the whole window at once, the same
+  batching precedent as `Maintenance::BatchedDistanceQuery`. `indoor` comes from
+  the new `StravaActivity#indoor?` instance method (mirrors the `.indoor`/`.outdoor`
+  scopes for one already-loaded record). `gear_id` rides alongside a `null` bike
+  specifically so the frontend can offer "Link Strava gear" only for the
+  fixable-via-gear-mapping case, same distinction as `sync.unattributed.with_gear`.
+
+**`Maintenance::RideContextSql.predicate(assignment_alias:, activity_alias:)`**
+(`app/services/maintenance/ride_context_sql.rb`) is the one shared SQL fragment
+behind every batched ride_context filter — extracted from
+`BatchedDistanceQuery`'s inline SQL, and the second caller is
+`CountedTowardQuery` above. It has to stay bit-for-bit equivalent to
+`StravaActivity.indoor`/`.outdoor` (used by `ComponentAssignment#activities_from`,
+the Ruby-level windowing primitive every per-component mileage computation funnels
+through) — `IS DISTINCT FROM`, not `where.not`, specifically for NULL-safety parity.
+Each batched query that uses it carries its own parity spec proving this (see
+`spec/services/maintenance/counted_toward_query_spec.rb`'s split indoor/outdoor
+cassette-slot case) rather than trusting it by inspection alone.
+
+**`tz` query param**: `GET /dashboard?tz=<IANA zone name>` is the app's first
+timezone-aware calculation (nothing else in the app has ever needed one —
+`config.time_zone` is unset, so the app runs in UTC). The frontend sends
+`Intl.DateTimeFormat().resolvedOptions().timeZone`; the backend does
+`(ActiveSupport::TimeZone[tz] if tz.present?) || Time.zone` to compute the current
+calendar month's boundary (for `distance_this_month`) in the viewer's zone, then
+converts to UTC for the actual query range. Nothing is persisted — if more of the
+app ever needs a real per-user timezone, that's a `User#time_zone` column, a
+genuine data-model change deliberately not made speculatively here. **Flagged for
+the project plan doc** per this file's own convention, since it's a new pattern,
+not just a new feature.
+
+**Frontend**: `Dashboard.tsx` owns the one `useDashboard(tz)` query and the
+"Sync now" polling loop — `POST /strava/sync` only enqueues `StravaSyncJob`, so
+after a click it polls `GET /dashboard` every 2s (capped at 30s) until
+`sync.last_synced_at` changes, then invalidates `['maintenance_alerts']` too.
+`components/dashboard/`: `SyncStrip` (connection state, relative + absolute last
+sync via the new `formatRelativeTime` in `utils/datetime.ts`, the unattributed
+breakdown), `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by
+bike, "Not mounted" last; Log service reuses `MaintenanceEventFormModal` as-is),
+`RecentRidesTable`. The latter is a plain Mantine `Table` in a horizontal-scroll
+wrapper, **not** the sortable/configurable-table system above — that mechanism
+exists for a `TableViewPreference` row's worth of persisted column
+choices/ordering, which this fixed, non-configurable 14-day feed has no use for.
+`formatRemaining` (the "N km left"/"N km overdue" wording) was extracted out of
+`ServiceIntervalsSection.tsx` into `utils/serviceInterval.ts` so `AttentionRow`
+shares the exact same wording rather than re-deriving it.
+
 ## Build order (work one phase at a time; don't jump ahead)
 
 1. Skeleton — done once this file exists and `rails db:create` works.
@@ -693,7 +781,9 @@ schemes without a per-component light/dark branch.
    originally slated here, shipped early as part of Phase 4 instead.)
    Real authentication (email/password + Strava sign-in, with Google
    deferred pending real OAuth credentials) shipped here too — see
-   "Authentication" above. Deploy, webhooks, and charts remain.
+   "Authentication" above. The landing-page dashboard (sync status, per-bike
+   mounted/off-bike components, a needs-attention list, recent rides) shipped
+   here too — see "Dashboard" above. Deploy, webhooks, and charts remain.
 
 ## Conventions
 
