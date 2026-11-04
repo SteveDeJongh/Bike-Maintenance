@@ -41,11 +41,7 @@ module Maintenance
         LEFT JOIN strava_activities sa ON sa.bike_id = ca.bike_id
           AND sa.moved_at >= GREATEST(ca.started_at, b.baseline_at)
           AND (ca.ended_at IS NULL OR sa.moved_at < ca.ended_at)
-          AND (
-            ca.ride_context = 'both'
-            OR (ca.ride_context = 'outdoor_only' AND sa.trainer = false AND sa.activity_type IS DISTINCT FROM 'VirtualRide')
-            OR (ca.ride_context = 'indoor_only' AND (sa.trainer = true OR sa.activity_type = 'VirtualRide'))
-          )
+          AND #{RideContextSql.predicate(assignment_alias: "ca", activity_alias: "sa")}
         GROUP BY b.component_service_interval_id, b.baseline_at
       SQL
 

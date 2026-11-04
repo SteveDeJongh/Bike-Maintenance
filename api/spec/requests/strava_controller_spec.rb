@@ -9,7 +9,7 @@ RSpec.describe "Strava", type: :request do
       get "/strava/status"
 
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)).to eq("connected" => false, "athlete_id" => nil)
+      expect(JSON.parse(response.body)).to eq("connected" => false, "athlete_id" => nil, "last_synced_at" => nil)
     end
 
     it "reports connected with the athlete_id when a credential exists" do
@@ -17,7 +17,25 @@ RSpec.describe "Strava", type: :request do
 
       get "/strava/status"
 
-      expect(JSON.parse(response.body)).to eq("connected" => true, "athlete_id" => 555)
+      body = JSON.parse(response.body)
+      expect(body["connected"]).to be true
+      expect(body["athlete_id"]).to eq(555)
+    end
+
+    it "reports last_synced_at when the credential has one" do
+      create(:strava_credential, user: current_user, last_synced_at: Time.zone.local(2026, 11, 4, 9, 0))
+
+      get "/strava/status"
+
+      expect(JSON.parse(response.body)["last_synced_at"]).to eq("2026-11-04T09:00:00.000Z")
+    end
+
+    it "reports last_synced_at as nil when the credential has never synced" do
+      create(:strava_credential, user: current_user, last_synced_at: nil)
+
+      get "/strava/status"
+
+      expect(JSON.parse(response.body)["last_synced_at"]).to be_nil
     end
   end
 

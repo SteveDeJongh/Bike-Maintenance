@@ -57,7 +57,11 @@ class StravaController < ApplicationController
 
   def status
     credential = current_user.strava_credential
-    render json: { connected: credential.present?, athlete_id: credential&.athlete_id }
+    render json: {
+      connected: credential.present?,
+      athlete_id: credential&.athlete_id,
+      last_synced_at: credential&.last_synced_at,
+    }
   end
 
   def sync
