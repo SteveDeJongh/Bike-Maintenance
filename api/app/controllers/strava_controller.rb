@@ -122,10 +122,16 @@ class StravaController < ApplicationController
   end
 
   def mapped_gear
-    bikes = current_user.bikes.where.not(strava_gear_id: [nil, ""]).order(:name)
+    bikes = current_user.bikes.where.not(strava_gear_id: [nil, ""])
     gear_by_id = current_user.strava_gears.index_by(&:strava_gear_id)
 
-    render json: bikes.map { |bike|
+    # Active gear before retired (same "retired sinks to the bottom"
+    # convention as unmapped_gear's sort), alphabetical by bike name within
+    # each group. "Retired" here is the Strava-reported gear flag, not
+    # Bike#retired_on -- the same field this row already displays.
+    sorted = bikes.sort_by { |bike| [gear_by_id[bike.strava_gear_id]&.retired ? 1 : 0, bike.name] }
+
+    render json: sorted.map { |bike|
       gear = gear_by_id[bike.strava_gear_id]
       {
         bike_id: bike.id, bike_name: bike.name, gear_id: bike.strava_gear_id,

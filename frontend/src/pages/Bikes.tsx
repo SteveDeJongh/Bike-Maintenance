@@ -156,6 +156,13 @@ function BikesTable({
     return bikes
       .map((bike, index) => ({ bike, index }))
       .sort((a, b) => {
+        // Active bikes before retired ones, regardless of the chosen sort
+        // column -- takes priority over everything below, same as the
+        // null-always-sorts-last rule that follows it.
+        const aRetired = a.bike.retired_on ? 1 : 0
+        const bRetired = b.bike.retired_on ? 1 : 0
+        if (aRetired !== bRetired) return aRetired - bRetired
+
         const av = accessor(a.bike)
         const bv = accessor(b.bike)
         if (av === null && bv === null) return a.index - b.index

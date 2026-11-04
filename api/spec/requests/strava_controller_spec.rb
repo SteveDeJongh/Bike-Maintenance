@@ -236,6 +236,20 @@ RSpec.describe "Strava", type: :request do
       expect(JSON.parse(response.body).map { |b| b["bike_name"] }).to eq(%w[Alpha Zeta])
     end
 
+    it "sorts gear with active (non-retired) Strava status before retired, alphabetically within each group" do
+      create(:bike, user: current_user, name: "Alpha Retired", strava_gear_id: "g1")
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", retired: true)
+      create(:bike, user: current_user, name: "Zeta Active", strava_gear_id: "g2")
+      create(:strava_gear, user: current_user, strava_gear_id: "g2", retired: false)
+      create(:bike, user: current_user, name: "Alpha Active", strava_gear_id: "g3")
+      create(:strava_gear, user: current_user, strava_gear_id: "g3", retired: false)
+
+      get "/strava/mapped_gear"
+
+      names = JSON.parse(response.body).map { |b| b["bike_name"] }
+      expect(names).to eq(["Alpha Active", "Zeta Active", "Alpha Retired"])
+    end
+
     it "is scoped to the current user" do
       create(:bike, strava_gear_id: "other-users-gear")
 
