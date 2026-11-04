@@ -4,6 +4,27 @@ RSpec.describe "ComponentServiceIntervals", type: :request do
   let!(:current_user) { create(:user) }
   before { sign_in(current_user) }
 
+  describe "GET /component_service_intervals" do
+    it "never includes another user's intervals" do
+      mine = create(:component_service_interval, component: create(:component, user: current_user))
+      create(:component_service_interval) # another user's
+
+      get "/component_service_intervals"
+
+      expect(JSON.parse(response.body).map { |i| i["id"] }).to eq([mine.id])
+    end
+  end
+
+  describe "GET /component_service_intervals/:id" do
+    it "404s for another user's interval" do
+      other_interval = create(:component_service_interval)
+
+      get "/component_service_intervals/#{other_interval.id}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "POST /component_service_intervals" do
     it "derives service_type_id from the template when linking, without it being sent explicitly" do
       component = create(:component, user: current_user, category: "chain")

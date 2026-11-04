@@ -8,6 +8,45 @@ RSpec.describe "Components", type: :request do
   let!(:current_user) { create(:user) }
   before { sign_in(current_user) }
 
+  describe "GET /components" do
+    it "never includes another user's components" do
+      mine = create(:component, user: current_user)
+      create(:component) # another user's
+
+      get "/components"
+
+      expect(JSON.parse(response.body).map { |c| c["id"] }).to eq([mine.id])
+    end
+  end
+
+  describe "cross-account isolation" do
+    it "404s on GET /components/:id for another user's component" do
+      other_component = create(:component)
+
+      get "/components/#{other_component.id}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s on PATCH /components/:id for another user's component" do
+      other_component = create(:component, label: "Original")
+
+      patch "/components/#{other_component.id}", params: { component: { label: "Hijacked" } }
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_component.reload.label).to eq("Original")
+    end
+
+    it "404s on DELETE /components/:id for another user's component" do
+      other_component = create(:component)
+
+      delete "/components/#{other_component.id}"
+
+      expect(response).to have_http_status(:not_found)
+      expect(Component.exists?(other_component.id)).to be true
+    end
+  end
+
   describe "GET /components/:id" do
     it "includes each enabled interval's computed status" do
       component = create(:component, user: current_user, category: "chain")

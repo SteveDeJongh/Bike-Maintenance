@@ -45,5 +45,13 @@ RSpec.describe "NotificationSettings", type: :request do
 
       expect(current_user.notification_setting.reload.warning_threshold_percent).to eq(25)
     end
+
+    it "never touches another user's row" do
+      other_setting = create(:notification_setting, warning_threshold_percent: 15)
+
+      patch "/notification_settings", params: { notification_setting: { warning_threshold_percent: 99 } }
+
+      expect(other_setting.reload.warning_threshold_percent).to eq(15)
+    end
   end
 end

@@ -4,6 +4,36 @@ RSpec.describe "CategoryServiceIntervals", type: :request do
   let!(:current_user) { create(:user) }
   before { sign_in(current_user) }
 
+  describe "GET /category_service_intervals" do
+    it "never includes another user's templates" do
+      mine = create(:category_service_interval, user: current_user)
+      create(:category_service_interval) # another user's
+
+      get "/category_service_intervals"
+
+      expect(JSON.parse(response.body).map { |i| i["id"] }).to eq([mine.id])
+    end
+  end
+
+  describe "cross-account isolation" do
+    it "404s on GET /category_service_intervals/:id for another user's template" do
+      other_template = create(:category_service_interval)
+
+      get "/category_service_intervals/#{other_template.id}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s on DELETE /category_service_intervals/:id for another user's template" do
+      other_template = create(:category_service_interval)
+
+      delete "/category_service_intervals/#{other_template.id}"
+
+      expect(response).to have_http_status(:not_found)
+      expect(CategoryServiceInterval.exists?(other_template.id)).to be true
+    end
+  end
+
   describe "POST /category_service_intervals" do
     it "does not create with another user's service_type_id" do
       other_service_type = create(:service_type)

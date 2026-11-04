@@ -58,5 +58,23 @@ RSpec.describe "TableViewPreferences", type: :request do
       expect(current_user.table_view_preferences.find_by(table_key: "bikes").data).to eq("columns" => ["name"])
       expect(current_user.table_view_preferences.find_by(table_key: "components").data).to eq("columns" => ["label"])
     end
+
+    it "never touches another user's preference for the same table_key" do
+      other_preference = create(:table_view_preference, table_key: "bikes", data: { "columns" => ["name"] })
+
+      patch "/table_view_preferences/bikes", params: { table_view_preference: { data: { columns: ["other"] } } }
+
+      expect(other_preference.reload.data).to eq("columns" => ["name"])
+    end
+  end
+
+  describe "cross-account isolation" do
+    it "GET never returns another user's preference for the same table_key" do
+      create(:table_view_preference, table_key: "bikes", data: { "columns" => ["name"] })
+
+      get "/table_view_preferences/bikes"
+
+      expect(JSON.parse(response.body)).to eq("data" => {})
+    end
   end
 end

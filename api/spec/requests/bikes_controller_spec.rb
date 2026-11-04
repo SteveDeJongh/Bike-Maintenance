@@ -4,6 +4,45 @@ RSpec.describe "Bikes", type: :request do
   let!(:current_user) { create(:user) }
   before { sign_in(current_user) }
 
+  describe "GET /bikes" do
+    it "never includes another user's bikes" do
+      mine = create(:bike, user: current_user)
+      create(:bike) # another user's
+
+      get "/bikes"
+
+      expect(JSON.parse(response.body).map { |b| b["id"] }).to eq([mine.id])
+    end
+  end
+
+  describe "cross-account isolation" do
+    it "404s on GET /bikes/:id for another user's bike" do
+      other_bike = create(:bike)
+
+      get "/bikes/#{other_bike.id}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s on PATCH /bikes/:id for another user's bike" do
+      other_bike = create(:bike, name: "Original")
+
+      patch "/bikes/#{other_bike.id}", params: { bike: { name: "Hijacked" } }
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_bike.reload.name).to eq("Original")
+    end
+
+    it "404s on DELETE /bikes/:id for another user's bike" do
+      other_bike = create(:bike)
+
+      delete "/bikes/#{other_bike.id}"
+
+      expect(response).to have_http_status(:not_found)
+      expect(Bike.exists?(other_bike.id)).to be true
+    end
+  end
+
   describe "GET /bikes/:id" do
     it "succeeds for a bike with an installed component (regression: as_json methods must not reference a deleted model method)" do
       bike = create(:bike, user: current_user)
