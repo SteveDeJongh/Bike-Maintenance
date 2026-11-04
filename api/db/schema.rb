@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_04_210930) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -195,6 +195,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_000003) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "ignored_at"
     t.index ["user_id", "strava_gear_id"], name: "index_strava_gears_on_user_id_and_strava_gear_id", unique: true
     t.index ["user_id"], name: "index_strava_gears_on_user_id"
   end

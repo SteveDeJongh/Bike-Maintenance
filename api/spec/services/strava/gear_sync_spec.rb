@@ -48,6 +48,24 @@ RSpec.describe Strava::GearSync do
     expect(StravaGear.where(user: user).pluck(:strava_gear_id)).to eq(["good-id"])
   end
 
+  it "preserves ignored_at across a re-sync -- upsert only ever touches Strava-sourced columns" do
+    bike = create(:bike, user: user)
+    create(:strava_activity, user: user, bike: bike, gear_id: "g1")
+
+    allow(client).to receive(:fetch_athlete).and_return({})
+    allow(client).to receive(:fetch_gear).and_return("name" => "First name", "retired" => false)
+    Strava::GearSync.new(user).call
+
+    gear = StravaGear.find_by(user: user, strava_gear_id: "g1")
+    gear.update!(ignored_at: Time.current)
+
+    allow(client).to receive(:fetch_gear).and_return("name" => "Updated name", "retired" => true)
+    Strava::GearSync.new(user).call
+
+    expect(gear.reload.ignored_at).to be_present
+    expect(gear.name).to eq("Updated name")
+  end
+
   it "upserts rather than duplicates on repeat ids" do
     bike = create(:bike, user: user)
     create(:strava_activity, user: user, bike: bike, gear_id: "g1")

@@ -46,6 +46,14 @@ class Bike < ApplicationRecord
     if old_gear_id.present?
       StravaActivity.where(user_id: user_id, gear_id: old_gear_id, bike_id: id).update_all(bike_id: nil)
     end
-    StravaActivity.reconcile_for_bike!(self) if new_gear_id.present?
+
+    return if new_gear_id.blank?
+
+    StravaActivity.reconcile_for_bike!(self)
+    # A gear is never both mapped and ignored -- mapping always clears a
+    # prior "don't track" decision, same covering this Bike after_save
+    # path and StravaController#reassign_gear (it maps gear by saving a
+    # Bike too, so it routes through here already).
+    StravaGear.where(user_id: user_id, strava_gear_id: new_gear_id).update_all(ignored_at: nil)
   end
 end

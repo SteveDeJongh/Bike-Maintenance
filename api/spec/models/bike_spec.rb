@@ -135,6 +135,37 @@ RSpec.describe Bike, type: :model do
     end
   end
 
+  describe "mapping strava_gear_id clears a prior ignore decision" do
+    it "clears ignored_at on the newly-mapped gear when strava_gear_id is set via update" do
+      user = create(:user)
+      gear = create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: Time.current)
+      bike = create(:bike, user: user, strava_gear_id: nil)
+
+      bike.update!(strava_gear_id: "g1")
+
+      expect(gear.reload.ignored_at).to be_nil
+    end
+
+    it "clears ignored_at when a bike is created with strava_gear_id already set" do
+      user = create(:user)
+      gear = create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: Time.current)
+
+      create(:bike, user: user, strava_gear_id: "g1")
+
+      expect(gear.reload.ignored_at).to be_nil
+    end
+
+    it "leaves other gear's ignored_at alone" do
+      user = create(:user)
+      other_gear = create(:strava_gear, user: user, strava_gear_id: "g2", ignored_at: Time.current)
+      bike = create(:bike, user: user, strava_gear_id: nil)
+
+      bike.update!(strava_gear_id: "g1")
+
+      expect(other_gear.reload.ignored_at).to be_present
+    end
+  end
+
   describe "#installed_components_count" do
     it "counts only currently active component assignments" do
       bike = create(:bike)
