@@ -47,8 +47,9 @@ interface BikeFormModalProps {
   onClose: () => void
   bike?: Bike
   // Pre-fills a new bike's fields (e.g. from the gear-mapping screen's
-  // "create new bike" action) — ignored when editing an existing bike.
-  createDefaults?: Partial<Pick<BikeFormValues, 'name' | 'strava_gear_id'>>
+  // "create new bike" action, or the "track as retired bike" one-click
+  // create's fallback on failure) — ignored when editing an existing bike.
+  createDefaults?: Partial<BikeFormValues>
 }
 
 export default function BikeFormModal({
@@ -73,7 +74,7 @@ function BikeForm({
 }: {
   onClose: () => void
   bike?: Bike
-  createDefaults?: Partial<Pick<BikeFormValues, 'name' | 'strava_gear_id'>>
+  createDefaults?: Partial<BikeFormValues>
 }) {
   const isEdit = Boolean(bike)
   const [baseErrors, setBaseErrors] = useState<string[]>([])

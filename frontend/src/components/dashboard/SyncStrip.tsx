@@ -54,10 +54,10 @@ export default function SyncStrip({ sync, onSync, syncing }: SyncStripProps) {
             {unattributed.with_gear.count > 0 && (
               <Text size="sm">
                 {unattributed.with_gear.count} {rideWord(unattributed.with_gear.count)} (
-                {formatDistance(unattributed.with_gear.distance_meters)}) have Strava gear that isn't mapped to a
-                bike yet —{' '}
+                {formatDistance(unattributed.with_gear.distance_meters)}) have Strava gear you haven't mapped to a
+                bike yet — map it, track it as a retired bike, or choose not to track it on{' '}
                 <Anchor component={Link} to="/strava">
-                  link gear
+                  the Strava page
                 </Anchor>
                 .
               </Text>

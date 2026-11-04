@@ -260,7 +260,7 @@ export interface StravaStatus {
   athlete_id: number | null
 }
 
-export interface StravaGear {
+interface StravaGearRow {
   gear_id: string
   name: string | null
   brand_name: string | null
@@ -268,6 +268,18 @@ export interface StravaGear {
   retired: boolean
   activity_count: number
   distance_meters: number
+  last_activity_on: string | null
+}
+
+export interface StravaGear extends StravaGearRow {
+  // true only for a row that's still ignored but has a new activity since
+  // ignored_at -- it shows in /strava/unmapped_gear again instead of
+  // /strava/ignored_gear, flagged so the UI can call that out.
+  resurfaced: boolean
+}
+
+export interface StravaIgnoredGear extends StravaGearRow {
+  ignored_at: string
 }
 
 export interface StravaMappedBike {

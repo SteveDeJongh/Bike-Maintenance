@@ -148,9 +148,12 @@ export function useCreateBike() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
       // A bike can be created with a strava_gear_id already set (the
-      // gear-mapping screen's "create new bike" flow), so the unmapped-gear
-      // list needs to reflect that too.
+      // gear-mapping screen's "create new bike" flow, including "track as
+      // retired bike"), so the unmapped-gear list needs to reflect that too
+      // -- and the dashboard's unattributed-rides notification, since
+      // mapping gear changes what it counts.
       queryClient.invalidateQueries({ queryKey: ['strava'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -163,8 +166,10 @@ export function useUpdateBike(id: number) {
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
       // A changed strava_gear_id triggers server-side reconciliation of
       // previously-unmapped activities, so the gear-mapping screen's list
-      // needs to reflect that too.
+      // needs to reflect that too -- and the dashboard's unattributed-rides
+      // notification, same reasoning as useCreateBike above.
       queryClient.invalidateQueries({ queryKey: ['strava'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -358,7 +363,32 @@ export function useReassignGear() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
+  })
+}
+
+function invalidateGearDecisionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  // Covers unmapped_gear/ignored_gear/mapped_gear/status by prefix, same as
+  // useSyncStrava above.
+  queryClient.invalidateQueries({ queryKey: ['strava'] })
+  queryClient.invalidateQueries({ queryKey: ['bikes'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+}
+
+export function useIgnoreGear() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (gearId: string) => apiPost<void>('/strava/ignore_gear', { gear_id: gearId }),
+    onSuccess: () => invalidateGearDecisionQueries(queryClient),
+  })
+}
+
+export function useUnignoreGear() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (gearId: string) => apiPost<void>('/strava/unignore_gear', { gear_id: gearId }),
+    onSuccess: () => invalidateGearDecisionQueries(queryClient),
   })
 }
 

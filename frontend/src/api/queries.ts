@@ -15,6 +15,7 @@ import type {
   NotificationSetting,
   ServiceType,
   StravaGear,
+  StravaIgnoredGear,
   StravaMappedBike,
   StravaStatus,
   TableViewPreferenceData,
@@ -94,6 +95,13 @@ export function useUnmappedGear() {
   return useQuery({
     queryKey: ['strava', 'unmapped_gear'],
     queryFn: () => apiGet<StravaGear[]>('/strava/unmapped_gear'),
+  })
+}
+
+export function useIgnoredGear() {
+  return useQuery({
+    queryKey: ['strava', 'ignored_gear'],
+    queryFn: () => apiGet<StravaIgnoredGear[]>('/strava/ignored_gear'),
   })
 }
 

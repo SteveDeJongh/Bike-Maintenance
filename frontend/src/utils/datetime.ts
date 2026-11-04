@@ -16,6 +16,13 @@ export function nowIsoUtc(): string {
   return new Date().toISOString()
 }
 
+// 'YYYY-MM-DD' for today, in the browser's local date -- for a date-only
+// (_on) field's default, like "Track as retired bike"'s retired_on when
+// the gear has no last_activity_on to fall back to instead.
+export function todayIsoDate(): string {
+  return new Date().toLocaleDateString('en-CA') // en-CA formats as YYYY-MM-DD
+}
+
 export function formatDateTime(value: string | null): string {
   if (!value) return ''
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })

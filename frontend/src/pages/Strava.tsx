@@ -1,12 +1,35 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text, Title } from '@mantine/core'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Menu,
+  Select,
+  Stack,
+  Table,
+  Text,
+  Title,
+  UnstyledButton,
+} from '@mantine/core'
 import { API_BASE_URL } from '../api/client'
-import { useBikes, useMappedGear, useStravaStatus, useUnmappedGear } from '../api/queries'
-import { useReassignGear, useRefreshGear, useSyncStrava, useUpdateBike } from '../api/mutations'
+import { useBikes, useIgnoredGear, useMappedGear, useStravaStatus, useUnmappedGear } from '../api/queries'
+import {
+  useCreateBike,
+  useIgnoreGear,
+  useReassignGear,
+  useRefreshGear,
+  useSyncStrava,
+  useUnignoreGear,
+  useUpdateBike,
+} from '../api/mutations'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import { formatDistance } from '../utils/distance'
-import type { StravaGear, StravaMappedBike } from '../types/models'
+import { formatRelativeTime, todayIsoDate } from '../utils/datetime'
+import type { StravaGear, StravaIgnoredGear, StravaMappedBike } from '../types/models'
 
 const CREATE_NEW_BIKE = '__create_new__'
 const UNLINK_BIKE = '__unlink__'
@@ -74,6 +97,7 @@ export default function Strava() {
 
           <MappedGearSection />
           <UnmappedGearSection />
+          <IgnoredGearSection />
         </>
       )}
     </Stack>
@@ -209,19 +233,68 @@ function UnmappedGearSection() {
   )
 }
 
+// Shared by the plain "+ Create new bike" path and "Track as retired bike"'s
+// failure fallback -- each sets its own defaults before opening the modal,
+// so the plain create path never picks up make/model/retired_on.
+interface GearBikeCreateDefaults {
+  name: string
+  make: string
+  model: string
+  strava_gear_id: string
+  retired_on: string | null
+}
+
+function plainCreateDefaults(gear: StravaGear): GearBikeCreateDefaults {
+  return { name: gear.name ?? '', make: '', model: '', strava_gear_id: gear.gear_id, retired_on: null }
+}
+
+function retiredBikeDefaults(gear: StravaGear): GearBikeCreateDefaults {
+  return {
+    name: gear.name ?? '',
+    make: gear.brand_name ?? '',
+    model: gear.model_name ?? '',
+    strava_gear_id: gear.gear_id,
+    // last_activity_on is preferred when available -- a bike retired on
+    // Strava months ago shouldn't show today as its retirement date.
+    retired_on: gear.last_activity_on ?? todayIsoDate(),
+  }
+}
+
 function UnmappedGearRow({ gear }: { gear: StravaGear }) {
   const { data: bikes } = useBikes()
   const [bikeId, setBikeId] = useState<string | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
+  const [modalDefaults, setModalDefaults] = useState<GearBikeCreateDefaults>(() => plainCreateDefaults(gear))
   const updateBike = useUpdateBike(bikeId ? Number(bikeId) : -1)
+  const createBike = useCreateBike()
+  const ignoreGear = useIgnoreGear()
 
   function handleChange(value: string | null) {
     if (value === CREATE_NEW_BIKE) {
+      setModalDefaults(plainCreateDefaults(gear))
       setCreateOpened(true)
       return
     }
     setBikeId(value)
     if (value) updateBike.mutate({ strava_gear_id: gear.gear_id })
+  }
+
+  function handleTrackAsRetired() {
+    const defaults = retiredBikeDefaults(gear)
+    createBike.mutate(
+      { name: defaults.name, make: defaults.make || null, model: defaults.model || null,
+        strava_gear_id: defaults.strava_gear_id, retired_on: defaults.retired_on },
+      {
+        onError: () => {
+          setModalDefaults(defaults)
+          setCreateOpened(true)
+        },
+      },
+    )
+  }
+
+  function handleDontTrack() {
+    ignoreGear.mutate(gear.gear_id)
   }
 
   const bikeOptions = [
@@ -247,22 +320,126 @@ function UnmappedGearRow({ gear }: { gear: StravaGear }) {
             </Text>
           </div>
           {gear.retired && <Badge color="gray">Retired</Badge>}
+          {gear.resurfaced && <Badge color="orange">New rides since ignored</Badge>}
         </Group>
       </Table.Td>
       <Table.Td>
-        <Select
-          data={bikeOptions}
-          value={bikeId}
-          onChange={handleChange}
-          placeholder="Pick a bike"
-          disabled={updateBike.isPending}
-        />
+        <Group gap="xs" wrap="nowrap">
+          <Select
+            data={bikeOptions}
+            value={bikeId}
+            onChange={handleChange}
+            placeholder="Pick a bike"
+            disabled={updateBike.isPending}
+          />
 
-        <BikeFormModal
-          opened={createOpened}
-          onClose={() => setCreateOpened(false)}
-          createDefaults={{ name: gear.name ?? '', strava_gear_id: gear.gear_id }}
-        />
+          {gear.retired ? (
+            <>
+              <Button size="xs" variant="default" onClick={handleTrackAsRetired} loading={createBike.isPending}>
+                Track as retired bike
+              </Button>
+              <Button size="xs" variant="subtle" c="dimmed" onClick={handleDontTrack} loading={ignoreGear.isPending}>
+                Don't track
+              </Button>
+            </>
+          ) : (
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <ActionIcon variant="default" aria-label="More actions for this gear">
+                  ⋯
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={handleTrackAsRetired}>Track as retired bike</Menu.Item>
+                <Menu.Item onClick={handleDontTrack}>Don't track</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
+        </Group>
+
+        <BikeFormModal opened={createOpened} onClose={() => setCreateOpened(false)} createDefaults={modalDefaults} />
+      </Table.Td>
+    </Table.Tr>
+  )
+}
+
+function IgnoredGearSection() {
+  const { data: gears, isPending, isError, error } = useIgnoredGear()
+  const [expanded, setExpanded] = useState(false)
+
+  if (!gears || gears.length === 0) return null
+
+  return (
+    <Stack>
+      <UnstyledButton onClick={() => setExpanded((v) => !v)}>
+        <Title order={3}>
+          Ignored gear ({gears.length}) {expanded ? '▲' : '▼'}
+        </Title>
+      </UnstyledButton>
+
+      {expanded && (
+        <>
+          {isPending && <Loader />}
+
+          {isError && (
+            <Alert color="red" title="Failed to load ignored gear">
+              {error.message}
+            </Alert>
+          )}
+
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Strava gear</Table.Th>
+                <Table.Th>Ignored</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {gears.map((gear) => (
+                <IgnoredGearRow key={gear.gear_id} gear={gear} />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </>
+      )}
+    </Stack>
+  )
+}
+
+function IgnoredGearRow({ gear }: { gear: StravaIgnoredGear }) {
+  const unignoreGear = useUnignoreGear()
+
+  const brandModel = [gear.brand_name, gear.model_name].filter(Boolean).join(' ')
+  const rideLabel = `${gear.activity_count} ${gear.activity_count === 1 ? 'ride' : 'rides'}`
+
+  return (
+    <Table.Tr>
+      <Table.Td>
+        <Group gap="xs">
+          <div>
+            <Text fw={500}>{gear.name || gear.gear_id}</Text>
+            {brandModel && (
+              <Text size="sm" c="dimmed">
+                {brandModel}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed">
+              {rideLabel} · {formatDistance(gear.distance_meters)}
+            </Text>
+          </div>
+          {gear.retired && <Badge color="gray">Retired</Badge>}
+        </Group>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm" c="dimmed">
+          {formatRelativeTime(gear.ignored_at)}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Button size="xs" variant="default" onClick={() => unignoreGear.mutate(gear.gear_id)} loading={unignoreGear.isPending}>
+          Un-ignore
+        </Button>
       </Table.Td>
     </Table.Tr>
   )
