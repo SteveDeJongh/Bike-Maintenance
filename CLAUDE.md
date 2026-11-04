@@ -234,8 +234,17 @@ docker build .`), not the repo root.
 - `StravaGear`: user_id, strava_gear_id, name, brand_name, model (DB column — the
   obvious `model_name` collides with `ActiveModel::Naming#model_name`, which every
   ActiveRecord model inherits; the API's JSON still calls it `model_name` for clarity),
-  retired, distance_meters, synced_at — unique per (user_id, strava_gear_id). A cache
-  populated by `Strava::GearSync`, not derived from activity history alone.
+  retired, distance_meters, synced_at, ignored_at (nullable datetime) — unique per
+  (user_id, strava_gear_id). A cache populated by `Strava::GearSync`, not derived from
+  activity history alone; `Strava::GearSync#upsert_gear`'s `update!` only ever sets the
+  Strava-sourced columns above, so a re-sync never touches `ignored_at`. The latter is
+  a user's explicit "don't track this gear" decision (pre-app Strava history that isn't
+  worth creating a bike for) — see "Strava integration" below for the three-choice
+  gear-mapping model this is part of. A gear is never both mapped (claimed by a
+  `Bike#strava_gear_id`) and ignored at once (`StravaGear` validates this, and mapping
+  always clears a prior ignore — see below); `StravaGear.ignored`/`.not_ignored` scopes
+  split on it directly, while `.unmapped_for`/`.ignored_for` both also factor in
+  resurfacing (below).
 
 ## Core logic
 
@@ -396,7 +405,30 @@ escalation to a worse status.
   "create new bike" flow). It handles both directions via
   `saved_change_to_strava_gear_id`'s old/new pair: activities matching the old gear id
   get `bike_id` nulled out, activities matching the new one get backfilled — needed for
-  "unlink"/reassign on the Mapped gear section to be correct, not just additive.
+  "unlink"/reassign on the Mapped gear section to be correct, not just additive. The
+  same callback also clears `StravaGear#ignored_at` on the newly-mapped gear (a gear is
+  never both mapped and ignored — see below) — one fix here covers `reassign_gear` too,
+  since it maps gear by saving a `Bike`, routing through this same callback.
+- A row of unmapped gear isn't limited to "map it to a bike" — most unmapped gear is
+  pre-app Strava history (an old or retired bike) that doesn't need a tracked bike at
+  all, and component mileage is already scoped to dated `ComponentAssignment` windows,
+  so old rides never affect wear either way. Each row on `/strava` offers three
+  choices: map to a bike (above), **track as retired bike** (a one-click `Bike` create
+  from the gear's own name/brand/model, `strava_gear_id`, and `retired_on` defaulted to
+  the gear's last activity date when known, else today — reuses the normal create-bike
+  flow, so it still backfills activities the same way), or **don't track**
+  (`POST /strava/ignore_gear`, sets `StravaGear#ignored_at`; rejected with a validation
+  error if the gear is already mapped). Ignoring only filters what's shown/counted —
+  syncing and storing that gear's activities continues unchanged, and un-ignoring
+  (`POST /strava/unignore_gear`) takes effect instantly with no re-sync needed.
+  **Resurfacing**: if an ignored gear gets a new activity dated after `ignored_at`
+  (e.g. a bike un-retired on Strava), it's treated as no longer ignored for
+  display/counting — it reappears in `GET /strava/unmapped_gear` (flagged
+  `resurfaced: true`) instead of `GET /strava/ignored_gear`, computed at read time via
+  `StravaGear::RESURFACED_CONDITION`, never by auto-clearing `ignored_at` itself
+  (re-ignoring just sets it to now again). Retired gear is never auto-ignored — retired
+  on Strava often still means "this bike's history matters," especially when parts
+  moved to a newer bike.
 - Bike-level stats (`Bike#total_distance`/`#total_moving_time`/`#first_ride_on`/
   `#last_ride_on`/`#total_elevation_gain`/`#installed_components_count`, shown on the
   Bikes list and detail page) sum/min/count directly over `strava_activities`/
@@ -681,7 +713,13 @@ distance/status computation happens here that doesn't already live elsewhere:
   mapping) vs `without_gear` (Strava itself had no bike set), and
   `unmapped_gear_count` from `StravaGear.unmapped_for(user)` (promoted from a
   `StravaController#unmapped_gear`-private query to a model class method — that
-  controller action now calls the same method, output unchanged).
+  controller action now calls the same method, output unchanged). A ride whose gear
+  is ignored (and hasn't resurfaced — see "Strava integration" above) is excluded from
+  `unattributed`/`with_gear` entirely via `StravaGear.ignored_for(user)`'s gear ids,
+  same as if it were attributed; a no-gear ride is explicitly spared from that
+  exclusion's `gear_id NOT IN (...)` check, since that's not NULL-safe on its own
+  (`where.not(gear_id: [...])` would otherwise also exclude a `NULL` `gear_id` via
+  SQL's three-valued `IN` logic).
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
   `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
   `BikesController#index` already uses (no per-bike N+1), plus `mounted`
