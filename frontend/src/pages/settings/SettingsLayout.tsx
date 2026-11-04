@@ -6,6 +6,7 @@ const settingsNavLinks = [
   { to: '/settings/service-types', label: 'Service Types' },
   { to: '/settings/notifications', label: 'Notifications' },
   { to: '/settings/appearance', label: 'Appearance' },
+  { to: '/settings/account', label: 'Account' },
 ]
 
 export default function SettingsLayout() {

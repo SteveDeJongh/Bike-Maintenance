@@ -1,5 +1,5 @@
 import { AppShell, Group, Anchor, Menu, Title, UnstyledButton } from '@mantine/core'
-import { NavLink as RouterNavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink as RouterNavLink, Outlet, useNavigate } from 'react-router-dom'
 import MaintenanceAlertBanners from './MaintenanceAlertBanners'
 import EmailVerificationBanner from './EmailVerificationBanner'
 import { useCurrentUser } from '../api/queries'
@@ -59,6 +59,9 @@ function UserMenu() {
         <UnstyledButton>{user?.name}</UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
+        <Menu.Item component={Link} to="/settings/account">
+          Account settings
+        </Menu.Item>
         <Menu.Item onClick={handleLogout}>Sign out</Menu.Item>
       </Menu.Dropdown>
     </Menu>

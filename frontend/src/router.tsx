@@ -19,6 +19,7 @@ import ComponentCategorySettingsPage from './pages/settings/ComponentCategorySet
 import ServiceTypesPage from './pages/settings/ServiceTypesPage'
 import NotificationsPage from './pages/settings/NotificationsPage'
 import AppearancePage from './pages/settings/AppearancePage'
+import AccountPage from './pages/settings/AccountPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
               { path: 'service-types', element: <ServiceTypesPage /> },
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'appearance', element: <AppearancePage /> },
+              { path: 'account', element: <AccountPage /> },
             ],
           },
         ],

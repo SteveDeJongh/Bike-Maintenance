@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiDelete, apiPatch, apiPost } from './client'
+import { apiDelete, apiPatch, apiPost, apiPut } from './client'
 import type {
   Bike,
   BikeComponentSlot,
@@ -84,6 +84,48 @@ export function useVerifyEmail() {
 export function useResendVerification() {
   return useMutation({
     mutationFn: () => apiPost<void>('/auth/email/resend', {}),
+  })
+}
+
+export interface UpdateMePayload {
+  name?: string
+  email?: string
+}
+
+export function useUpdateMe() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: UpdateMePayload) => apiPatch<User>('/me', { user: values }),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export interface UpdateMyPasswordPayload {
+  current_password?: string
+  password: string
+}
+
+export function useUpdateMyPassword() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: UpdateMyPasswordPayload) => apiPut<User>('/me/password', values),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export function useDeleteAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (password?: string) => apiDelete('/me', password ? { password } : undefined),
+    onSuccess: () => queryClient.clear(),
+  })
+}
+
+export function useUnlinkIdentity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (provider: string) => apiDelete(`/me/identities/${provider}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
   })
 }
 

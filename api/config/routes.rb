@@ -23,6 +23,10 @@ Rails.application.routes.draw do
   patch "notification_settings", to: "notification_settings#update"
 
   get    "me", to: "me#show"
+  patch  "me", to: "me#update"
+  delete "me", to: "me#destroy"
+
+  delete "me/identities/:provider", to: "auth/identities#destroy"
 
   post   "auth/register", to: "auth/registrations#create"
   post   "auth/login",    to: "auth/sessions#create"
