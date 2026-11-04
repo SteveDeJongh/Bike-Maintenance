@@ -8,25 +8,25 @@ module Maintenance
   class IntervalStatus
     Result = Struct.new(
       :component_service_interval, :status, :distance_remaining_meters, :days_remaining, :driving_dimension,
+      :distance_used_meters, :days_used, :fraction_used,
       keyword_init: true,
     ) do
-      # Banner eligibility -- an ineligible interval still has a real
-      # status (shown on the component/table pages), it just doesn't
-      # appear in the app-wide due/warning banners.
-      def banner_eligible?(credential:)
-        return false if status == "ok"
-
-        component = component_service_interval.component
-        return false unless component.component_assignments.exists?(ended_at: nil)
-        return false if component.retired_on.present?
-
-        enabled = NotificationSetting.effective_for(user: component.user, category: component.category)[:enabled]
-        return false unless enabled
-
-        !dismissed?(credential: credential)
+      # The individual sub-checks banner_eligible? composes -- each public
+      # and reusable on its own (the dashboard needs mounted?/
+      # notifications_enabled?/dismissed? as separate flags, not just the
+      # single combined boolean banner_eligible? gives the alert banners).
+      def mounted?
+        component_service_interval.component.component_assignments.exists?(ended_at: nil)
       end
 
-      private
+      def retired?
+        component_service_interval.component.retired_on.present?
+      end
+
+      def notifications_enabled?
+        component = component_service_interval.component
+        NotificationSetting.effective_for(user: component.user, category: component.category)[:enabled]
+      end
 
       # A dismissal only suppresses its own status -- if the status has
       # since escalated (warning dismissed, now due), it shows immediately.
@@ -38,6 +38,18 @@ module Maintenance
         return false unless dismissal.dismissed_status == status
 
         credential.nil? || credential.last_synced_at.nil? || dismissal.dismissed_at > credential.last_synced_at
+      end
+
+      # Banner eligibility -- an ineligible interval still has a real
+      # status (shown on the component/table pages), it just doesn't
+      # appear in the app-wide due/warning banners.
+      def banner_eligible?(credential:)
+        return false if status == "ok"
+        return false unless mounted?
+        return false if retired?
+        return false unless notifications_enabled?
+
+        !dismissed?(credential: credential)
       end
     end
 
@@ -60,17 +72,22 @@ module Maintenance
 
     SEVERITY = { "ok" => 0, "warning" => 1, "due" => 2 }.freeze
 
-    # One status per component -- whichever of its enabled intervals is
-    # furthest along -- for table columns (Components list, Bike detail's
-    # Installed components) that show a single summary cell per row rather
-    # than every interval individually. A component with no enabled
-    # intervals has no entry in the returned hash.
-    def self.worst_status_by_component(user)
+    # One Result per component -- whichever of its enabled intervals is
+    # furthest along. A component with no enabled intervals has no entry in
+    # the returned hash.
+    def self.worst_result_by_component(user)
       for_user(user).each_with_object({}) do |result, hash|
         component_id = result.component_service_interval.component_id
         current = hash[component_id]
-        hash[component_id] = result.status if current.nil? || SEVERITY[result.status] > SEVERITY[current]
+        hash[component_id] = result if current.nil? || SEVERITY[result.status] > SEVERITY[current.status]
       end
+    end
+
+    # The status-only projection of the above -- for table columns
+    # (Components list, Bike detail's Installed components) that show a
+    # single summary cell per row rather than the full Result.
+    def self.worst_status_by_component(user)
+      worst_result_by_component(user).transform_values(&:status)
     end
 
     def initialize(interval, interval_distance)
@@ -100,6 +117,9 @@ module Maintenance
         distance_remaining_meters: distance_interval.present? ? distance_interval - distance_used : nil,
         days_remaining: time_interval.present? ? time_interval - days_used : nil,
         driving_dimension: driving_dimension,
+        distance_used_meters: distance_used,
+        days_used: days_used,
+        fraction_used: max_fraction,
       )
     end
 

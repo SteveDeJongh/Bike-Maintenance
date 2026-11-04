@@ -183,4 +183,38 @@ RSpec.describe Component, type: :model do
       expect(component.component_service_intervals).to be_empty
     end
   end
+
+  describe ".current_bikes_by_component" do
+    it "returns every currently-installed bike per component, batched" do
+      user = create(:user)
+      component = create(:component, user: user)
+      bike = create(:bike, user: user, name: "Soloist")
+      create(:component_assignment, component: component, bike: bike, ended_at: nil)
+      create(:component, user: user) # mounted nowhere -- no entry expected
+
+      result = described_class.current_bikes_by_component(user)
+
+      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist" }])
+    end
+
+    it "includes both bikes for a component concurrently shared indoor_only across two bikes" do
+      user = create(:user)
+      component = create(:component, user: user, category: "cassette")
+      bike_a = create(:bike, user: user, name: "Road Bike")
+      bike_b = create(:bike, user: user, name: "Trainer Bike")
+      create(:component_assignment, component: component, bike: bike_a, ride_context: "indoor_only", ended_at: nil)
+      create(:component_assignment, component: component, bike: bike_b, ride_context: "indoor_only", ended_at: nil)
+
+      names = described_class.current_bikes_by_component(user)[component.id].map { |b| b[:name] }
+
+      expect(names).to contain_exactly("Road Bike", "Trainer Bike")
+    end
+
+    it "never includes another user's components" do
+      other_component = create(:component)
+      create(:component_assignment, component: other_component, bike: create(:bike, user: other_component.user), ended_at: nil)
+
+      expect(described_class.current_bikes_by_component(create(:user))).to eq({})
+    end
+  end
 end

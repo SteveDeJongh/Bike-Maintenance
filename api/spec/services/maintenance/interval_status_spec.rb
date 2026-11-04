@@ -59,6 +59,17 @@ RSpec.describe Maintenance::IntervalStatus do
       expect(result.driving_dimension).to eq(:distance)
     end
 
+    it "exposes distance_used_meters, days_used, and fraction_used" do
+      interval, bike = build_interval(distance_interval_meters: 300_000, baseline: Time.zone.local(2026, 1, 1))
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 150_000)
+
+      result = described_class.for_component(interval.component).first
+
+      expect(result.distance_used_meters).to eq(150_000)
+      expect(result.days_used).to eq((Date.current - Date.new(2026, 1, 1)).to_i)
+      expect(result.fraction_used).to eq(0.5)
+    end
+
     it "uses the category's effective warning threshold, not just the hardcoded default" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       # chain is already auto-provisioned (see Users::Provision) -- override
@@ -91,6 +102,82 @@ RSpec.describe Maintenance::IntervalStatus do
 
       expect(described_class.for_user(interval.component.user)).to be_empty
       expect(described_class.worst_status_by_component(interval.component.user)).to eq({})
+    end
+  end
+
+  describe ".worst_result_by_component" do
+    it "picks the Result for whichever enabled interval is furthest along, keyed by component_id" do
+      bike = create(:bike)
+      component = create(:component, user: bike.user, category: "chain", acquired_on: Time.zone.local(2026, 1, 1))
+      ok_type = create(:service_type, user: bike.user)
+      due_type = create(:service_type, user: bike.user)
+      ok_interval = create(:component_service_interval, component: component, service_type: ok_type,
+        distance_interval_meters: 1_000_000)
+      due_interval = create(:component_service_interval, component: component, service_type: due_type,
+        distance_interval_meters: 1_000)
+      create(:component_assignment, component: component, bike: bike,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 1_000)
+
+      results = described_class.worst_result_by_component(bike.user)
+
+      expect(results[component.id].component_service_interval).to eq(due_interval)
+      expect(results[component.id].status).to eq("due")
+    end
+
+    it "is the source worst_status_by_component now derives from (status-only projection)" do
+      interval, bike = build_interval(distance_interval_meters: 300_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
+
+      results = described_class.worst_result_by_component(interval.component.user)
+      statuses = described_class.worst_status_by_component(interval.component.user)
+
+      expect(statuses).to eq(results.transform_values(&:status))
+    end
+  end
+
+  describe "the individual sub-checks banner_eligible? composes" do
+    def status_for(interval)
+      described_class.for_component(interval.component).first
+    end
+
+    it "#mounted? is true when the component has an active assignment" do
+      interval, = build_interval(distance_interval_meters: 300_000)
+
+      expect(status_for(interval).mounted?).to be true
+    end
+
+    it "#mounted? is false once the assignment ends" do
+      interval, = build_interval(distance_interval_meters: 300_000)
+      interval.component.component_assignments.update_all(ended_at: Time.current)
+
+      expect(status_for(interval).mounted?).to be false
+    end
+
+    it "#retired? reflects the component's retired_on" do
+      interval, = build_interval(distance_interval_meters: 300_000)
+
+      expect(status_for(interval).retired?).to be false
+
+      interval.component.update!(retired_on: Date.current)
+      expect(status_for(interval).retired?).to be true
+    end
+
+    it "#notifications_enabled? reflects the category's effective setting" do
+      interval, = build_interval(distance_interval_meters: 300_000)
+
+      expect(status_for(interval).notifications_enabled?).to be true
+
+      interval.component.user.component_category_settings.find_by!(category: "chain").update!(notifications_enabled: false)
+      expect(status_for(interval).notifications_enabled?).to be false
+    end
+
+    it "#dismissed? is public and reflects an active dismissal of the matching status" do
+      interval, bike = build_interval(distance_interval_meters: 300_000)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
+      create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "due", dismissed_at: Time.current)
+
+      expect(status_for(interval).dismissed?(credential: nil)).to be true
     end
   end
 

@@ -5,7 +5,7 @@ class ComponentsController < ApplicationController
   def index
     @components = current_user.components
     statuses = Maintenance::IntervalStatus.worst_status_by_component(current_user)
-    bikes_by_component = current_bikes_by_component(current_user)
+    bikes_by_component = Component.current_bikes_by_component(current_user)
     render json: @components.map { |component|
       component.as_json.merge(
         service_status: statuses[component.id],
@@ -58,18 +58,6 @@ class ComponentsController < ApplicationController
 
     def component_params
       params.require(:component).permit(:label, :category, :acquired_on, :retired_on)
-    end
-
-    # { component_id => [{id:, name:}, ...] } for every currently-installed
-    # (ended_at: nil) bike per component, batched for #index -- a component
-    # can have more than one at once (see ComponentAssignment's documented
-    # indoor_only-on-two-bikes exception), so this is never assumed to be
-    # at most one.
-    def current_bikes_by_component(user)
-      ComponentAssignment.joins(:bike, :component)
-        .where(ended_at: nil, components: { user_id: user.id })
-        .pluck("component_assignments.component_id", "bikes.id", "bikes.name")
-        .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(cid, bid, bname), h| h[cid] << { id: bid, name: bname } }
     end
 
     def serialize_interval_status(status)

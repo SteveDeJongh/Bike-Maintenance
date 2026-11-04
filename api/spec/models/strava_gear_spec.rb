@@ -27,4 +27,23 @@ RSpec.describe StravaGear, type: :model do
 
     expect(other).to be_valid
   end
+
+  describe ".unmapped_for" do
+    it "excludes gear already mapped to one of the user's bikes" do
+      user = create(:user)
+      mapped = create(:strava_gear, user: user, strava_gear_id: "g1")
+      unmapped = create(:strava_gear, user: user, strava_gear_id: "g2")
+      create(:bike, user: user, strava_gear_id: "g1")
+
+      expect(described_class.unmapped_for(user)).to contain_exactly(unmapped)
+      expect(described_class.unmapped_for(user)).not_to include(mapped)
+    end
+
+    it "never includes another user's gear" do
+      user = create(:user)
+      create(:strava_gear) # another user's
+
+      expect(described_class.unmapped_for(user)).to be_empty
+    end
+  end
 end

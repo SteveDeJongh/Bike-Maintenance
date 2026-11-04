@@ -10,6 +10,19 @@ class Component < ApplicationRecord
 
   after_create :apply_category_service_intervals
 
+  # { component_id => [{id:, name:}, ...] } for every currently-installed
+  # (ended_at: nil) bike per component, batched for a many-row list (the
+  # Components list's current_bikes column, the dashboard's off_bike/
+  # attention bike lookups) -- a component can have more than one at once
+  # (see ComponentAssignment's documented indoor_only-on-two-bikes
+  # exception), so this is never assumed to be at most one.
+  def self.current_bikes_by_component(user)
+    ComponentAssignment.joins(:bike, :component)
+      .where(ended_at: nil, components: { user_id: user.id })
+      .pluck("component_assignments.component_id", "bikes.id", "bikes.name")
+      .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(cid, bid, bname), h| h[cid] << { id: bid, name: bname } }
+  end
+
   # Lifetime sums across all this component's assignment windows, on the
   # bike it was mounted to for each one. Windows are half-open —
   # [started_at, ended_at) — so a component swapped mid-day is credited

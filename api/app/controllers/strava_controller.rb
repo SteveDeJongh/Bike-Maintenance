@@ -70,8 +70,7 @@ class StravaController < ApplicationController
   end
 
   def unmapped_gear
-    mapped_ids = current_user.bikes.where.not(strava_gear_id: [nil, ""]).pluck(:strava_gear_id)
-    gears = current_user.strava_gears.where.not(strava_gear_id: mapped_ids)
+    gears = StravaGear.unmapped_for(current_user)
     activity_counts = current_user.strava_activities.group(:gear_id).count
 
     # Retired gear always sinks to the bottom; within each group, ascending
