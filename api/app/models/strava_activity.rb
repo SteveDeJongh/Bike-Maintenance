@@ -14,6 +14,13 @@ class StravaActivity < ApplicationRecord
   scope :indoor, -> { where(trainer: true).or(where(activity_type: "VirtualRide")) }
   scope :outdoor, -> { where(trainer: false).where.not(activity_type: "VirtualRide") }
 
+  # Instance-level mirror of the indoor scope above, for a single
+  # already-loaded record (e.g. the dashboard's recent rides list) where a
+  # second query just to classify one row would be wasteful.
+  def indoor?
+    trainer? || activity_type == "VirtualRide"
+  end
+
   # Backfills bike_id onto activities synced before the user mapped this
   # bike's gear, or re-mapped it since. gear_id (Strava's raw identifier)
   # is stored separately from bike_id (the resolved local FK) specifically

@@ -6,6 +6,7 @@ import { useSyncStrava } from '../api/mutations'
 import SyncStrip from '../components/dashboard/SyncStrip'
 import BikeCards from '../components/dashboard/BikeCards'
 import NeedsAttention from '../components/dashboard/NeedsAttention'
+import RecentRidesTable from '../components/dashboard/RecentRidesTable'
 
 // After "Sync now", StravaSyncJob runs in the background -- POST /strava/sync
 // just enqueues it. Polling GET /dashboard (not /strava/status, since the
@@ -64,6 +65,7 @@ export default function Dashboard() {
         <BikeCards bikes={data.bikes} />
         <NeedsAttention attention={data.attention} />
       </Flex>
+      <RecentRidesTable summary={data.recent_rides.summary} rides={data.recent_rides.rides} />
     </Stack>
   )
 }

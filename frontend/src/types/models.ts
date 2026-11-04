@@ -369,8 +369,26 @@ export interface DashboardAttentionItem {
   bike: { id: number; name: string } | null
 }
 
+export interface DashboardRecentRide {
+  id: number
+  moved_at: string
+  name: string
+  distance_meters: number
+  bike: { id: number; name: string } | null
+  // Present alongside a null bike only when the ride is fixable via gear
+  // mapping (same distinction as sync.unattributed.with_gear) -- null here
+  // means Strava itself had no bike set, not just an unmapped one.
+  gear_id: string | null
+  indoor: boolean
+  counted_toward: { component_id: number; label: string }[]
+}
+
 export interface DashboardSummary {
   sync: DashboardSyncSection
   bikes: DashboardBike[]
   attention: DashboardAttentionItem[]
+  recent_rides: {
+    summary: { count: number; distance_meters: number }
+    rides: DashboardRecentRide[]
+  }
 }

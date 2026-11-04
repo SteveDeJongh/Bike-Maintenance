@@ -253,6 +253,59 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
 
+    describe "recent_rides" do
+      it "includes rides from the last 14 days, with the summary count/distance and the bike it's attributed to" do
+        travel_to Time.zone.local(2026, 11, 4, 12, 0) do
+          bike = create(:bike, user: current_user, name: "Soloist")
+          in_window = create(:strava_activity, user: current_user, bike: bike,
+            moved_at: 5.days.ago, distance_meters: 20_000, name: "Morning ride")
+          create(:strava_activity, user: current_user, bike: bike, moved_at: 20.days.ago, distance_meters: 99_000)
+
+          get "/dashboard"
+
+          recent_rides = JSON.parse(response.body)["recent_rides"]
+          expect(recent_rides["summary"]).to eq("count" => 1, "distance_meters" => 20_000)
+          ride = recent_rides["rides"].first
+          expect(ride["id"]).to eq(in_window.id)
+          expect(ride["name"]).to eq("Morning ride")
+          expect(ride["distance_meters"]).to eq(20_000)
+          expect(ride["bike"]).to eq("id" => bike.id, "name" => "Soloist")
+          expect(ride["indoor"]).to be false
+        end
+      end
+
+      it "reports bike: null for an unattributed ride and indoor: true for a VirtualRide" do
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil,
+          moved_at: 1.day.ago, activity_type: "VirtualRide", trainer: false)
+
+        get "/dashboard"
+
+        ride = JSON.parse(response.body)["recent_rides"]["rides"].first
+        expect(ride["bike"]).to be_nil
+        expect(ride["indoor"]).to be true
+      end
+
+      it "includes gear_id so an unattributed-but-has-gear ride can offer a gear-mapping link" do
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "g1", moved_at: 1.day.ago)
+
+        get "/dashboard"
+
+        expect(JSON.parse(response.body)["recent_rides"]["rides"].first["gear_id"]).to eq("g1")
+      end
+
+      it "lists which components a ride counts toward" do
+        bike = create(:bike, user: current_user)
+        component = create(:component, user: current_user, category: "chain", label: "Chain A")
+        create(:component_assignment, component: component, bike: bike, started_at: 10.days.ago, ended_at: nil)
+        create(:strava_activity, user: current_user, bike: bike, moved_at: 5.days.ago, distance_meters: 1_000)
+
+        get "/dashboard"
+
+        ride = JSON.parse(response.body)["recent_rides"]["rides"].first
+        expect(ride["counted_toward"]).to eq([ { "component_id" => component.id, "label" => "Chain A" } ])
+      end
+    end
+
     describe "cross-account isolation" do
       it "never includes another user's bikes, components, or attention items" do
         other_bike = create(:bike)
@@ -269,6 +322,15 @@ RSpec.describe "Dashboard", type: :request do
         expect(body["bikes"]).to eq([])
         expect(body["attention"]).to eq([])
         expect(body["sync"]["rides_total"]).to eq(0)
+      end
+
+      it "never includes another user's rides in recent_rides" do
+        other_bike = create(:bike)
+        create(:strava_activity, user: other_bike.user, bike: other_bike, moved_at: 1.day.ago)
+
+        get "/dashboard"
+
+        expect(JSON.parse(response.body)["recent_rides"]["rides"]).to eq([])
       end
     end
   end

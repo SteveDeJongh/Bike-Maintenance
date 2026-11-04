@@ -45,6 +45,14 @@ RSpec.describe StravaActivity, type: :model do
     end
   end
 
+  describe "#indoor?" do
+    it "mirrors the indoor/outdoor scopes for a single record" do
+      expect(build(:strava_activity, trainer: true, activity_type: "Ride")).to be_indoor
+      expect(build(:strava_activity, trainer: false, activity_type: "VirtualRide")).to be_indoor
+      expect(build(:strava_activity, trainer: false, activity_type: "Ride")).not_to be_indoor
+    end
+  end
+
   describe ".reconcile_for_bike!" do
     it "backfills bike_id for activities matching the bike's gear_id and user" do
       bike = create(:bike, strava_gear_id: "g1")

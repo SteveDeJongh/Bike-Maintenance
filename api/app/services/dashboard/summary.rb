@@ -13,11 +13,16 @@ module Dashboard
       @zone = (tz.present? && ActiveSupport::TimeZone[tz]) || Time.zone
     end
 
+    # A plain rolling 14-day window, not calendar-day sensitive, so (unlike
+    # distance_this_month) it doesn't need the viewer's tz at all.
+    RECENT_RIDES_WINDOW = 14.days
+
     def call
       {
         sync: sync_section,
         bikes: bikes_section,
         attention: attention_section,
+        recent_rides: recent_rides_section,
       }
     end
 
@@ -171,6 +176,38 @@ module Dashboard
         notifications_off: !result.notifications_enabled?,
         mounted: result.mounted?,
         bike: bike,
+      }
+    end
+
+    def recent_rides_section
+      since = RECENT_RIDES_WINDOW.ago
+      rides = user.strava_activities.where(moved_at: since..).order(moved_at: :desc).to_a
+      counted_toward = Maintenance::CountedTowardQuery.call(user, since: since)
+      bikes_by_id = user.bikes.index_by(&:id)
+
+      {
+        summary: { count: rides.size, distance_meters: rides.sum(&:distance_meters) },
+        rides: rides.map { |ride| recent_ride_payload(ride, counted_toward[ride.id], bikes_by_id) },
+      }
+    end
+
+    def recent_ride_payload(ride, counted_toward, bikes_by_id)
+      bike = ride.bike_id && bikes_by_id[ride.bike_id]
+
+      {
+        id: ride.id,
+        moved_at: ride.moved_at,
+        name: ride.name,
+        distance_meters: ride.distance_meters,
+        bike: bike && { id: bike.id, name: bike.name },
+        # Present alongside a nil bike specifically for the "fixable via gear
+        # mapping" case (same distinction as sync.unattributed.with_gear) --
+        # lets the frontend offer "Link Strava gear" only when there's
+        # actually a gear id to map, not for a ride Strava itself had no
+        # bike set on.
+        gear_id: ride.gear_id,
+        indoor: ride.indoor?,
+        counted_toward: (counted_toward || []).map { |c| { component_id: c[:component_id], label: c[:label] } },
       }
     end
   end
