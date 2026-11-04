@@ -22,6 +22,7 @@ class User < ApplicationRecord
   end
 
   has_many :bikes, dependent: :destroy
+  has_many :bike_types, dependent: :destroy
   has_many :components, dependent: :destroy
   has_many :component_assignments, through: :bikes
   has_many :bike_component_slots, through: :bikes

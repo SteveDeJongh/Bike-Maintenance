@@ -27,6 +27,18 @@ module Users
     # is always what applied historically.
     DEFAULT_SERVICE_TYPES = %w[wax clean replace inspect].freeze
 
+    # The live version of BackfillDefaultBikeTypes's own frozen snapshot --
+    # that migration never drifts if this changes later, same convention as
+    # the component-category constants above.
+    DEFAULT_BIKE_TYPES = {
+      "Road" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
+      "Gravel" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
+      "Mountain" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear
+                        handlebar_tape front_suspension shock seat_post],
+      "Time Trial" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear],
+      "Commuter" => %w[chain cassette tire_front tire_rear brake_pads_front brake_pads_rear],
+    }.freeze
+
     def initialize(user)
       @user = user
     end
@@ -34,6 +46,7 @@ module Users
     def call
       provision_component_category_settings
       provision_service_types
+      provision_bike_types
     end
 
     private
@@ -53,6 +66,14 @@ module Users
     def provision_service_types
       DEFAULT_SERVICE_TYPES.each do |name|
         ServiceType.find_or_create_by!(user: user, name: name)
+      end
+    end
+
+    def provision_bike_types
+      DEFAULT_BIKE_TYPES.each do |name, categories|
+        BikeType.find_or_create_by!(user: user, name: name) do |bike_type|
+          bike_type.default_categories = categories
+        end
       end
     end
   end

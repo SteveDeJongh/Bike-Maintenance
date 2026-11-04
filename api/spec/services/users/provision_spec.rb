@@ -34,10 +34,22 @@ RSpec.describe Users::Provision, type: :model do
     expect(user.service_types.pluck(:name)).to match_array(%w[wax clean replace inspect])
   end
 
+  it "seeds the Road/Gravel/Mountain/Time Trial/Commuter bike types with their default categories" do
+    user = create(:user)
+
+    bike_types = user.bike_types.index_by(&:name)
+    expect(bike_types.keys).to match_array(["Road", "Gravel", "Mountain", "Time Trial", "Commuter"])
+    expect(bike_types["Road"].default_categories).to eq(
+      %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
+    )
+    expect(bike_types["Mountain"].default_categories).to include("front_suspension", "shock", "seat_post")
+  end
+
   it "is idempotent -- calling it again does not create duplicates or raise" do
     user = create(:user)
 
     expect { described_class.new(user).call }.not_to change(user.component_category_settings, :count)
     expect { described_class.new(user).call }.not_to change(user.service_types, :count)
+    expect { described_class.new(user).call }.not_to change(user.bike_types, :count)
   end
 end

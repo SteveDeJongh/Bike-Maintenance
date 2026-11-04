@@ -38,6 +38,27 @@ RSpec.describe Bike, type: :model do
     end
   end
 
+  describe "#bike_type_belongs_to_user" do
+    it "is valid with a bike_type belonging to the same user" do
+      bike_type = create(:bike_type)
+      bike = build(:bike, user: bike_type.user, bike_type: bike_type)
+
+      expect(bike).to be_valid
+    end
+
+    it "is invalid with a bike_type belonging to a different user" do
+      other_users_bike_type = create(:bike_type)
+      bike = build(:bike, bike_type: other_users_bike_type)
+
+      expect(bike).not_to be_valid
+      expect(bike.errors[:bike_type_id]).to be_present
+    end
+
+    it "is valid with no bike_type" do
+      expect(build(:bike, bike_type: nil)).to be_valid
+    end
+  end
+
   it "destroys its component assignments when destroyed" do
     bike = create(:bike)
     assignment = create(:component_assignment, bike: bike)

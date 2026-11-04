@@ -1,5 +1,6 @@
 class Bike < ApplicationRecord
   belongs_to :user
+  belongs_to :bike_type, optional: true
   has_many :component_assignments, dependent: :destroy
   has_many :components, through: :component_assignments
   has_many :bike_component_slots, dependent: :destroy
@@ -7,6 +8,7 @@ class Bike < ApplicationRecord
 
   validates :name, presence: true
   validate :acquired_on_before_retired_on
+  validate :bike_type_belongs_to_user
 
   after_save :reconcile_strava_activities, if: :saved_change_to_strava_gear_id?
 
@@ -46,6 +48,12 @@ class Bike < ApplicationRecord
     return if acquired_on.blank? || retired_on.blank?
 
     errors.add(:acquired_on, "must be at or before retired_on") if acquired_on > retired_on
+  end
+
+  def bike_type_belongs_to_user
+    return if bike_type.blank?
+
+    errors.add(:bike_type_id, "must belong to the same user") if bike_type.user_id != user_id
   end
 
   def reconcile_strava_activities
