@@ -19,9 +19,20 @@ export interface Bike {
   make: string | null
   model: string | null
   strava_gear_id: string | null
+  bike_type_id: number | null
   acquired_on: string | null
   retired_on: string | null
   created_at: string
+}
+
+// A user-editable preset (Road/Gravel/Mountain/...) pre-checking categories
+// in the new-bike component setup checklist -- purely a frontend-facing
+// convenience, never enforced against or retroactively applied to any
+// existing bike's slots/components/assignments.
+export interface BikeType {
+  id: number
+  name: string
+  default_categories: string[]
 }
 
 // A slot is independently created/removed per (category, ride_context) --

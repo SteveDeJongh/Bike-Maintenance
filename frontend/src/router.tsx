@@ -17,6 +17,7 @@ import Strava from './pages/Strava'
 import SettingsLayout from './pages/settings/SettingsLayout'
 import ComponentCategorySettingsPage from './pages/settings/ComponentCategorySettingsPage'
 import ServiceTypesPage from './pages/settings/ServiceTypesPage'
+import BikeTypesPage from './pages/settings/BikeTypesPage'
 import NotificationsPage from './pages/settings/NotificationsPage'
 import AppearancePage from './pages/settings/AppearancePage'
 import AccountPage from './pages/settings/AccountPage'
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
               { index: true, element: <Navigate to="component-categories" replace /> },
               { path: 'component-categories', element: <ComponentCategorySettingsPage /> },
               { path: 'service-types', element: <ServiceTypesPage /> },
+              { path: 'bike-types', element: <BikeTypesPage /> },
               { path: 'notifications', element: <NotificationsPage /> },
               { path: 'appearance', element: <AppearancePage /> },
               { path: 'account', element: <AccountPage /> },

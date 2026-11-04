@@ -283,7 +283,8 @@ function UnmappedGearRow({ gear }: { gear: StravaGear }) {
     const defaults = retiredBikeDefaults(gear)
     createBike.mutate(
       { name: defaults.name, make: defaults.make || null, model: defaults.model || null,
-        strava_gear_id: defaults.strava_gear_id, acquired_on: null, retired_on: defaults.retired_on },
+        strava_gear_id: defaults.strava_gear_id, bike_type_id: null, acquired_on: null,
+        retired_on: defaults.retired_on },
       {
         onError: () => {
           setModalDefaults(defaults)

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   BikeDetail,
+  BikeType,
   BikeWithStats,
   CategoryServiceInterval,
   ComponentAssignment,
@@ -37,6 +38,13 @@ export function useBikes() {
   return useQuery({
     queryKey: ['bikes'],
     queryFn: () => apiGet<BikeWithStats[]>('/bikes'),
+  })
+}
+
+export function useBikeTypes() {
+  return useQuery({
+    queryKey: ['bike_types'],
+    queryFn: () => apiGet<BikeType[]>('/bike_types'),
   })
 }
 

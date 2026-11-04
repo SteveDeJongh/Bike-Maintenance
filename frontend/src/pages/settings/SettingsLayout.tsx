@@ -4,6 +4,7 @@ import { NavLink as RouterNavLink, Outlet } from 'react-router-dom'
 const settingsNavLinks = [
   { to: '/settings/component-categories', label: 'Component Categories' },
   { to: '/settings/service-types', label: 'Service Types' },
+  { to: '/settings/bike-types', label: 'Bike Types' },
   { to: '/settings/notifications', label: 'Notifications' },
   { to: '/settings/appearance', label: 'Appearance' },
   { to: '/settings/account', label: 'Account' },

@@ -3,7 +3,7 @@ import { Alert, Anchor, Badge, Button, Group, Loader, Table, Text, Title } from 
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
-import { useBikes, useTableViewPreference } from '../api/queries'
+import { useBikes, useBikeTypes, useTableViewPreference } from '../api/queries'
 import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import BikeFormModal from '../components/forms/BikeFormModal'
@@ -27,33 +27,46 @@ import { formatElevation } from '../utils/elevation'
 import { formatPower } from '../utils/power'
 import type { Bike, BikeWithStats, TableViewPreferenceData } from '../types/models'
 
-// Extracts each sortable column's comparable value from a bike. null means
-// "unknown"/"not applicable" (e.g. a bike with no power-meter data) — these
-// always sort last, regardless of direction (see sortedBikes below).
-const columnValue: Record<BikeListSortColumn, (bike: BikeWithStats) => string | number | null> = {
-  name: (bike) => bike.name,
-  make_model: (bike) => [bike.make, bike.model].filter(Boolean).join(' '),
-  acquired_on: (bike) => bike.acquired_on,
-  total_distance: (bike) => bike.total_distance,
-  total_moving_time: (bike) => bike.total_moving_time,
-  first_ride_on: (bike) => bike.first_ride_on,
-  last_ride_on: (bike) => bike.last_ride_on,
-  average_power: (bike) => bike.average_power,
-  total_elevation_gain: (bike) => bike.total_elevation_gain,
-  installed_components_count: (bike) => bike.installed_components_count,
+// bike_type needs the fetched BikeType list to resolve a name, so these are
+// factories (built inside BikesTable, where useBikeTypes() lives) rather
+// than plain module-level maps like every other adopter of this pattern.
+// null means "unknown"/"not applicable" (e.g. a bike with no power-meter
+// data, or no bike type) — these always sort last, regardless of direction
+// (see sortedBikes below).
+function buildColumnValue(
+  bikeTypeNameById: Map<number, string>,
+): Record<BikeListSortColumn, (bike: BikeWithStats) => string | number | null> {
+  return {
+    name: (bike) => bike.name,
+    make_model: (bike) => [bike.make, bike.model].filter(Boolean).join(' '),
+    bike_type: (bike) => (bike.bike_type_id === null ? null : bikeTypeNameById.get(bike.bike_type_id) ?? null),
+    acquired_on: (bike) => bike.acquired_on,
+    total_distance: (bike) => bike.total_distance,
+    total_moving_time: (bike) => bike.total_moving_time,
+    first_ride_on: (bike) => bike.first_ride_on,
+    last_ride_on: (bike) => bike.last_ride_on,
+    average_power: (bike) => bike.average_power,
+    total_elevation_gain: (bike) => bike.total_elevation_gain,
+    installed_components_count: (bike) => bike.installed_components_count,
+  }
 }
 
-const columnRenderer: Record<BikeListColumn, (bike: BikeWithStats) => ReactNode> = {
-  make_model: (bike) =>
-    bike.make || bike.model ? [bike.make, bike.model].filter(Boolean).join(' ') : 'Unknown make/model',
-  acquired_on: (bike) => (bike.acquired_on ? formatDate(bike.acquired_on) : '—'),
-  total_distance: (bike) => formatDistance(bike.total_distance),
-  total_moving_time: (bike) => formatDuration(bike.total_moving_time),
-  first_ride_on: (bike) => (bike.first_ride_on ? formatDate(bike.first_ride_on) : 'No rides yet'),
-  last_ride_on: (bike) => (bike.last_ride_on ? formatDate(bike.last_ride_on) : 'No rides yet'),
-  average_power: (bike) => formatPower(bike.average_power),
-  total_elevation_gain: (bike) => formatElevation(bike.total_elevation_gain),
-  installed_components_count: (bike) => String(bike.installed_components_count),
+function buildColumnRenderer(
+  bikeTypeNameById: Map<number, string>,
+): Record<BikeListColumn, (bike: BikeWithStats) => ReactNode> {
+  return {
+    make_model: (bike) =>
+      bike.make || bike.model ? [bike.make, bike.model].filter(Boolean).join(' ') : 'Unknown make/model',
+    bike_type: (bike) => (bike.bike_type_id === null ? '—' : bikeTypeNameById.get(bike.bike_type_id) ?? '—'),
+    acquired_on: (bike) => (bike.acquired_on ? formatDate(bike.acquired_on) : '—'),
+    total_distance: (bike) => formatDistance(bike.total_distance),
+    total_moving_time: (bike) => formatDuration(bike.total_moving_time),
+    first_ride_on: (bike) => (bike.first_ride_on ? formatDate(bike.first_ride_on) : 'No rides yet'),
+    last_ride_on: (bike) => (bike.last_ride_on ? formatDate(bike.last_ride_on) : 'No rides yet'),
+    average_power: (bike) => formatPower(bike.average_power),
+    total_elevation_gain: (bike) => formatElevation(bike.total_elevation_gain),
+    installed_components_count: (bike) => String(bike.installed_components_count),
+  }
 }
 
 const BIKE_LIST_COLUMN_OPTIONS = BIKE_LIST_COLUMNS.map((column) => ({
@@ -153,6 +166,14 @@ function BikesTable({
   })
   const headerDragSensors = useColumnDragSensors()
 
+  const { data: bikeTypes } = useBikeTypes()
+  const bikeTypeNameById = useMemo(
+    () => new Map((bikeTypes ?? []).map((bikeType) => [bikeType.id, bikeType.name])),
+    [bikeTypes],
+  )
+  const columnValue = useMemo(() => buildColumnValue(bikeTypeNameById), [bikeTypeNameById])
+  const columnRenderer = useMemo(() => buildColumnRenderer(bikeTypeNameById), [bikeTypeNameById])
+
   const sortedBikes = useMemo(() => {
     const accessor = columnValue[sortColumn]
     return bikes
@@ -174,7 +195,7 @@ function BikesTable({
         return sortDirection === 'asc' ? cmp : -cmp
       })
       .map(({ bike }) => bike)
-  }, [bikes, sortColumn, sortDirection])
+  }, [bikes, sortColumn, sortDirection, columnValue])
 
   return (
     <>

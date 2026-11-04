@@ -80,6 +80,7 @@ export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string>
 // stores whatever keys it's given, so this list is the sole source of truth.
 export const BIKE_LIST_COLUMNS = [
   'make_model',
+  'bike_type',
   'acquired_on',
   'total_distance',
   'total_moving_time',
@@ -94,6 +95,7 @@ export type BikeListColumn = (typeof BIKE_LIST_COLUMNS)[number]
 
 export const BIKE_LIST_COLUMN_LABELS: Record<BikeListColumn, string> = {
   make_model: 'Make / Model',
+  bike_type: 'Type',
   acquired_on: 'Purchased On',
   total_distance: 'Distance',
   total_moving_time: 'Time',

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Stack, TextInput } from '@mantine/core'
+import { Alert, Button, Group, Modal, Select, Stack, TextInput } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import { useCreateBike, useUpdateBike, type BikePayload } from '../../api/mutations'
+import { useBikeTypes } from '../../api/queries'
 import type { Bike } from '../../types/models'
 
 interface BikeFormValues {
@@ -11,6 +12,7 @@ interface BikeFormValues {
   make: string
   model: string
   strava_gear_id: string
+  bike_type_id: string | null
   acquired_on: string | null
   retired_on: string | null
 }
@@ -20,6 +22,7 @@ const emptyValues: BikeFormValues = {
   make: '',
   model: '',
   strava_gear_id: '',
+  bike_type_id: null,
   acquired_on: null,
   retired_on: null,
 }
@@ -30,6 +33,7 @@ function toFormValues(bike: Bike): BikeFormValues {
     make: bike.make ?? '',
     model: bike.model ?? '',
     strava_gear_id: bike.strava_gear_id ?? '',
+    bike_type_id: bike.bike_type_id === null ? null : String(bike.bike_type_id),
     acquired_on: bike.acquired_on,
     retired_on: bike.retired_on,
   }
@@ -41,6 +45,7 @@ function toPayload(values: BikeFormValues): BikePayload {
     make: values.make.trim() || null,
     model: values.model.trim() || null,
     strava_gear_id: values.strava_gear_id.trim() || null,
+    bike_type_id: values.bike_type_id === null ? null : Number(values.bike_type_id),
     acquired_on: values.acquired_on,
     retired_on: values.retired_on,
   }
@@ -90,6 +95,9 @@ function BikeForm({
     },
   })
 
+  const { data: bikeTypes } = useBikeTypes()
+  const bikeTypeOptions = (bikeTypes ?? []).map((bikeType) => ({ value: String(bikeType.id), label: bikeType.name }))
+
   const createBike = useCreateBike()
   const updateBike = useUpdateBike(bike?.id ?? -1)
   const mutation = isEdit ? updateBike : createBike
@@ -117,6 +125,7 @@ function BikeForm({
         <TextInput label="Make" {...form.getInputProps('make')} />
         <TextInput label="Model" {...form.getInputProps('model')} />
         <TextInput label="Strava gear ID" {...form.getInputProps('strava_gear_id')} />
+        <Select label="Type" clearable data={bikeTypeOptions} {...form.getInputProps('bike_type_id')} />
         <DateInput label="Purchased on" clearable {...form.getInputProps('acquired_on')} />
         <DateInput label="Retired on" clearable {...form.getInputProps('retired_on')} />
 

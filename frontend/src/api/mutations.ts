@@ -3,6 +3,7 @@ import { apiDelete, apiPatch, apiPost, apiPut } from './client'
 import type {
   Bike,
   BikeComponentSlot,
+  BikeType,
   CategoryServiceInterval,
   Component,
   ComponentAssignment,
@@ -130,6 +131,7 @@ export function useUnlinkIdentity() {
 }
 
 export type BikePayload = Omit<Bike, 'id' | 'created_at'>
+export type BikeTypePayload = Omit<BikeType, 'id'>
 export type ComponentPayload = Omit<Component, 'id'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id'>
@@ -179,6 +181,37 @@ export function useDeleteBike() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/bikes/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+  })
+}
+
+// BikeType
+
+export function useCreateBikeType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: BikeTypePayload) => apiPost<BikeType>('/bike_types', { bike_type: values }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bike_types'] }),
+  })
+}
+
+export function useUpdateBikeType(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<BikeTypePayload>) => apiPatch<BikeType>(`/bike_types/${id}`, { bike_type: values }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bike_types'] }),
+  })
+}
+
+export function useDeleteBikeType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/bike_types/${id}`),
+    // A deleted bike type nullifies bike_type_id on bikes using it, so the
+    // Bikes list's Type column needs refreshing too.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bike_types'] })
+      queryClient.invalidateQueries({ queryKey: ['bikes'] })
+    },
   })
 }
 
