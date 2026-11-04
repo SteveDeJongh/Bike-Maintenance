@@ -24,16 +24,16 @@ RSpec.describe "ComponentCategorySettings", type: :request do
 
   describe "PATCH /component_category_settings/:category" do
     it "creates a setting on first write" do
-      # "frame" is deliberately not one of the categories Users::Provision
+      # "fenders" is deliberately not one of the categories Users::Provision
       # seeds automatically, so there's genuinely no row yet to write over.
       expect {
-        patch "/component_category_settings/frame", params: {
+        patch "/component_category_settings/fenders", params: {
           component_category_setting: { default_ride_context: "outdoor_only", trackable: false, allows_multiple_assignments: true },
         }
       }.to change(ComponentCategorySetting, :count).by(1)
 
       expect(response).to have_http_status(:ok)
-      setting = current_user.component_category_settings.find_by(category: "frame")
+      setting = current_user.component_category_settings.find_by(category: "fenders")
       expect(setting.default_ride_context).to eq("outdoor_only")
       expect(setting.trackable).to be false
       expect(setting.allows_multiple_assignments).to be true

@@ -14,9 +14,13 @@ RSpec.describe Users::Provision, type: :model do
     expect(settings.keys).to match_array(%w[
       chain cassette chainring tire_front tire_rear wheel_front wheel_rear
       brake_pads_front brake_pads_rear bottom_bracket handlebar_tape saddle
+      front_suspension shock frame seat_post power_meter pedals
     ])
 
-    outdoor_only = %w[cassette tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear]
+    outdoor_only = %w[
+      cassette tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear
+      front_suspension shock
+    ]
     settings.each do |category, setting|
       expect(setting.default_ride_context).to eq(outdoor_only.include?(category) ? "outdoor_only" : "both")
       expect(setting.allows_multiple_assignments).to eq(category == "cassette")

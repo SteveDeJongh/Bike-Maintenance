@@ -1,16 +1,24 @@
+// Picker order: drivetrain, wheels and tires, brakes, contact points, frame
+// and suspension, power meter -- not alphabetical, not insertion order.
 export const COMPONENT_CATEGORIES = [
   'chain',
   'cassette',
   'chainring',
-  'tire_front',
-  'tire_rear',
+  'bottom_bracket',
   'wheel_front',
   'wheel_rear',
+  'tire_front',
+  'tire_rear',
   'brake_pads_front',
   'brake_pads_rear',
-  'bottom_bracket',
-  'handlebar_tape',
   'saddle',
+  'handlebar_tape',
+  'pedals',
+  'frame',
+  'front_suspension',
+  'shock',
+  'seat_post',
+  'power_meter',
 ] as const
 
 export type ComponentCategory = (typeof COMPONENT_CATEGORIES)[number]
@@ -19,15 +27,23 @@ export const COMPONENT_CATEGORY_LABELS: Record<ComponentCategory, string> = {
   chain: 'Chain',
   cassette: 'Cassette',
   chainring: 'Chainring',
-  tire_front: 'Front Tire',
-  tire_rear: 'Rear Tire',
+  bottom_bracket: 'Bottom Bracket',
   wheel_front: 'Front Wheel',
   wheel_rear: 'Rear Wheel',
+  tire_front: 'Front Tire',
+  tire_rear: 'Rear Tire',
   brake_pads_front: 'Front Brake Pads',
   brake_pads_rear: 'Rear Brake Pads',
-  bottom_bracket: 'Bottom Bracket',
-  handlebar_tape: 'Handlebar Tape',
   saddle: 'Saddle',
+  // Label only -- the key stays handlebar_tape (renaming it would mean a
+  // data migration across components/slots/settings/intervals for no gain).
+  handlebar_tape: 'Handlebar Tape/Grips',
+  pedals: 'Pedals',
+  frame: 'Frame',
+  front_suspension: 'Front Suspension',
+  shock: 'Shock',
+  seat_post: 'Seat Post',
+  power_meter: 'Power Meter',
 }
 
 // Known baseline categories use their hand-authored label; a custom category

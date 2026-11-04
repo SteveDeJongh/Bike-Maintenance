@@ -6,14 +6,17 @@ module Users
   class Provision
     # Mirrors 20261017004922_create_component_category_settings.rb through
     # 20261021233121_add_trackable_and_allows_multiple_to_component_category_settings.rb's
-    # end state -- NOT the migrations' own intermediate column names.
+    # end state -- NOT the migrations' own intermediate column names. Plus
+    # the six categories AddNewComponentCategorySettings backfilled for
+    # existing users (front_suspension/shock/frame/seat_post/power_meter/pedals).
     OUTDOOR_ONLY_CATEGORIES = %w[
       cassette tire_front tire_rear wheel_front wheel_rear
-      brake_pads_front brake_pads_rear
+      brake_pads_front brake_pads_rear front_suspension shock
     ].freeze
 
     BOTH_CATEGORIES = %w[
       chain chainring bottom_bracket handlebar_tape saddle
+      frame seat_post power_meter pedals
     ].freeze
 
     ALLOWS_MULTIPLE_ASSIGNMENTS_CATEGORIES = %w[cassette].freeze
