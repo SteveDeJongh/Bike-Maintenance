@@ -72,10 +72,21 @@ class StravaController < ApplicationController
   def unmapped_gear
     gears = StravaGear.unmapped_for(current_user)
     activity_counts = current_user.strava_activities.group(:gear_id).count
+    last_activity_dates = current_user.strava_activities.group(:gear_id).maximum(:moved_at)
 
     # Retired gear always sinks to the bottom; within each group, ascending
     # activity count surfaces true 0-activity new additions first.
     sorted = gears.sort_by { |g| [g.retired ? 1 : 0, activity_counts[g.strava_gear_id] || 0] }
+
+    render json: sorted.map { |g| unmapped_gear_json(g, activity_counts, last_activity_dates) }
+  end
+
+  def ignored_gear
+    gears = StravaGear.ignored_for(current_user)
+    activity_counts = current_user.strava_activities.group(:gear_id).count
+    last_activity_dates = current_user.strava_activities.group(:gear_id).maximum(:moved_at)
+
+    sorted = gears.sort_by(&:ignored_at).reverse
 
     render json: sorted.map { |g|
       {
@@ -83,8 +94,26 @@ class StravaController < ApplicationController
         model_name: g.model, retired: g.retired,
         activity_count: activity_counts[g.strava_gear_id] || 0,
         distance_meters: g.distance_meters,
+        last_activity_on: last_activity_dates[g.strava_gear_id]&.to_date,
+        ignored_at: g.ignored_at,
       }
     }
+  end
+
+  def ignore_gear
+    gear = current_user.strava_gears.find_by!(strava_gear_id: params[:gear_id])
+
+    if gear.update(ignored_at: Time.current)
+      head :no_content
+    else
+      render json: gear.errors, status: :unprocessable_content
+    end
+  end
+
+  def unignore_gear
+    gear = current_user.strava_gears.find_by!(strava_gear_id: params[:gear_id])
+    gear.update!(ignored_at: nil)
+    head :no_content
   end
 
   def refresh_gear
@@ -131,6 +160,20 @@ class StravaController < ApplicationController
   end
 
   private
+
+  def unmapped_gear_json(gear, activity_counts, last_activity_dates)
+    {
+      gear_id: gear.strava_gear_id, name: gear.name, brand_name: gear.brand_name,
+      model_name: gear.model, retired: gear.retired,
+      activity_count: activity_counts[gear.strava_gear_id] || 0,
+      distance_meters: gear.distance_meters,
+      last_activity_on: last_activity_dates[gear.strava_gear_id]&.to_date,
+      # Only possible for a row that passed StravaGear.unmapped_for's own
+      # filter while still ignored -- that filter already requires a
+      # resurfacing activity in that case, so this is never a stale flag.
+      resurfaced: gear.ignored_at.present?,
+    }
+  end
 
   def strava_authorize_url
     creds = Rails.application.credentials.strava

@@ -51,6 +51,30 @@ RSpec.describe "Dashboard", type: :request do
 
         expect(JSON.parse(response.body)["sync"]["unattributed"]["unmapped_gear_count"]).to eq(1)
       end
+
+      it "excludes rides whose gear was ignored (and hasn't resurfaced) from unattributed and with_gear" do
+        create(:strava_gear, user: current_user, strava_gear_id: "ignored", ignored_at: Time.current)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "ignored", distance_meters: 10_000)
+        # A no-gear ride is unaffected by any ignore decision -- still counted.
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, distance_meters: 1_000)
+
+        get "/dashboard"
+
+        unattributed = JSON.parse(response.body)["sync"]["unattributed"]
+        expect(unattributed["count"]).to eq(1)
+        expect(unattributed["with_gear"]).to eq("count" => 0, "distance_meters" => 0)
+        expect(unattributed["without_gear"]).to eq("count" => 1, "distance_meters" => 1_000)
+      end
+
+      it "counts a resurfaced ignored gear's rides again" do
+        create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: 10.days.ago)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "g1", distance_meters: 5_000, moved_at: 1.day.ago)
+
+        get "/dashboard"
+
+        unattributed = JSON.parse(response.body)["sync"]["unattributed"]
+        expect(unattributed["with_gear"]).to eq("count" => 1, "distance_meters" => 5_000)
+      end
     end
 
     describe "bikes" do

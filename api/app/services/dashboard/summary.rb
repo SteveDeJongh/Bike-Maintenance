@@ -35,7 +35,15 @@ module Dashboard
     end
 
     def sync_section
+      # A ride whose gear was explicitly "don't tracked" (and hasn't
+      # resurfaced -- see StravaGear.ignored_for) is no longer actionable,
+      # so it drops out of the notification entirely, same as if it were
+      # attributed. where.not(gear_id: [...]) is NOT NULL-safe (a NULL
+      # gear_id would get excluded too via SQL's three-valued IN logic),
+      # so a no-gear ride is explicitly spared instead.
+      ignored_gear_ids = StravaGear.ignored_for(user).pluck(:strava_gear_id)
       unattributed = user.strava_activities.where(bike_id: nil)
+      unattributed = unattributed.where("gear_id IS NULL OR gear_id NOT IN (?)", ignored_gear_ids) if ignored_gear_ids.any?
       with_gear = unattributed.where.not(gear_id: [ nil, "" ])
       without_gear = unattributed.where(gear_id: [ nil, "" ])
 

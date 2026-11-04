@@ -49,6 +49,7 @@ RSpec.describe "Unauthenticated access", type: :request do
     [:get, "/notification_settings"], [:patch, "/notification_settings"],
 
     [:get, "/strava/status"], [:post, "/strava/sync"], [:get, "/strava/unmapped_gear"],
+    [:get, "/strava/ignored_gear"], [:post, "/strava/ignore_gear"], [:post, "/strava/unignore_gear"],
     [:get, "/strava/mapped_gear"], [:patch, "/strava/mapped_gear/g1"], [:post, "/strava/refresh_gear"],
   ].freeze
 

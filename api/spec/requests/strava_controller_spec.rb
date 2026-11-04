@@ -60,7 +60,7 @@ RSpec.describe "Strava", type: :request do
       expect(JSON.parse(response.body)).to eq(
         [{ "gear_id" => "g1", "name" => "Gravel Bike", "brand_name" => "Specialized",
            "model_name" => "Diverge", "retired" => true, "activity_count" => 0,
-           "distance_meters" => 1000 }],
+           "distance_meters" => 1000, "last_activity_on" => nil, "resurfaced" => false }],
       )
     end
 
@@ -77,6 +77,123 @@ RSpec.describe "Strava", type: :request do
 
       gear_ids = JSON.parse(response.body).map { |g| g["gear_id"] }
       expect(gear_ids).to eq(%w[active-zero active-many retired-zero retired-many])
+    end
+
+    it "excludes ignored gear, and includes last_activity_on" do
+      bike = create(:bike, user: current_user)
+      create(:strava_gear, user: current_user, strava_gear_id: "ignored", ignored_at: Time.current)
+      create(:strava_gear, user: current_user, strava_gear_id: "active")
+      create(:strava_activity, user: current_user, bike: bike, gear_id: "active", moved_at: Time.zone.local(2026, 10, 1))
+      create(:strava_activity, user: current_user, bike: bike, gear_id: "active", moved_at: Time.zone.local(2026, 10, 15))
+
+      get "/strava/unmapped_gear"
+
+      body = JSON.parse(response.body)
+      expect(body.map { |g| g["gear_id"] }).to eq(["active"])
+      expect(body.first["last_activity_on"]).to eq("2026-10-15")
+    end
+
+    it "includes a resurfaced ignored gear, flagged" do
+      bike = create(:bike, user: current_user)
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: 10.days.ago)
+      create(:strava_activity, user: current_user, bike: bike, gear_id: "g1", moved_at: 1.day.ago)
+
+      get "/strava/unmapped_gear"
+
+      body = JSON.parse(response.body)
+      expect(body.map { |g| g["gear_id"] }).to eq(["g1"])
+      expect(body.first["resurfaced"]).to be true
+    end
+  end
+
+  describe "GET /strava/ignored_gear" do
+    it "lists ignored, non-resurfaced gear with the same row shape as unmapped, plus ignored_at" do
+      create(:strava_gear, user: current_user, strava_gear_id: "g1",
+        name: "Old Bike", brand_name: "Trek", model: "Domane", retired: true,
+        distance_meters: 5_000, ignored_at: Time.zone.local(2026, 11, 1, 9, 0))
+
+      get "/strava/ignored_gear"
+
+      expect(JSON.parse(response.body)).to eq(
+        [{ "gear_id" => "g1", "name" => "Old Bike", "brand_name" => "Trek", "model_name" => "Domane",
+           "retired" => true, "activity_count" => 0, "distance_meters" => 5_000,
+           "last_activity_on" => nil, "ignored_at" => "2026-11-01T09:00:00.000Z" }],
+      )
+    end
+
+    it "excludes a resurfaced gear (it belongs in unmapped instead)" do
+      bike = create(:bike, user: current_user)
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: 10.days.ago)
+      create(:strava_activity, user: current_user, bike: bike, gear_id: "g1", moved_at: 1.day.ago)
+
+      get "/strava/ignored_gear"
+
+      expect(JSON.parse(response.body)).to eq([])
+    end
+
+    it "sorts by ignored_at descending (most recently ignored first)" do
+      create(:strava_gear, user: current_user, strava_gear_id: "older", ignored_at: 10.days.ago)
+      create(:strava_gear, user: current_user, strava_gear_id: "newer", ignored_at: 1.day.ago)
+
+      get "/strava/ignored_gear"
+
+      expect(JSON.parse(response.body).map { |g| g["gear_id"] }).to eq(%w[newer older])
+    end
+
+    it "is scoped to the current user" do
+      create(:strava_gear, ignored_at: Time.current) # another user's
+
+      get "/strava/ignored_gear"
+
+      expect(JSON.parse(response.body)).to eq([])
+    end
+  end
+
+  describe "POST /strava/ignore_gear" do
+    it "sets ignored_at on the current user's gear" do
+      create(:strava_gear, user: current_user, strava_gear_id: "g1")
+
+      post "/strava/ignore_gear", params: { gear_id: "g1" }
+
+      expect(response).to have_http_status(:no_content)
+      expect(StravaGear.find_by(user: current_user, strava_gear_id: "g1").ignored_at).to be_present
+    end
+
+    it "rejects ignoring gear that's already mapped to a bike" do
+      create(:bike, user: current_user, strava_gear_id: "g1")
+      gear = create(:strava_gear, user: current_user, strava_gear_id: "g1")
+
+      post "/strava/ignore_gear", params: { gear_id: "g1" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(gear.reload.ignored_at).to be_nil
+    end
+
+    it "404s for another user's gear id" do
+      create(:strava_gear, strava_gear_id: "g1") # another user's
+
+      post "/strava/ignore_gear", params: { gear_id: "g1" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "POST /strava/unignore_gear" do
+    it "clears ignored_at on the current user's gear" do
+      gear = create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: Time.current)
+
+      post "/strava/unignore_gear", params: { gear_id: "g1" }
+
+      expect(response).to have_http_status(:no_content)
+      expect(gear.reload.ignored_at).to be_nil
+    end
+
+    it "404s for another user's gear id" do
+      create(:strava_gear, strava_gear_id: "g1", ignored_at: Time.current) # another user's
+
+      post "/strava/unignore_gear", params: { gear_id: "g1" }
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 
