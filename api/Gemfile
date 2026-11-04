@@ -32,6 +32,9 @@ gem "json", "< 2.9"
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
 
+# Rate limiting for auth endpoints (login, register, password reset, etc.)
+gem "rack-attack"
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
@@ -55,6 +58,11 @@ end
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # Browser-based inbox for mail sent in development, instead of a real
+  # delivery service -- mounted at /letter_opener. Production's delivery
+  # method is a deliberately deferred config choice; see CLAUDE.md.
+  gem "letter_opener_web"
 
   # Add speed badges [https://github.com/MiniProfiler/rack-mini-profiler]
   # gem "rack-mini-profiler"

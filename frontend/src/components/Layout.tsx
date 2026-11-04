@@ -1,6 +1,7 @@
 import { AppShell, Group, Anchor, Menu, Title, UnstyledButton } from '@mantine/core'
 import { NavLink as RouterNavLink, Outlet, useNavigate } from 'react-router-dom'
 import MaintenanceAlertBanners from './MaintenanceAlertBanners'
+import EmailVerificationBanner from './EmailVerificationBanner'
 import { useCurrentUser } from '../api/queries'
 import { useLogout } from '../api/mutations'
 
@@ -33,6 +34,7 @@ export default function Layout() {
       </AppShell.Header>
 
       <AppShell.Main>
+        <EmailVerificationBanner />
         <MaintenanceAlertBanners />
         <Outlet />
       </AppShell.Main>

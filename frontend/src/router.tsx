@@ -3,6 +3,9 @@ import Layout from './components/Layout'
 import RequireAuth from './components/RequireAuth'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import VerifyEmail from './pages/VerifyEmail'
 import Landing from './pages/Landing'
 import Bikes from './pages/Bikes'
 import BikeDetail from './pages/BikeDetail'
@@ -20,6 +23,9 @@ import AppearancePage from './pages/settings/AppearancePage'
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
+  { path: '/forgot-password', element: <ForgotPassword /> },
+  { path: '/reset-password', element: <ResetPassword /> },
+  { path: '/verify-email', element: <VerifyEmail /> },
   {
     element: <RequireAuth />,
     children: [

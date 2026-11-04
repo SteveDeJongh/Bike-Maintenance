@@ -7,6 +7,20 @@ class User < ApplicationRecord
   # kicks in when a password is actually being set.
   has_secure_password validations: false
 
+  # Rails 7.1: the token embeds whatever the block returns at generation
+  # time, and is rejected if that value has since changed -- password_salt
+  # changes the moment the password does, so a reset token dies the instant
+  # it's used (or the password is changed any other way) without needing to
+  # store/revoke it ourselves. Same idea for email_verification, keyed off
+  # the email itself: changing email invalidates any outstanding token.
+  generates_token_for :password_reset, expires_in: 20.minutes do
+    password_salt&.last(10)
+  end
+
+  generates_token_for :email_verification, expires_in: 1.day do
+    email
+  end
+
   has_many :bikes, dependent: :destroy
   has_many :components, dependent: :destroy
   has_many :component_assignments, through: :bikes

@@ -52,6 +52,41 @@ export function useLogout() {
   })
 }
 
+// Always resolves with a generic success, even when the email doesn't
+// match an account -- the API deliberately never reveals that.
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) => apiPost<void>('/auth/password/forgot', { email }),
+  })
+}
+
+export interface ResetPasswordPayload {
+  token: string
+  password: string
+}
+
+export function useResetPassword() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: ResetPasswordPayload) => apiPost<User>('/auth/password/reset', values),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export function useVerifyEmail() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (token: string) => apiPost<User>('/auth/email/verify', { token }),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: () => apiPost<void>('/auth/email/resend', {}),
+  })
+}
+
 export type BikePayload = Omit<Bike, 'id' | 'created_at'>
 export type ComponentPayload = Omit<Component, 'id'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>

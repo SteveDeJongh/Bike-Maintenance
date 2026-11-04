@@ -12,12 +12,12 @@ class StravaController < ApplicationController
 
   def callback
     if params[:error].present?
-      return redirect_to "#{frontend_url}/strava?error=#{params[:error]}", allow_other_host: true
+      return redirect_to Frontend.url("/strava?error=#{params[:error]}"), allow_other_host: true
     end
 
     expected_state = session.delete(:strava_oauth_state)
     if expected_state.blank? || params[:state] != expected_state
-      return redirect_to "#{frontend_url}/strava?error=invalid_state", allow_other_host: true
+      return redirect_to Frontend.url("/strava?error=invalid_state"), allow_other_host: true
     end
 
     signed_in_user = current_user
@@ -46,13 +46,13 @@ class StravaController < ApplicationController
     # already signed in" path -- a fresh sign-in via Strava has nowhere
     # Strava-specific to go back to, so it lands on the home page instead.
     success_path = signed_in_user ? "/strava?connected=1" : "/"
-    redirect_to "#{frontend_url}#{success_path}", allow_other_host: true
+    redirect_to Frontend.url(success_path), allow_other_host: true
   rescue Strava::Client::Error
-    redirect_to "#{frontend_url}/strava?error=exchange_failed", allow_other_host: true
+    redirect_to Frontend.url("/strava?error=exchange_failed"), allow_other_host: true
   rescue ActiveRecord::RecordInvalid
-    redirect_to "#{frontend_url}/strava?error=athlete_already_linked", allow_other_host: true
+    redirect_to Frontend.url("/strava?error=athlete_already_linked"), allow_other_host: true
   rescue Auth::ResolveIdentity::AlreadyLinkedToAnotherUser
-    redirect_to "#{frontend_url}/strava?error=identity_already_linked", allow_other_host: true
+    redirect_to Frontend.url("/strava?error=identity_already_linked"), allow_other_host: true
   end
 
   def status
@@ -140,9 +140,5 @@ class StravaController < ApplicationController
       state: session[:strava_oauth_state],
     }.to_query
     "https://www.strava.com/oauth/authorize?#{query}"
-  end
-
-  def frontend_url
-    ENV.fetch("FRONTEND_URL", "http://localhost:5173")
   end
 end

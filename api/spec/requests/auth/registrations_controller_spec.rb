@@ -2,10 +2,12 @@ require "rails_helper"
 
 RSpec.describe "Auth::Registrations", type: :request do
   describe "POST /auth/register" do
-    it "creates a user, signs them in, and provisions defaults" do
+    it "creates a user, signs them in, provisions defaults, and sends a verification email" do
       expect {
-        post "/auth/register", params: { user: { name: "Jamie", email: "jamie@example.invalid", password: "password123" } }
-      }.to change(User, :count).by(1)
+        expect {
+          post "/auth/register", params: { user: { name: "Jamie", email: "jamie@example.invalid", password: "password123" } }
+        }.to change(User, :count).by(1)
+      }.to have_enqueued_mail(UserMailer, :email_verification)
 
       expect(response).to have_http_status(:created)
       body = JSON.parse(response.body)
@@ -20,6 +22,12 @@ RSpec.describe "Auth::Registrations", type: :request do
       get "/me"
       expect(response).to have_http_status(:ok)
       expect(JSON.parse(response.body)["id"]).to eq(user.id)
+    end
+
+    it "rejects a missing email" do
+      post "/auth/register", params: { user: { name: "Jamie", email: "", password: "password123" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "rejects a duplicate email" do

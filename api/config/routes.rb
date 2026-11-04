@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  mount LetterOpenerWeb::Engine, at: "/letter_opener" if Rails.env.development?
+
   resources :service_types, except: %i[ new edit ]
   resources :maintenance_events, except: %i[ new edit ]
   resources :component_assignments, except: %i[ new edit ]
@@ -26,6 +28,13 @@ Rails.application.routes.draw do
   post   "auth/login",    to: "auth/sessions#create"
   delete "auth/logout",   to: "auth/sessions#destroy"
   get    "auth/csrf",     to: "auth/csrf#show"
+
+  post "auth/password/forgot", to: "auth/passwords#forgot"
+  post "auth/password/reset",  to: "auth/passwords#reset"
+  put  "me/password",          to: "auth/passwords#update"
+
+  post "auth/email/verify", to: "auth/email_verifications#verify"
+  post "auth/email/resend", to: "auth/email_verifications#resend"
 
   get  "auth/strava",          to: "strava#authorize"
   get  "auth/strava/callback", to: "strava#callback", as: :strava_callback

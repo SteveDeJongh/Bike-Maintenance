@@ -18,6 +18,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: 'That sign-in attempt could not be verified. Please try again.',
   exchange_failed: 'Something went wrong completing sign-in. Please try again.',
   athlete_already_linked: 'That Strava account is already linked to a different account.',
+  identity_already_linked: 'That account is already linked to a different user.',
   access_denied: 'Sign-in was cancelled.',
 }
 
@@ -70,6 +71,12 @@ export default function Login() {
             <Button type="submit" loading={login.isPending}>
               Sign in
             </Button>
+
+            <Text size="sm" ta="center">
+              <Anchor component={Link} to="/forgot-password" size="sm">
+                Forgot password?
+              </Anchor>
+            </Text>
 
             <Divider label="or" labelPosition="center" />
 

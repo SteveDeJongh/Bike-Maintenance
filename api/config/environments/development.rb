@@ -41,6 +41,11 @@ Rails.application.configure do
 
   config.action_mailer.perform_caching = false
 
+  # Mail is caught by letter_opener_web (mounted at /letter_opener in
+  # routes.rb) instead of actually sending -- production's delivery method
+  # is a deliberately deferred config choice; see CLAUDE.md.
+  config.action_mailer.delivery_method = :letter_opener_web
+
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 
