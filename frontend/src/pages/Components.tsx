@@ -35,6 +35,8 @@ const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceSta
   category: (c) => categoryLabel(c.category),
   acquired_on: (c) => formatDate(c.acquired_on),
   retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
+  brand: (c) => c.brand ?? '—',
+  model: (c) => c.model ?? '—',
   service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
   current_bikes: (c) =>
     c.current_bikes.length === 0 ? (
@@ -58,6 +60,8 @@ const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceSt
   category: (c) => c.category,
   acquired_on: (c) => c.acquired_on,
   retired_on: (c) => c.retired_on,
+  brand: (c) => c.brand,
+  model: (c) => c.model,
   service_status: (c) => (c.service_status ? SERVICE_STATUS_SEVERITY[c.service_status] : null),
   current_bikes: (c) => c.current_bikes[0]?.name ?? null,
 }

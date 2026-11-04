@@ -6,6 +6,7 @@ class Bike < ApplicationRecord
   has_many :strava_activities, dependent: :nullify
 
   validates :name, presence: true
+  validate :acquired_on_before_retired_on
 
   after_save :reconcile_strava_activities, if: :saved_change_to_strava_gear_id?
 
@@ -40,6 +41,12 @@ class Bike < ApplicationRecord
   end
 
   private
+
+  def acquired_on_before_retired_on
+    return if acquired_on.blank? || retired_on.blank?
+
+    errors.add(:acquired_on, "must be at or before retired_on") if acquired_on > retired_on
+  end
 
   def reconcile_strava_activities
     old_gear_id, new_gear_id = saved_change_to_strava_gear_id

@@ -57,7 +57,7 @@ class ComponentsController < ApplicationController
     end
 
     def component_params
-      params.require(:component).permit(:label, :category, :acquired_on, :retired_on)
+      params.require(:component).permit(:label, :category, :acquired_on, :retired_on, :brand, :model, :notes)
     end
 
     def serialize_interval_status(status)

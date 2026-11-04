@@ -11,6 +11,7 @@ interface BikeFormValues {
   make: string
   model: string
   strava_gear_id: string
+  acquired_on: string | null
   retired_on: string | null
 }
 
@@ -19,6 +20,7 @@ const emptyValues: BikeFormValues = {
   make: '',
   model: '',
   strava_gear_id: '',
+  acquired_on: null,
   retired_on: null,
 }
 
@@ -28,6 +30,7 @@ function toFormValues(bike: Bike): BikeFormValues {
     make: bike.make ?? '',
     model: bike.model ?? '',
     strava_gear_id: bike.strava_gear_id ?? '',
+    acquired_on: bike.acquired_on,
     retired_on: bike.retired_on,
   }
 }
@@ -38,6 +41,7 @@ function toPayload(values: BikeFormValues): BikePayload {
     make: values.make.trim() || null,
     model: values.model.trim() || null,
     strava_gear_id: values.strava_gear_id.trim() || null,
+    acquired_on: values.acquired_on,
     retired_on: values.retired_on,
   }
 }
@@ -113,6 +117,7 @@ function BikeForm({
         <TextInput label="Make" {...form.getInputProps('make')} />
         <TextInput label="Model" {...form.getInputProps('model')} />
         <TextInput label="Strava gear ID" {...form.getInputProps('strava_gear_id')} />
+        <DateInput label="Purchased on" clearable {...form.getInputProps('acquired_on')} />
         <DateInput label="Retired on" clearable {...form.getInputProps('retired_on')} />
 
         <Group justify="flex-end">

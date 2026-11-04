@@ -12,6 +12,32 @@ RSpec.describe Bike, type: :model do
     expect(bike.errors[:name]).to be_present
   end
 
+  describe "#acquired_on_before_retired_on" do
+    it "is valid when acquired_on is before retired_on" do
+      bike = build(:bike, acquired_on: Date.new(2026, 1, 1), retired_on: Date.new(2026, 6, 1))
+
+      expect(bike).to be_valid
+    end
+
+    it "is valid when acquired_on equals retired_on" do
+      bike = build(:bike, acquired_on: Date.new(2026, 1, 1), retired_on: Date.new(2026, 1, 1))
+
+      expect(bike).to be_valid
+    end
+
+    it "is invalid when acquired_on is after retired_on" do
+      bike = build(:bike, acquired_on: Date.new(2026, 6, 1), retired_on: Date.new(2026, 1, 1))
+
+      expect(bike).not_to be_valid
+      expect(bike.errors[:acquired_on]).to be_present
+    end
+
+    it "is valid when only one of the two dates is present" do
+      expect(build(:bike, acquired_on: Date.new(2026, 1, 1), retired_on: nil)).to be_valid
+      expect(build(:bike, acquired_on: nil, retired_on: Date.new(2026, 1, 1))).to be_valid
+    end
+  end
+
   it "destroys its component assignments when destroyed" do
     bike = create(:bike)
     assignment = create(:component_assignment, bike: bike)

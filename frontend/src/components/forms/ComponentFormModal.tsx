@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Select, Stack, TextInput } from '@mantine/core'
+import { Alert, Button, Group, Modal, Select, Stack, Textarea, TextInput } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -18,6 +18,9 @@ interface ComponentFormValues {
   category: string
   acquired_on: string | null
   retired_on: string | null
+  brand: string
+  model: string
+  notes: string
 }
 
 const emptyValues: ComponentFormValues = {
@@ -25,6 +28,9 @@ const emptyValues: ComponentFormValues = {
   category: '',
   acquired_on: null,
   retired_on: null,
+  brand: '',
+  model: '',
+  notes: '',
 }
 
 function toFormValues(component: Component): ComponentFormValues {
@@ -33,6 +39,9 @@ function toFormValues(component: Component): ComponentFormValues {
     category: component.category,
     acquired_on: component.acquired_on,
     retired_on: component.retired_on,
+    brand: component.brand ?? '',
+    model: component.model ?? '',
+    notes: component.notes ?? '',
   }
 }
 
@@ -42,6 +51,9 @@ function toPayload(values: ComponentFormValues): ComponentPayload {
     category: values.category,
     acquired_on: values.acquired_on ?? '',
     retired_on: values.retired_on,
+    brand: values.brand.trim() || null,
+    model: values.model.trim() || null,
+    notes: values.notes.trim() || null,
   }
 }
 
@@ -150,6 +162,9 @@ function ComponentForm({
         />
         <DateInput label="Acquired on" required {...form.getInputProps('acquired_on')} />
         <DateInput label="Retired on" clearable {...form.getInputProps('retired_on')} />
+        <TextInput label="Brand" {...form.getInputProps('brand')} />
+        <TextInput label="Model" {...form.getInputProps('model')} />
+        <Textarea label="Notes" {...form.getInputProps('notes')} />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

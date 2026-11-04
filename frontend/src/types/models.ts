@@ -19,6 +19,7 @@ export interface Bike {
   make: string | null
   model: string | null
   strava_gear_id: string | null
+  acquired_on: string | null
   retired_on: string | null
   created_at: string
 }
@@ -102,6 +103,9 @@ export interface Component {
   category: string
   acquired_on: string
   retired_on: string | null
+  brand: string | null
+  model: string | null
+  notes: string | null
   // total_distance intentionally omitted: only present on GET /components/:id
   // (see ComponentDetail below), not on the index list used here.
 }

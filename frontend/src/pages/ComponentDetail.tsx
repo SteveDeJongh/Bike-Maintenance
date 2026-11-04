@@ -50,7 +50,14 @@ export default function ComponentDetail() {
           </Group>
           <Text c="dimmed">
             {categoryLabel(component.category)} · Acquired {component.acquired_on}
+            {[component.brand, component.model].filter(Boolean).length > 0 &&
+              ` · ${[component.brand, component.model].filter(Boolean).join(' ')}`}
           </Text>
+          {component.notes && (
+            <Text c="dimmed" size="sm" mt="xs">
+              {component.notes}
+            </Text>
+          )}
         </div>
         <Button variant="default" onClick={() => setEditOpened(true)}>
           Edit

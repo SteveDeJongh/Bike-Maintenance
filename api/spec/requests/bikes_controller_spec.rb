@@ -43,6 +43,21 @@ RSpec.describe "Bikes", type: :request do
     end
   end
 
+  describe "POST /bikes" do
+    it "accepts acquired_on" do
+      post "/bikes", params: { bike: { name: "Soloist", acquired_on: "2026-01-01" } }
+
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)["acquired_on"]).to eq("2026-01-01")
+    end
+
+    it "rejects an acquired_on after retired_on" do
+      post "/bikes", params: { bike: { name: "Soloist", acquired_on: "2026-06-01", retired_on: "2026-01-01" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
   describe "GET /bikes/:id" do
     it "succeeds for a bike with an installed component (regression: as_json methods must not reference a deleted model method)" do
       bike = create(:bike, user: current_user)

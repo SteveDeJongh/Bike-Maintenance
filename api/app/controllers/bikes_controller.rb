@@ -86,6 +86,6 @@ class BikesController < ApplicationController
     end
 
     def bike_params
-      params.require(:bike).permit(:name, :make, :model, :strava_gear_id, :retired_on)
+      params.require(:bike).permit(:name, :make, :model, :strava_gear_id, :acquired_on, :retired_on)
     end
 end

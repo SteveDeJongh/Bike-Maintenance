@@ -80,6 +80,7 @@ export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string>
 // stores whatever keys it's given, so this list is the sole source of truth.
 export const BIKE_LIST_COLUMNS = [
   'make_model',
+  'acquired_on',
   'total_distance',
   'total_moving_time',
   'first_ride_on',
@@ -93,6 +94,7 @@ export type BikeListColumn = (typeof BIKE_LIST_COLUMNS)[number]
 
 export const BIKE_LIST_COLUMN_LABELS: Record<BikeListColumn, string> = {
   make_model: 'Make / Model',
+  acquired_on: 'Purchased On',
   total_distance: 'Distance',
   total_moving_time: 'Time',
   first_ride_on: 'First Ride',
@@ -200,7 +202,9 @@ export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
 
 // The toggleable columns on the Components list. Label is the always-shown,
 // leading (pinned) linked column — not part of this list, but still sortable.
-export const COMPONENT_LIST_COLUMNS = ['category', 'acquired_on', 'retired_on', 'service_status', 'current_bikes'] as const
+export const COMPONENT_LIST_COLUMNS = [
+  'category', 'acquired_on', 'retired_on', 'brand', 'model', 'service_status', 'current_bikes',
+] as const
 
 export type ComponentListColumn = (typeof COMPONENT_LIST_COLUMNS)[number]
 
@@ -208,6 +212,8 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
   category: 'Category',
   acquired_on: 'Acquired',
   retired_on: 'Retired',
+  brand: 'Brand',
+  model: 'Model',
   service_status: 'Service Status',
   current_bikes: 'Current Bike',
 }

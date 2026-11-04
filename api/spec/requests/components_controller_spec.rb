@@ -47,6 +47,23 @@ RSpec.describe "Components", type: :request do
     end
   end
 
+  describe "POST /components" do
+    it "accepts brand, model, and notes" do
+      post "/components", params: {
+        component: {
+          label: "Chain A", category: "chain", acquired_on: "2026-01-01",
+          brand: "Shimano", model: "105", notes: "Waxed before first install",
+        },
+      }
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["brand"]).to eq("Shimano")
+      expect(body["model"]).to eq("105")
+      expect(body["notes"]).to eq("Waxed before first install")
+    end
+  end
+
   describe "GET /components/:id" do
     it "includes each enabled interval's computed status" do
       component = create(:component, user: current_user, category: "chain")

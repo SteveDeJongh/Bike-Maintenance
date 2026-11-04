@@ -33,6 +33,7 @@ import type { Bike, BikeWithStats, TableViewPreferenceData } from '../types/mode
 const columnValue: Record<BikeListSortColumn, (bike: BikeWithStats) => string | number | null> = {
   name: (bike) => bike.name,
   make_model: (bike) => [bike.make, bike.model].filter(Boolean).join(' '),
+  acquired_on: (bike) => bike.acquired_on,
   total_distance: (bike) => bike.total_distance,
   total_moving_time: (bike) => bike.total_moving_time,
   first_ride_on: (bike) => bike.first_ride_on,
@@ -45,6 +46,7 @@ const columnValue: Record<BikeListSortColumn, (bike: BikeWithStats) => string | 
 const columnRenderer: Record<BikeListColumn, (bike: BikeWithStats) => ReactNode> = {
   make_model: (bike) =>
     bike.make || bike.model ? [bike.make, bike.model].filter(Boolean).join(' ') : 'Unknown make/model',
+  acquired_on: (bike) => (bike.acquired_on ? formatDate(bike.acquired_on) : '—'),
   total_distance: (bike) => formatDistance(bike.total_distance),
   total_moving_time: (bike) => formatDuration(bike.total_moving_time),
   first_ride_on: (bike) => (bike.first_ride_on ? formatDate(bike.first_ride_on) : 'No rides yet'),
