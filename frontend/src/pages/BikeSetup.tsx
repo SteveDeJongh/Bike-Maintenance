@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Alert,
@@ -25,6 +25,8 @@ import { useComponentSetup, type ComponentSetupRow } from '../api/mutations'
 import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
+import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
+import type { ComponentSuggestionInput } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
 
 type RideContext = 'both' | 'outdoor_only' | 'indoor_only'
@@ -199,6 +201,19 @@ function SetupChecklist({
 
   const installedOn = installedOnOverride ?? bike.acquired_on ?? todayIsoDate()
 
+  // Every row's current (unsaved) brand/model/category, merged into
+  // suggestions everywhere -- so typing "SRAM" in the chain row offers
+  // "SRAM" in the cassette row before anything's submitted. Memoized over
+  // rowsByCategory so useComponentSuggestions' own memoization isn't
+  // defeated by a new array identity every render.
+  const unsavedSuggestions: ComponentSuggestionInput[] = useMemo(
+    () =>
+      Object.entries(rowsByCategory).flatMap(([category, rows]) =>
+        rows.map((row) => ({ brand: row.brand || null, model: row.model || null, category })),
+      ),
+    [rowsByCategory],
+  )
+
   function updateRow(category: string, key: string, changes: Partial<SetupRow>) {
     setRowsByCategory((prev) => ({
       ...prev,
@@ -310,8 +325,7 @@ function SetupChecklist({
           <Table.Tr>
             <Table.Th>Category</Table.Th>
             <Table.Th>Label</Table.Th>
-            <Table.Th>Brand</Table.Th>
-            <Table.Th>Model</Table.Th>
+            <Table.Th>Brand / Model</Table.Th>
             <Table.Th>Notes</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -326,7 +340,7 @@ function SetupChecklist({
             if (rows.length === 0) {
               return (
                 <Table.Tr key={category}>
-                  <Table.Td colSpan={5}>
+                  <Table.Td colSpan={4}>
                     <Group gap="xs">
                       <Text size="sm" c="dimmed">
                         {categoryLabel(category)}
@@ -351,6 +365,7 @@ function SetupChecklist({
                 canAddComplementary={rows.length === 1 && row.rideContextEditable && row.rideContext !== 'both'}
                 canRemove={rowIndex > 0}
                 error={rowErrors[row.key]}
+                extraSuggestions={unsavedSuggestions}
                 onChange={(changes) => updateRow(category, row.key, changes)}
                 onRideContextChange={(rideContext) => changeRideContext(category, row.key, rideContext)}
                 onAddComplementary={() => addComplementaryRow(category)}
@@ -382,6 +397,7 @@ function SetupTableRow({
   canAddComplementary,
   canRemove,
   error,
+  extraSuggestions,
   onChange,
   onRideContextChange,
   onAddComplementary,
@@ -395,6 +411,7 @@ function SetupTableRow({
   canAddComplementary: boolean
   canRemove: boolean
   error: string | undefined
+  extraSuggestions: ComponentSuggestionInput[]
   onChange: (changes: Partial<SetupRow>) => void
   onRideContextChange: (rideContext: RideContext) => void
   onAddComplementary: () => void
@@ -467,21 +484,15 @@ function SetupTableRow({
         />
       </Table.Td>
       <Table.Td>
-        <TextInput
+        <ComponentBrandModelInputs
+          layout="inline"
           size="sm"
-          placeholder="Brand"
           disabled={!row.checked}
-          value={row.brand}
-          onChange={(event) => onChange({ brand: event.currentTarget.value })}
-        />
-      </Table.Td>
-      <Table.Td>
-        <TextInput
-          size="sm"
-          placeholder="Model"
-          disabled={!row.checked}
-          value={row.model}
-          onChange={(event) => onChange({ model: event.currentTarget.value })}
+          brand={row.brand}
+          model={row.model}
+          category={category}
+          extraSuggestions={extraSuggestions}
+          onChange={(changes) => onChange(changes)}
         />
       </Table.Td>
       <Table.Td>
