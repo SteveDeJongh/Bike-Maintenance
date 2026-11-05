@@ -58,9 +58,14 @@ docker build .`), not the repo root.
   that key yet), and a `PATCH` always replaces the whole `data` value (no deep merge),
   so the frontend must send the complete object on every change, not just the changed
   field.
-- `Bike`: user_id, name, make, model, strava_gear_id, retired_on
+- `Bike`: user_id, name, make, model, strava_gear_id, acquired_on (date, nullable —
+  purchase date; validated `<=` `retired_on` when both present), retired_on,
+  bike_type_id (nullable FK to `BikeType`, validated same-user — see "Bike setup"
+  below). `acquired_on` is also the default "Installed since" date in the batched
+  component setup step.
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
-  tire_rear, ...), acquired_on, retired_on — category doubles as a "slot" for validation
+  tire_rear, ...), acquired_on, retired_on, brand (string, nullable), model (string,
+  nullable), notes (text, nullable) — category doubles as a "slot" for validation
 - `BikeComponentSlot`: bike_id, category, ride_context (string: `"both"`/`"outdoor_only"`/
   `"indoor_only"`, same enum/validation as `ComponentAssignment#ride_context`, DB default
   `"both"`) — unique per `(bike_id, category, ride_context)`. What "+ Track a new
@@ -122,17 +127,29 @@ docker build .`), not the repo root.
     one-active-installation-at-a-time"), and splitting them isn't justified until a real
     need for independent control over each surfaces.
   A missing row behaves as each column's own DB default (`"both"`/`true`/`false`).
-  Every user gets a fully editable starting point for each known category
-  (cassette/tire_front/tire_rear/wheel_front/wheel_rear/brake_pads_front/
-  brake_pads_rear → `default_ride_context: "outdoor_only"`; chain/chainring/
-  bottom_bracket/handlebar_tape/saddle → `"both"`; only `cassette` seeded
-  `allows_multiple_assignments: true`) — deliberately *not* hardcoded logic; every row
-  is changeable via the Settings page. For existing users this was a one-time
-  migration seed; for every user since, it's `Users::Provision` (see "Authentication"
-  below), which replicates the exact same values on `User#after_create`. A "frame" category and fully user-definable
-  categories were raised during design but are an explicitly deferred future idea, not
-  built — categories stay free-text exactly as they are today. Also carries two
-  nullable notification overrides, `notifications_enabled` and
+  Every user gets a fully editable starting point for each of the 18 known categories
+  — picker order is drivetrain → wheels/tires → brakes → contact points → frame/
+  suspension → power meter: `chain`/`cassette`/`chainring`/`bottom_bracket`,
+  `wheel_front`/`wheel_rear`/`tire_front`/`tire_rear`, `brake_pads_front`/
+  `brake_pads_rear`, `saddle`/`handlebar_tape`/`pedals`, `frame`/`front_suspension`/
+  `shock`/`seat_post`, `power_meter`. `default_ride_context` is `"outdoor_only"` for
+  cassette/tire_front/tire_rear/wheel_front/wheel_rear/brake_pads_front/
+  brake_pads_rear/front_suspension/shock, `"both"` for everything else; only
+  `cassette` seeds `allows_multiple_assignments: true` — deliberately *not* hardcoded
+  logic, every row is changeable via the Settings page. `handlebar_tape`'s label is
+  `"Handlebar Tape/Grips"` (key unchanged — renaming it would mean a data migration
+  across components/slots/settings/intervals for no gain). For users existing before
+  a given category was added, a migration backfills it
+  (`find_or_create_by`-equivalent `ON CONFLICT DO NOTHING`, never overwriting an
+  edited row); for every user since, it's `Users::Provision` (see "Authentication"
+  below), which replicates the exact same values on `User#after_create`. Fully
+  user-definable categories were raised during design but are an explicitly deferred
+  future idea, not built — categories stay free-text exactly as they are today (a
+  custom category with the same key as a later-added built-in, e.g. a pre-existing
+  `front_suspension`, just becomes that built-in; the migration's `ON CONFLICT DO
+  NOTHING` leaves it and its settings untouched — a genuine near-duplicate under a
+  *different* key, e.g. `rear_shock` alongside the new `shock`, is never auto-merged).
+  Also carries two nullable notification overrides, `notifications_enabled` and
   `warning_threshold_percent` — `nil` means "inherit the global `NotificationSetting`"
   (see below), the same missing-value-means-inherit convention this model's other
   columns already use relative to their own DB defaults.
@@ -793,6 +810,86 @@ choices/ordering, which this fixed, non-configurable 14-day feed has no use for.
 `ServiceIntervalsSection.tsx` into `utils/serviceInterval.ts` so `AttentionRow`
 shares the exact same wording rather than re-deriving it.
 
+## Bike setup
+
+Replaces manually repeating "track a slot → create a component → install it" once
+per part (~8 times for a typical bike) with one batched step, optionally pre-checked
+from a user-editable **bike type** preset.
+
+- `BikeType`: user_id, name (unique per `(user_id, lower(name))`, same convention as
+  `ServiceType`), default_categories (string array, default `[]`). Modeled on
+  `ServiceType`, but `has_many :bikes, dependent: :nullify` instead of
+  `restrict_with_error` — nothing is *calculated* from a bike type (it only
+  pre-checks the setup checklist), so blocking a delete would just be friction.
+  `default_categories=` strips blanks and dedupes, same free-text-no-server-list
+  convention as `Component#category` — allowed values come from the frontend
+  (baseline categories plus the user's custom ones), never validated against a
+  fixed list here. `Users::Provision` seeds Road/Gravel/Mountain/Time Trial/
+  Commuter with sensible defaults (Mountain is the one that includes
+  front_suspension/shock/seat_post); a migration backfills the same for existing
+  users, same find-or-create-never-overwrite convention as the category backfills
+  above. **Editing a type's `default_categories`, or changing which type a bike
+  uses, never adds, removes, or touches any slot/component/assignment on any
+  existing bike** — there's no `after_save` hook on `Bike#bike_type_id` at all, so
+  this is true by construction, not by a check that could drift out of sync.
+- `BikeFormModal` gets a clearable "Type" `Select`; `BikeTypesPage.tsx` (a Settings
+  tab next to Service Types) is where types are added/renamed/deleted and their
+  `default_categories` edited via a `MultiSelect` built from `useAllCategories()`.
+  The Bikes list's optional "Type" column resolves the name client-side against the
+  already-fetched bike-types list (the `Bike` JSON only carries `bike_type_id`, a
+  plain column) — same "resolve an id against an already-fetched list" pattern
+  `MappedGearRow` uses for bike names on the Strava page.
+- **`POST /bikes/:id/component_setup`** (`{ installed_on, components: [{ category,
+  ride_context, label, brand, model, notes }, ...] }`) creates a `BikeComponentSlot`
+  + `Component` + `ComponentAssignment` per row, all in one transaction — any row
+  failing validation rolls back everything and responds `422` with `{ row_errors:
+  { "<index>": {...errors} } }`, keyed by the row's position in the submitted array
+  (not by category), so the form can show each failure inline. Every existing model
+  validation applies completely unchanged — a row for a category the bike already
+  has a slot for fails honestly on `BikeComponentSlot`'s own uniqueness validation
+  rather than being silently skipped or reused, and a split `ride_context` for a
+  category that doesn't `allows_multiple_assignments` fails on
+  `ride_context_requires_allows_multiple_assignments`, not a check duplicated in the
+  controller. Each row's own `ride_context` drives *both* the new slot's and the new
+  assignment's `ride_context` (not forced to `"both"`) — this is what lets a category
+  that `allows_multiple_assignments` be set up as two rows at once (one
+  `outdoor_only`, one `indoor_only`) in the same batch, rather than requiring the
+  indoor/outdoor split to be a manual follow-up action on the Bike detail page.
+  `installed_on`/a row's `acquired_on` need no date→timestamp conversion — assigning
+  a bare date string straight into a timestamp column already casts to midnight UTC
+  via Rails' normal attribute typecasting, the same assumption
+  `Maintenance::BatchedDistanceQuery`'s `acquired_on::timestamp` cast already relies
+  on, so this reuses that convention rather than inventing a new one.
+- **`/bikes/:id/setup`** (`BikeSetup.tsx`) is a page, not a step inside
+  `BikeFormModal` — the checklist can run to 18 rows. One row per `trackable`
+  category from `useAllCategories()` not already fully slotted; a category already
+  tracked (every valid `ride_context` for it already has a slot) shows as a
+  disabled "Already tracked" row instead of being hidden. A fresh
+  `allows_multiple_assignments` category's sole starting row has an editable
+  ride-context `Select`; picking `outdoor_only`/`indoor_only` there reveals a
+  "+ Add outdoor/indoor too" action that appends the complementary row (context
+  fixed, not re-selectable, since `"both"` and a split pairing can't coexist). A
+  category with one context already slotted (e.g. `outdoor_only` tracked
+  elsewhere) offers only the missing one, pre-labeled with what's already tracked.
+  Checked-row fields (label pre-filled `"{bike name} {category label}"`,
+  brand/model, notes collapsed by default behind a toggle) and un-checked rows
+  render the exact same row height — every input is always rendered, just
+  `disabled` when unchecked, instead of appearing/disappearing, so toggling a
+  checkbox never reflows the table. One shared "Installed since" `DateInput`
+  (default `bike.acquired_on`, else today) applies to every checked row; its helper
+  text calls out that Strava rides before that date won't count toward these
+  components (existing attribution behavior, not new logic — see "Core logic"
+  above). "Check all"/"Clear all" and "Skip for now" (navigates to `/bikes/:id`
+  with no request sent, leaving the bike exactly as-is) round it out.
+- `BikeFormModal` gained an `onCreateSuccess?: (bike: Bike) => void` prop (same
+  pattern as `ComponentFormModal`'s own, fired only on a successful *create*, never
+  edit). Only the Bikes page's main "+ New Bike" button passes
+  `onCreateSuccess={(bike) => navigate(\`/bikes/${bike.id}/setup\`)}` — the Strava
+  page's two other bike-creation shortcuts ("+ Create new bike" in gear mapping,
+  "Track as retired bike") don't pass it, so they keep their existing behavior
+  unchanged. `BikeDetail.tsx` also links to the setup page wherever it already shows
+  "No component types tracked yet.", for anyone who skipped and wants to come back.
+
 ## Build order (work one phase at a time; don't jump ahead)
 
 1. Skeleton — done once this file exists and `rails db:create` works.
@@ -821,7 +918,10 @@ shares the exact same wording rather than re-deriving it.
    deferred pending real OAuth credentials) shipped here too — see
    "Authentication" above. The landing-page dashboard (sync status, per-bike
    mounted/off-bike components, a needs-attention list, recent rides) shipped
-   here too — see "Dashboard" above. Deploy, webhooks, and charts remain.
+   here too — see "Dashboard" above. Bike types and the batched component setup
+   step, plus six new component categories and bike/component fields (purchase
+   date, brand/model/notes), shipped here too — see "Bike setup" above. Deploy,
+   webhooks, and charts remain.
 
 ## Conventions
 
