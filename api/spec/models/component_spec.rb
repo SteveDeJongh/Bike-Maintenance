@@ -19,6 +19,35 @@ RSpec.describe Component, type: :model do
     expect(component.errors[:category]).to be_present
   end
 
+  describe "brand/model normalization" do
+    it "collapses internal and surrounding whitespace" do
+      component = create(:component, brand: "  Shimano   ", model: "  Ultegra  R8000  ")
+
+      expect(component.brand).to eq("Shimano")
+      expect(component.model).to eq("Ultegra R8000")
+    end
+
+    it "turns a blank value into nil" do
+      component = create(:component, brand: "   ", model: "")
+
+      expect(component.brand).to be_nil
+      expect(component.model).to be_nil
+    end
+
+    it "leaves a nil value as nil" do
+      component = create(:component, brand: nil, model: nil)
+
+      expect(component.brand).to be_nil
+      expect(component.model).to be_nil
+    end
+
+    it "leaves casing untouched -- the autocomplete suggests casing, this doesn't enforce it" do
+      component = create(:component, brand: "sHIMANo")
+
+      expect(component.brand).to eq("sHIMANo")
+    end
+  end
+
   it "destroys its component assignments and maintenance events when destroyed" do
     component = create(:component)
     assignment = create(:component_assignment, component: component, bike: create(:bike, user: component.user))

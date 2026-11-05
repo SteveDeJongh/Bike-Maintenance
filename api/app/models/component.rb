@@ -8,6 +8,15 @@ class Component < ApplicationRecord
   validates :label, presence: true
   validates :category, presence: true
 
+  # Same convention as User#normalizes :email -- collapses whitespace
+  # (including internal runs, not just leading/trailing) and turns a blank
+  # value into nil, so "Shimano", "shimano ", and "Shimano  " don't drift
+  # into different stored strings. Casing itself is left alone here; the
+  # brand/model autocomplete suggests a canonical casing client-side instead
+  # of this normalizing it away server-side. apply_to_nil stays at its
+  # default (false), so a nil brand/model never reaches the lambda.
+  normalizes :brand, :model, with: ->(value) { value.squish.presence }
+
   after_create :apply_category_service_intervals
 
   # { component_id => [{id:, name:}, ...] } for every currently-installed
