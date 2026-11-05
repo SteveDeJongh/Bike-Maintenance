@@ -184,6 +184,39 @@ export function useDeleteBike() {
   })
 }
 
+export interface ComponentSetupRow {
+  category: string
+  // Drives both the new BikeComponentSlot's and ComponentAssignment's
+  // ride_context -- lets a category that allows_multiple_assignments be
+  // set up as two rows (one outdoor_only, one indoor_only) in the same batch.
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+  label: string
+  brand: string | null
+  model: string | null
+  notes: string | null
+}
+
+export interface ComponentSetupPayload {
+  installed_on: string
+  components: ComponentSetupRow[]
+}
+
+// The batched "set up all components for a bike at once" step -- creates a
+// BikeComponentSlot + Component + ComponentAssignment per row, all or
+// nothing (see BikesController#component_setup).
+export function useComponentSetup(bikeId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: ComponentSetupPayload) => apiPost<Bike>(`/bikes/${bikeId}/component_setup`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bikes'] })
+      queryClient.invalidateQueries({ queryKey: ['components'] })
+      queryClient.invalidateQueries({ queryKey: ['component_assignments'] })
+      queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+    },
+  })
+}
+
 // BikeType
 
 export function useCreateBikeType() {

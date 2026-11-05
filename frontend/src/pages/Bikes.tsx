@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Anchor, Badge, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useBikes, useBikeTypes, useTableViewPreference } from '../api/queries'
 import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
@@ -75,6 +75,7 @@ const BIKE_LIST_COLUMN_OPTIONS = BIKE_LIST_COLUMNS.map((column) => ({
 }))
 
 export default function Bikes() {
+  const navigate = useNavigate()
   const { data, isPending, isError, error } = useBikes()
   const { data: preferenceData, isPending: preferencePending } = useTableViewPreference('bikes')
   const deleteBike = useDeleteBike()
@@ -130,6 +131,7 @@ export default function Bikes() {
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
         bike={editing ?? undefined}
+        onCreateSuccess={(bike) => navigate(`/bikes/${bike.id}/setup`)}
       />
     </>
   )

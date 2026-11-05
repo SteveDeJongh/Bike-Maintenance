@@ -59,6 +59,12 @@ interface BikeFormModalProps {
   // "create new bike" action, or the "track as retired bike" one-click
   // create's fallback on failure) — ignored when editing an existing bike.
   createDefaults?: Partial<BikeFormValues>
+  // Fired right before onClose, only when a new bike was just created
+  // (never on edit) -- same pattern as ComponentFormModal's own prop. Only
+  // the Bikes page's main "+ New Bike" flow uses this, to jump straight
+  // into the component setup step; the gear-mapping/track-as-retired
+  // creation shortcuts don't pass it, so they keep their current behavior.
+  onCreateSuccess?: (bike: Bike) => void
 }
 
 export default function BikeFormModal({
@@ -66,11 +72,18 @@ export default function BikeFormModal({
   onClose,
   bike,
   createDefaults,
+  onCreateSuccess,
 }: BikeFormModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={bike ? 'Edit Bike' : 'New Bike'}>
       {opened && (
-        <BikeForm key={bike?.id ?? 'new'} onClose={onClose} bike={bike} createDefaults={createDefaults} />
+        <BikeForm
+          key={bike?.id ?? 'new'}
+          onClose={onClose}
+          bike={bike}
+          createDefaults={createDefaults}
+          onCreateSuccess={onCreateSuccess}
+        />
       )}
     </Modal>
   )
@@ -80,10 +93,12 @@ function BikeForm({
   onClose,
   bike,
   createDefaults,
+  onCreateSuccess,
 }: {
   onClose: () => void
   bike?: Bike
   createDefaults?: Partial<BikeFormValues>
+  onCreateSuccess?: (bike: Bike) => void
 }) {
   const isEdit = Boolean(bike)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
@@ -105,7 +120,10 @@ function BikeForm({
   function handleSubmit(values: BikeFormValues) {
     setBaseErrors([])
     mutation.mutate(toPayload(values), {
-      onSuccess: () => onClose(),
+      onSuccess: (result) => {
+        if (!isEdit) onCreateSuccess?.(result)
+        onClose()
+      },
       onError: (error) => setBaseErrors(applyApiErrors(form, error)),
     })
   }

@@ -9,6 +9,7 @@ import VerifyEmail from './pages/VerifyEmail'
 import Dashboard from './pages/Dashboard'
 import Bikes from './pages/Bikes'
 import BikeDetail from './pages/BikeDetail'
+import BikeSetup from './pages/BikeSetup'
 import Components from './pages/Components'
 import ComponentDetail from './pages/ComponentDetail'
 import Assignments from './pages/Assignments'
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Dashboard /> },
           { path: 'bikes', element: <Bikes /> },
           { path: 'bikes/:id', element: <BikeDetail /> },
+          { path: 'bikes/:id/setup', element: <BikeSetup /> },
           { path: 'components', element: <Components /> },
           { path: 'components/:id', element: <ComponentDetail /> },
           { path: 'assignments', element: <Assignments /> },

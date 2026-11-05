@@ -83,4 +83,118 @@ RSpec.describe "Bikes", type: :request do
       expect(assignment["component"]["service_status"]).to eq("due")
     end
   end
+
+  describe "POST /bikes/:id/component_setup" do
+    it "creates a slot, component, and assignment per row, with each row's own ride_context" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [
+          { category: "chain", label: "Chain A", ride_context: "both", brand: "Shimano", model: "105", notes: "Waxed" },
+          { category: "cassette", label: "Cassette A", ride_context: "outdoor_only" },
+        ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(bike.bike_component_slots.pluck(:category, :ride_context)).to contain_exactly(
+        [ "chain", "both" ], [ "cassette", "outdoor_only" ],
+      )
+
+      chain = current_user.components.find_by!(label: "Chain A")
+      expect(chain.category).to eq("chain")
+      expect(chain.acquired_on).to eq(Date.new(2026, 1, 1))
+      expect(chain.brand).to eq("Shimano")
+      expect(chain.model).to eq("105")
+      expect(chain.notes).to eq("Waxed")
+      chain_assignment = chain.component_assignments.first
+      expect(chain_assignment.bike_id).to eq(bike.id)
+      expect(chain_assignment.started_at).to eq(Time.zone.parse("2026-01-01"))
+      expect(chain_assignment.ride_context).to eq("both")
+
+      cassette = current_user.components.find_by!(label: "Cassette A")
+      expect(cassette.component_assignments.first.ride_context).to eq("outdoor_only")
+    end
+
+    it "defaults a row's ride_context to both when omitted" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [ { category: "chain", label: "Chain A" } ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(bike.bike_component_slots.first.ride_context).to eq("both")
+    end
+
+    it "sets up two components of the same allows_multiple_assignments category with different ride contexts" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [
+          { category: "cassette", label: "Road Cassette", ride_context: "outdoor_only" },
+          { category: "cassette", label: "Trainer Cassette", ride_context: "indoor_only" },
+        ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(bike.bike_component_slots.where(category: "cassette").pluck(:ride_context))
+        .to contain_exactly("outdoor_only", "indoor_only")
+      expect(current_user.components.where(category: "cassette").count).to eq(2)
+    end
+
+    it "fails the row honestly, via the real slot validation, when a split ride_context isn't allowed for that category" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [ { category: "chain", label: "Chain A", ride_context: "outdoor_only" } ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["row_errors"]["0"]).to be_present
+      expect(current_user.components.count).to eq(0)
+    end
+
+    it "rolls back everything when one row fails validation, keying the error by row index" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [
+          { category: "chain", label: "Chain A" },
+          { category: "cassette", label: "" }, # blank label fails Component's presence validation
+        ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["row_errors"].keys).to eq(["1"])
+      expect(bike.bike_component_slots.count).to eq(0)
+      expect(current_user.components.count).to eq(0)
+    end
+
+    it "fails the row honestly, via the real slot uniqueness validation, when the bike already has a slot for that category" do
+      bike = create(:bike, user: current_user)
+      create(:bike_component_slot, bike: bike, category: "chain", ride_context: "both")
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [ { category: "chain", label: "Chain A" } ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["row_errors"]["0"]).to be_present
+      expect(current_user.components.count).to eq(0)
+    end
+
+    it "404s for another user's bike" do
+      other_bike = create(:bike)
+
+      post "/bikes/#{other_bike.id}/component_setup", params: { installed_on: "2026-01-01", components: [] }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

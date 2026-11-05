@@ -331,7 +331,14 @@ export default function BikeDetail() {
 
       <Title order={3}>Installed components</Title>
 
-      {orderedSlots.length === 0 && <Text c="dimmed">No component types tracked yet.</Text>}
+      {orderedSlots.length === 0 && (
+        <Stack gap="xs">
+          <Text c="dimmed">No component types tracked yet.</Text>
+          <Button component={Link} to={`/bikes/${bike.id}/setup`} variant="default" w="fit-content">
+            Set up components
+          </Button>
+        </Stack>
+      )}
 
       {orderedSlots.length > 0 && (
         <InstalledComponentsTable

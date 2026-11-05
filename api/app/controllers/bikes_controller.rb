@@ -1,5 +1,5 @@
 class BikesController < ApplicationController
-  before_action :set_bike, only: %i[ show update destroy ]
+  before_action :set_bike, only: %i[ show update destroy component_setup ]
 
   # GET /bikes
   def index
@@ -78,6 +78,59 @@ class BikesController < ApplicationController
   def destroy
     @bike.destroy!
     head :no_content
+  end
+
+  # POST /bikes/1/component_setup
+  # Batched version of the manual "track a slot -> create a component ->
+  # install it" flow -- all or nothing. Every existing model validation
+  # (overlap rules, same-user checks) applies unchanged; a row that already
+  # has a slot fails honestly on the real uniqueness validation rather than
+  # being silently skipped or reused. Each row carries its own ride_context
+  # (rather than always "both") so a category that
+  # allows_multiple_assignments can be set up as two rows -- one
+  # outdoor_only, one indoor_only -- in the same batch; BikeComponentSlot's
+  # own ride_context_requires_allows_multiple_assignments validation is what
+  # actually rejects a split context for a category that doesn't allow it,
+  # not anything special-cased here.
+  def component_setup
+    rows = Array(params[:components])
+    row_errors = {}
+
+    ActiveRecord::Base.transaction do
+      rows.each_with_index do |row, index|
+        category = row[:category]
+        ride_context = row[:ride_context].presence || "both"
+
+        slot = @bike.bike_component_slots.new(category: category, ride_context: ride_context)
+        unless slot.save
+          row_errors[index] = slot.errors
+          raise ActiveRecord::Rollback
+        end
+
+        component = current_user.components.new(
+          label: row[:label], category: category, acquired_on: params[:installed_on],
+          brand: row[:brand], model: row[:model], notes: row[:notes],
+        )
+        unless component.save
+          row_errors[index] = component.errors
+          raise ActiveRecord::Rollback
+        end
+
+        assignment = ComponentAssignment.new(
+          component: component, bike: @bike, started_at: params[:installed_on], ride_context: ride_context,
+        )
+        unless assignment.save
+          row_errors[index] = assignment.errors
+          raise ActiveRecord::Rollback
+        end
+      end
+    end
+
+    if row_errors.empty?
+      render json: @bike.reload.as_json(include: :bike_component_slots), status: :created
+    else
+      render json: { row_errors: row_errors }, status: :unprocessable_content
+    end
   end
 
   private
