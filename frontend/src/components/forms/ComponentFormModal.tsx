@@ -11,6 +11,7 @@ import {
 import { useComponentCategorySettings } from '../../api/queries'
 import { categoryLabel } from '../../constants'
 import { useAllCategories } from '../../hooks/useAllCategories'
+import ComponentBrandModelInputs from '../ComponentBrandModelInputs'
 import type { Component } from '../../types/models'
 
 interface ComponentFormValues {
@@ -162,8 +163,15 @@ function ComponentForm({
         />
         <DateInput label="Acquired on" required {...form.getInputProps('acquired_on')} />
         <DateInput label="Retired on" clearable {...form.getInputProps('retired_on')} />
-        <TextInput label="Brand" {...form.getInputProps('brand')} />
-        <TextInput label="Model" {...form.getInputProps('model')} />
+        <ComponentBrandModelInputs
+          brand={form.values.brand}
+          model={form.values.model}
+          category={form.values.category || undefined}
+          onChange={(changes) => {
+            if (changes.brand !== undefined) form.setFieldValue('brand', changes.brand)
+            if (changes.model !== undefined) form.setFieldValue('model', changes.model)
+          }}
+        />
         <Textarea label="Notes" {...form.getInputProps('notes')} />
 
         <Group justify="flex-end">
