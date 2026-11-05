@@ -65,7 +65,11 @@ docker build .`), not the repo root.
   component setup step.
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
   tire_rear, ...), acquired_on, retired_on, brand (string, nullable), model (string,
-  nullable), notes (text, nullable) — category doubles as a "slot" for validation
+  nullable), notes (text, nullable) — category doubles as a "slot" for validation.
+  `brand`/`model` are `normalizes`d (`v.squish.presence`, same convention as
+  `User#normalizes :email`) — whitespace-collapsed, blank becomes `nil`, casing left
+  alone (see "Brand/model autocomplete" below for where casing gets handled instead).
+  No backfill — an existing row only normalizes the next time it's saved.
 - `BikeComponentSlot`: bike_id, category, ride_context (string: `"both"`/`"outdoor_only"`/
   `"indoor_only"`, same enum/validation as `ComponentAssignment#ride_context`, DB default
   `"both"`) — unique per `(bike_id, category, ride_context)`. What "+ Track a new
@@ -890,6 +894,51 @@ from a user-editable **bike type** preset.
   unchanged. `BikeDetail.tsx` also links to the setup page wherever it already shows
   "No component types tracked yet.", for anyone who skipped and wants to come back.
 
+## Brand/model autocomplete
+
+`Component#brand`/`#model` stay free text (a user can always type a value that
+isn't suggested) — Mantine `Autocomplete`, never `Select`. Every surface that
+creates or edits a component's brand/model goes through one shared component,
+`frontend/src/components/ComponentBrandModelInputs.tsx`, so the rules below live in
+exactly one place: `ComponentFormModal.tsx` (create/edit, `layout="stacked"`) and
+`BikeSetup.tsx`'s per-row "Brand / Model" column (`layout="inline"`, one merged
+table cell per row, not two).
+
+- **Sources**: the user's own components, via the existing `useComponents()` query
+  (no new endpoint — it already returns every component including retired ones
+  with `brand`/`model`/`category`, and every component mutation already
+  invalidates `['components']`, so suggestions stay current for free); plus
+  `COMMON_COMPONENT_BRANDS` (`constants.ts`), a flat ~50-brand list covering every
+  built-in category except frame (frame brands are bike makes, already covered by
+  the user's own data) — no built-in model list, models only ever come from the
+  user's own data. `frontend/src/hooks/useComponentSuggestions.ts` wraps the query
+  into `{ brands, models }` (distinct, case-insensitively grouped, with counts),
+  and takes an optional `extra` array to merge in not-yet-saved values — `BikeSetup`
+  passes every other checklist row's current brand/model/category (memoized over
+  its row state), so typing "SRAM" in one row suggests it in another before either
+  saves.
+- **Ranking** (`frontend/src/utils/componentSuggestions.ts`, plain functions, no
+  frontend test runner exists in this project so these aren't unit-tested yet, but
+  are isolated so they're a drop-in addition later): brand suggestions group into
+  "Your brands" (usage count descending, then alphabetical) and "Common brands"
+  (`COMMON_COMPONENT_BRANDS` minus anything already in the first group,
+  case-insensitively, alphabetical). Model suggestions filter to the brand
+  currently typed (any category), or to the current category if brand is empty;
+  within that, a category match ranks first, then usage count. Picking a model
+  suggestion fills in its brand too, but only when the brand field is still empty.
+  Mantine's own default `Autocomplete` filtering already does case-insensitive
+  "anywhere in the string" matching and (via `limit={10}`) caps the dropdown, across
+  grouped data — no custom filter function needed for that part.
+- **Casing**: on blur, the typed value is trimmed and, if it matches a suggestion
+  case-insensitively, replaced with that suggestion's exact casing
+  (`resolveCasing`) — models compare only against models of the matching brand.
+  This is deliberately a frontend-only nudge, not a server-side rule — `Component`'s
+  `normalizes` (see the data model above) only squishes whitespace, it never
+  touches case, so two differently-cased spellings of the same brand can still
+  exist in the database; this feature's whole point is to stop *new* entries from
+  adding to that drift, not to repair old ones (no backfill, by design, same as the
+  `normalizes` change itself).
+
 ## Build order (work one phase at a time; don't jump ahead)
 
 1. Skeleton — done once this file exists and `rails db:create` works.
@@ -920,7 +969,9 @@ from a user-editable **bike type** preset.
    mounted/off-bike components, a needs-attention list, recent rides) shipped
    here too — see "Dashboard" above. Bike types and the batched component setup
    step, plus six new component categories and bike/component fields (purchase
-   date, brand/model/notes), shipped here too — see "Bike setup" above. Deploy,
+   date, brand/model/notes), shipped here too — see "Bike setup" above. Brand/model
+   autocomplete (suggestions from the user's own components plus a built-in brand
+   list) shipped here too — see "Brand/model autocomplete" above. Deploy,
    webhooks, and charts remain.
 
 ## Conventions
