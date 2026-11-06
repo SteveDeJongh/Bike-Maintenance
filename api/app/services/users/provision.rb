@@ -24,25 +24,30 @@ module Users
     # The live version of AddCommonBrandsToComponentCategorySettings's own
     # frozen snapshot -- same split as DEFAULT_BIKE_TYPES below. A category
     # with no entry (frame, or any custom category) just keeps the column's
-    # [] default.
-    DRIVETRAIN_BRANDS = ["Shimano", "SRAM", "Campagnolo", "KMC", "Rotor", "FSA", "Praxis", "Race Face"].freeze
-    TIRE_BRANDS = ["Continental", "Pirelli", "Schwalbe", "Michelin", "Vittoria", "Maxxis", "Panaracer"].freeze
-    WHEEL_BRANDS = ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval"].freeze
-    SUSPENSION_SEATPOST_BRANDS = ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"].freeze
-    POWER_PEDAL_BRANDS = ["Garmin", "Favero", "Quarq", "Stages", "4iiii", "Look", "Time", "Wahoo"].freeze
-    BRAKE_PAD_BRANDS = ["SwissStop", "Kool-Stop"].freeze
-    CONTACT_POINT_BRANDS = ["Fizik", "Selle Italia", "Brooks", "Supacaz", "Lizard Skins", "ODI", "Ergon"].freeze
-
+    # [] default. Synced 2026-11-05 to match the user's own edits on the
+    # Component Categories settings page -- no longer grouped into shared
+    # brand-list constants, since several categories that originally shared
+    # one list (chain/cassette vs. chainring/bottom_bracket;
+    # front_suspension vs. shock vs. seat_post; power_meter vs. pedals;
+    # saddle vs. handlebar_tape) have since diverged from each other.
     COMMON_BRANDS_BY_CATEGORY = {
-      "chain" => DRIVETRAIN_BRANDS, "cassette" => DRIVETRAIN_BRANDS, "chainring" => DRIVETRAIN_BRANDS,
-      "bottom_bracket" => DRIVETRAIN_BRANDS,
-      "tire_front" => TIRE_BRANDS, "tire_rear" => TIRE_BRANDS,
-      "wheel_front" => WHEEL_BRANDS, "wheel_rear" => WHEEL_BRANDS,
-      "front_suspension" => SUSPENSION_SEATPOST_BRANDS, "shock" => SUSPENSION_SEATPOST_BRANDS,
-      "seat_post" => SUSPENSION_SEATPOST_BRANDS,
-      "power_meter" => POWER_PEDAL_BRANDS, "pedals" => POWER_PEDAL_BRANDS,
-      "brake_pads_front" => BRAKE_PAD_BRANDS, "brake_pads_rear" => BRAKE_PAD_BRANDS,
-      "saddle" => CONTACT_POINT_BRANDS, "handlebar_tape" => CONTACT_POINT_BRANDS,
+      "chain" => ["Shimano", "SRAM", "Campagnolo", "KMC"],
+      "cassette" => ["Shimano", "SRAM", "Campagnolo", "KMC"],
+      "chainring" => ["Shimano", "SRAM", "Campagnolo", "KMC", "Rotor", "FSA", "Praxis", "Race Face"],
+      "bottom_bracket" => ["Shimano", "SRAM", "Campagnolo", "KMC", "Rotor", "FSA", "Praxis", "Race Face", "Chris King"],
+      "tire_front" => ["Continental", "Pirelli", "Schwalbe", "Michelin", "Vittoria", "Maxxis", "Panaracer"],
+      "tire_rear" => ["Continental", "Pirelli", "Schwalbe", "Michelin", "Vittoria", "Maxxis", "Panaracer"],
+      "wheel_front" => ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval", "Reserve"],
+      "wheel_rear" => ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval", "Reserve"],
+      "front_suspension" => ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek"],
+      "shock" => ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"],
+      "seat_post" => ["Fox", "RockShox", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"],
+      "power_meter" => ["Garmin", "Favero", "Quarq", "Stages", "4iiii", "Look", "Time", "Wahoo"],
+      "pedals" => ["Garmin", "Favero", "Look", "Time", "Shimano", "Speedplay"],
+      "brake_pads_front" => ["SwissStop", "Kool-Stop", "Shimano", "SRAM", "TRP"],
+      "brake_pads_rear" => ["SwissStop", "Kool-Stop", "Shimano", "SRAM", "TRP"],
+      "saddle" => ["Fizik", "Selle Italia", "Brooks", "Supacaz", "Lizard Skins", "ODI", "Ergon", "Fabric"],
+      "handlebar_tape" => ["Fizik", "Selle Italia", "Brooks", "Supacaz", "Lizard Skins", "ODI", "Ergon"],
     }.freeze
 
     # Mirrors 20261026221651_replace_event_type_with_service_type_on_maintenance_events.rb's
