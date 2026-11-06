@@ -116,6 +116,39 @@ RSpec.describe "Bikes", type: :request do
       expect(cassette.component_assignments.first.ride_context).to eq("outdoor_only")
     end
 
+    it "adds each row's brand to its category's common_brands" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [
+          { category: "chain", label: "Chain A", brand: "Rene Herse" },
+          { category: "fenders", label: "Fender A", brand: "SKS" },
+        ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(current_user.component_category_settings.find_by(category: "chain").common_brands).to include("Rene Herse")
+      expect(current_user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+
+    it "adds nothing when the batch is rolled back" do
+      bike = create(:bike, user: current_user)
+      chain_setting = current_user.component_category_settings.find_by!(category: "chain")
+      original_brands = chain_setting.common_brands
+
+      post "/bikes/#{bike.id}/component_setup", params: {
+        installed_on: "2026-01-01",
+        components: [
+          { category: "chain", label: "Chain A", brand: "Rene Herse" },
+          { category: "cassette", label: "" }, # blank label fails Component's presence validation
+        ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(chain_setting.reload.common_brands).to eq(original_brands)
+    end
+
     it "defaults a row's ride_context to both when omitted" do
       bike = create(:bike, user: current_user)
 

@@ -18,6 +18,13 @@ class Component < ApplicationRecord
   normalizes :brand, :model, with: ->(value) { value.squish.presence }
 
   after_create :apply_category_service_intervals
+  # Fires on create (brand/category go from nil -> set) and on any update
+  # that changes brand or category while brand is (now) present -- a
+  # retire/label-only edit touches neither, so no redundant write. Catches
+  # every write path (ComponentsController, BikesController#component_setup)
+  # at once -- see ComponentCategorySettings::AddCommonBrand for the
+  # add-only, never-removes rule.
+  after_save :remember_brand, if: -> { brand.present? && (saved_change_to_brand? || saved_change_to_category?) }
 
   # { component_id => [{id:, name:}, ...] } for every currently-installed
   # (ended_at: nil) bike per component, batched for a many-row list (the
@@ -88,5 +95,9 @@ class Component < ApplicationRecord
         service_type_id: template.service_type_id,
       )
     end
+  end
+
+  def remember_brand
+    ComponentCategorySettings::AddCommonBrand.call(user: user, category: category, brand: brand)
   end
 end

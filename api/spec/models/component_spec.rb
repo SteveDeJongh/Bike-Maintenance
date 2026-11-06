@@ -246,4 +246,51 @@ RSpec.describe Component, type: :model do
       expect(described_class.current_bikes_by_component(create(:user))).to eq({})
     end
   end
+
+  describe "remembering brands on save (ComponentCategorySettings::AddCommonBrand)" do
+    it "adds a newly-saved component's brand to its category's common_brands" do
+      user = create(:user)
+
+      create(:component, user: user, category: "fenders", brand: "SKS")
+
+      expect(user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+
+    it "adds the brand to the new category's list when a component's category changes" do
+      user = create(:user)
+      component = create(:component, user: user, category: "fenders", brand: "SKS")
+
+      component.update!(category: "chainring")
+
+      expect(user.component_category_settings.find_by(category: "chainring").common_brands).to include("SKS")
+      # The old category's list is untouched -- this hook only ever adds.
+      expect(user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+
+    it "never removes a brand when the component's brand is cleared" do
+      user = create(:user)
+      component = create(:component, user: user, category: "fenders", brand: "SKS")
+
+      component.update!(brand: nil)
+
+      expect(user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+
+    it "never removes a brand when the component is destroyed" do
+      user = create(:user)
+      component = create(:component, user: user, category: "fenders", brand: "SKS")
+
+      component.destroy!
+
+      expect(user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+
+    it "does not re-save the setting when an unrelated field changes" do
+      user = create(:user)
+      component = create(:component, user: user, category: "fenders", brand: "SKS")
+
+      expect(ComponentCategorySettings::AddCommonBrand).not_to receive(:call)
+      component.update!(label: "Front Fender")
+    end
+  end
 end

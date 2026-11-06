@@ -62,6 +62,27 @@ RSpec.describe "Components", type: :request do
       expect(body["model"]).to eq("105")
       expect(body["notes"]).to eq("Waxed before first install")
     end
+
+    it "adds a new brand to the category's common_brands" do
+      post "/components", params: {
+        component: { label: "Fender A", category: "fenders", brand: "SKS" },
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(current_user.component_category_settings.find_by(category: "fenders").common_brands).to eq(%w[SKS])
+    end
+  end
+
+  describe "PATCH /components/:id" do
+    it "adds a new brand to the category's common_brands" do
+      component = create(:component, user: current_user, category: "fenders", brand: "SKS")
+
+      patch "/components/#{component.id}", params: { component: { brand: "Portland Design Works" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(current_user.component_category_settings.find_by(category: "fenders").common_brands)
+        .to eq(["SKS", "Portland Design Works"])
+    end
   end
 
   describe "GET /components/:id" do
