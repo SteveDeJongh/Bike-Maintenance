@@ -93,7 +93,11 @@ class ComponentServiceIntervalsController < ApplicationController
     end
 
     def owns_referenced_category_service_interval?(attrs)
-      !attrs.key?(:category_service_interval_id) ||
+      # nil means "custom, not linked to a template" (see
+      # ComponentServiceInterval's belongs_to :category_service_interval,
+      # optional: true) -- attrs.key? would be true even for an explicit
+      # null, so .blank? is the right test here, same as interval_attrs above.
+      attrs[:category_service_interval_id].blank? ||
         current_user.category_service_intervals.exists?(attrs[:category_service_interval_id])
     end
 

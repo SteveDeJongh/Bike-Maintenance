@@ -63,6 +63,21 @@ RSpec.describe "ComponentServiceIntervals", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "creates a custom interval when category_service_interval_id is sent explicitly as null" do
+      component = create(:component, user: current_user, category: "chain")
+      service_type = create(:service_type, user: current_user, name: "Lube")
+
+      post "/component_service_intervals", params: {
+        component_service_interval: {
+          component_id: component.id, category_service_interval_id: nil,
+          service_type_id: service_type.id, distance_interval_meters: 300_000,
+        },
+      }.to_json, headers: { "Content-Type" => "application/json" }
+
+      expect(response).to have_http_status(:created)
+      expect(component.component_service_intervals.last.category_service_interval_id).to be_nil
+    end
   end
 
   describe "POST /component_service_intervals/apply_defaults" do
