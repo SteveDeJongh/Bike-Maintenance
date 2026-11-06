@@ -62,28 +62,6 @@ export function categoryLabel(category: string): string {
     .join(' ')
 }
 
-// Seeds the "Common brands" group in the brand autocomplete
-// (ComponentBrandModelInputs) -- a flat list covering every built-in
-// category except frame (frame brands are bike makes, already covered by
-// the user's own data). No equivalent built-in list for models: models
-// only ever come from the user's own components.
-export const COMMON_COMPONENT_BRANDS = [
-  // drivetrain
-  'Shimano', 'SRAM', 'Campagnolo', 'KMC', 'Rotor', 'FSA', 'Praxis', 'Race Face',
-  // tires
-  'Continental', 'Pirelli', 'Schwalbe', 'Michelin', 'Vittoria', 'Maxxis', 'Panaracer',
-  // wheels
-  'Zipp', 'ENVE', 'DT Swiss', 'Mavic', 'Hunt', 'Roval',
-  // suspension and seat posts
-  'Fox', 'RockShox', 'Öhlins', 'SR Suntour', 'Cane Creek', 'BikeYoke', 'OneUp', 'PNW',
-  // power meters and pedals
-  'Garmin', 'Favero', 'Quarq', 'Stages', '4iiii', 'Look', 'Time', 'Wahoo',
-  // brake pads
-  'SwissStop', 'Kool-Stop',
-  // contact points
-  'Fizik', 'Selle Italia', 'Brooks', 'Supacaz', 'Lizard Skins', 'ODI', 'Ergon',
-] as const
-
 // Must match the inclusion list on ComponentAssignment#ride_context in
 // api/app/models/component_assignment.rb exactly. Just display labels for a
 // backend-real enum, not a classification rule.

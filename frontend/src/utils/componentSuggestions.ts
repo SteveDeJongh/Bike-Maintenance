@@ -62,9 +62,11 @@ export function countModels(rows: ComponentSuggestionInput[]): ModelCount[] {
 }
 
 // "Your brands" (already ranked by countBrands) first, then "Common
-// brands" -- COMMON_COMPONENT_BRANDS minus anything already covered by
-// the user's own data (case-insensitively), alphabetical. Groups with no
-// items are omitted entirely rather than shown empty.
+// brands" -- whatever the caller passes as commonBrands (see
+// ComponentBrandModelInputs, which sources this from the current
+// category's own ComponentCategorySetting#common_brands) minus anything
+// already covered by the user's own data (case-insensitively), alphabetical.
+// Groups with no items are omitted entirely rather than shown empty.
 export function buildBrandGroups(
   userBrands: BrandCount[],
   commonBrands: readonly string[],

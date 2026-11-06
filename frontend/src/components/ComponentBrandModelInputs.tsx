@@ -1,5 +1,5 @@
 import { Autocomplete, Group, Stack, type MantineSize } from '@mantine/core'
-import { COMMON_COMPONENT_BRANDS } from '../constants'
+import { useComponentCategorySettings } from '../api/queries'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import { buildBrandGroups, buildModelSuggestions, resolveCasing, type ComponentSuggestionInput } from '../utils/componentSuggestions'
 
@@ -12,10 +12,12 @@ interface ComponentBrandModelInputsProps {
   // into form.setFieldValue per key present) or BikeSetup's own row state
   // (whose onChange already has this exact Partial<...> shape).
   onChange: (changes: { brand?: string; model?: string }) => void
-  // Narrows model suggestions to this category and ranks a matching
-  // category first -- omitted where a category genuinely isn't known yet
-  // (e.g. ComponentFormModal before one's picked), per
-  // buildModelSuggestions' own fallback to usage-count-only ranking.
+  // Narrows model suggestions to this category (ranking a matching category
+  // first) and picks which category's ComponentCategorySetting#common_brands
+  // feeds the "Common brands" group -- omitted where a category genuinely
+  // isn't known yet (e.g. ComponentFormModal before one's picked), in which
+  // case "Common brands" just doesn't render and model ranking falls back to
+  // usage-count-only (see buildModelSuggestions).
   category?: string
   // 'stacked' (default): full-width, one per line, for the modal.
   // 'inline': side by side, for a single setup-page table cell.
@@ -39,8 +41,10 @@ export default function ComponentBrandModelInputs({
   extraSuggestions,
 }: ComponentBrandModelInputsProps) {
   const suggestions = useComponentSuggestions(extraSuggestions)
+  const { data: categorySettings } = useComponentCategorySettings()
+  const commonBrands = categorySettings?.find((setting) => setting.category === category)?.common_brands ?? []
 
-  const brandGroups = buildBrandGroups(suggestions.brands, COMMON_COMPONENT_BRANDS)
+  const brandGroups = buildBrandGroups(suggestions.brands, commonBrands)
   const allBrandNames = brandGroups.flatMap((group) => group.items)
   const modelSuggestions = buildModelSuggestions(suggestions.models, { brand, category })
   const modelOptions = modelSuggestions.map((entry) => entry.model)

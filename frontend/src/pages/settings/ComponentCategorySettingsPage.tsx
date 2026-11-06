@@ -1,5 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Checkbox, Group, Loader, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  Loader,
+  NumberInput,
+  Select,
+  Stack,
+  Table,
+  TagsInput,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core'
 import { useComponentCategorySettings } from '../../api/queries'
 import { useSaveComponentCategorySettings } from '../../api/mutations'
 import RideContextCheckboxes from '../../components/RideContextCheckboxes'
@@ -14,6 +28,7 @@ interface CategoryFormValues {
   allows_multiple_assignments: boolean
   notifications_enabled: boolean | null
   warning_threshold_percent: number | null
+  common_brands: string[]
 }
 
 const DEFAULT_VALUES: CategoryFormValues = {
@@ -22,6 +37,7 @@ const DEFAULT_VALUES: CategoryFormValues = {
   allows_multiple_assignments: false,
   notifications_enabled: null,
   warning_threshold_percent: null,
+  common_brands: [],
 }
 
 function settingToValues(setting: ComponentCategorySetting | undefined): CategoryFormValues {
@@ -31,6 +47,7 @@ function settingToValues(setting: ComponentCategorySetting | undefined): Categor
     allows_multiple_assignments: setting?.allows_multiple_assignments ?? DEFAULT_VALUES.allows_multiple_assignments,
     notifications_enabled: setting?.notifications_enabled ?? null,
     warning_threshold_percent: setting?.warning_threshold_percent ?? null,
+    common_brands: setting?.common_brands ?? DEFAULT_VALUES.common_brands,
   }
 }
 
@@ -71,10 +88,11 @@ export default function ComponentCategorySettingsPage() {
       <Text c="dimmed">
         Per-category defaults: which ride types a new component of this category defaults to
         accruing mileage from, whether the category is offered when tracking a new component on
-        a bike or creating a new component, and whether a second, complementary-context
-        component (e.g. a dedicated outdoor cassette alongside a dedicated trainer cassette) can
-        be installed in the same slot at once. Changes are staged below and only take effect once
-        you click Save.
+        a bike or creating a new component, whether a second, complementary-context component
+        (e.g. a dedicated outdoor cassette alongside a dedicated trainer cassette) can be
+        installed in the same slot at once, and which brands are suggested in the brand
+        autocomplete when adding a component of this category. Changes are staged below and
+        only take effect once you click Save.
       </Text>
 
       {isPending && <Loader />}
@@ -161,6 +179,7 @@ function CategoryTable({
             <Table.Th>Allows multiple installed at once</Table.Th>
             <Table.Th>Notifications</Table.Th>
             <Table.Th>Warning %</Table.Th>
+            <Table.Th>Common brands</Table.Th>
             <Table.Th>Service intervals</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -215,6 +234,14 @@ function CategoryTable({
                   disabled={saveSettings.isPending}
                 />
               </Table.Td>
+              <Table.Td miw={220}>
+                <TagsInput
+                  placeholder="Add a brand"
+                  value={localValues[category].common_brands}
+                  onChange={(value) => updateLocal(category, { common_brands: value })}
+                  disabled={saveSettings.isPending}
+                />
+              </Table.Td>
               <Table.Td>
                 <Button size="xs" variant="default" onClick={() => setManageIntervalsCategory(category)}>
                   Manage
@@ -231,7 +258,7 @@ function CategoryTable({
                 disabled={saveSettings.isPending}
               />
             </Table.Td>
-            <Table.Td colSpan={6}>
+            <Table.Td colSpan={7}>
               <Button
                 size="sm"
                 variant="default"

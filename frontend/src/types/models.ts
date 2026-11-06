@@ -191,6 +191,11 @@ export interface ComponentCategorySetting {
   // default_ride_context's own column default.
   notifications_enabled: boolean | null
   warning_threshold_percent: number | null
+  // Seeded per category (e.g. Shimano/SRAM for chain) via Users::Provision,
+  // fully user-editable from here on -- the "Common brands" group in the
+  // brand autocomplete (see ComponentBrandModelInputs). A category with no
+  // seed (frame, or any custom category) just starts at [].
+  common_brands: string[]
 }
 
 // A per-category suggested service interval ("wax every 300km"), applied to
