@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_04_223252) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_06_002720) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -84,6 +84,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_223252) do
     t.boolean "allows_multiple_assignments", default: false, null: false
     t.boolean "notifications_enabled"
     t.integer "warning_threshold_percent"
+    t.string "common_brands", default: [], null: false, array: true
     t.index ["user_id", "category"], name: "index_component_category_settings_on_user_id_and_category", unique: true
     t.index ["user_id"], name: "index_component_category_settings_on_user_id"
   end

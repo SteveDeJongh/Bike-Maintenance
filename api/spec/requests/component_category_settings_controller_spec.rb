@@ -51,5 +51,17 @@ RSpec.describe "ComponentCategorySettings", type: :request do
 
       expect(current_user.component_category_settings.find_by(category: "cassette").default_ride_context).to eq("indoor_only")
     end
+
+    it "replaces common_brands as a whole array, not merging" do
+      chain_setting = current_user.component_category_settings.find_by!(category: "chain")
+      expect(chain_setting.common_brands).to include("Shimano")
+
+      patch "/component_category_settings/chain", params: {
+        component_category_setting: { common_brands: %w[CustomBrand] },
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(chain_setting.reload.common_brands).to eq(%w[CustomBrand])
+    end
   end
 end

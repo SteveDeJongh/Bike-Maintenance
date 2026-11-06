@@ -21,6 +21,30 @@ module Users
 
     ALLOWS_MULTIPLE_ASSIGNMENTS_CATEGORIES = %w[cassette].freeze
 
+    # The live version of AddCommonBrandsToComponentCategorySettings's own
+    # frozen snapshot -- same split as DEFAULT_BIKE_TYPES below. A category
+    # with no entry (frame, or any custom category) just keeps the column's
+    # [] default.
+    DRIVETRAIN_BRANDS = ["Shimano", "SRAM", "Campagnolo", "KMC", "Rotor", "FSA", "Praxis", "Race Face"].freeze
+    TIRE_BRANDS = ["Continental", "Pirelli", "Schwalbe", "Michelin", "Vittoria", "Maxxis", "Panaracer"].freeze
+    WHEEL_BRANDS = ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval"].freeze
+    SUSPENSION_SEATPOST_BRANDS = ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"].freeze
+    POWER_PEDAL_BRANDS = ["Garmin", "Favero", "Quarq", "Stages", "4iiii", "Look", "Time", "Wahoo"].freeze
+    BRAKE_PAD_BRANDS = ["SwissStop", "Kool-Stop"].freeze
+    CONTACT_POINT_BRANDS = ["Fizik", "Selle Italia", "Brooks", "Supacaz", "Lizard Skins", "ODI", "Ergon"].freeze
+
+    COMMON_BRANDS_BY_CATEGORY = {
+      "chain" => DRIVETRAIN_BRANDS, "cassette" => DRIVETRAIN_BRANDS, "chainring" => DRIVETRAIN_BRANDS,
+      "bottom_bracket" => DRIVETRAIN_BRANDS,
+      "tire_front" => TIRE_BRANDS, "tire_rear" => TIRE_BRANDS,
+      "wheel_front" => WHEEL_BRANDS, "wheel_rear" => WHEEL_BRANDS,
+      "front_suspension" => SUSPENSION_SEATPOST_BRANDS, "shock" => SUSPENSION_SEATPOST_BRANDS,
+      "seat_post" => SUSPENSION_SEATPOST_BRANDS,
+      "power_meter" => POWER_PEDAL_BRANDS, "pedals" => POWER_PEDAL_BRANDS,
+      "brake_pads_front" => BRAKE_PAD_BRANDS, "brake_pads_rear" => BRAKE_PAD_BRANDS,
+      "saddle" => CONTACT_POINT_BRANDS, "handlebar_tape" => CONTACT_POINT_BRANDS,
+    }.freeze
+
     # Mirrors 20261026221651_replace_event_type_with_service_type_on_maintenance_events.rb's
     # fallback branch (`types = used_types.presence || %w[wax clean replace inspect]`) --
     # a brand new user has no existing maintenance events, so this fallback
@@ -58,6 +82,7 @@ module Users
         setting = ComponentCategorySetting.find_or_create_by!(user: user, category: category) do |s|
           s.default_ride_context = OUTDOOR_ONLY_CATEGORIES.include?(category) ? "outdoor_only" : "both"
           s.allows_multiple_assignments = ALLOWS_MULTIPLE_ASSIGNMENTS_CATEGORIES.include?(category)
+          s.common_brands = COMMON_BRANDS_BY_CATEGORY[category] || []
         end
         setting
       end

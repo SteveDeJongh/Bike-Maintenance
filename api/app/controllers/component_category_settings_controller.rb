@@ -20,6 +20,7 @@ class ComponentCategorySettingsController < ApplicationController
       params.require(:component_category_setting).permit(
         :default_ride_context, :trackable, :allows_multiple_assignments,
         :notifications_enabled, :warning_threshold_percent,
+        common_brands: [],
       )
     end
 end

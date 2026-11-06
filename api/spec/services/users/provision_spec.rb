@@ -28,6 +28,16 @@ RSpec.describe Users::Provision, type: :model do
     end
   end
 
+  it "seeds common_brands per category, empty for frame and anything uncovered" do
+    user = create(:user)
+    settings = user.component_category_settings.index_by(&:category)
+
+    expect(settings["chain"].common_brands).to include("Shimano", "SRAM")
+    expect(settings["tire_front"].common_brands).to include("Maxxis", "Continental")
+    expect(settings["saddle"].common_brands).to include("Fizik", "Brooks")
+    expect(settings["frame"].common_brands).to eq([])
+  end
+
   it "seeds the wax/clean/replace/inspect service types" do
     user = create(:user)
 

@@ -49,4 +49,16 @@ RSpec.describe ComponentCategorySetting, type: :model do
 
     expect(other_user_setting).to be_valid
   end
+
+  describe "#common_brands=" do
+    it "strips whitespace, drops blanks, and dedupes" do
+      setting = build(:component_category_setting, common_brands: [ " Shimano ", "SRAM", "", " ", "Shimano" ])
+
+      expect(setting.common_brands).to eq(%w[Shimano SRAM])
+    end
+
+    it "defaults to an empty array" do
+      expect(build(:component_category_setting).common_brands).to eq([])
+    end
+  end
 end
