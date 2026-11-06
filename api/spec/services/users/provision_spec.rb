@@ -18,7 +18,7 @@ RSpec.describe Users::Provision, type: :model do
     ])
 
     outdoor_only = %w[
-      cassette tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear
+      tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear
       front_suspension rear_suspension
     ]
     settings.each do |category, setting|

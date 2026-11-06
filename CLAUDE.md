@@ -140,10 +140,13 @@ docker build .`), not the repo root.
   `brake_pads_rear`, `saddle`/`handlebar_tape`/`pedals`, `frame`/`front_suspension`/
   `rear_suspension`/`seat_post`, `power_meter`. (`rear_suspension` replaced the
   earlier `shock` category — see `common_brands` below.) `default_ride_context` is
-  `"outdoor_only"` for cassette/tire_front/tire_rear/wheel_front/wheel_rear/
+  `"outdoor_only"` for tire_front/tire_rear/wheel_front/wheel_rear/
   brake_pads_front/brake_pads_rear/front_suspension/rear_suspension, `"both"` for
-  everything else; only `cassette` seeds `allows_multiple_assignments: true` —
-  deliberately *not* hardcoded logic, every row is changeable via the Settings page.
+  everything else, including `cassette` (a fresh cassette defaults to accruing
+  mileage from every ride; a user running separate road/trainer cassettes sets up
+  the outdoor_only/indoor_only split explicitly — see "Bike setup" below); only
+  `cassette` seeds `allows_multiple_assignments: true` — deliberately *not*
+  hardcoded logic, every row is changeable via the Settings page.
   `handlebar_tape`'s label is `"Handlebar Tape/Grips"` (key unchanged — renaming it
   would mean a data migration across components/slots/settings/intervals for no
   gain). For users existing before a given category was added, a migration backfills

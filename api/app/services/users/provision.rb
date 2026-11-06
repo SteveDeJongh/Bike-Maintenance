@@ -12,12 +12,17 @@ module Users
     # with shock later retired in favor of rear_suspension -- see
     # RemoveShockRenameRearShockToRearSuspension).
     OUTDOOR_ONLY_CATEGORIES = %w[
-      cassette tire_front tire_rear wheel_front wheel_rear
+      tire_front tire_rear wheel_front wheel_rear
       brake_pads_front brake_pads_rear front_suspension rear_suspension
     ].freeze
 
+    # cassette is BOTH, not OUTDOOR_ONLY, despite also being the one
+    # allows_multiple_assignments category -- a fresh cassette row defaults
+    # to accruing mileage from every ride; a user who actually runs separate
+    # road/trainer cassettes sets up the outdoor_only/indoor_only split
+    # explicitly (see BikeSetup.tsx's "+ Add outdoor/indoor too").
     BOTH_CATEGORIES = %w[
-      chain chainring bottom_bracket handlebar_tape saddle
+      chain cassette chainring bottom_bracket handlebar_tape saddle
       frame seat_post power_meter pedals
     ].freeze
 
