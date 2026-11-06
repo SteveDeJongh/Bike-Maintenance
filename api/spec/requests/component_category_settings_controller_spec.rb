@@ -63,5 +63,43 @@ RSpec.describe "ComponentCategorySettings", type: :request do
       expect(response).to have_http_status(:ok)
       expect(chain_setting.reload.common_brands).to eq(%w[CustomBrand])
     end
+
+    it "mirrors a common_brands write on a paired category onto its partner" do
+      patch "/component_category_settings/tire_front", params: {
+        component_category_setting: { common_brands: %w[Continental Maxxis] },
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(current_user.component_category_settings.find_by(category: "tire_rear").common_brands)
+        .to eq(%w[Continental Maxxis])
+    end
+
+    it "includes brand_list_partner, nil for an unpaired category" do
+      patch "/component_category_settings/tire_front", params: {
+        component_category_setting: { common_brands: %w[Continental] },
+      }
+
+      expect(JSON.parse(response.body)["brand_list_partner"]).to eq("tire_rear")
+
+      patch "/component_category_settings/chain", params: {
+        component_category_setting: { common_brands: %w[Shimano] },
+      }
+
+      expect(JSON.parse(response.body)["brand_list_partner"]).to be_nil
+    end
+
+    it "rolls back the whole write, including a paired common_brands mirror, when another field is invalid" do
+      tire_rear = current_user.component_category_settings.find_by!(category: "tire_rear")
+      original_rear_brands = tire_rear.common_brands
+
+      patch "/component_category_settings/tire_front", params: {
+        component_category_setting: { common_brands: %w[NewBrand], default_ride_context: "sideways" },
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(current_user.component_category_settings.find_by(category: "tire_front").common_brands)
+        .not_to eq(%w[NewBrand])
+      expect(tire_rear.reload.common_brands).to eq(original_rear_brands)
+    end
   end
 end

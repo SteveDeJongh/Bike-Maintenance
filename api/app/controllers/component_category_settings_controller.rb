@@ -1,15 +1,34 @@
 class ComponentCategorySettingsController < ApplicationController
   # GET /component_category_settings
   def index
-    render json: current_user.component_category_settings
+    render json: current_user.component_category_settings, methods: [:brand_list_partner]
   end
 
   # PATCH/PUT /component_category_settings/:category
   def update
-    setting = current_user.component_category_settings.find_or_initialize_by(category: params[:category])
+    attrs = component_category_setting_params.to_h
+    brands = attrs.delete("common_brands")
 
-    if setting.update(component_category_setting_params)
-      render json: setting
+    setting = current_user.component_category_settings.find_or_initialize_by(category: params[:category])
+    success = true
+
+    # common_brands goes through UpdateCommonBrands (mirrors to a paired
+    # partner); everything else keeps the plain non-bang update. Both run in
+    # one transaction so an invalid attrs value rolls back the brand-list
+    # write too, rather than leaving a pair half-synced.
+    ActiveRecord::Base.transaction do
+      setting = ComponentCategorySettings::UpdateCommonBrands.call(
+        user: current_user, category: params[:category], brands: brands,
+      ) if brands
+
+      if attrs.present?
+        success = setting.update(attrs)
+        raise ActiveRecord::Rollback unless success
+      end
+    end
+
+    if success
+      render json: setting, methods: [:brand_list_partner]
     else
       render json: setting.errors, status: :unprocessable_content
     end
