@@ -161,7 +161,21 @@ docker build .`), not the repo root.
   autocomplete — seeded per category the same way as the columns above (a migration
   for existing users, `Users::Provision` for new ones), fully editable via the same
   Settings page; `frame` and any custom category just keep the `[]` default, since
-  there's nothing sensible to guess. See "Brand/model autocomplete" below.
+  there's nothing sensible to guess. Deduped case-insensitively, keeping the first
+  spelling seen (`Array#uniq` with a block already does this). The three front/rear
+  pairs — `tire_front`/`tire_rear`, `wheel_front`/`wheel_rear`,
+  `brake_pads_front`/`brake_pads_rear` (`ComponentCategorySetting::BRAND_LIST_PAIRS`,
+  exposed to the frontend as each setting's own `brand_list_partner`) — always share
+  one `common_brands` list: a write to either side is mirrored onto the other, in
+  the same transaction, by `ComponentCategorySettings::UpdateCommonBrands`. A
+  category merely *seeded* from the same brand group (e.g. `chain`/`cassette`) is
+  not paired this way — that was only ever a shared starting point. Saving a
+  `Component` with a brand not already in its category's list (case-insensitively)
+  appends it there via `ComponentCategorySettings::AddCommonBrand`
+  (`Component#remember_brand`, an `after_save`) — add-only: deleting/retiring a
+  component, or clearing its brand, never removes anything, and a brand removed on
+  the Settings page is re-added if a component using it is saved again. See "Brand/
+  model autocomplete" below.
 - `ServiceType`: user_id, name — unique per `(user_id, lower(name))`. A user-defined
   kind of maintenance (wax, sealant top-up, brake bleed, ...), replacing
   `MaintenanceEvent`'s old hardcoded `event_type` enum — per this file's own rule,
@@ -916,7 +930,12 @@ table cell per row, not two).
   `ComponentCategorySetting#common_brands` for whichever category is currently
   selected — per-category and user-editable (see the data model above), not a
   hardcoded frontend constant, so a chain never suggests a tire brand and vice
-  versa. No built-in model list — models only ever come from the user's own data.
+  versa. `common_brands` isn't just the seeded/edited list — saving a component
+  with a brand not already there appends it (see the data model above), so
+  "Common brands" also grows from the user's own history even after the
+  originating component is deleted; add-only, and a brand removed on the Settings
+  page comes back if a component using it is saved again. No built-in model list —
+  models only ever come from the user's own data.
   `frontend/src/hooks/useComponentSuggestions.ts` wraps the `useComponents()` query
   into `{ brands, models }` (distinct, case-insensitively grouped, with counts),
   and takes an optional `extra` array to merge in not-yet-saved values — `BikeSetup`
