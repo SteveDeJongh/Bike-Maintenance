@@ -196,6 +196,13 @@ export interface ComponentCategorySetting {
   // brand autocomplete (see ComponentBrandModelInputs). A category with no
   // seed (frame, or any custom category) just starts at [].
   common_brands: string[]
+  // Set for the three front/rear pairs (tire_front/tire_rear,
+  // wheel_front/wheel_rear, brake_pads_front/brake_pads_rear) --
+  // common_brands is kept identical between a category and its partner by
+  // the backend (ComponentCategorySettings::UpdateCommonBrands). null for
+  // every other category, including ones merely seeded from the same brand
+  // group (e.g. chain/cassette).
+  brand_list_partner: string | null
 }
 
 // A per-category suggested service interval ("wax every 300km"), applied to

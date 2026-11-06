@@ -132,6 +132,15 @@ function CategoryTable({
     return map
   }, [categories, settings])
 
+  // Which category (if any) shares its common_brands list with this one --
+  // backend-driven (ComponentCategorySetting#brand_list_partner), not a
+  // frontend copy of the pairing.
+  const partnerByCategory = useMemo(() => {
+    const map: Record<string, string | null> = {}
+    for (const setting of settings) map[setting.category] = setting.brand_list_partner
+    return map
+  }, [settings])
+
   const [localValues, setLocalValues] = useState(baseline)
   const [newCategories, setNewCategories] = useState<string[]>([])
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -145,6 +154,21 @@ function CategoryTable({
       ...prev,
       [category]: { ...(prev[category] ?? DEFAULT_VALUES), ...changes },
     }))
+  }
+
+  // common_brands specifically also writes through to a paired category (if
+  // any), in the same state update, so the page never holds two different
+  // unsaved lists for a pair -- both rows become dirty together and both
+  // get PATCHed on Save (the backend sync makes either one sufficient).
+  function updateCommonBrands(category: string, value: string[]) {
+    const partner = partnerByCategory[category]
+    setLocalValues((prev) => {
+      const next = { ...prev, [category]: { ...(prev[category] ?? DEFAULT_VALUES), common_brands: value } }
+      if (partner && next[partner]) {
+        next[partner] = { ...next[partner], common_brands: value }
+      }
+      return next
+    })
   }
 
   function handleAddCategory() {
@@ -238,9 +262,14 @@ function CategoryTable({
                 <TagsInput
                   placeholder="Add a brand"
                   value={localValues[category].common_brands}
-                  onChange={(value) => updateLocal(category, { common_brands: value })}
+                  onChange={(value) => updateCommonBrands(category, value)}
                   disabled={saveSettings.isPending}
                 />
+                {partnerByCategory[category] && (
+                  <Text size="xs" c="dimmed">
+                    Shared with {categoryLabel(partnerByCategory[category]!)}
+                  </Text>
+                )}
               </Table.Td>
               <Table.Td>
                 <Button size="xs" variant="default" onClick={() => setManageIntervalsCategory(category)}>
