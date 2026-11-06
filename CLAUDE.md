@@ -136,15 +136,16 @@ docker build .`), not the repo root.
   suspension → power meter: `chain`/`cassette`/`chainring`/`bottom_bracket`,
   `wheel_front`/`wheel_rear`/`tire_front`/`tire_rear`, `brake_pads_front`/
   `brake_pads_rear`, `saddle`/`handlebar_tape`/`pedals`, `frame`/`front_suspension`/
-  `shock`/`seat_post`, `power_meter`. `default_ride_context` is `"outdoor_only"` for
-  cassette/tire_front/tire_rear/wheel_front/wheel_rear/brake_pads_front/
-  brake_pads_rear/front_suspension/shock, `"both"` for everything else; only
-  `cassette` seeds `allows_multiple_assignments: true` — deliberately *not* hardcoded
-  logic, every row is changeable via the Settings page. `handlebar_tape`'s label is
-  `"Handlebar Tape/Grips"` (key unchanged — renaming it would mean a data migration
-  across components/slots/settings/intervals for no gain). For users existing before
-  a given category was added, a migration backfills it
-  (`find_or_create_by`-equivalent `ON CONFLICT DO NOTHING`, never overwriting an
+  `rear_suspension`/`seat_post`, `power_meter`. (`rear_suspension` replaced the
+  earlier `shock` category — see `common_brands` below.) `default_ride_context` is
+  `"outdoor_only"` for cassette/tire_front/tire_rear/wheel_front/wheel_rear/
+  brake_pads_front/brake_pads_rear/front_suspension/rear_suspension, `"both"` for
+  everything else; only `cassette` seeds `allows_multiple_assignments: true` —
+  deliberately *not* hardcoded logic, every row is changeable via the Settings page.
+  `handlebar_tape`'s label is `"Handlebar Tape/Grips"` (key unchanged — renaming it
+  would mean a data migration across components/slots/settings/intervals for no
+  gain). For users existing before a given category was added, a migration backfills
+  it (`find_or_create_by`-equivalent `ON CONFLICT DO NOTHING`, never overwriting an
   edited row); for every user since, it's `Users::Provision` (see "Authentication"
   below), which replicates the exact same values on `User#after_create`. Fully
   user-definable categories were raised during design but are an explicitly deferred
@@ -152,7 +153,8 @@ docker build .`), not the repo root.
   custom category with the same key as a later-added built-in, e.g. a pre-existing
   `front_suspension`, just becomes that built-in; the migration's `ON CONFLICT DO
   NOTHING` leaves it and its settings untouched — a genuine near-duplicate under a
-  *different* key, e.g. `rear_shock` alongside the new `shock`, is never auto-merged).
+  different key is never auto-merged automatically; one real instance of this,
+  `rear_shock` alongside `shock`, was resolved by hand — see `common_brands` below).
   Also carries two nullable notification overrides, `notifications_enabled` and
   `warning_threshold_percent` — `nil` means "inherit the global `NotificationSetting`"
   (see below), the same missing-value-means-inherit convention this model's other
@@ -162,16 +164,21 @@ docker build .`), not the repo root.
   for existing users, `Users::Provision` for new ones), fully editable via the same
   Settings page; `frame` and any custom category just keep the `[]` default, since
   there's nothing sensible to guess. Deduped case-insensitively, keeping the first
-  spelling seen (`Array#uniq` with a block already does this). The three front/rear
+  spelling seen (`Array#uniq` with a block already does this). Four front/rear
   pairs — `tire_front`/`tire_rear`, `wheel_front`/`wheel_rear`,
-  `brake_pads_front`/`brake_pads_rear` (`ComponentCategorySetting::BRAND_LIST_PAIRS`,
-  exposed to the frontend as each setting's own `brand_list_partner`) — always share
-  one `common_brands` list: a write to either side is mirrored onto the other, in
-  the same transaction, by `ComponentCategorySettings::UpdateCommonBrands`. A
-  category merely *seeded* from the same brand group (e.g. `chain`/`cassette`) is
-  not paired this way — that was only ever a shared starting point. Saving a
-  `Component` with a brand not already in its category's list (case-insensitively)
-  appends it there via `ComponentCategorySettings::AddCommonBrand`
+  `brake_pads_front`/`brake_pads_rear`, `front_suspension`/`rear_suspension`
+  (`ComponentCategorySetting::BRAND_LIST_PAIRS`, exposed to the frontend as each
+  setting's own `brand_list_partner`, though the frontend only uses it to mirror an
+  in-progress edit onto the partner row, not to show it) — always share one
+  `common_brands` list: a write to either side is mirrored onto the other, in the
+  same transaction, by `ComponentCategorySettings::UpdateCommonBrands`. A category
+  merely *seeded* from the same brand group (e.g. `chain`/`cassette`) is not paired
+  this way — that was only ever a shared starting point. `rear_suspension` itself
+  replaced the old `shock` category (removed outright, by request) and the
+  user's own near-duplicate custom `rear_shock` category (renamed, not merged —
+  the one `RemoveShockRenameRearShockToRearSuspension` migration did both). Saving
+  a `Component` with a brand not already in its category's list
+  (case-insensitively) appends it there via `ComponentCategorySettings::AddCommonBrand`
   (`Component#remember_brand`, an `after_save`) — add-only: deleting/retiring a
   component, or clearing its brand, never removes anything, and a brand removed on
   the Settings page is re-added if a component using it is saved again. See "Brand/
@@ -849,7 +856,7 @@ from a user-editable **bike type** preset.
   (baseline categories plus the user's custom ones), never validated against a
   fixed list here. `Users::Provision` seeds Road/Gravel/Mountain/Time Trial/
   Commuter with sensible defaults (Mountain is the one that includes
-  front_suspension/shock/seat_post); a migration backfills the same for existing
+  front_suspension/rear_suspension/seat_post); a migration backfills the same for existing
   users, same find-or-create-never-overwrite convention as the category backfills
   above. **Editing a type's `default_categories`, or changing which type a bike
   uses, never adds, removes, or touches any slot/component/assignment on any

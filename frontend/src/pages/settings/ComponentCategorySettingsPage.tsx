@@ -265,11 +265,6 @@ function CategoryTable({
                   onChange={(value) => updateCommonBrands(category, value)}
                   disabled={saveSettings.isPending}
                 />
-                {partnerByCategory[category] && (
-                  <Text size="xs" c="dimmed">
-                    Shared with {categoryLabel(partnerByCategory[category]!)}
-                  </Text>
-                )}
               </Table.Td>
               <Table.Td>
                 <Button size="xs" variant="default" onClick={() => setManageIntervalsCategory(category)}>

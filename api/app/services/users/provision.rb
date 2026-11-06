@@ -8,10 +8,12 @@ module Users
     # 20261021233121_add_trackable_and_allows_multiple_to_component_category_settings.rb's
     # end state -- NOT the migrations' own intermediate column names. Plus
     # the six categories AddNewComponentCategorySettings backfilled for
-    # existing users (front_suspension/shock/frame/seat_post/power_meter/pedals).
+    # existing users (front_suspension/shock/frame/seat_post/power_meter/pedals,
+    # with shock later retired in favor of rear_suspension -- see
+    # RemoveShockRenameRearShockToRearSuspension).
     OUTDOOR_ONLY_CATEGORIES = %w[
       cassette tire_front tire_rear wheel_front wheel_rear
-      brake_pads_front brake_pads_rear front_suspension shock
+      brake_pads_front brake_pads_rear front_suspension rear_suspension
     ].freeze
 
     BOTH_CATEGORIES = %w[
@@ -40,7 +42,7 @@ module Users
       "wheel_front" => ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval", "Reserve"],
       "wheel_rear" => ["Zipp", "ENVE", "DT Swiss", "Mavic", "Hunt", "Roval", "Reserve"],
       "front_suspension" => ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek"],
-      "shock" => ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"],
+      "rear_suspension" => ["Fox", "RockShox", "Öhlins", "SR Suntour", "Cane Creek"],
       "seat_post" => ["Fox", "RockShox", "SR Suntour", "Cane Creek", "BikeYoke", "OneUp", "PNW"],
       "power_meter" => ["Garmin", "Favero", "Quarq", "Stages", "4iiii", "Look", "Time", "Wahoo"],
       "pedals" => ["Garmin", "Favero", "Look", "Time", "Shimano", "Speedplay"],
@@ -63,7 +65,7 @@ module Users
       "Road" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
       "Gravel" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
       "Mountain" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear
-                        handlebar_tape front_suspension shock seat_post],
+                        handlebar_tape front_suspension rear_suspension seat_post],
       "Time Trial" => %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear],
       "Commuter" => %w[chain cassette tire_front tire_rear brake_pads_front brake_pads_rear],
     }.freeze

@@ -14,12 +14,12 @@ RSpec.describe Users::Provision, type: :model do
     expect(settings.keys).to match_array(%w[
       chain cassette chainring tire_front tire_rear wheel_front wheel_rear
       brake_pads_front brake_pads_rear bottom_bracket handlebar_tape saddle
-      front_suspension shock frame seat_post power_meter pedals
+      front_suspension rear_suspension frame seat_post power_meter pedals
     ])
 
     outdoor_only = %w[
       cassette tire_front tire_rear wheel_front wheel_rear brake_pads_front brake_pads_rear
-      front_suspension shock
+      front_suspension rear_suspension
     ]
     settings.each do |category, setting|
       expect(setting.default_ride_context).to eq(outdoor_only.include?(category) ? "outdoor_only" : "both")
@@ -36,6 +36,10 @@ RSpec.describe Users::Provision, type: :model do
     expect(settings["tire_front"].common_brands).to include("Maxxis", "Continental")
     expect(settings["saddle"].common_brands).to include("Fizik", "Brooks")
     expect(settings["frame"].common_brands).to eq([])
+    # rear_suspension is paired with front_suspension (see
+    # ComponentCategorySetting::BRAND_LIST_PAIRS) and seeded with the same
+    # brands, so a brand new user never starts with the pair out of sync.
+    expect(settings["rear_suspension"].common_brands).to eq(settings["front_suspension"].common_brands)
   end
 
   it "seeds the wax/clean/replace/inspect service types" do
@@ -52,7 +56,7 @@ RSpec.describe Users::Provision, type: :model do
     expect(bike_types["Road"].default_categories).to eq(
       %w[chain cassette chainring tire_front tire_rear brake_pads_front brake_pads_rear handlebar_tape],
     )
-    expect(bike_types["Mountain"].default_categories).to include("front_suspension", "shock", "seat_post")
+    expect(bike_types["Mountain"].default_categories).to include("front_suspension", "rear_suspension", "seat_post")
   end
 
   it "is idempotent -- calling it again does not create duplicates or raise" do

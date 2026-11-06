@@ -16,7 +16,7 @@ export const COMPONENT_CATEGORIES = [
   'pedals',
   'frame',
   'front_suspension',
-  'shock',
+  'rear_suspension',
   'seat_post',
   'power_meter',
 ] as const
@@ -41,7 +41,7 @@ export const COMPONENT_CATEGORY_LABELS: Record<ComponentCategory, string> = {
   pedals: 'Pedals',
   frame: 'Frame',
   front_suspension: 'Front Suspension',
-  shock: 'Shock',
+  rear_suspension: 'Rear Suspension',
   seat_post: 'Seat Post',
   power_meter: 'Power Meter',
 }

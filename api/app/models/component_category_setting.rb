@@ -12,6 +12,7 @@ class ComponentCategorySetting < ApplicationRecord
     "tire_front" => "tire_rear", "tire_rear" => "tire_front",
     "wheel_front" => "wheel_rear", "wheel_rear" => "wheel_front",
     "brake_pads_front" => "brake_pads_rear", "brake_pads_rear" => "brake_pads_front",
+    "front_suspension" => "rear_suspension", "rear_suspension" => "front_suspension",
   }.freeze
 
   validates :category, presence: true, uniqueness: { scope: :user_id }

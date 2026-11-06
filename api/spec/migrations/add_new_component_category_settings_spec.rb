@@ -31,7 +31,13 @@ RSpec.describe AddNewComponentCategorySettings do
     end
 
     it "is a no-op when every user already has these rows" do
-      create(:user) # Users::Provision already seeds all six
+      user = create(:user)
+      # Users::Provision no longer seeds "shock" (retired in favor of
+      # rear_suspension -- see RemoveShockRenameRearShockToRearSuspension),
+      # but this frozen migration's own category list still includes it, so
+      # create it directly to set up the "already has these rows"
+      # precondition #up is being proven idempotent against.
+      create(:component_category_setting, user: user, category: "shock")
 
       expect { described_class.new.up }.not_to change(ComponentCategorySetting, :count)
     end
@@ -39,8 +45,6 @@ RSpec.describe AddNewComponentCategorySettings do
     it "never creates a row for another user" do
       user = create(:user)
       other_user = create(:user)
-      user.component_category_settings.where(category: "shock").delete_all
-      other_user.component_category_settings.where(category: "shock").delete_all
 
       described_class.new.up
 

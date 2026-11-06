@@ -74,6 +74,11 @@ RSpec.describe ComponentCategorySetting, type: :model do
       expect(ComponentCategorySetting.brand_list_partner("tire_rear")).to eq("tire_front")
     end
 
+    it "pairs front_suspension with rear_suspension" do
+      expect(ComponentCategorySetting.brand_list_partner("front_suspension")).to eq("rear_suspension")
+      expect(ComponentCategorySetting.brand_list_partner("rear_suspension")).to eq("front_suspension")
+    end
+
     it "returns nil for an unpaired category, including one seeded from the same brand group" do
       expect(ComponentCategorySetting.brand_list_partner("chain")).to be_nil
       expect(ComponentCategorySetting.brand_list_partner("cassette")).to be_nil
