@@ -108,9 +108,11 @@ docker build .`), not the repo root.
 - `ComponentCategorySetting`: user_id, category, default_ride_context (string, same
   3-value enum/validation as `ComponentAssignment#ride_context`, DB default `"both"`),
   trackable (boolean, DB default `true`), allows_multiple_assignments (boolean, DB
-  default `false`) — unique per `(user_id, category)`. User-serviceable (`GET/PATCH
-  /component_category_settings/:category`, upsert-by-key like `TableViewPreference`),
-  surfaced on the Settings page's "Component Categories" section:
+  default `false`) — unique per `(user_id, category)`. User-serviceable (`GET
+  /component_category_settings` returns every category's settings at once; `PATCH
+  /component_category_settings/:category` upserts one, same upsert-by-key
+  convention as `TableViewPreference`'s own `PATCH`), surfaced on the Settings
+  page's "Component Categories" section:
   - `default_ride_context` is a default-suggestion only — which `ride_context` to
     pre-select when installing a new component of that category. It does *not*
     restrict what any individual assignment's `ride_context` can actually be set to,
@@ -1004,9 +1006,12 @@ table cell per row, not two).
    here too — see "Dashboard" above. Bike types and the batched component setup
    step, plus six new component categories and bike/component fields (purchase
    date, brand/model/notes), shipped here too — see "Bike setup" above. Brand/model
-   autocomplete (suggestions from the user's own components plus a built-in brand
-   list) shipped here too — see "Brand/model autocomplete" above. Deploy,
-   webhooks, and charts remain.
+   autocomplete (suggestions from the user's own saved components plus a
+   per-category, user-editable `common_brands` list, later made front/rear-paired —
+   e.g. `tire_front`/`tire_rear` — and self-learning from every component save)
+   shipped here too — see "Brand/model autocomplete" above. The `shock` category
+   was retired in favor of `rear_suspension`, paired with `front_suspension` the
+   same way. Deploy, webhooks, and charts remain.
 
 ## Conventions
 
