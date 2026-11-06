@@ -213,6 +213,9 @@ export function useComponentSetup(bikeId: number) {
       queryClient.invalidateQueries({ queryKey: ['components'] })
       queryClient.invalidateQueries({ queryKey: ['component_assignments'] })
       queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+      // A row's brand may have been remembered onto its category's
+      // common_brands server-side -- see Component#remember_brand.
+      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
     },
   })
 }
@@ -275,7 +278,12 @@ export function useCreateComponent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: ComponentPayload) => apiPost<Component>('/components', { component: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['components'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['components'] })
+      // A new brand may have been remembered onto its category's
+      // common_brands server-side -- see Component#remember_brand.
+      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
+    },
   })
 }
 
@@ -286,6 +294,7 @@ export function useUpdateComponent(id: number) {
       apiPatch<Component>(`/components/${id}`, { component: values }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['components'] })
+      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
     },
   })
 }
