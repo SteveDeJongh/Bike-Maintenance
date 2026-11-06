@@ -156,7 +156,12 @@ docker build .`), not the repo root.
   Also carries two nullable notification overrides, `notifications_enabled` and
   `warning_threshold_percent` — `nil` means "inherit the global `NotificationSetting`"
   (see below), the same missing-value-means-inherit convention this model's other
-  columns already use relative to their own DB defaults.
+  columns already use relative to their own DB defaults. `common_brands` (string
+  array, DB default `[]`) is the "Common brands" suggestions in the component brand
+  autocomplete — seeded per category the same way as the columns above (a migration
+  for existing users, `Users::Provision` for new ones), fully editable via the same
+  Settings page; `frame` and any custom category just keep the `[]` default, since
+  there's nothing sensible to guess. See "Brand/model autocomplete" below.
 - `ServiceType`: user_id, name — unique per `(user_id, lower(name))`. A user-defined
   kind of maintenance (wax, sealant top-up, brake bleed, ...), replacing
   `MaintenanceEvent`'s old hardcoded `event_type` enum — per this file's own rule,
@@ -908,10 +913,11 @@ table cell per row, not two).
   (no new endpoint — it already returns every component including retired ones
   with `brand`/`model`/`category`, and every component mutation already
   invalidates `['components']`, so suggestions stay current for free); plus
-  `COMMON_COMPONENT_BRANDS` (`constants.ts`), a flat ~50-brand list covering every
-  built-in category except frame (frame brands are bike makes, already covered by
-  the user's own data) — no built-in model list, models only ever come from the
-  user's own data. `frontend/src/hooks/useComponentSuggestions.ts` wraps the query
+  `ComponentCategorySetting#common_brands` for whichever category is currently
+  selected — per-category and user-editable (see the data model above), not a
+  hardcoded frontend constant, so a chain never suggests a tire brand and vice
+  versa. No built-in model list — models only ever come from the user's own data.
+  `frontend/src/hooks/useComponentSuggestions.ts` wraps the `useComponents()` query
   into `{ brands, models }` (distinct, case-insensitively grouped, with counts),
   and takes an optional `extra` array to merge in not-yet-saved values — `BikeSetup`
   passes every other checklist row's current brand/model/category (memoized over
@@ -921,14 +927,16 @@ table cell per row, not two).
   frontend test runner exists in this project so these aren't unit-tested yet, but
   are isolated so they're a drop-in addition later): brand suggestions group into
   "Your brands" (usage count descending, then alphabetical) and "Common brands"
-  (`COMMON_COMPONENT_BRANDS` minus anything already in the first group,
-  case-insensitively, alphabetical). Model suggestions filter to the brand
-  currently typed (any category), or to the current category if brand is empty;
-  within that, a category match ranks first, then usage count. Picking a model
-  suggestion fills in its brand too, but only when the brand field is still empty.
-  Mantine's own default `Autocomplete` filtering already does case-insensitive
-  "anywhere in the string" matching and (via `limit={10}`) caps the dropdown, across
-  grouped data — no custom filter function needed for that part.
+  (the current category's `common_brands` minus anything already in the first
+  group, case-insensitively, alphabetical — empty, and the group simply omitted,
+  when no category is known yet or the category has no seeded/added brands).
+  Model suggestions filter to the brand currently typed (any category), or to the
+  current category if brand is empty; within that, a category match ranks first,
+  then usage count. Picking a model suggestion fills in its brand too, but only
+  when the brand field is still empty. Mantine's own default `Autocomplete`
+  filtering already does case-insensitive "anywhere in the string" matching and
+  (via `limit={10}`) caps the dropdown, across grouped data — no custom filter
+  function needed for that part.
 - **Casing**: on blur, the typed value is trimmed and, if it matches a suggestion
   case-insensitively, replaced with that suggestion's exact casing
   (`resolveCasing`) — models compare only against models of the matching brand.
