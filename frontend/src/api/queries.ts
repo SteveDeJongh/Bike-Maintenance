@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   BikeDetail,
+  BikeRidesResponse,
   BikeType,
   BikeWithStats,
   CategoryServiceInterval,
@@ -53,6 +54,19 @@ export function useBike(id: number) {
     queryKey: ['bikes', id],
     queryFn: () => apiGet<BikeDetail>(`/bikes/${id}`),
     enabled: Number.isFinite(id),
+  })
+}
+
+// Ride history's "Load more" pagination -- the query key includes type/order
+// so switching either discards stale pages automatically (react-query's own
+// behavior on a changed key), rather than this hook managing that itself.
+export function useBikeRides(bikeId: number, type: 'all' | 'outdoor' | 'indoor', order: 'asc' | 'desc') {
+  return useInfiniteQuery({
+    queryKey: ['bike_rides', bikeId, type, order],
+    queryFn: ({ pageParam }) =>
+      apiGet<BikeRidesResponse>(`/bikes/${bikeId}/rides?type=${type}&order=${order}&page=${pageParam}`),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.meta.next_page,
   })
 }
 

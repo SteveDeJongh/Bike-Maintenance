@@ -32,6 +32,7 @@ import {
   useDeleteComponentAssignment,
 } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
+import RideHistorySection from '../components/bike/RideHistorySection'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
@@ -374,6 +375,8 @@ export default function BikeDetail() {
       {historyAssignments.length > 0 && (
         <HistoryTable historyAssignments={historyAssignments} onRowClick={setSelectedAssignment} />
       )}
+
+      <RideHistorySection bike={bike} />
 
       <EndAssignmentModal
         opened={endingAssignment !== null}

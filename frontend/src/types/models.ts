@@ -431,3 +431,47 @@ export interface DashboardSummary {
     rides: DashboardRecentRide[]
   }
 }
+
+// One row of GET /bikes/:id/rides -- the Ride history table. Every
+// analytics field below is nullable and never coerced to 0 (Strava omits
+// them entirely when the activity has no matching sensor). ride_kind is
+// server-derived (StravaActivity#ride_kind) so the frontend never
+// re-implements the indoor/trainer/virtual rule itself.
+export interface BikeRide {
+  id: number
+  strava_id: number
+  name: string
+  moved_at: string
+  activity_type: string
+  ride_kind: 'outdoor' | 'trainer' | 'virtual'
+  commute: boolean
+  distance_meters: number
+  // The bike's full odometer through and including this ride, in
+  // chronological order -- independent of the active type filter or which
+  // page this ride is on (see Bikes::RideHistory).
+  cumulative_distance_meters: number
+  moving_time: number | null
+  elapsed_time: number | null
+  total_elevation_gain: number | null
+  average_speed: number | null
+  max_speed: number | null
+  average_watts: number | null
+  weighted_average_watts: number | null
+  device_watts: boolean | null
+  kilojoules: number | null
+  average_heartrate: number | null
+  max_heartrate: number | null
+  average_cadence: number | null
+  counted_toward: { component_id: number; label: string }[]
+}
+
+export interface BikeRidesResponse {
+  rides: BikeRide[]
+  meta: {
+    total_count: number
+    total_distance_meters: number
+    page: number
+    per_page: number
+    next_page: number | null
+  }
+}

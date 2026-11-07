@@ -302,3 +302,68 @@ export const ASSIGNMENT_LIST_SORT_COLUMNS = [
 ] as const
 
 export type AssignmentListSortColumn = (typeof ASSIGNMENT_LIST_SORT_COLUMNS)[number]
+
+// The toggleable columns on the Bike detail page's Ride history table. Date
+// and Name are always-shown, leading (pinned) columns — not part of this
+// list. Unlike every other adopter, this table has no spread-in pinned-column
+// sort constant: the only sortable thing is the date order, driven by the
+// section's own order toggle (Newest/Oldest first), never by clicking a
+// column header — see RideHistorySection and DraggableHeaderCell's
+// `sortable` prop.
+export const BIKE_RIDE_COLUMNS = [
+  'ride_kind',
+  'distance_meters',
+  'cumulative_distance_meters',
+  'moving_time',
+  'total_elevation_gain',
+  'average_speed',
+  'average_watts',
+  'activity_type',
+  'elapsed_time',
+  'max_speed',
+  'weighted_average_watts',
+  'kilojoules',
+  'average_heartrate',
+  'max_heartrate',
+  'average_cadence',
+  'commute',
+  'counted_toward',
+] as const
+
+export type BikeRideColumn = (typeof BIKE_RIDE_COLUMNS)[number]
+
+export const BIKE_RIDE_COLUMN_LABELS: Record<BikeRideColumn, string> = {
+  ride_kind: 'Type',
+  distance_meters: 'Distance',
+  cumulative_distance_meters: 'Odometer',
+  moving_time: 'Moving time',
+  total_elevation_gain: 'Elevation',
+  average_speed: 'Avg speed',
+  average_watts: 'Avg power',
+  activity_type: 'Sport type',
+  elapsed_time: 'Elapsed time',
+  max_speed: 'Max speed',
+  weighted_average_watts: 'Weighted avg power',
+  kilojoules: 'Energy (kJ)',
+  average_heartrate: 'Avg HR',
+  max_heartrate: 'Max HR',
+  average_cadence: 'Avg cadence',
+  commute: 'Commute',
+  counted_toward: 'Counted toward',
+}
+
+export const DEFAULT_BIKE_RIDE_COLUMNS: BikeRideColumn[] = [
+  'ride_kind',
+  'distance_meters',
+  'cumulative_distance_meters',
+  'moving_time',
+  'total_elevation_gain',
+  'average_speed',
+  'average_watts',
+]
+
+export const RIDE_KIND_BADGE: Record<'outdoor' | 'trainer' | 'virtual', { label: string; color: string }> = {
+  outdoor: { label: 'Outdoor', color: 'radar' },
+  virtual: { label: 'Virtual', color: 'gray' },
+  trainer: { label: 'Trainer', color: 'gray' },
+}
