@@ -267,13 +267,17 @@ docker build .`), not the repo root.
   scopes are the actual signal mileage attribution uses for indoor/outdoor, not the raw
   `trainer` column alone — confirmed empirically that Zwift's Strava integration does
   not reliably set `trainer: true` on its own uploads, so `activity_type == "VirtualRide"`
-  also counts as indoor regardless of `trainer`. Also carries ride-analytics fields
-  captured for later use (not yet surfaced in the UI): `trainer`, `commute`,
-  `moving_time`, `elapsed_time`, `average_speed`, `max_speed`, `total_elevation_gain`,
-  `average_watts`, `weighted_average_watts`, `device_watts`, `kilojoules`,
-  `average_heartrate`, `max_heartrate`, `average_cadence` — all nullable except
-  `trainer`/`commute`, since Strava omits them entirely (not even `null`) when an
-  activity has no power meter/HR monitor/cadence sensor.
+  also counts as indoor regardless of `trainer`. Also carries ride-analytics fields,
+  now surfaced on the Bike detail page's Ride history table (see "Ride history"
+  below): `trainer`, `commute`, `moving_time`, `elapsed_time`, `average_speed`,
+  `max_speed`, `total_elevation_gain`, `average_watts`, `weighted_average_watts`,
+  `device_watts`, `kilojoules`, `average_heartrate`, `max_heartrate`,
+  `average_cadence` — all nullable except `trainer`/`commute`, since Strava omits
+  them entirely (not even `null`) when an activity has no power meter/HR
+  monitor/cadence sensor. `#ride_kind` (`"outdoor"`/`"trainer"`/`"virtual"`) is the
+  one server-derived classification backing that table's Type column — `"trainer"`
+  and `"virtual"` together are exactly `#indoor?`, so the frontend never
+  re-implements the indoor rule itself.
 - `StravaCredential`: user_id (unique — one row per user), access_token, refresh_token,
   expires_at, athlete_id (also unique — one Strava athlete can't be attached to two
   different app accounts; the identity-linking rules in "Authentication" below are
@@ -653,11 +657,11 @@ Rails, no hosted auth vendor.
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on six tables: the Bikes list, the Bike detail page's Installed components and
-History tables, and the Components/Maintenance Events/Assignments lists (each its
-own `table_key`: `bikes`, `bike_installed_components`, `bike_history`,
-`components`, `maintenance_events`, `assignments`). A future page can adopt the
-same UX without rework:
+on seven tables: the Bikes list, the Bike detail page's Installed components,
+History, and Ride history tables, and the Components/Maintenance Events/
+Assignments lists (each its own `table_key`: `bikes`, `bike_installed_components`,
+`bike_history`, `bike_rides`, `components`, `maintenance_events`, `assignments`).
+A future page can adopt the same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
   `useTableViewPreference`/`useUpdateTableViewPreference` (`api/queries.ts`/
@@ -688,6 +692,10 @@ same UX without rework:
   pattern for combining drag with another click behavior on the same element.
   `columns` in `TableViewPreference#data` is one ordered array: presence means
   visible, position means display order (no separate unordered "visible" list).
+  `DraggableHeaderCell`'s `sortable` prop (default `true`) renders the label as
+  plain, non-clickable text when `false` — for a table like `bike_rides` whose
+  configurable columns are drag-to-reorder only, never click-to-sort (see "Ride
+  history" below).
 - `frontend/src/components/datatable/useColumnDragHandle.ts` /
   `useColumnDragSensors.ts` — small shared pieces behind both drag surfaces (the
   popover rows and the live headers): a `useSortable` wrapper returning ref/style/
@@ -862,6 +870,56 @@ choices/ordering, which this fixed, non-configurable 14-day feed has no use for.
 `formatRemaining` (the "N km left"/"N km overdue" wording) was extracted out of
 `ServiceIntervalsSection.tsx` into `utils/serviceInterval.ts` so `AttentionRow`
 shares the exact same wording rather than re-deriving it.
+
+## Ride history
+
+`GET /bikes/:id/rides` (`Bikes::RideHistory`, `app/services/bikes/ride_history.rb`)
+is a bike's rides, paginated (offset-based: `page`/`per_page`, default 50, max
+200 — chosen over keyset since this is synced historical data with no realistic
+concurrent-insert-during-pagination concern for a personal app), newest first by
+default (`order=asc` for oldest first). Each ride carries
+`cumulative_distance_meters`: the bike's full odometer — every ride, indoor
+included, exactly like `Bike#total_distance` — up to and including that ride,
+computed via `SUM(distance_meters) OVER (ORDER BY moved_at, id)` (tie-broken on
+`id`) so it's correct on every page regardless of sort direction. The
+`type=all|outdoor|indoor` filter is applied *after* that window function, so a
+filtered view's odometer values stay the full-bike total, not the filtered
+subset's — the frontend's summary line ("N rides · X km") is the filtered
+total/count, distinct from any one row's odometer value. A composite index on
+`strava_activities (bike_id, moved_at, id)` backs the window function and
+pagination's shared ordering. `Maintenance::RideContextSql` gained
+`outdoor_predicate`/`indoor_predicate` (extracted out of its existing
+`predicate`, composing it unchanged) so this filter and `StravaActivity.outdoor`/
+`.indoor` stay one rule, not a third hand-rolled copy; `Maintenance::CountedTowardQuery`
+gained optional `bike:`/`activity_ids:` params alongside its existing `since:`,
+so a page of rides is covered by one query rather than one per ride (the
+Dashboard's own `since:`-only call is unchanged).
+
+Sorting is deliberately narrower than every other adopter of the
+sortable/configurable-table system: the *only* sortable thing is the date order,
+driven by the section's own "Newest first"/"Oldest first" toggle, never by
+clicking a column header — the point of this view is the sequence, and
+client-side column sorting would only reorder the current page, which would
+mislead against a server-paginated list. `useTableViewPreferences` needed no
+change for this (a page simply never includes its configurable columns in
+`sortColumns`); `DraggableHeaderCell` gained the `sortable` prop described above
+so those columns don't visually invite clicks they can't act on.
+
+Frontend: `components/bike/RideHistorySection.tsx`, mounted on `BikeDetail.tsx`
+directly after Component History, at the same heading level. Adopts the
+configurable-table system (`table_key: "bike_rides"`) the same way as `Bikes.tsx`;
+`useBikeRides` is a `useInfiniteQuery` (the first in this codebase) with a "Load
+more" button (not infinite scroll) plus "Showing N of M". The Name column links
+to `https://www.strava.com/activities/{strava_id}` in a new tab, with "View on
+Strava" as the tooltip/accessible label per Strava's brand guideline for
+API-sourced content — the link uses the `orange` Mantine token (never a hardcoded
+hex) rather than this app's own `radar` accent, so it doesn't read as an in-app
+action. `formatSpeed` (`utils/speed.ts`) matches `formatDistance`'s own
+hardcoded-km convention (no metric/imperial setting exists anywhere in this app
+to plug into). The Avg power column reuses `formatPower`, dimmed with an
+"Estimated" tooltip when `device_watts` is `false`, and renders a literal `'—'`
+for `null` — distinct from `formatPower`'s own `'N/A'`, which stays unchanged for
+the Bike cards that already rely on it elsewhere.
 
 ## Bike setup
 
