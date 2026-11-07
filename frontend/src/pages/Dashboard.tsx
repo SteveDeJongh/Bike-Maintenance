@@ -38,7 +38,13 @@ export default function Dashboard() {
     if (changed || timedOut) {
       setPolling(false)
       pollStartedAtRef.current = null
-      if (changed) queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+      if (changed) {
+        queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+        // The one place that actually knows a sync finished, not just
+        // started -- new/changed rides are correct in Ride history only
+        // from here on.
+        queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
+      }
     }
   }, [data, polling, queryClient])
 

@@ -156,6 +156,10 @@ export function useCreateBike() {
       // mapping gear changes what it counts.
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      // Ride history's own cache has nothing to invalidate for a brand-new
+      // bike id yet, but this keeps the two mutations symmetric and covers
+      // it the moment a second gear-mapping edit touches the same bike.
+      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
     },
   })
 }
@@ -172,6 +176,9 @@ export function useUpdateBike(id: number) {
       // notification, same reasoning as useCreateBike above.
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      // This bike's Ride history section -- which rides are "its" rides can
+      // change the moment strava_gear_id does.
+      queryClient.invalidateQueries({ queryKey: ['bike_rides', id] })
     },
   })
 }
@@ -418,6 +425,12 @@ export function useSyncStrava() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
+      // Enqueue-time, not completion-time, same as the two keys above --
+      // the Strava page (unlike the Dashboard) has no completion-polling to
+      // invalidate ride history on afterward, so this is the best this
+      // mutation alone can do for it. Dashboard.tsx's own sync-completion
+      // effect invalidates this again once last_synced_at actually changes.
+      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
     },
   })
 }
@@ -439,6 +452,10 @@ export function useReassignGear() {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      // Affects both the old and new bike's ride lists -- the payload only
+      // carries the new bikeId, not the previous one, so this invalidates
+      // unscoped rather than trying to target just one bike.
+      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
     },
   })
 }
