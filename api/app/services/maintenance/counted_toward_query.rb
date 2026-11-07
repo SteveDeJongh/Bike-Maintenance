@@ -6,10 +6,21 @@ module Maintenance
   # CLAUDE.md) would be an N+1 across the whole window instead.
   class CountedTowardQuery
     # Returns { strava_activity_id => [{component_id:, label:}, ...] } for
-    # every activity of the user's with moved_at >= since. An activity with
-    # no entry counted toward nothing (unattributed, or attributed to a bike
-    # with no matching assignment).
-    def self.call(user, since:)
+    # every matching activity of the user's. An activity with no entry
+    # counted toward nothing (unattributed, or attributed to a bike with no
+    # matching assignment). since/bike/activity_ids are independently
+    # combinable (AND together when more than one is given) -- the
+    # Dashboard caller keeps using since: alone; Bikes::RideHistory scopes
+    # to one page's exact activity_ids instead, since it already knows
+    # precisely which rides it needs covered.
+    def self.call(user, since: nil, bike: nil, activity_ids: nil)
+      return {} if activity_ids && activity_ids.empty?
+
+      conditions = ["sa.user_id = #{user.id.to_i}"]
+      conditions << "sa.moved_at >= #{ActiveRecord::Base.connection.quote(since)}" if since
+      conditions << "sa.bike_id = #{bike.id.to_i}" if bike
+      conditions << "sa.id IN (#{Array(activity_ids).map(&:to_i).join(',')})" if activity_ids
+
       sql = <<~SQL
         SELECT sa.id AS strava_activity_id, c.id AS component_id, c.label AS component_label
         FROM strava_activities sa
@@ -18,8 +29,7 @@ module Maintenance
           AND (ca.ended_at IS NULL OR sa.moved_at < ca.ended_at)
           AND #{RideContextSql.predicate(assignment_alias: "ca", activity_alias: "sa")}
         JOIN components c ON c.id = ca.component_id
-        WHERE sa.user_id = #{user.id.to_i}
-          AND sa.moved_at >= #{ActiveRecord::Base.connection.quote(since)}
+        WHERE #{conditions.join(' AND ')}
       SQL
 
       result = ActiveRecord::Base.connection.exec_query(sql)

@@ -1,5 +1,12 @@
 class BikesController < ApplicationController
-  before_action :set_bike, only: %i[ show update destroy component_setup ]
+  before_action :set_bike, only: %i[ show update destroy component_setup rides ]
+
+  RIDE_ATTRIBUTES = %i[
+    id strava_id name moved_at activity_type commute
+    distance_meters moving_time elapsed_time total_elevation_gain
+    average_speed max_speed average_watts weighted_average_watts device_watts
+    kilojoules average_heartrate max_heartrate average_cadence
+  ].freeze
 
   # GET /bikes
   def index
@@ -131,6 +138,36 @@ class BikesController < ApplicationController
     else
       render json: { row_errors: row_errors }, status: :unprocessable_content
     end
+  end
+
+  # GET /bikes/1/rides
+  def rides
+    result = Bikes::RideHistory.call(
+      @bike,
+      type: params[:type],
+      order: params[:order],
+      page: params[:page],
+      per_page: params[:per_page],
+    )
+
+    counted_toward = Maintenance::CountedTowardQuery.call(current_user, activity_ids: result.rides.map(&:id))
+
+    render json: {
+      rides: result.rides.map { |ride|
+        ride.as_json(only: RIDE_ATTRIBUTES).merge(
+          ride_kind: ride.ride_kind,
+          cumulative_distance_meters: result.cumulative_by_id[ride.id],
+          counted_toward: counted_toward[ride.id] || [],
+        )
+      },
+      meta: {
+        total_count: result.total_count,
+        total_distance_meters: result.total_distance_meters,
+        page: result.page,
+        per_page: result.per_page,
+        next_page: result.next_page,
+      },
+    }
   end
 
   private

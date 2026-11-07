@@ -48,5 +48,43 @@ RSpec.describe Maintenance::CountedTowardQuery do
 
       expect(result).not_to have_key(unmatched_bike_ride.id)
     end
+
+    it "scopes to a given bike, ignoring other bikes' rides" do
+      user = create(:user)
+      bike = create(:bike, user: user)
+      other_bike = create(:bike, user: user)
+      component = create(:component, user: user, category: "chain")
+      other_component = create(:component, user: user, category: "chain")
+      create(:component_assignment, component: component, bike: bike, started_at: 10.days.ago)
+      create(:component_assignment, component: other_component, bike: other_bike, started_at: 10.days.ago)
+
+      this_bike_ride = create(:strava_activity, user: user, bike: bike, moved_at: 1.day.ago)
+      other_bike_ride = create(:strava_activity, user: user, bike: other_bike, moved_at: 1.day.ago)
+
+      result = described_class.call(user, bike: bike)
+
+      expect(result).to have_key(this_bike_ride.id)
+      expect(result).not_to have_key(other_bike_ride.id)
+    end
+
+    it "scopes to an explicit set of activity ids" do
+      user = create(:user)
+      bike = create(:bike, user: user)
+      component = create(:component, user: user, category: "chain")
+      create(:component_assignment, component: component, bike: bike, started_at: 10.days.ago)
+
+      wanted = create(:strava_activity, user: user, bike: bike, moved_at: 5.days.ago)
+      create(:strava_activity, user: user, bike: bike, moved_at: 1.day.ago) # not requested
+
+      result = described_class.call(user, activity_ids: [wanted.id])
+
+      expect(result.keys).to eq([wanted.id])
+    end
+
+    it "returns an empty hash for an empty activity_ids array, without querying" do
+      user = create(:user)
+
+      expect(described_class.call(user, activity_ids: [])).to eq({})
+    end
   end
 end

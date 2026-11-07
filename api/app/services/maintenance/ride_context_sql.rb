@@ -14,10 +14,23 @@ module Maintenance
       <<~SQL.strip
         (
           #{assignment_alias}.ride_context = 'both'
-          OR (#{assignment_alias}.ride_context = 'outdoor_only' AND #{activity_alias}.trainer = false AND #{activity_alias}.activity_type IS DISTINCT FROM 'VirtualRide')
-          OR (#{assignment_alias}.ride_context = 'indoor_only' AND (#{activity_alias}.trainer = true OR #{activity_alias}.activity_type = 'VirtualRide'))
+          OR (#{assignment_alias}.ride_context = 'outdoor_only' AND #{outdoor_predicate(activity_alias: activity_alias)})
+          OR (#{assignment_alias}.ride_context = 'indoor_only' AND #{indoor_predicate(activity_alias: activity_alias)})
         )
       SQL
+    end
+
+    # The SQL equivalent of StravaActivity.outdoor/.indoor, extracted out of
+    # #predicate so a batched query filtering activities directly by
+    # indoor/outdoor (not via a component_assignments row's ride_context,
+    # e.g. Bikes::RideHistory's type filter) reuses the exact same rule
+    # #predicate's own branches use, rather than a third copy.
+    def self.outdoor_predicate(activity_alias:)
+      "#{activity_alias}.trainer = false AND #{activity_alias}.activity_type IS DISTINCT FROM 'VirtualRide'"
+    end
+
+    def self.indoor_predicate(activity_alias:)
+      "(#{activity_alias}.trainer = true OR #{activity_alias}.activity_type = 'VirtualRide')"
     end
   end
 end

@@ -13,6 +13,7 @@ RSpec.describe "Unauthenticated access", type: :request do
 
     [:get, "/bikes"], [:post, "/bikes"], [:get, "/bikes/999999"],
     [:patch, "/bikes/999999"], [:delete, "/bikes/999999"], [:post, "/bikes/999999/component_setup"],
+    [:get, "/bikes/999999/rides"],
 
     [:get, "/bike_types"], [:post, "/bike_types"], [:get, "/bike_types/999999"],
     [:patch, "/bike_types/999999"], [:delete, "/bike_types/999999"],

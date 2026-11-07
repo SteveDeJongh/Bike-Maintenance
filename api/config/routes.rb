@@ -6,7 +6,10 @@ Rails.application.routes.draw do
   resources :component_assignments, except: %i[ new edit ]
   resources :components, except: %i[ new edit ]
   resources :bikes, except: %i[ new edit ] do
-    member { post :component_setup }
+    member do
+      post :component_setup
+      get :rides
+    end
   end
   resources :bike_types, except: %i[ new edit ]
   resources :bike_component_slots, only: %i[ create destroy ]

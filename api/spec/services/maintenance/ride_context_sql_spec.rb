@@ -17,4 +17,24 @@ RSpec.describe Maintenance::RideContextSql, type: :model do
       expect(sql).to include("activities.trainer = false")
     end
   end
+
+  describe ".outdoor_predicate / .indoor_predicate" do
+    it "matches StravaActivity.outdoor/.indoor on a mixed fixture set" do
+      outdoor = create(:strava_activity, trainer: false, activity_type: "Ride")
+      trainer = create(:strava_activity, trainer: true, activity_type: "Ride")
+      virtual = create(:strava_activity, trainer: false, activity_type: "VirtualRide")
+
+      outdoor_ids = StravaActivity.where(
+        "#{described_class.outdoor_predicate(activity_alias: 'strava_activities')}",
+      ).pluck(:id)
+      indoor_ids = StravaActivity.where(
+        "#{described_class.indoor_predicate(activity_alias: 'strava_activities')}",
+      ).pluck(:id)
+
+      expect(outdoor_ids).to match_array(StravaActivity.outdoor.pluck(:id))
+      expect(indoor_ids).to match_array(StravaActivity.indoor.pluck(:id))
+      expect(outdoor_ids).to contain_exactly(outdoor.id)
+      expect(indoor_ids).to contain_exactly(trainer.id, virtual.id)
+    end
+  end
 end

@@ -53,6 +53,22 @@ RSpec.describe StravaActivity, type: :model do
     end
   end
 
+  describe "#ride_kind" do
+    it "returns outdoor, trainer, or virtual, matching indoor? == (ride_kind != 'outdoor') across fixtures" do
+      fixtures = [
+        build(:strava_activity, trainer: false, activity_type: "Ride"),
+        build(:strava_activity, trainer: true, activity_type: "Ride"),
+        build(:strava_activity, trainer: false, activity_type: "VirtualRide"),
+        build(:strava_activity, trainer: true, activity_type: "VirtualRide"),
+      ]
+
+      expect(fixtures.map(&:ride_kind)).to eq(%w[outdoor trainer virtual virtual])
+      fixtures.each do |activity|
+        expect(activity.indoor?).to eq(activity.ride_kind != "outdoor")
+      end
+    end
+  end
+
   describe ".reconcile_for_bike!" do
     it "backfills bike_id for activities matching the bike's gear_id and user" do
       bike = create(:bike, strava_gear_id: "g1")
