@@ -1,25 +1,31 @@
 import { useState } from 'react'
-import { Alert, Badge, Button, Checkbox, Group, NumberInput, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core'
+import { ActionIcon, Alert, Button, Checkbox, Group, Menu, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core'
+import { useElementSize } from '@mantine/hooks'
 import { useCategoryServiceIntervals, useServiceTypes } from '../api/queries'
 import { SERVICE_STATUS_COLORS } from '../constants'
-import {
-  useApplyDefaultComponentServiceIntervals,
-  useDeleteComponentServiceInterval,
-  useUpdateComponentServiceInterval,
-} from '../api/mutations'
+import { useApplyDefaultComponentServiceIntervals, useDeleteComponentServiceInterval, useUpdateComponentServiceInterval } from '../api/mutations'
 import { formatApiError } from '../api/errors'
 import { confirmDelete } from './confirmDelete'
+import ServiceStatusBadge from './ServiceStatusBadge'
 import AddCustomServiceIntervalModal from './forms/AddCustomServiceIntervalModal'
+import EditServiceIntervalModal from './forms/EditServiceIntervalModal'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
-import { formatDistance } from '../utils/distance'
-import { formatRemaining } from '../utils/serviceInterval'
+import { formatInterval, formatRemaining } from '../utils/serviceInterval'
 import type { CategoryServiceInterval, ComponentDetail, ComponentServiceIntervalWithStatus } from '../types/models'
 
 interface ServiceIntervalsSectionProps {
   component: ComponentDetail
 }
 
+// Below this width (the section's own measured width, not the viewport --
+// this section renders inside AssignmentDetailModal, which is narrower than
+// the window), Edit/Remove collapse into a single "..." menu so the row
+// doesn't force the table wider than it needs to be.
+const NARROW_ACTIONS_THRESHOLD = 700
+
 export default function ServiceIntervalsSection({ component }: ServiceIntervalsSectionProps) {
+  const { ref, width } = useElementSize()
+  const narrow = width > 0 && width < NARROW_ACTIONS_THRESHOLD
   const { data: categoryTemplates } = useCategoryServiceIntervals()
   const [customModalOpened, setCustomModalOpened] = useState(false)
   const [addDefaultsOpened, setAddDefaultsOpened] = useState(false)
@@ -32,7 +38,7 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
   )
 
   return (
-    <Stack>
+    <Stack ref={ref}>
       <Group justify="space-between">
         <Title order={3}>Service intervals</Title>
         <Group>
@@ -52,30 +58,33 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
       {component.service_intervals.length === 0 && <Text c="dimmed">No service intervals set up yet.</Text>}
 
       {component.service_intervals.length > 0 && (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Service type</Table.Th>
-              <Table.Th>Source</Table.Th>
-              <Table.Th>Progress</Table.Th>
-              <Table.Th>Remaining</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Every (km)</Table.Th>
-              <Table.Th>Every (days)</Table.Th>
-              <Table.Th>Enabled</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {component.service_intervals.map((interval) => (
-              <ServiceIntervalRow
-                key={interval.id}
-                interval={interval}
-                onLogService={() => setLogServiceInterval(interval)}
-              />
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Table.ScrollContainer minWidth={600}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Service type</Table.Th>
+                <Table.Th>Interval</Table.Th>
+                <Table.Th>Progress</Table.Th>
+                <Table.Th>Remaining</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Enabled</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {component.service_intervals.map((interval) => (
+                <ServiceIntervalRow
+                  key={interval.id}
+                  interval={interval}
+                  category={component.category}
+                  template={categoryTemplates?.find((t) => t.id === interval.category_service_interval_id)}
+                  narrow={narrow}
+                  onLogService={() => setLogServiceInterval(interval)}
+                />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
 
       {addDefaultsOpened && (
@@ -102,50 +111,28 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
   )
 }
 
-function effectiveKm(interval: ComponentServiceIntervalWithStatus): number | '' {
-  return interval.effective_distance_interval_meters == null ? '' : interval.effective_distance_interval_meters / 1000
-}
-
 function ServiceIntervalRow({
   interval,
+  category,
+  template,
+  narrow,
   onLogService,
 }: {
   interval: ComponentServiceIntervalWithStatus
+  category: string
+  template: CategoryServiceInterval | undefined
+  narrow: boolean
   onLogService: () => void
 }) {
   const updateInterval = useUpdateComponentServiceInterval(interval.id)
   const deleteInterval = useDeleteComponentServiceInterval()
-
-  const [editing, setEditing] = useState(false)
-  const [km, setKm] = useState<number | ''>(effectiveKm(interval))
-  const [days, setDays] = useState<number | ''>(interval.effective_time_interval_days ?? '')
+  const [editOpened, setEditOpened] = useState(false)
 
   const isLinked = interval.category_service_interval_id !== null
-  const canSave = isLinked || km !== '' || days !== ''
+  const isOverridden = isLinked && (interval.distance_interval_meters != null || interval.time_interval_days != null)
 
   function handleToggleEnabled(checked: boolean) {
     updateInterval.mutate({ enabled: checked })
-  }
-
-  function handleStartEdit() {
-    setKm(effectiveKm(interval))
-    setDays(interval.effective_time_interval_days ?? '')
-    setEditing(true)
-  }
-
-  function handleCancelEdit() {
-    setEditing(false)
-  }
-
-  function handleSaveEdit() {
-    if (!canSave) return
-    updateInterval.mutate(
-      {
-        distance_interval_meters: km === '' ? null : Math.round(km * 1000),
-        time_interval_days: days === '' ? null : days,
-      },
-      { onSuccess: () => setEditing(false) },
-    )
   }
 
   function handleRemove() {
@@ -165,55 +152,46 @@ function ServiceIntervalRow({
     <Table.Tr>
       <Table.Td>{interval.service_type_name}</Table.Td>
       <Table.Td>
-        <Badge variant="light" color="gray">
-          {isLinked ? 'Category default' : 'Custom'}
-        </Badge>
+        {formatInterval(interval.effective_distance_interval_meters, interval.effective_time_interval_days)}
+        {isOverridden && (
+          <Text span c="dimmed" size="sm">
+            {' '}
+            (overridden)
+          </Text>
+        )}
       </Table.Td>
       <Table.Td miw={120}>
         <Progress value={fraction * 100} color={SERVICE_STATUS_COLORS[interval.status]} />
       </Table.Td>
       <Table.Td>{formatRemaining(interval.distance_remaining_meters, interval.days_remaining)}</Table.Td>
-      <Table.Td>
-        <Badge color={SERVICE_STATUS_COLORS[interval.status]}>{interval.status}</Badge>
-      </Table.Td>
-      <Table.Td>
-        {editing ? (
-          <NumberInput value={km} onChange={(v) => setKm(v === '' ? '' : Number(v))} min={0} w={100} />
-        ) : interval.effective_distance_interval_meters != null ? (
-          formatDistance(interval.effective_distance_interval_meters)
-        ) : (
-          '—'
-        )}
-      </Table.Td>
-      <Table.Td>
-        {editing ? (
-          <NumberInput value={days} onChange={(v) => setDays(v === '' ? '' : Number(v))} min={0} w={100} />
-        ) : interval.effective_time_interval_days != null ? (
-          `${interval.effective_time_interval_days} days`
-        ) : (
-          '—'
-        )}
+      <Table.Td miw={90} style={{ whiteSpace: 'nowrap' }}>
+        <ServiceStatusBadge status={interval.status} />
       </Table.Td>
       <Table.Td>
         <Switch checked={interval.enabled} onChange={(event) => handleToggleEnabled(event.currentTarget.checked)} />
       </Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
-          {editing ? (
-            <>
-              <Button size="xs" onClick={handleSaveEdit} disabled={!canSave} loading={updateInterval.isPending}>
-                Save
-              </Button>
-              <Button size="xs" variant="default" onClick={handleCancelEdit}>
-                Cancel
-              </Button>
-            </>
+          <Button size="xs" onClick={onLogService}>
+            Log service
+          </Button>
+          {narrow ? (
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <ActionIcon variant="default" aria-label={`More actions for ${interval.service_type_name}`}>
+                  ⋯
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={() => setEditOpened(true)}>Edit</Menu.Item>
+                <Menu.Item color="red" onClick={handleRemove}>
+                  Remove
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           ) : (
             <>
-              <Button size="xs" onClick={onLogService}>
-                Log service
-              </Button>
-              <Button size="xs" variant="default" onClick={handleStartEdit}>
+              <Button size="xs" variant="default" onClick={() => setEditOpened(true)}>
                 Edit
               </Button>
               <Button size="xs" variant="subtle" color="red" loading={deleteInterval.isPending} onClick={handleRemove}>
@@ -228,6 +206,14 @@ function ServiceIntervalRow({
           </Text>
         )}
       </Table.Td>
+
+      <EditServiceIntervalModal
+        opened={editOpened}
+        onClose={() => setEditOpened(false)}
+        interval={interval}
+        template={template}
+        category={category}
+      />
     </Table.Tr>
   )
 }

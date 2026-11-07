@@ -380,13 +380,31 @@ above for the data model; this section covers how status gets computed and surfa
   its component with a "dismiss until next sync" control, each banner with its own
   "dismiss all" (scoped to that banner's own status via the `dismiss_all` endpoint's
   `status` param, so dismissing the due banner never also clears warnings). No
-  modals/toasts. `ComponentDetail.tsx`'s "Service intervals" section is where a
-  component's intervals are enabled/disabled/overridden/removed/added (from a
-  category default or custom) and where a service gets logged
-  (`MaintenanceEventFormModal` with the interval's service type/component
-  prefilled). `ServiceStatusBadge`/`SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY`
-  back the `service_status` column on the Components list and Bike detail's
-  Installed Components table (through the existing configurable-table system).
+  modals/toasts. `frontend/src/components/ServiceIntervalsSection.tsx` (rendered
+  by `ComponentServiceAndHistory.tsx`, shared by the standalone `ComponentDetail`
+  page and `BikeDetail`'s `AssignmentDetailModal`) is where a component's
+  intervals are enabled/disabled/overridden/removed/added (from a category
+  default or custom) and where a service gets logged (`MaintenanceEventFormModal`
+  with the interval's service type/component prefilled). Its table merges
+  distance/time into one "Interval" column (`formatInterval` in
+  `utils/serviceInterval.ts`, alongside the existing `formatRemaining` — only the
+  dimension(s) actually set, never a "—" for a blank one), with a dimmed
+  "(overridden)" suffix when a linked row's own distance/time columns are set
+  (i.e. overriding the category template rather than inheriting it). Editing one
+  interval opens `EditServiceIntervalModal` (not inline-in-row) — for a linked
+  row it shows the template's own default values and a "Reset to default" action
+  that clears both override columns (`nil` already means "inherit the template,"
+  so this needs no backend support beyond the existing `PATCH`). Edit/Remove
+  collapse into a `⋯` `ActionIcon`+`Menu` (Remove still via `confirmDelete`) below
+  a width threshold measured on the section's own element via Mantine's
+  `useElementSize` — not a viewport breakpoint, since this section also renders
+  inside a modal narrower than the window — and the table itself is wrapped in
+  `Table.ScrollContainer` so only it, never the rest of the modal, scrolls
+  horizontally if it still doesn't fit. "Log service" never collapses.
+  `ServiceStatusBadge`/`SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY` back the
+  `service_status` column on the Components list and Bike detail's Installed
+  Components table (through the existing configurable-table system), and (as of
+  the above) the Service intervals table's own Status column too.
 
 **Known limitation**: sync is still manual (see "Strava integration" below) — until a
 scheduler is deployed, a dismissed alert stays hidden only until the user next

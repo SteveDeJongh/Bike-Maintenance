@@ -17,3 +17,13 @@ export function formatRemaining(distanceRemainingMeters: number | null, daysRema
   }
   return parts.join(' · ') || '—'
 }
+
+// The merged "Interval" column on ServiceIntervalsSection's table -- only the
+// dimension(s) actually set, never a "—" placeholder for the other one (a
+// blank dimension just isn't mentioned at all).
+export function formatInterval(distanceMeters: number | null, days: number | null): string {
+  const parts: string[] = []
+  if (distanceMeters != null) parts.push(formatDistance(distanceMeters))
+  if (days != null) parts.push(`${days} days`)
+  return parts.join(' / ')
+}
