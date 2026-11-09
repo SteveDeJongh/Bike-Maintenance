@@ -418,18 +418,21 @@ export function useDeleteMaintenanceEvent() {
 
 // Strava
 
+// full: true triggers a full refresh (re-reads the user's entire Strava
+// history and reconciles rides gone from Strava) instead of an incremental
+// sync -- see useStravaSyncRunner for the completion-polling that now
+// covers both pages/both modes with one shared mechanism.
 export function useSyncStrava() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiPost<void>('/strava/sync', {}),
+    mutationFn: (payload?: { full?: boolean }) => apiPost<void>('/strava/sync', payload ?? {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['strava'] })
       queryClient.invalidateQueries({ queryKey: ['bikes'] })
       // Enqueue-time, not completion-time, same as the two keys above --
-      // the Strava page (unlike the Dashboard) has no completion-polling to
-      // invalidate ride history on afterward, so this is the best this
-      // mutation alone can do for it. Dashboard.tsx's own sync-completion
-      // effect invalidates this again once last_synced_at actually changes.
+      // useStravaSyncRunner's own completion-triggered invalidation is what
+      // actually makes ride data correct; this is just an immediate,
+      // best-effort refresh in the meantime.
       queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
     },
   })

@@ -285,6 +285,11 @@ export interface MaintenanceEvent {
 export interface StravaStatus {
   connected: boolean
   athlete_id: number | null
+  last_synced_at: string | null
+  last_full_sync_at: string | null
+  // null when a full refresh can be triggered right now; otherwise the
+  // time it becomes available (see StravaCredential#full_sync_available_at).
+  full_sync_available_at: string | null
 }
 
 interface StravaGearRow {
@@ -473,5 +478,32 @@ export interface BikeRidesResponse {
     page: number
     per_page: number
     next_page: number | null
+  }
+}
+
+export type RideAttribution = 'attributed' | 'needs_attention' | 'ignored'
+export type RideAttentionReason = 'unmapped_gear' | 'no_gear' | 'ride' | 'gear'
+
+// One row of GET /strava/rides -- the Rides tab, across every bike. Same
+// shape as BikeRide minus cumulative_distance_meters (an odometer only
+// makes sense for one bike), plus the attribution/gear/bike fields that
+// only matter once rides aren't all implicitly "this bike's."
+export interface StravaRide extends Omit<BikeRide, 'cumulative_distance_meters'> {
+  bike: { id: number; name: string } | null
+  gear: { strava_gear_id: string; name: string | null } | null
+  attribution: RideAttribution
+  reason: RideAttentionReason | null
+  ignored_at: string | null
+}
+
+export interface StravaRidesResponse {
+  rides: StravaRide[]
+  meta: {
+    total_count: number
+    total_distance_meters: number
+    page: number
+    per_page: number
+    next_page: number | null
+    status_counts: { attention: number; ignored: number; all: number }
   }
 }

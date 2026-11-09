@@ -11,37 +11,55 @@ import {
   Select,
   Stack,
   Table,
+  Tabs,
   Text,
   Title,
+  Tooltip,
   UnstyledButton,
 } from '@mantine/core'
 import { API_BASE_URL } from '../api/client'
-import { useBikes, useIgnoredGear, useMappedGear, useStravaStatus, useUnmappedGear } from '../api/queries'
+import { useBikes, useIgnoredGear, useMappedGear, useStravaRides, useStravaStatus, useUnmappedGear } from '../api/queries'
 import {
   useCreateBike,
   useIgnoreGear,
   useReassignGear,
   useRefreshGear,
-  useSyncStrava,
   useUnignoreGear,
   useUpdateBike,
 } from '../api/mutations'
+import { useStravaSyncRunner } from '../hooks/useStravaSyncRunner'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import { formatDistance } from '../utils/distance'
-import { formatRelativeTime, todayIsoDate } from '../utils/datetime'
+import { formatDateTime, formatRelativeTime, todayIsoDate } from '../utils/datetime'
 import type { StravaGear, StravaIgnoredGear, StravaMappedBike } from '../types/models'
 
 const CREATE_NEW_BIKE = '__create_new__'
 const UNLINK_BIKE = '__unlink__'
 
 export default function Strava() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const connected = searchParams.get('connected')
   const error = searchParams.get('error')
+  const tab = searchParams.get('tab') === 'rides' ? 'rides' : 'gear'
 
   const { data: status, isPending, isError, error: statusError } = useStravaStatus()
-  const syncStrava = useSyncStrava()
+  const regularSync = useStravaSyncRunner({ full: false })
+  const fullSync = useStravaSyncRunner({ full: true })
   const refreshGear = useRefreshGear()
+  // The tab badge needs the attention count even while the Gear tab is
+  // active -- same params the Rides tab's own "Needs attention" view uses
+  // by default, so this shares its cache rather than issuing a second request.
+  const { data: ridesData } = useStravaRides({ status: 'attention', sort: 'date', order: 'desc' })
+  const attentionCount = ridesData?.pages[0]?.meta.status_counts.attention ?? 0
+
+  function handleTabChange(value: string | null) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value === 'rides') next.set('tab', 'rides')
+      else next.delete('tab')
+      return next
+    })
+  }
 
   return (
     <Stack>
@@ -76,9 +94,19 @@ export default function Strava() {
           </Group>
 
           <Group>
-            <Button onClick={() => syncStrava.mutate()} loading={syncStrava.isPending}>
+            <Button onClick={regularSync.sync} loading={regularSync.syncing}>
               Sync now
             </Button>
+            <Tooltip label="Re-reads your full Strava history so rides you've edited or deleted on Strava are updated here.">
+              <Button
+                variant="default"
+                onClick={fullSync.sync}
+                loading={fullSync.syncing}
+                disabled={Boolean(status.full_sync_available_at)}
+              >
+                Refresh all rides
+              </Button>
+            </Tooltip>
             <Button
               variant="default"
               onClick={() => refreshGear.mutate()}
@@ -93,11 +121,30 @@ export default function Strava() {
           <Text size="xs" c="dimmed">
             Reconnect if permissions change or the connection stops working — this
             re-approves the same account, it does not disconnect anything first.
+            {' '}Last full refresh: {formatRelativeTime(status.last_full_sync_at)}.
+            {status.full_sync_available_at && ` Available again at ${formatDateTime(status.full_sync_available_at)}.`}
           </Text>
 
-          <MappedGearSection />
-          <UnmappedGearSection />
-          <IgnoredGearSection />
+          <Tabs value={tab} onChange={handleTabChange}>
+            <Tabs.List>
+              <Tabs.Tab value="gear">Gear</Tabs.Tab>
+              <Tabs.Tab value="rides" rightSection={attentionCount > 0 ? <Badge size="sm">{attentionCount}</Badge> : null}>
+                Rides
+              </Tabs.Tab>
+            </Tabs.List>
+
+            <Tabs.Panel value="gear" pt="md">
+              <Stack>
+                <MappedGearSection />
+                <UnmappedGearSection />
+                <IgnoredGearSection />
+              </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="rides" pt="md">
+              <Text c="dimmed">Rides tab coming next.</Text>
+            </Tabs.Panel>
+          </Tabs>
         </>
       )}
     </Stack>

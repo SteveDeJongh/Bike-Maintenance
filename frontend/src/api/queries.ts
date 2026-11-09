@@ -19,6 +19,7 @@ import type {
   StravaGear,
   StravaIgnoredGear,
   StravaMappedBike,
+  StravaRidesResponse,
   StravaStatus,
   TableViewPreferenceData,
   User,
@@ -106,10 +107,38 @@ export function useMaintenanceEvents() {
   })
 }
 
-export function useStravaStatus() {
+// refetchInterval lets a sync-polling caller (useStravaSyncRunner) watch
+// this without a second query, same convention as useDashboard's own
+// options param below.
+export function useStravaStatus(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['strava', 'status'],
     queryFn: () => apiGet<StravaStatus>('/strava/status'),
+    refetchInterval: options?.refetchInterval ?? false,
+  })
+}
+
+export interface StravaRidesParams {
+  status: 'attention' | 'ignored' | 'all'
+  bikeId?: number
+  sort: 'date' | 'distance'
+  order: 'asc' | 'desc'
+}
+
+// Same Load-more pagination shape as useBikeRides -- the query key includes
+// every filter/sort param so changing any of them discards stale pages
+// automatically.
+export function useStravaRides({ status, bikeId, sort, order }: StravaRidesParams) {
+  return useInfiniteQuery({
+    queryKey: ['strava_rides', status, bikeId, sort, order],
+    queryFn: ({ pageParam }) => {
+      const bikeParam = status === 'all' && bikeId ? `&bike_id=${bikeId}` : ''
+      return apiGet<StravaRidesResponse>(
+        `/strava/rides?status=${status}&sort=${sort}&order=${order}&page=${pageParam}${bikeParam}`,
+      )
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.meta.next_page,
   })
 }
 
