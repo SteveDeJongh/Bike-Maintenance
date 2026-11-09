@@ -1,13 +1,6 @@
 class BikesController < ApplicationController
   before_action :set_bike, only: %i[ show update destroy component_setup rides ]
 
-  RIDE_ATTRIBUTES = %i[
-    id strava_id name moved_at activity_type commute
-    distance_meters moving_time elapsed_time total_elevation_gain
-    average_speed max_speed average_watts weighted_average_watts device_watts
-    kilojoules average_heartrate max_heartrate average_cadence
-  ].freeze
-
   # GET /bikes
   def index
     @bikes = current_user.bikes
@@ -154,8 +147,7 @@ class BikesController < ApplicationController
 
     render json: {
       rides: result.rides.map { |ride|
-        ride.as_json(only: RIDE_ATTRIBUTES).merge(
-          ride_kind: ride.ride_kind,
+        Strava::RideSerialization.base_json(ride).merge(
           cumulative_distance_meters: result.cumulative_by_id[ride.id],
           counted_toward: counted_toward[ride.id] || [],
         )

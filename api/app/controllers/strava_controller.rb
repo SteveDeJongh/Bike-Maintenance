@@ -185,7 +185,78 @@ class StravaController < ApplicationController
     head :no_content
   end
 
+  # GET /strava/rides
+  def rides
+    result = Strava::RideLog.call(
+      current_user,
+      status: params[:status], bike_id: params[:bike_id],
+      sort: params[:sort], order: params[:order],
+      page: params[:page], per_page: params[:per_page],
+    )
+
+    render json: { rides: rides_json(result.rides), meta: rides_meta_json(result) }
+  end
+
+  # POST /strava/rides/ignore -- { activity_ids: [...] } or
+  # { all_matching: true, status: "attention" }. Ineligible ids (attributed,
+  # already ignored, or another user's) are silently skipped, not a 422 --
+  # the response's count is itself the signal, consistent with this
+  # feature's no-confirm-modal, fully reversible design.
+  def ignore_rides
+    scope = if ActiveModel::Type::Boolean.new.cast(params[:all_matching])
+      StravaActivity.needs_attention_for(current_user)
+    else
+      current_user.strava_activities.where(id: Array(params[:activity_ids]), bike_id: nil, ignored_at: nil)
+    end
+
+    ignored_count = scope.update_all(ignored_at: Time.current)
+    render json: { ignored_count: ignored_count }
+  end
+
+  # POST /strava/rides/unignore -- only ever clears a ride's own ignored_at,
+  # never a gear-level ignore (a gear-ignored ride has no ignored_at of its
+  # own to clear, so it's naturally excluded by this scope).
+  def unignore_rides
+    unignored_count = current_user.strava_activities
+      .where(id: Array(params[:activity_ids])).where.not(ignored_at: nil)
+      .update_all(ignored_at: nil)
+
+    render json: { unignored_count: unignored_count }
+  end
+
   private
+
+  def rides_json(rides)
+    ignored_gear_ids = StravaGear.ignored_for(current_user).pluck(:strava_gear_id)
+    bikes_by_id = Bike.where(id: rides.map(&:bike_id).compact).index_by(&:id)
+    gears_by_id = current_user.strava_gears.where(strava_gear_id: rides.map(&:gear_id).compact).index_by(&:strava_gear_id)
+    counted_toward = Maintenance::CountedTowardQuery.call(current_user, activity_ids: rides.map(&:id))
+
+    rides.map do |ride|
+      bike = ride.bike_id && bikes_by_id[ride.bike_id]
+      gear = ride.gear_id && gears_by_id[ride.gear_id]
+
+      Strava::RideSerialization.base_json(ride).merge(
+        bike: bike && { id: bike.id, name: bike.name },
+        gear: gear && { strava_gear_id: gear.strava_gear_id, name: gear.name },
+        attribution: ride.attribution_status(ignored_gear_ids),
+        reason: ride.reason(ignored_gear_ids),
+        ignored_at: ride.ignored_at,
+        counted_toward: counted_toward[ride.id] || [],
+      )
+    end
+  end
+
+  def rides_meta_json(result)
+    {
+      total_count: result.total_count,
+      total_distance_meters: result.total_distance_meters,
+      page: result.page,
+      per_page: result.per_page,
+      next_page: result.next_page,
+      status_counts: result.status_counts,
+    }
+  end
 
   def unmapped_gear_json(gear, activity_counts, last_activity_dates)
     {

@@ -88,6 +88,24 @@ RSpec.describe "Dashboard", type: :request do
         expect(unattributed["count"]).to eq(1)
         expect(unattributed["distance_meters"]).to eq(1_000)
       end
+
+      it "matches GET /strava/rides' meta.status_counts.attention exactly" do
+        create(:strava_gear, user: current_user, strava_gear_id: "ignored_gear", ignored_at: Time.current)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "ignored_gear")
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, ignored_at: Time.current)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "g1")
+        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user))
+
+        get "/dashboard"
+        dashboard_count = JSON.parse(response.body)["sync"]["unattributed"]["count"]
+
+        get "/strava/rides", params: { status: "attention" }
+        rides_meta_count = JSON.parse(response.body)["meta"]["status_counts"]["attention"]
+
+        expect(dashboard_count).to eq(rides_meta_count)
+        expect(dashboard_count).to eq(2)
+      end
     end
 
     describe "bikes" do

@@ -58,6 +58,9 @@ Rails.application.routes.draw do
   get   "strava/mapped_gear",       to: "strava#mapped_gear"
   patch "strava/mapped_gear/:gear_id", to: "strava#reassign_gear"
   post "strava/refresh_gear",  to: "strava#refresh_gear"
+  get  "strava/rides",          to: "strava#rides"
+  post "strava/rides/ignore",   to: "strava#ignore_rides"
+  post "strava/rides/unignore", to: "strava#unignore_rides"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.

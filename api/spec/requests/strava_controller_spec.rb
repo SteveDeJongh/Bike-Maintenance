@@ -513,6 +513,196 @@ RSpec.describe "Strava", type: :request do
     end
   end
 
+  describe "GET /strava/rides" do
+    it "returns shape and values, including attributed/needs_attention/ignored and nulls preserved" do
+      attributed_bike = create(:bike, user: current_user, name: "Soloist")
+      attributed = create(:strava_activity, user: current_user, bike: attributed_bike, gear_id: "g0", strava_id: 1,
+        elapsed_time: nil, average_watts: nil)
+
+      get "/strava/rides", params: { status: "all" }
+
+      body = JSON.parse(response.body)
+      row = body["rides"].find { |r| r["id"] == attributed.id }
+      expect(row["bike"]).to eq("id" => attributed_bike.id, "name" => "Soloist")
+      expect(row["attribution"]).to eq("attributed")
+      expect(row["reason"]).to be_nil
+      expect(row["ignored_at"]).to be_nil
+      expect(row["elapsed_time"]).to be_nil
+      expect(row["average_watts"]).to be_nil
+      expect(row).not_to have_key("cumulative_distance_meters")
+    end
+
+    it "defaults to status=attention" do
+      create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil)
+      attributed = create(:bike, user: current_user)
+      create(:strava_activity, user: current_user, bike: attributed)
+
+      get "/strava/rides"
+
+      expect(JSON.parse(response.body)["rides"].length).to eq(1)
+    end
+
+    it "status=ignored returns ride-ignored and gear-ignored rows with the right reason" do
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: Time.current)
+      gear_ignored = create(:strava_activity, user: current_user, bike_id: nil, gear_id: "g1", moved_at: 10.days.ago)
+      ride_ignored = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, ignored_at: Time.current)
+
+      get "/strava/rides", params: { status: "ignored" }
+
+      rides = JSON.parse(response.body)["rides"].index_by { |r| r["id"] }
+      expect(rides[gear_ignored.id]["reason"]).to eq("gear")
+      expect(rides[ride_ignored.id]["reason"]).to eq("ride")
+      expect(rides.keys).to contain_exactly(gear_ignored.id, ride_ignored.id)
+    end
+
+    it "includes gear name and strava_gear_id from the StravaGear cache" do
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", name: "Gravel Bike")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: "g1")
+
+      get "/strava/rides"
+
+      row = JSON.parse(response.body)["rides"].find { |r| r["id"] == ride.id }
+      expect(row["gear"]).to eq("strava_gear_id" => "g1", "name" => "Gravel Bike")
+    end
+
+    it "filters by bike_id only for status=all" do
+      bike_a = create(:bike, user: current_user)
+      bike_b = create(:bike, user: current_user)
+      ride_a = create(:strava_activity, user: current_user, bike: bike_a)
+      create(:strava_activity, user: current_user, bike: bike_b)
+
+      get "/strava/rides", params: { status: "all", bike_id: bike_a.id }
+
+      expect(JSON.parse(response.body)["rides"].map { |r| r["id"] }).to eq([ride_a.id])
+    end
+
+    it "sorts by distance, tie-broken by id" do
+      bike = create(:bike, user: current_user)
+      small = create(:strava_activity, user: current_user, bike: bike, distance_meters: 1_000, moved_at: 2.days.ago)
+      big = create(:strava_activity, user: current_user, bike: bike, distance_meters: 5_000, moved_at: 1.day.ago)
+
+      get "/strava/rides", params: { status: "all", sort: "distance", order: "desc" }
+
+      expect(JSON.parse(response.body)["rides"].map { |r| r["id"] }).to eq([big.id, small.id])
+    end
+
+    it "paginates with page/per_page, defaulting to 50 and capping at 200" do
+      bike = create(:bike, user: current_user)
+      3.times { |i| create(:strava_activity, user: current_user, bike: bike, moved_at: i.days.ago) }
+
+      get "/strava/rides", params: { status: "all", page: 2, per_page: 2 }
+
+      body = JSON.parse(response.body)
+      expect(body["rides"].length).to eq(1)
+      expect(body["meta"]).to include("page" => 2, "per_page" => 2, "next_page" => nil, "total_count" => 3)
+    end
+
+    it "includes status_counts for all three statuses regardless of the active filter" do
+      create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil)
+      create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, ignored_at: Time.current)
+      create(:strava_activity, user: current_user, bike: create(:bike, user: current_user))
+
+      get "/strava/rides", params: { status: "attention" }
+
+      expect(JSON.parse(response.body)["meta"]["status_counts"])
+        .to eq("attention" => 1, "ignored" => 1, "all" => 3)
+    end
+
+    it "includes counted_toward" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: component, bike: bike, started_at: 10.days.ago)
+      ride = create(:strava_activity, user: current_user, bike: bike, moved_at: 1.day.ago)
+
+      get "/strava/rides", params: { status: "all" }
+
+      row = JSON.parse(response.body)["rides"].find { |r| r["id"] == ride.id }
+      expect(row["counted_toward"]).to eq([{ "component_id" => component.id, "label" => component.label }])
+    end
+
+    it "never includes another user's rides" do
+      create(:strava_activity, bike_id: nil, gear_id: nil)
+
+      get "/strava/rides", params: { status: "all" }
+
+      expect(JSON.parse(response.body)["rides"]).to eq([])
+    end
+  end
+
+  describe "POST /strava/rides/ignore" do
+    it "ignores rides by activity_ids" do
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil)
+
+      post "/strava/rides/ignore", params: { activity_ids: [ride.id] }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["ignored_count"]).to eq(1)
+      expect(ride.reload.ignored_at).to be_present
+    end
+
+    it "resolves all_matching against needs_attention_for, not just loaded rows" do
+      rides = create_list(:strava_activity, 3, user: current_user, bike_id: nil, gear_id: nil)
+
+      post "/strava/rides/ignore", params: { all_matching: true, status: "attention" }
+
+      expect(JSON.parse(response.body)["ignored_count"]).to eq(3)
+      expect(rides).to all(satisfy { |r| r.reload.ignored_at.present? })
+    end
+
+    it "silently skips an attributed ride among the given ids, rather than erroring" do
+      bike = create(:bike, user: current_user)
+      attributed = create(:strava_activity, user: current_user, bike: bike)
+      unattributed = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil)
+
+      post "/strava/rides/ignore", params: { activity_ids: [attributed.id, unattributed.id] }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["ignored_count"]).to eq(1)
+      expect(attributed.reload.ignored_at).to be_nil
+      expect(unattributed.reload.ignored_at).to be_present
+    end
+
+    it "never touches another user's rides" do
+      other_ride = create(:strava_activity, bike_id: nil, gear_id: nil)
+
+      post "/strava/rides/ignore", params: { activity_ids: [other_ride.id] }
+
+      expect(JSON.parse(response.body)["ignored_count"]).to eq(0)
+      expect(other_ride.reload.ignored_at).to be_nil
+    end
+  end
+
+  describe "POST /strava/rides/unignore" do
+    it "clears ignored_at by activity_ids" do
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, ignored_at: Time.current)
+
+      post "/strava/rides/unignore", params: { activity_ids: [ride.id] }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["unignored_count"]).to eq(1)
+      expect(ride.reload.ignored_at).to be_nil
+    end
+
+    it "does not affect a gear-ignored ride, which has no ignored_at of its own" do
+      create(:strava_gear, user: current_user, strava_gear_id: "g1", ignored_at: Time.current)
+      gear_ignored = create(:strava_activity, user: current_user, bike_id: nil, gear_id: "g1", moved_at: 10.days.ago)
+
+      post "/strava/rides/unignore", params: { activity_ids: [gear_ignored.id] }
+
+      expect(JSON.parse(response.body)["unignored_count"]).to eq(0)
+      expect(gear_ignored.reload.ignored_at).to be_nil
+    end
+
+    it "never touches another user's rides" do
+      other_ride = create(:strava_activity, bike_id: nil, gear_id: nil, ignored_at: Time.current)
+
+      post "/strava/rides/unignore", params: { activity_ids: [other_ride.id] }
+
+      expect(JSON.parse(response.body)["unignored_count"]).to eq(0)
+      expect(other_ride.reload.ignored_at).to be_present
+    end
+  end
+
   def authorize_and_capture_state
     allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
     get "/auth/strava"
