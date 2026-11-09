@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   ActionIcon,
@@ -29,6 +29,7 @@ import {
 } from '../api/mutations'
 import { useStravaSyncRunner } from '../hooks/useStravaSyncRunner'
 import BikeFormModal from '../components/forms/BikeFormModal'
+import RidesTab from '../components/strava/RidesTab'
 import { formatDistance } from '../utils/distance'
 import { formatDateTime, formatRelativeTime, todayIsoDate } from '../utils/datetime'
 import type { StravaGear, StravaIgnoredGear, StravaMappedBike } from '../types/models'
@@ -142,7 +143,7 @@ export default function Strava() {
             </Tabs.Panel>
 
             <Tabs.Panel value="rides" pt="md">
-              <Text c="dimmed">Rides tab coming next.</Text>
+              <RidesTab />
             </Tabs.Panel>
           </Tabs>
         </>
@@ -309,12 +310,27 @@ function retiredBikeDefaults(gear: StravaGear): GearBikeCreateDefaults {
 
 function UnmappedGearRow({ gear }: { gear: StravaGear }) {
   const { data: bikes } = useBikes()
+  const [searchParams] = useSearchParams()
   const [bikeId, setBikeId] = useState<string | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
   const [modalDefaults, setModalDefaults] = useState<GearBikeCreateDefaults>(() => plainCreateDefaults(gear))
   const updateBike = useUpdateBike(bikeId ? Number(bikeId) : -1)
   const createBike = useCreateBike()
   const ignoreGear = useIgnoreGear()
+  const rowRef = useRef<HTMLTableRowElement>(null)
+  // "Resolve gear" from the Rides tab links here as ?tab=gear&gear=<id> --
+  // computed once at mount (not in an effect) so the highlight is already
+  // active on first paint; the effect below only does the imperative scroll
+  // and schedules the timed clear.
+  const [highlighted, setHighlighted] = useState(() => searchParams.get('gear') === gear.gear_id)
+
+  useEffect(() => {
+    if (!highlighted) return
+    rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timeout = setTimeout(() => setHighlighted(false), 2000)
+    return () => clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleChange(value: string | null) {
     if (value === CREATE_NEW_BIKE) {
@@ -353,7 +369,7 @@ function UnmappedGearRow({ gear }: { gear: StravaGear }) {
   const rideLabel = `${gear.activity_count} ${gear.activity_count === 1 ? 'ride' : 'rides'}`
 
   return (
-    <Table.Tr>
+    <Table.Tr ref={rowRef} bg={highlighted ? 'var(--mantine-color-yellow-light)' : undefined}>
       <Table.Td>
         <Group gap="xs">
           <div>

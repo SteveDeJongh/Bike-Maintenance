@@ -1,18 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Loader,
-  SegmentedControl,
-  Stack,
-  Table,
-  Text,
-  Title,
-  Tooltip,
-} from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
@@ -21,19 +8,11 @@ import ColumnPicker from '../datatable/ColumnPicker'
 import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
-import {
-  BIKE_RIDE_COLUMNS,
-  BIKE_RIDE_COLUMN_LABELS,
-  DEFAULT_BIKE_RIDE_COLUMNS,
-  RIDE_KIND_BADGE,
-  type BikeRideColumn,
-} from '../../constants'
+import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
+import ViewOnStravaLink from '../ride/ViewOnStravaLink'
+import { BIKE_RIDE_COLUMNS, BIKE_RIDE_COLUMN_LABELS, DEFAULT_BIKE_RIDE_COLUMNS, type BikeRideColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
-import { formatDuration } from '../../utils/duration'
-import { formatElevation } from '../../utils/elevation'
-import { formatPower } from '../../utils/power'
-import { formatSpeed } from '../../utils/speed'
 import type { BikeDetail, BikeRide, TableViewPreferenceData } from '../../types/models'
 
 type RideTypeFilter = 'all' | 'outdoor' | 'indoor'
@@ -50,66 +29,9 @@ export default function RideHistorySection({ bike }: { bike: BikeDetail }) {
   return <RideHistorySectionInner bike={bike} initialData={preferenceData.data} />
 }
 
-function PowerCell({ watts, deviceWatts }: { watts: number | null; deviceWatts: boolean | null }) {
-  if (watts == null) return <>—</>
-
-  const text = formatPower(watts)
-  if (deviceWatts === false) {
-    return (
-      <Tooltip label="Estimated">
-        <Text span c="dimmed">
-          {text}
-        </Text>
-      </Tooltip>
-    )
-  }
-  return <>{text}</>
-}
-
 const COLUMN_RENDERER: Record<BikeRideColumn, (ride: BikeRide) => ReactNode> = {
-  ride_kind: (ride) => {
-    const badge = RIDE_KIND_BADGE[ride.ride_kind]
-    return (
-      <Badge variant="light" color={badge.color}>
-        {badge.label}
-      </Badge>
-    )
-  },
-  distance_meters: (ride) => formatDistance(ride.distance_meters),
+  ...SHARED_RIDE_COLUMN_RENDERERS,
   cumulative_distance_meters: (ride) => formatDistance(ride.cumulative_distance_meters),
-  moving_time: (ride) => (ride.moving_time == null ? '—' : formatDuration(ride.moving_time)),
-  total_elevation_gain: (ride) => (ride.total_elevation_gain == null ? '—' : formatElevation(ride.total_elevation_gain)),
-  average_speed: (ride) => (ride.average_speed == null ? '—' : formatSpeed(ride.average_speed)),
-  average_watts: (ride) => <PowerCell watts={ride.average_watts} deviceWatts={ride.device_watts} />,
-  activity_type: (ride) => ride.activity_type,
-  elapsed_time: (ride) => (ride.elapsed_time == null ? '—' : formatDuration(ride.elapsed_time)),
-  max_speed: (ride) => (ride.max_speed == null ? '—' : formatSpeed(ride.max_speed)),
-  weighted_average_watts: (ride) => (ride.weighted_average_watts == null ? '—' : formatPower(ride.weighted_average_watts)),
-  kilojoules: (ride) => (ride.kilojoules == null ? '—' : `${Math.round(ride.kilojoules)} kJ`),
-  average_heartrate: (ride) => (ride.average_heartrate == null ? '—' : `${Math.round(ride.average_heartrate)} bpm`),
-  max_heartrate: (ride) => (ride.max_heartrate == null ? '—' : `${Math.round(ride.max_heartrate)} bpm`),
-  average_cadence: (ride) => (ride.average_cadence == null ? '—' : `${Math.round(ride.average_cadence)} rpm`),
-  commute: (ride) => (ride.commute ? 'Yes' : 'No'),
-  counted_toward: (ride) =>
-    ride.counted_toward.length > 0 ? (
-      <Group gap={4} wrap="wrap">
-        {ride.counted_toward.map((component) => (
-          <Badge
-            key={component.component_id}
-            component={Link}
-            to={`/components/${component.component_id}`}
-            variant="light"
-            style={{ cursor: 'pointer' }}
-          >
-            {component.label}
-          </Badge>
-        ))}
-      </Group>
-    ) : (
-      <Text size="sm" c="dimmed">
-        Not counted
-      </Text>
-    ),
 }
 
 const BIKE_RIDE_COLUMN_OPTIONS = BIKE_RIDE_COLUMNS.map((column) => ({ key: column, label: BIKE_RIDE_COLUMN_LABELS[column] }))
@@ -242,17 +164,7 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                   <Table.Tr key={ride.id}>
                     <Table.Td>{formatDateTime(ride.moved_at)}</Table.Td>
                     <Table.Td>
-                      <Tooltip label="View on Strava">
-                        <Anchor
-                          href={`https://www.strava.com/activities/${ride.strava_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          c="orange"
-                          aria-label="View on Strava"
-                        >
-                          {ride.name}
-                        </Anchor>
-                      </Tooltip>
+                      <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
                     </Table.Td>
                     {orderedColumns.map((column) => (
                       <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>

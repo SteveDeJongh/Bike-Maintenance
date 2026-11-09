@@ -160,6 +160,7 @@ export function useCreateBike() {
       // bike id yet, but this keeps the two mutations symmetric and covers
       // it the moment a second gear-mapping edit touches the same bike.
       queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
+      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
     },
   })
 }
@@ -179,6 +180,7 @@ export function useUpdateBike(id: number) {
       // This bike's Ride history section -- which rides are "its" rides can
       // change the moment strava_gear_id does.
       queryClient.invalidateQueries({ queryKey: ['bike_rides', id] })
+      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
     },
   })
 }
@@ -459,16 +461,19 @@ export function useReassignGear() {
       // carries the new bikeId, not the previous one, so this invalidates
       // unscoped rather than trying to target just one bike.
       queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
+      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
     },
   })
 }
 
 function invalidateGearDecisionQueries(queryClient: ReturnType<typeof useQueryClient>) {
   // Covers unmapped_gear/ignored_gear/mapped_gear/status by prefix, same as
-  // useSyncStrava above.
+  // useSyncStrava above. strava_rides too -- a gear decision changes which
+  // rides need attention, so the Rides tab (and its tab badge) must follow.
   queryClient.invalidateQueries({ queryKey: ['strava'] })
   queryClient.invalidateQueries({ queryKey: ['bikes'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
 }
 
 export function useIgnoreGear() {
@@ -485,6 +490,32 @@ export function useUnignoreGear() {
     mutationFn: (gearId: string) => apiPost<void>('/strava/unignore_gear', { gear_id: gearId }),
     onSuccess: () => invalidateGearDecisionQueries(queryClient),
   })
+}
+
+// Strava Rides tab -- ride-level ignore/un-ignore.
+
+export function useIgnoreRides() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { activity_ids: number[] } | { all_matching: true; status: string }) =>
+      apiPost<{ ignored_count: number }>('/strava/rides/ignore', payload),
+    onSuccess: () => invalidateRideDecisionQueries(queryClient),
+  })
+}
+
+export function useUnignoreRides() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { activity_ids: number[] }) =>
+      apiPost<{ unignored_count: number }>('/strava/rides/unignore', payload),
+    onSuccess: () => invalidateRideDecisionQueries(queryClient),
+  })
+}
+
+function invalidateRideDecisionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  queryClient.invalidateQueries({ queryKey: ['strava'] })
 }
 
 // ComponentCategorySetting

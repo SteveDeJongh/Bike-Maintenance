@@ -367,3 +367,70 @@ export const RIDE_KIND_BADGE: Record<'outdoor' | 'trainer' | 'virtual', { label:
   virtual: { label: 'Virtual', color: 'gray' },
   trainer: { label: 'Trainer', color: 'gray' },
 }
+
+// The toggleable columns on the Strava page's Rides tab table. Selection
+// checkbox, Date, and Name are pinned (not part of this list) -- same
+// "pinned/configurable" split as everywhere else. Status/Gear/Bike/Ignored
+// on are new here; every other column is shared with Ride history's own
+// set (minus Odometer, which only makes sense for one bike).
+export const STRAVA_RIDE_COLUMNS = [
+  'status',
+  'gear',
+  'bike',
+  'distance_meters',
+  'ride_kind',
+  'moving_time',
+  'total_elevation_gain',
+  'average_speed',
+  'average_watts',
+  'activity_type',
+  'elapsed_time',
+  'max_speed',
+  'weighted_average_watts',
+  'kilojoules',
+  'average_heartrate',
+  'max_heartrate',
+  'average_cadence',
+  'commute',
+  'counted_toward',
+  'ignored_at',
+] as const
+
+export type StravaRideColumn = (typeof STRAVA_RIDE_COLUMNS)[number]
+
+export const STRAVA_RIDE_COLUMN_LABELS: Record<StravaRideColumn, string> = {
+  status: 'Status',
+  gear: 'Gear',
+  bike: 'Bike',
+  distance_meters: 'Distance',
+  ride_kind: 'Type',
+  moving_time: 'Moving time',
+  total_elevation_gain: 'Elevation',
+  average_speed: 'Avg speed',
+  average_watts: 'Avg power',
+  activity_type: 'Sport type',
+  elapsed_time: 'Elapsed time',
+  max_speed: 'Max speed',
+  weighted_average_watts: 'Weighted avg power',
+  kilojoules: 'Energy (kJ)',
+  average_heartrate: 'Avg HR',
+  max_heartrate: 'Max HR',
+  average_cadence: 'Avg cadence',
+  commute: 'Commute',
+  counted_toward: 'Counted toward',
+  ignored_at: 'Ignored on',
+}
+
+export const DEFAULT_STRAVA_RIDE_COLUMNS: StravaRideColumn[] = ['status', 'gear', 'bike', 'distance_meters', 'ride_kind', 'moving_time']
+
+// Keyed by reason, with 'attributed' standing in for the null-reason
+// attributed case -- covers all five labels the Rides tab's Status column
+// shows. teal/yellow/gray mirror SERVICE_STATUS_COLORS' own ok/warning/
+// neutral convention rather than inventing new semantics.
+export const RIDE_STATUS_BADGE: Record<'unmapped_gear' | 'no_gear' | 'ride' | 'gear' | 'attributed', { label: string; color: string }> = {
+  unmapped_gear: { label: 'Unmapped gear', color: 'yellow' },
+  no_gear: { label: 'No gear on Strava', color: 'yellow' },
+  ride: { label: 'Ignored', color: 'gray' },
+  gear: { label: 'Gear ignored', color: 'gray' },
+  attributed: { label: 'Attributed', color: 'teal' },
+}
