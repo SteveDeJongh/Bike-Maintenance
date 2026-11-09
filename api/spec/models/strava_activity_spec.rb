@@ -91,6 +91,185 @@ RSpec.describe StravaActivity, type: :model do
 
       expect(activity.reload.bike_id).to be_nil
     end
+
+    it "clears ignored_at on activities it attributes, even though it uses update_all" do
+      bike = create(:bike, strava_gear_id: "g1")
+      activity = create(:strava_activity, user: bike.user, bike_id: nil, gear_id: "g1", ignored_at: Time.current)
+
+      StravaActivity.reconcile_for_bike!(bike)
+
+      expect(activity.reload.ignored_at).to be_nil
+    end
+  end
+
+  describe "#ignored_at" do
+    describe "ignored/not_ignored scopes" do
+      it "splits activities by whether ignored_at is set" do
+        ignored = create(:strava_activity, bike_id: nil, ignored_at: Time.current)
+        not_ignored = create(:strava_activity, bike_id: nil, ignored_at: nil)
+
+        expect(described_class.ignored).to contain_exactly(ignored)
+        expect(described_class.not_ignored).to contain_exactly(not_ignored)
+      end
+    end
+
+    describe "#not_ignored_while_attributed validation" do
+      it "is invalid when ignored_at is set on an activity with a bike_id" do
+        bike = create(:bike)
+        activity = build(:strava_activity, user: bike.user, bike: bike, ignored_at: Time.current)
+
+        expect(activity).not_to be_valid
+        expect(activity.errors[:ignored_at]).to be_present
+      end
+
+      it "is valid to set ignored_at while unattributed" do
+        activity = build(:strava_activity, bike_id: nil, ignored_at: Time.current)
+
+        expect(activity).to be_valid
+      end
+
+      it "is valid to clear ignored_at while attributed" do
+        bike = create(:bike)
+        activity = build(:strava_activity, user: bike.user, bike: bike, ignored_at: nil)
+
+        expect(activity).to be_valid
+      end
+    end
+  end
+
+  describe ".needs_attention_for" do
+    it "includes an unattributed, unignored ride with no gear_id" do
+      user = create(:user)
+      ride = create(:strava_activity, user: user, bike_id: nil, gear_id: nil)
+
+      expect(described_class.needs_attention_for(user)).to contain_exactly(ride)
+    end
+
+    it "includes an unattributed, unignored ride with an unmapped gear_id" do
+      user = create(:user)
+      ride = create(:strava_activity, user: user, bike_id: nil, gear_id: "g1")
+
+      expect(described_class.needs_attention_for(user)).to contain_exactly(ride)
+    end
+
+    it "excludes an attributed ride" do
+      bike = create(:bike)
+      create(:strava_activity, user: bike.user, bike: bike)
+
+      expect(described_class.needs_attention_for(bike.user)).to be_empty
+    end
+
+    it "excludes a ride-ignored ride" do
+      user = create(:user)
+      create(:strava_activity, user: user, bike_id: nil, ignored_at: Time.current)
+
+      expect(described_class.needs_attention_for(user)).to be_empty
+    end
+
+    it "excludes a ride whose gear is ignored and hasn't resurfaced" do
+      user = create(:user)
+      create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: Time.current)
+      create(:strava_activity, user: user, bike_id: nil, gear_id: "g1", moved_at: 1.day.ago)
+
+      expect(described_class.needs_attention_for(user)).to be_empty
+    end
+
+    it "includes a ride whose gear is ignored but has resurfaced" do
+      user = create(:user)
+      create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: 10.days.ago)
+      ride = create(:strava_activity, user: user, bike_id: nil, gear_id: "g1", moved_at: 1.day.ago)
+
+      expect(described_class.needs_attention_for(user)).to contain_exactly(ride)
+    end
+
+    it "never includes another user's rides" do
+      create(:strava_activity, bike_id: nil)
+
+      expect(described_class.needs_attention_for(create(:user))).to be_empty
+    end
+  end
+
+  describe ".ignored_for" do
+    it "includes a ride-ignored, unattributed ride" do
+      user = create(:user)
+      ride = create(:strava_activity, user: user, bike_id: nil, ignored_at: Time.current)
+
+      expect(described_class.ignored_for(user)).to contain_exactly(ride)
+    end
+
+    it "includes a ride whose gear is ignored and hasn't resurfaced" do
+      user = create(:user)
+      create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: Time.current)
+      ride = create(:strava_activity, user: user, bike_id: nil, gear_id: "g1", moved_at: 10.days.ago)
+
+      expect(described_class.ignored_for(user)).to contain_exactly(ride)
+    end
+
+    it "excludes a ride whose gear is ignored but has resurfaced" do
+      user = create(:user)
+      create(:strava_gear, user: user, strava_gear_id: "g1", ignored_at: 10.days.ago)
+      create(:strava_activity, user: user, bike_id: nil, gear_id: "g1", moved_at: 1.day.ago)
+
+      expect(described_class.ignored_for(user)).to be_empty
+    end
+
+    it "excludes a needs-attention ride" do
+      user = create(:user)
+      create(:strava_activity, user: user, bike_id: nil, gear_id: nil)
+
+      expect(described_class.ignored_for(user)).to be_empty
+    end
+
+    it "excludes an attributed ride" do
+      bike = create(:bike)
+      create(:strava_activity, user: bike.user, bike: bike)
+
+      expect(described_class.ignored_for(bike.user)).to be_empty
+    end
+
+    it "never includes another user's rides" do
+      create(:strava_activity, bike_id: nil, ignored_at: Time.current)
+
+      expect(described_class.ignored_for(create(:user))).to be_empty
+    end
+  end
+
+  describe "#attribution_status and #reason" do
+    it "classifies an attributed ride, with a nil reason" do
+      bike = create(:bike)
+      ride = build(:strava_activity, user: bike.user, bike: bike)
+
+      expect(ride.attribution_status([])).to eq("attributed")
+      expect(ride.reason([])).to be_nil
+    end
+
+    it "classifies an unattributed ride with an unmapped gear_id as needs_attention/unmapped_gear" do
+      ride = build(:strava_activity, bike_id: nil, gear_id: "g1")
+
+      expect(ride.attribution_status([])).to eq("needs_attention")
+      expect(ride.reason([])).to eq("unmapped_gear")
+    end
+
+    it "classifies an unattributed ride with no gear_id as needs_attention/no_gear" do
+      ride = build(:strava_activity, bike_id: nil, gear_id: nil)
+
+      expect(ride.attribution_status([])).to eq("needs_attention")
+      expect(ride.reason([])).to eq("no_gear")
+    end
+
+    it "classifies a ride-ignored ride as ignored/ride, even with a gear_id in the ignored set" do
+      ride = build(:strava_activity, bike_id: nil, gear_id: "g1", ignored_at: Time.current)
+
+      expect(ride.attribution_status(["g1"])).to eq("ignored")
+      expect(ride.reason(["g1"])).to eq("ride")
+    end
+
+    it "classifies a gear-ignored ride as ignored/gear" do
+      ride = build(:strava_activity, bike_id: nil, gear_id: "g1", ignored_at: nil)
+
+      expect(ride.attribution_status(["g1"])).to eq("ignored")
+      expect(ride.reason(["g1"])).to eq("gear")
+    end
   end
 
   describe "Bike#strava_gear_id changing" do

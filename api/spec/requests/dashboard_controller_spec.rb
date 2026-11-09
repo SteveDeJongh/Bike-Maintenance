@@ -75,6 +75,19 @@ RSpec.describe "Dashboard", type: :request do
         unattributed = JSON.parse(response.body)["sync"]["unattributed"]
         expect(unattributed["with_gear"]).to eq("count" => 1, "distance_meters" => 5_000)
       end
+
+      it "excludes a ride-ignored ride alongside a gear-ignored ride, keeping a plain unattributed ride" do
+        create(:strava_gear, user: current_user, strava_gear_id: "ignored_gear", ignored_at: Time.current)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "ignored_gear", distance_meters: 10_000)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, ignored_at: Time.current, distance_meters: 20_000)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, distance_meters: 1_000)
+
+        get "/dashboard"
+
+        unattributed = JSON.parse(response.body)["sync"]["unattributed"]
+        expect(unattributed["count"]).to eq(1)
+        expect(unattributed["distance_meters"]).to eq(1_000)
+      end
     end
 
     describe "bikes" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_07_004022) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_09_230920) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -182,6 +182,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_07_004022) do
     t.float "average_heartrate"
     t.float "max_heartrate"
     t.float "average_cadence"
+    t.datetime "ignored_at"
     t.index ["bike_id", "moved_at", "id"], name: "index_strava_activities_on_bike_moved_id"
     t.index ["bike_id"], name: "index_strava_activities_on_bike_id"
     t.index ["strava_id"], name: "index_strava_activities_on_strava_id", unique: true

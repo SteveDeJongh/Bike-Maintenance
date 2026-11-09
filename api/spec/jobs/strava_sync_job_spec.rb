@@ -179,6 +179,39 @@ RSpec.describe StravaSyncJob, type: :job do
     expect(activity.commute).to be false
   end
 
+  it "preserves ignored_at on a ride that stays unattributed through a sync" do
+    activity = create(:strava_activity, user: user, bike_id: nil, gear_id: nil, strava_id: 1, ignored_at: Time.current)
+
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: anything, page: 1, per_page: 100)
+      .and_return([ride(id: 1, gear_id: nil)])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: anything, page: 2, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id)
+
+    expect(activity.reload.ignored_at).to be_present
+  end
+
+  it "clears ignored_at when a sync newly attributes a previously-ignored ride" do
+    bike = create(:bike, user: user, strava_gear_id: "g1")
+    activity = create(:strava_activity, user: user, bike_id: nil, gear_id: nil, strava_id: 1, ignored_at: Time.current)
+
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: anything, page: 1, per_page: 100)
+      .and_return([ride(id: 1, gear_id: "g1")])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: anything, page: 2, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id)
+
+    activity.reload
+    expect(activity.bike_id).to eq(bike.id)
+    expect(activity.ignored_at).to be_nil
+  end
+
   it "also runs a gear sync after paging activities" do
     allow(client).to receive(:fetch_activities)
       .with(access_token: anything, after: nil, page: 1, per_page: 100)
