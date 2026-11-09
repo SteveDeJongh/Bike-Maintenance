@@ -69,9 +69,9 @@ function RecentRideRow({ ride }: { ride: DashboardRecentRide }) {
             {ride.bike.name}
           </Text>
         ) : (
-          <Text size="sm" c="dimmed">
+          <Anchor component={Link} to="/strava?tab=rides" size="sm" c="dimmed">
             No bike
-          </Text>
+          </Anchor>
         )}
       </Table.Td>
       <Table.Td>
@@ -89,7 +89,7 @@ function RecentRideRow({ ride }: { ride: DashboardRecentRide }) {
               Not counted
             </Text>
             {ride.gear_id && (
-              <Anchor component={Link} to="/strava" size="sm">
+              <Anchor component={Link} to="/strava?tab=gear" size="sm">
                 Link Strava gear
               </Anchor>
             )}

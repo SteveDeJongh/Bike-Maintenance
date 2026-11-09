@@ -56,7 +56,7 @@ export default function SyncStrip({ sync, onSync, syncing }: SyncStripProps) {
                 {unattributed.with_gear.count} {rideWord(unattributed.with_gear.count)} (
                 {formatDistance(unattributed.with_gear.distance_meters)}) have Strava gear you haven't mapped to a
                 bike yet — map it, track it as a retired bike, or choose not to track it on{' '}
-                <Anchor component={Link} to="/strava">
+                <Anchor component={Link} to="/strava?tab=gear">
                   the Strava page
                 </Anchor>
                 .
@@ -68,6 +68,12 @@ export default function SyncStrip({ sync, onSync, syncing }: SyncStripProps) {
                 {formatDistance(unattributed.without_gear.distance_meters)}) had no bike set on Strava.
               </Text>
             )}
+            <Text size="sm">
+              <Anchor component={Link} to="/strava?tab=rides">
+                Review rides
+              </Anchor>{' '}
+              to see them individually — you can also ignore any you don't want to track.
+            </Text>
           </Stack>
         </Alert>
       )}
