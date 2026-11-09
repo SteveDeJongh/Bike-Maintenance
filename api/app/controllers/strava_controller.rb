@@ -61,11 +61,31 @@ class StravaController < ApplicationController
       connected: credential.present?,
       athlete_id: credential&.athlete_id,
       last_synced_at: credential&.last_synced_at,
+      last_full_sync_at: credential&.last_full_sync_at,
+      full_sync_available_at: credential&.full_sync_available_at,
     }
   end
 
+  # POST /strava/sync -- full: true re-reads the user's entire Strava
+  # history (and reconciles rides gone from Strava); without it, behavior
+  # is unchanged. The cooldown only gates the full-refresh path -- an
+  # incremental sync has no such limit.
   def sync
-    StravaSyncJob.perform_later(current_user.id)
+    if ActiveModel::Type::Boolean.new.cast(params[:full])
+      credential = current_user.strava_credential
+
+      if credential
+        available_at = credential.full_sync_available_at
+        return render json: { retry_at: available_at }, status: :too_many_requests if available_at
+
+        credential.update!(full_sync_started_at: Time.current)
+      end
+
+      StravaSyncJob.perform_later(current_user.id, full_resync: true)
+    else
+      StravaSyncJob.perform_later(current_user.id)
+    end
+
     head :accepted
   end
 

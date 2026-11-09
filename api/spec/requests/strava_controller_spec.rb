@@ -9,7 +9,10 @@ RSpec.describe "Strava", type: :request do
       get "/strava/status"
 
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)).to eq("connected" => false, "athlete_id" => nil, "last_synced_at" => nil)
+      expect(JSON.parse(response.body)).to eq(
+        "connected" => false, "athlete_id" => nil, "last_synced_at" => nil,
+        "last_full_sync_at" => nil, "full_sync_available_at" => nil,
+      )
     end
 
     it "reports connected with the athlete_id when a credential exists" do
@@ -37,12 +40,70 @@ RSpec.describe "Strava", type: :request do
 
       expect(JSON.parse(response.body)["last_synced_at"]).to be_nil
     end
+
+    it "reports last_full_sync_at and full_sync_available_at" do
+      create(:strava_credential, user: current_user, last_full_sync_at: 5.minutes.ago)
+
+      get "/strava/status"
+
+      body = JSON.parse(response.body)
+      expect(Time.zone.parse(body["last_full_sync_at"])).to be_within(1.second).of(5.minutes.ago)
+      expect(body["full_sync_available_at"]).to be_present
+    end
+
+    it "reports full_sync_available_at as nil when a full refresh can run right now" do
+      create(:strava_credential, user: current_user, last_full_sync_at: 1.hour.ago)
+
+      get "/strava/status"
+
+      expect(JSON.parse(response.body)["full_sync_available_at"]).to be_nil
+    end
   end
 
   describe "POST /strava/sync" do
     it "enqueues a sync job for the current user" do
       expect { post "/strava/sync" }.to have_enqueued_job(StravaSyncJob).with(current_user.id)
       expect(response).to have_http_status(:accepted)
+    end
+
+    describe "with full: true" do
+      it "enqueues a full-refresh job and sets full_sync_started_at" do
+        credential = create(:strava_credential, user: current_user)
+
+        expect { post "/strava/sync", params: { full: true } }
+          .to have_enqueued_job(StravaSyncJob).with(current_user.id, full_resync: true)
+        expect(response).to have_http_status(:accepted)
+        expect(credential.reload.full_sync_started_at).to be_present
+      end
+
+      it "responds 429 with retry_at during the cooldown, without enqueueing anything" do
+        create(:strava_credential, user: current_user, last_full_sync_at: 5.minutes.ago)
+
+        expect { post "/strava/sync", params: { full: true } }.not_to have_enqueued_job(StravaSyncJob)
+        expect(response).to have_http_status(:too_many_requests)
+        expect(JSON.parse(response.body)["retry_at"]).to be_present
+      end
+
+      it "responds 429 while a full refresh appears to still be running" do
+        create(:strava_credential, user: current_user, full_sync_started_at: 1.minute.ago)
+
+        expect { post "/strava/sync", params: { full: true } }.not_to have_enqueued_job(StravaSyncJob)
+        expect(response).to have_http_status(:too_many_requests)
+      end
+
+      it "is available again once the cooldown has passed" do
+        create(:strava_credential, user: current_user, last_full_sync_at: 20.minutes.ago)
+
+        post "/strava/sync", params: { full: true }
+
+        expect(response).to have_http_status(:accepted)
+      end
+
+      it "enqueues without a cooldown check when there is no credential" do
+        expect { post "/strava/sync", params: { full: true } }
+          .to have_enqueued_job(StravaSyncJob).with(current_user.id, full_resync: true)
+        expect(response).to have_http_status(:accepted)
+      end
     end
   end
 

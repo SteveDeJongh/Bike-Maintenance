@@ -63,4 +63,48 @@ RSpec.describe StravaCredential, type: :model do
       expect(credential.expires_at).to be_within(1.second).of(Time.at(new_expiry.to_i))
     end
   end
+
+  describe "#full_sync_available_at / #full_sync_available?" do
+    it "is available when neither started_at nor last_full_sync_at is set" do
+      credential = build(:strava_credential, full_sync_started_at: nil, last_full_sync_at: nil)
+
+      expect(credential.full_sync_available_at).to be_nil
+      expect(credential.full_sync_available?).to be true
+    end
+
+    it "is unavailable within the cooldown after the last completed full sync" do
+      credential = build(:strava_credential, last_full_sync_at: 5.minutes.ago)
+
+      expect(credential.full_sync_available?).to be false
+      expect(credential.full_sync_available_at).to be_within(1.second).of(5.minutes.ago + StravaCredential::FULL_SYNC_COOLDOWN)
+    end
+
+    it "is available again once the cooldown has passed" do
+      credential = build(:strava_credential, last_full_sync_at: 20.minutes.ago)
+
+      expect(credential.full_sync_available?).to be true
+    end
+
+    it "is unavailable while a full sync appears to still be running" do
+      credential = build(:strava_credential, full_sync_started_at: 2.minutes.ago, last_full_sync_at: nil)
+
+      expect(credential.full_sync_available?).to be false
+      expect(credential.full_sync_available_at).to be_within(1.second).of(2.minutes.ago + StravaCredential::RUNNING_TIMEOUT)
+    end
+
+    it "treats a stale started_at as expired, self-healing a stuck lock" do
+      credential = build(:strava_credential, full_sync_started_at: 20.minutes.ago, last_full_sync_at: nil)
+
+      expect(credential.full_sync_available?).to be true
+    end
+
+    it "reports the later of the two blockers when both apply" do
+      credential = build(:strava_credential, full_sync_started_at: 1.minute.ago, last_full_sync_at: 14.minutes.ago)
+
+      # started_at's own blocker (1.minute.ago + RUNNING_TIMEOUT, ~9 minutes
+      # from now) is later than last_full_sync_at's (14.minutes.ago +
+      # FULL_SYNC_COOLDOWN, ~1 minute from now).
+      expect(credential.full_sync_available_at).to be_within(1.second).of(1.minute.ago + StravaCredential::RUNNING_TIMEOUT)
+    end
+  end
 end

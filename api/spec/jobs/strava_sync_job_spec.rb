@@ -236,4 +236,128 @@ RSpec.describe StravaSyncJob, type: :job do
 
     expect { StravaSyncJob.perform_now(user.id) }.to change { credential.reload.last_synced_at }.from(nil)
   end
+
+  describe "full refresh" do
+    it "re-attributes a ride whose gear changed, via the same upsert_activity path" do
+      bike_a = create(:bike, user: user, strava_gear_id: "a")
+      bike_b = create(:bike, user: user, strava_gear_id: "b")
+      activity = create(:strava_activity, user: user, bike: bike_a, gear_id: "a", strava_id: 1)
+
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([ride(id: 1, gear_id: "b")])
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 2, per_page: 100)
+        .and_return([])
+
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(activity.reload.bike_id).to eq(bike_b.id)
+    end
+
+    it "deletes a local ride missing from a complete listing, including one whose type changed to Run" do
+      deleted_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 1)
+      type_changed_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 2)
+      kept_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 3)
+
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([ride(id: 2, type: "Run"), ride(id: 3, type: "Ride")])
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 2, per_page: 100)
+        .and_return([])
+
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(StravaActivity.exists?(deleted_ride.id)).to be false
+      expect(StravaActivity.exists?(type_changed_ride.id)).to be false
+      expect(StravaActivity.exists?(kept_ride.id)).to be true
+    end
+
+    it "does not delete anything when the listing hits the page cap instead of ending naturally" do
+      stub_const("StravaSyncJob::FULL_SYNC_MAX_PAGES", 2)
+      kept_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 999)
+
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([ride(id: 1)])
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 2, per_page: 100)
+        .and_return([ride(id: 2)]) # never empty -- hits the page cap, not a natural end
+
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(StravaActivity.exists?(kept_ride.id)).to be true
+    end
+
+    it "does not delete anything when an error occurs mid-listing" do
+      kept_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 999)
+
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([ride(id: 1)])
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 2, per_page: 100)
+        .and_raise(Strava::Client::Error, "rate limited")
+
+      expect { StravaSyncJob.perform_now(user.id, full_resync: true) }.to raise_error(Strava::Client::Error)
+
+      expect(StravaActivity.exists?(kept_ride.id)).to be true
+      expect(credential.reload.last_full_sync_at).to be_nil
+    end
+
+    it "does not delete anything when the listing is empty but local rides exist (treated as suspect)" do
+      kept_ride = create(:strava_activity, user: user, bike_id: nil, strava_id: 999)
+
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([])
+
+      expect(Rails.logger).to receive(:warn).with(/suspect/)
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(StravaActivity.exists?(kept_ride.id)).to be true
+    end
+
+    it "sets last_full_sync_at only on a successful full refresh" do
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([])
+
+      expect { StravaSyncJob.perform_now(user.id, full_resync: true) }
+        .to change { credential.reload.last_full_sync_at }.from(nil)
+    end
+
+    it "never sets last_full_sync_at on a plain incremental sync" do
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([])
+
+      StravaSyncJob.perform_now(user.id)
+
+      expect(credential.reload.last_full_sync_at).to be_nil
+    end
+
+    it "clears full_sync_started_at when the job completes" do
+      credential.update!(full_sync_started_at: Time.current)
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([])
+
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(credential.reload.full_sync_started_at).to be_nil
+    end
+
+    it "clears full_sync_started_at even when the job raises" do
+      credential.update!(full_sync_started_at: Time.current)
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_raise(Strava::Client::Error, "boom")
+
+      expect { StravaSyncJob.perform_now(user.id, full_resync: true) }.to raise_error(Strava::Client::Error)
+
+      expect(credential.reload.full_sync_started_at).to be_nil
+    end
+  end
 end
