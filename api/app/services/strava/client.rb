@@ -3,6 +3,7 @@ require "faraday"
 module Strava
   class Client
     class Error < StandardError; end
+    class NotFoundError < Error; end
 
     BASE_URL = "https://www.strava.com"
 
@@ -27,6 +28,10 @@ module Strava
       get("/api/v3/gear/#{gear_id}", access_token: access_token)
     end
 
+    def fetch_activity(id, access_token:)
+      get("/api/v3/activities/#{id}", access_token: access_token)
+    end
+
     private
 
     def get(path, access_token:, params: {})
@@ -34,6 +39,7 @@ module Strava
         req.headers["Authorization"] = "Bearer #{access_token}"
       end
 
+      raise NotFoundError, "Strava request to #{path} failed: 404" if response.status == 404
       raise Error, "Strava request to #{path} failed: #{response.status}" unless response.success?
 
       response.body

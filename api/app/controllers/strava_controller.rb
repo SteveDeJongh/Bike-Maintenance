@@ -224,6 +224,37 @@ class StravaController < ApplicationController
     render json: { unignored_count: unignored_count }
   end
 
+  # POST /strava/rides/:id/resync -- re-fetches one activity from Strava and
+  # re-applies attribution via the same Strava::ActivityUpsert path the sync
+  # job uses, without touching last_synced_at/last_full_sync_at or running
+  # Strava::GearSync -- this is a standalone one-ride action, not a sync
+  # cycle. A 404 from Strava, or a type that's since changed to something
+  # StravaSyncJob::SYNCED_TYPES excludes, is treated the same way full-refresh
+  # reconciliation already treats it: indistinguishable from deleted, so the
+  # local row is removed.
+  def resync_ride
+    activity = current_user.strava_activities.find(params[:id])
+    credential = current_user.strava_credential
+    return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content if credential.nil?
+
+    access_token = credential.ensure_fresh_access_token!
+    raw = Strava::Client.new.fetch_activity(activity.strava_id, access_token: access_token)
+
+    if StravaSyncJob::SYNCED_TYPES.include?(raw["type"])
+      bike = current_user.bikes.find_by(strava_gear_id: raw["gear_id"])
+      Strava::ActivityUpsert.call(user: current_user, activity: activity, raw: raw, bike: bike)
+      render json: { deleted: false }
+    else
+      activity.destroy
+      render json: { deleted: true }
+    end
+  rescue Strava::Client::NotFoundError
+    activity.destroy
+    render json: { deleted: true }
+  rescue Strava::Client::Error
+    render json: { base: ["Strava request failed -- try again shortly"] }, status: :bad_gateway
+  end
+
   private
 
   def rides_json(rides)

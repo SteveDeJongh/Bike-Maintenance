@@ -110,40 +110,8 @@ class StravaSyncJob < ApplicationJob
     return unless SYNCED_TYPES.include?(raw["type"])
 
     activity = activities_by_strava_id[raw["id"]] ||= user.strava_activities.build(strava_id: raw["id"])
-    resolved_bike_id = bikes_by_gear_id[raw["gear_id"]]&.id
+    bike = bikes_by_gear_id[raw["gear_id"]]
 
-    attrs = {
-      user: user,
-      name: raw["name"],
-      distance_meters: raw["distance"].to_i,
-      moved_at: raw["start_date"],
-      activity_type: raw["sport_type"],
-      gear_id: raw["gear_id"],
-      bike_id: resolved_bike_id,
-      synced_at: Time.current,
-      trainer: raw["trainer"] || false,
-      commute: raw["commute"] || false,
-      moving_time: raw["moving_time"],
-      elapsed_time: raw["elapsed_time"],
-      average_speed: raw["average_speed"],
-      max_speed: raw["max_speed"],
-      total_elevation_gain: raw["total_elevation_gain"],
-      average_watts: raw["average_watts"],
-      weighted_average_watts: raw["weighted_average_watts"],
-      device_watts: raw["device_watts"],
-      kilojoules: raw["kilojoules"],
-      average_heartrate: raw["average_heartrate"],
-      max_heartrate: raw["max_heartrate"],
-      average_cadence: raw["average_cadence"],
-    }
-    # Never writes ignored_at based on Strava data (there is none) -- but
-    # attribution becoming true is a distinct, deliberate rule: a ride is
-    # never both attributed and ignored, and omitting this would make a
-    # re-attributing sync raise RecordInvalid against that validation
-    # instead of resolving cleanly. Omitted entirely (not just false-y) when
-    # still unattributed, so a manual ignore is never touched.
-    attrs[:ignored_at] = nil if resolved_bike_id.present?
-
-    activity.update!(attrs)
+    Strava::ActivityUpsert.call(user: user, activity: activity, raw: raw, bike: bike)
   end
 end

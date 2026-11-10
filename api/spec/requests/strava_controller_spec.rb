@@ -703,6 +703,104 @@ RSpec.describe "Strava", type: :request do
     end
   end
 
+  describe "POST /strava/rides/:id/resync" do
+    def raw_activity(gear_id: nil, type: "Ride", distance: 15_000)
+      {
+        "name" => "Resynced Ride", "distance" => distance, "type" => type, "sport_type" => "Ride",
+        "start_date" => "2026-06-02T09:00:00Z", "gear_id" => gear_id, "trainer" => false, "commute" => false,
+      }
+    end
+
+    it "re-attributes the ride to the bike Strava now reports for it" do
+      credential = create(:strava_credential, user: current_user, last_synced_at: 2.days.ago, last_full_sync_at: 3.days.ago)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).with(999, access_token: anything).and_return(raw_activity(gear_id: "g1"))
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["deleted"]).to be false
+      ride.reload
+      expect(ride.bike_id).to eq(bike.id)
+      expect(ride.distance_meters).to eq(15_000)
+      # A standalone one-ride action, not a sync cycle -- these are untouched.
+      expect(credential.reload.last_synced_at).to be_within(1.second).of(2.days.ago)
+      expect(credential.reload.last_full_sync_at).to be_within(1.second).of(3.days.ago)
+    end
+
+    it "clears ignored_at when the ride becomes attributed" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 999, ignored_at: Time.current)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "g1"))
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(ride.reload.ignored_at).to be_nil
+    end
+
+    it "deletes the local ride when Strava no longer has it" do
+      create(:strava_credential, user: current_user)
+      ride = create(:strava_activity, user: current_user, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_raise(Strava::Client::NotFoundError)
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["deleted"]).to be true
+      expect(StravaActivity.exists?(ride.id)).to be false
+    end
+
+    it "deletes the local ride when its type changed to something no longer synced" do
+      create(:strava_credential, user: current_user)
+      ride = create(:strava_activity, user: current_user, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(type: "Run"))
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(JSON.parse(response.body)["deleted"]).to be true
+      expect(StravaActivity.exists?(ride.id)).to be false
+    end
+
+    it "responds 502 and leaves the ride untouched when Strava fails" do
+      create(:strava_credential, user: current_user)
+      ride = create(:strava_activity, user: current_user, strava_id: 999, name: "Original")
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_raise(Strava::Client::Error)
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:bad_gateway)
+      expect(ride.reload.name).to eq("Original")
+    end
+
+    it "returns unprocessable_content when Strava isn't connected" do
+      ride = create(:strava_activity, user: current_user, strava_id: 999)
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "never resyncs another user's ride" do
+      other_ride = create(:strava_activity, strava_id: 999)
+
+      post "/strava/rides/#{other_ride.id}/resync"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   def authorize_and_capture_state
     allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
     get "/auth/strava"
