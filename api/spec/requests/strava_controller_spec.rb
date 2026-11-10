@@ -801,6 +801,101 @@ RSpec.describe "Strava", type: :request do
     end
   end
 
+  describe "POST /strava/rides/resync" do
+    def raw_activity(gear_id: nil, type: "Ride", distance: 15_000)
+      {
+        "name" => "Resynced Ride", "distance" => distance, "type" => type, "sport_type" => "Ride",
+        "start_date" => "2026-06-02T09:00:00Z", "gear_id" => gear_id, "trainer" => false, "commute" => false,
+      }
+    end
+
+    it "resyncs every given ride in one request" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      rides = create_list(:strava_activity, 3, user: current_user, bike_id: nil, gear_id: nil)
+      rides.each_with_index { |r, i| r.update!(strava_id: 1000 + i) }
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "g1"))
+
+      post "/strava/rides/resync", params: { activity_ids: rides.map(&:id) }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body).to eq("resynced_count" => 3, "deleted_count" => 0, "failed_count" => 0)
+      expect(rides).to all(satisfy { |r| r.reload.bike_id == bike.id })
+    end
+
+    it "counts deletions separately from resyncs" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      keep = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 2001)
+      gone = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 2002)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).with(2001, access_token: anything).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_activity).with(2002, access_token: anything).and_raise(Strava::Client::NotFoundError)
+
+      post "/strava/rides/resync", params: { activity_ids: [keep.id, gone.id] }
+
+      body = JSON.parse(response.body)
+      expect(body).to eq("resynced_count" => 1, "deleted_count" => 1, "failed_count" => 0)
+      expect(keep.reload.bike_id).to eq(bike.id)
+      expect(StravaActivity.exists?(gone.id)).to be false
+    end
+
+    it "counts a transient Strava failure without aborting the rest of the batch" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      flaky = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 3001)
+      fine = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 3002)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).with(3001, access_token: anything).and_raise(Strava::Client::Error)
+      allow(client).to receive(:fetch_activity).with(3002, access_token: anything).and_return(raw_activity(gear_id: "g1"))
+
+      post "/strava/rides/resync", params: { activity_ids: [flaky.id, fine.id] }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body).to eq("resynced_count" => 1, "deleted_count" => 0, "failed_count" => 1)
+      expect(fine.reload.bike_id).to eq(bike.id)
+    end
+
+    it "caps the batch at MAX_BULK_RESYNC ids" do
+      create(:strava_credential, user: current_user)
+      rides = create_list(:strava_activity, 3, user: current_user, bike_id: nil, gear_id: nil)
+      stub_const("StravaController::MAX_BULK_RESYNC", 2)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity)
+
+      post "/strava/rides/resync", params: { activity_ids: rides.map(&:id) }
+
+      body = JSON.parse(response.body)
+      expect(body["resynced_count"] + body["deleted_count"]).to eq(2)
+    end
+
+    it "never touches another user's rides" do
+      other_ride = create(:strava_activity, bike_id: nil, gear_id: nil)
+      create(:strava_credential, user: current_user)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+
+      post "/strava/rides/resync", params: { activity_ids: [other_ride.id] }
+
+      expect(JSON.parse(response.body)).to eq("resynced_count" => 0, "deleted_count" => 0, "failed_count" => 0)
+    end
+
+    it "returns unprocessable_content when Strava isn't connected" do
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil)
+
+      post "/strava/rides/resync", params: { activity_ids: [ride.id] }
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
   def authorize_and_capture_state
     allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
     get "/auth/strava"

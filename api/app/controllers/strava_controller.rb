@@ -1,4 +1,9 @@
 class StravaController < ApplicationController
+  # Defensive cap on POST /strava/rides/resync's explicit activity_ids list
+  # -- see that action's own comment for why (unbounded synchronous Strava
+  # calls, unlike ignore_rides' single update_all).
+  MAX_BULK_RESYNC = 100
+
   # Strava sign-in and the Strava data connection are the same OAuth grant
   # -- this callback serves both, decided by whether a session user exists
   # going in (see Auth::ResolveIdentity). So, unlike every other action
@@ -238,24 +243,71 @@ class StravaController < ApplicationController
     return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content if credential.nil?
 
     access_token = credential.ensure_fresh_access_token!
-    raw = Strava::Client.new.fetch_activity(activity.strava_id, access_token: access_token)
-
-    if StravaSyncJob::SYNCED_TYPES.include?(raw["type"])
-      bike = current_user.bikes.find_by(strava_gear_id: raw["gear_id"])
-      Strava::ActivityUpsert.call(user: current_user, activity: activity, raw: raw, bike: bike)
-      render json: { deleted: false }
-    else
-      activity.destroy
-      render json: { deleted: true }
-    end
-  rescue Strava::Client::NotFoundError
-    activity.destroy
-    render json: { deleted: true }
+    deleted = !resync_one(activity, access_token, Strava::Client.new)
+    render json: { deleted: deleted }
   rescue Strava::Client::Error
     render json: { base: ["Strava request failed -- try again shortly"] }, status: :bad_gateway
   end
 
+  # POST /strava/rides/resync -- { activity_ids: [...] }, the bulk companion
+  # to the per-row action above, backing the Rides tab's "Needs attention"
+  # selection toolbar's "Resync selected". Deliberately doesn't support
+  # all_matching the way ignore_rides does -- that could mean an unbounded
+  # number of synchronous Strava calls in one request, unlike ignore's
+  # single update_all; a MAX_BULK_RESYNC cap on the explicit id list is the
+  # defensive backstop for the same reason. Refreshes the access token once
+  # up front rather than once per row. One row's Strava::Client::Error
+  # (5xx/rate-limit/timeout) is counted as a failure, not aborting the rest
+  # of the batch -- partial progress beats an all-or-nothing retry on a
+  # transient blip.
+  def resync_rides
+    credential = current_user.strava_credential
+    return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content if credential.nil?
+
+    access_token = credential.ensure_fresh_access_token!
+    client = Strava::Client.new
+    activities = current_user.strava_activities.where(id: Array(params[:activity_ids]).first(MAX_BULK_RESYNC))
+
+    resynced_count = 0
+    deleted_count = 0
+    failed_count = 0
+
+    activities.each do |activity|
+      if resync_one(activity, access_token, client)
+        resynced_count += 1
+      else
+        deleted_count += 1
+      end
+    rescue Strava::Client::Error
+      failed_count += 1
+    end
+
+    render json: { resynced_count: resynced_count, deleted_count: deleted_count, failed_count: failed_count }
+  end
+
   private
+
+  # Returns true when the activity was resynced, false when it was deleted
+  # (a 404 from Strava, or a type StravaSyncJob::SYNCED_TYPES now excludes --
+  # the same "indistinguishable from deleted" rule full-refresh
+  # reconciliation already uses). Any other Strava::Client::Error propagates
+  # to the caller, which decides how to respond (502 for the single-row
+  # action, a per-row failed count for the bulk one).
+  def resync_one(activity, access_token, client)
+    raw = client.fetch_activity(activity.strava_id, access_token: access_token)
+
+    if StravaSyncJob::SYNCED_TYPES.include?(raw["type"])
+      bike = current_user.bikes.find_by(strava_gear_id: raw["gear_id"])
+      Strava::ActivityUpsert.call(user: current_user, activity: activity, raw: raw, bike: bike)
+      true
+    else
+      activity.destroy
+      false
+    end
+  rescue Strava::Client::NotFoundError
+    activity.destroy
+    false
+  end
 
   def rides_json(rides)
     ignored_gear_ids = StravaGear.ignored_for(current_user).pluck(:strava_gear_id)
