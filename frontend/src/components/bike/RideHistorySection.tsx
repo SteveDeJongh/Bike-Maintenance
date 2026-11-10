@@ -10,6 +10,7 @@ import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
+import ResyncRideButton from '../ride/ResyncRideButton'
 import { BIKE_RIDE_COLUMNS, BIKE_RIDE_COLUMN_LABELS, DEFAULT_BIKE_RIDE_COLUMNS, type BikeRideColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -145,6 +146,7 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                           sortable={false}
                         />
                       ))}
+                      <Table.Th />
                       <Table.Th>
                         <ColumnPicker
                           allColumns={BIKE_RIDE_COLUMN_OPTIONS}
@@ -169,6 +171,9 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                     {orderedColumns.map((column) => (
                       <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>
                     ))}
+                    <Table.Td>
+                      <ResyncRideButton rideId={ride.id} />
+                    </Table.Td>
                     <Table.Td />
                   </Table.Tr>
                 ))}

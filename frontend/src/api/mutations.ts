@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiDelete, apiPatch, apiPost, apiPut } from './client'
+import { INVALIDATE_KEYS } from '../hooks/useStravaSyncRunner'
 import type {
   Bike,
   BikeComponentSlot,
@@ -516,6 +517,20 @@ function invalidateRideDecisionQueries(queryClient: ReturnType<typeof useQueryCl
   queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
   queryClient.invalidateQueries({ queryKey: ['strava'] })
+}
+
+// Re-fetches one ride from Strava (one API call, not a full paginated
+// history refresh) and re-applies attribution -- can change bike_id/
+// distance, so it invalidates the broader INVALIDATE_KEYS set
+// useStravaSyncRunner already defines, not the narrower
+// invalidateRideDecisionQueries above (which ignore/unignore use, since
+// neither of those can move mileage between bikes).
+export function useResyncRide() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (rideId: number) => apiPost<{ deleted: boolean }>(`/strava/rides/${rideId}/resync`, {}),
+    onSuccess: () => INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key })),
+  })
 }
 
 // ComponentCategorySetting

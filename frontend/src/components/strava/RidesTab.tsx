@@ -25,6 +25,7 @@ import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
+import ResyncRideButton from '../ride/ResyncRideButton'
 import {
   STRAVA_RIDE_COLUMNS,
   STRAVA_RIDE_COLUMN_LABELS,
@@ -394,6 +395,7 @@ function RowActions({ ride }: { ride: StravaRide }) {
   if (ride.attribution === 'needs_attention') {
     return (
       <Group gap="xs" wrap="nowrap">
+        <ResyncRideButton rideId={ride.id} />
         <Button
           size="xs"
           variant="subtle"
@@ -425,19 +427,23 @@ function RowActions({ ride }: { ride: StravaRide }) {
   if (ride.attribution === 'ignored') {
     if (ride.reason === 'ride') {
       return (
-        <Button
-          size="xs"
-          variant="default"
-          onClick={() => unignoreRides.mutate({ activity_ids: [ride.id] })}
-          loading={unignoreRides.isPending}
-        >
-          Un-ignore
-        </Button>
+        <Group gap="xs" wrap="nowrap">
+          <ResyncRideButton rideId={ride.id} />
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => unignoreRides.mutate({ activity_ids: [ride.id] })}
+            loading={unignoreRides.isPending}
+          >
+            Un-ignore
+          </Button>
+        </Group>
       )
     }
 
     return (
       <Group gap={4} wrap="nowrap">
+        <ResyncRideButton rideId={ride.id} />
         <Text size="sm" c="dimmed">
           Gear ignored
         </Text>
@@ -448,7 +454,7 @@ function RowActions({ ride }: { ride: StravaRide }) {
     )
   }
 
-  return null
+  return <ResyncRideButton rideId={ride.id} />
 }
 
 function EmptyState({ status }: { status: Status }) {

@@ -8,8 +8,11 @@ const POLL_CAP_MS = 30_000
 const FULL_POLL_CAP_MS = 3 * 60_000
 
 // Every ride-derived key, invalidated once polling detects completion --
-// the same fixed list regardless of caller or full/incremental.
-const INVALIDATE_KEYS = [
+// the same fixed list regardless of caller or full/incremental. Exported
+// so useResyncRide (api/mutations.ts) can invalidate the same set after a
+// single-ride resync, which can also change bike_id/distance -- rather
+// than hand-maintaining a second copy of "every key derived from ride data."
+export const INVALIDATE_KEYS = [
   ['strava'], ['bikes'], ['bike_rides'], ['dashboard'], ['maintenance_alerts'], ['components'], ['strava_rides'],
 ]
 
