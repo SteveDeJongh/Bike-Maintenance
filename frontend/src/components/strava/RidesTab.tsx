@@ -13,12 +13,13 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
 import { useBikes, useStravaRides, useTableViewPreference } from '../../api/queries'
-import { useIgnoreRides, useUnignoreRides } from '../../api/mutations'
+import { useIgnoreRides, useUnignoreRides, useResyncRides } from '../../api/mutations'
 import ColumnPicker from '../datatable/ColumnPicker'
 import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
@@ -139,6 +140,7 @@ function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }
 
   const ignoreRides = useIgnoreRides()
   const unignoreRides = useUnignoreRides()
+  const resyncRides = useResyncRides()
 
   function rowSelectable(ride: StravaRide) {
     if (status === 'attention') return true
@@ -181,6 +183,10 @@ function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }
 
   function handleBulkUnignore() {
     unignoreRides.mutate({ activity_ids: Array.from(selectedIds) }, { onSuccess: clearSelection })
+  }
+
+  function handleBulkResync() {
+    resyncRides.mutate({ activity_ids: Array.from(selectedIds) }, { onSuccess: clearSelection })
   }
 
   const showCheckboxes = status !== 'all'
@@ -266,6 +272,22 @@ function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }
             )}
           </Group>
           <Group gap="xs">
+            {status === 'attention' && (
+              <Tooltip
+                label="Select all N matching doesn't support resync -- each ride is its own Strava call"
+                disabled={!selectAllMatching}
+              >
+                <Button
+                  size="xs"
+                  variant="default"
+                  onClick={handleBulkResync}
+                  loading={resyncRides.isPending}
+                  disabled={selectAllMatching}
+                >
+                  Resync selected
+                </Button>
+              </Tooltip>
+            )}
             {status === 'attention' && (
               <Button size="xs" onClick={handleBulkIgnore} loading={ignoreRides.isPending}>
                 Ignore selected

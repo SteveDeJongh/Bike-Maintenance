@@ -533,6 +533,20 @@ export function useResyncRide() {
   })
 }
 
+// Bulk companion to useResyncRide, backing the Rides tab selection
+// toolbar's "Resync selected" -- unlike useIgnoreRides, there's no
+// all_matching variant here (see POST /strava/rides/resync's own comment:
+// each row is its own live Strava call, so it's only ever offered for
+// whatever's explicitly checked, not an unbounded "all N matching").
+export function useResyncRides() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { activity_ids: number[] }) =>
+      apiPost<{ resynced_count: number; deleted_count: number; failed_count: number }>('/strava/rides/resync', payload),
+    onSuccess: () => INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key })),
+  })
+}
+
 // ComponentCategorySetting
 
 // Fires one PATCH per dirty category (the per-category upsert endpoint
