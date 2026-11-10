@@ -538,11 +538,21 @@ export function useResyncRide() {
 // all_matching variant here (see POST /strava/rides/resync's own comment:
 // each row is its own live Strava call, so it's only ever offered for
 // whatever's explicitly checked, not an unbounded "all N matching").
+export interface ResyncRidesResult {
+  resynced_count: number
+  deleted_count: number
+  failed_count: number
+  // Only present when a rate limit stopped the batch early (a 200, not an
+  // error -- the rows before it still committed).
+  not_attempted_count?: number
+  retry_at?: string
+}
+
 export function useResyncRides() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: { activity_ids: number[] }) =>
-      apiPost<{ resynced_count: number; deleted_count: number; failed_count: number }>('/strava/rides/resync', payload),
+      apiPost<ResyncRidesResult>('/strava/rides/resync', payload),
     onSuccess: () => INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key })),
   })
 }

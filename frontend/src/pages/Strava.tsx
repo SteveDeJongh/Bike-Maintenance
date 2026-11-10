@@ -32,6 +32,7 @@ import BikeFormModal from '../components/forms/BikeFormModal'
 import RidesTab from '../components/strava/RidesTab'
 import { formatDistance } from '../utils/distance'
 import { formatDateTime, formatRelativeTime, todayIsoDate } from '../utils/datetime'
+import { syncFailureMessage } from '../utils/strava'
 import type { StravaGear, StravaIgnoredGear, StravaMappedBike } from '../types/models'
 
 const CREATE_NEW_BIKE = '__create_new__'
@@ -125,6 +126,28 @@ export default function Strava() {
               two depending on how many rides you have.
             </Text>
           )}
+          {(regularSync.failure ?? fullSync.failure) && (
+            <Alert color="red" title="Sync failed">
+              <Group justify="space-between">
+                <Text size="sm">
+                  {syncFailureMessage(
+                    (regularSync.failure ?? fullSync.failure)!.code,
+                    (regularSync.failure ?? fullSync.failure)!.retryAt,
+                  )}
+                </Text>
+                {(regularSync.failure ?? fullSync.failure)!.code === 'auth_failed' && (
+                  <Button component="a" href={`${API_BASE_URL}/auth/strava`} size="xs">
+                    Connect to Strava
+                  </Button>
+                )}
+              </Group>
+            </Alert>
+          )}
+          {(regularSync.stillRunning || fullSync.stillRunning) && (
+            <Alert color="gray" title="Sync still running">
+              <Text size="sm">Still running in the background. Check back shortly.</Text>
+            </Alert>
+          )}
           <Text size="xs" c="dimmed">
             Reconnect if permissions change or the connection stops working — this
             re-approves the same account, it does not disconnect anything first.
@@ -149,7 +172,7 @@ export default function Strava() {
             </Tabs.Panel>
 
             <Tabs.Panel value="rides" pt="md">
-              <RidesTab />
+              <RidesTab fullSync={fullSync} />
             </Tabs.Panel>
           </Tabs>
         </>

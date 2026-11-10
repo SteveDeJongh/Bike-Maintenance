@@ -20,6 +20,7 @@ import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortabl
 import { Link } from 'react-router-dom'
 import { useBikes, useStravaRides, useTableViewPreference } from '../../api/queries'
 import { useIgnoreRides, useUnignoreRides, useResyncRides } from '../../api/mutations'
+import type { useStravaSyncRunner } from '../../hooks/useStravaSyncRunner'
 import ColumnPicker from '../datatable/ColumnPicker'
 import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
@@ -41,16 +42,21 @@ type Status = 'attention' | 'ignored' | 'all'
 type Sort = 'date' | 'distance'
 type Order = 'asc' | 'desc'
 
+type FullSyncControls = ReturnType<typeof useStravaSyncRunner>
+
 // Gates the whole tab on strava_rides's TableViewPreference resolving
 // first, same two-component wrapper/Inner split as every other adopter of
 // this system (e.g. RideHistorySection) -- useTableViewPreferences' useState
-// initializers only seed from it once, on mount.
-export default function RidesTab() {
+// initializers only seed from it once, on mount. fullSync is the Strava
+// page header's own useStravaSyncRunner({ full: true }) instance, lifted
+// down as a prop (same pattern Dashboard.tsx uses for SyncStrip) rather
+// than this tab owning a second independent poller for the same action.
+export default function RidesTab({ fullSync }: { fullSync: FullSyncControls }) {
   const { data: preferenceData, isPending } = useTableViewPreference('strava_rides')
 
   if (isPending || !preferenceData) return <Loader />
 
-  return <RidesTabInner initialData={preferenceData.data} />
+  return <RidesTabInner initialData={preferenceData.data} fullSync={fullSync} />
 }
 
 function buildColumnRenderer(): Record<StravaRideColumn, (ride: StravaRide) => ReactNode> {
@@ -88,7 +94,8 @@ function buildColumnRenderer(): Record<StravaRideColumn, (ride: StravaRide) => R
 
 const STRAVA_RIDE_COLUMN_OPTIONS = STRAVA_RIDE_COLUMNS.map((column) => ({ key: column, label: STRAVA_RIDE_COLUMN_LABELS[column] }))
 
-function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }) {
+function RidesTabInner({ initialData, fullSync }: { initialData: TableViewPreferenceData; fullSync: FullSyncControls }) {
+  const { sync: triggerFullRefresh, syncing: fullRefreshSyncing, status: stravaStatus } = fullSync
   const [status, setStatus] = useState<Status>('attention')
   const [bikeId, setBikeId] = useState<number | undefined>(undefined)
   const [sort, setSort] = useState<Sort>('date')
@@ -189,8 +196,25 @@ function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }
     resyncRides.mutate({ activity_ids: Array.from(selectedIds) }, { onSuccess: clearSelection })
   }
 
+  function handleFullRefreshInstead() {
+    clearSelection()
+    triggerFullRefresh()
+  }
+
   const showCheckboxes = status !== 'all'
   const showSelectionToolbar = selectedIds.size > 0 || selectAllMatching
+
+  // Resyncing k rides one by one costs k Strava calls; a full refresh costs
+  // roughly full_sync_request_estimate regardless of k -- past whichever is
+  // smaller (also capped at MAX_BULK_RESYNC server-side), a full refresh is
+  // the cheaper way to pull in the same fix, so the toolbar routes there
+  // instead of offering "Resync selected". "Select all N matching" has no
+  // bounded id list to resync individually at all, so it always routes here.
+  const resyncThreshold = stravaStatus
+    ? Math.min(stravaStatus.max_bulk_resync, stravaStatus.full_sync_request_estimate ?? Infinity)
+    : Infinity
+  const canResyncSelected = !selectAllMatching && selectedIds.size > 0 && selectedIds.size <= resyncThreshold
+  const selectionSize = selectAllMatching ? meta?.total_count ?? 0 : selectedIds.size
 
   return (
     <Stack>
@@ -255,54 +279,80 @@ function RidesTabInner({ initialData }: { initialData: TableViewPreferenceData }
         </Alert>
       )}
 
+      {Boolean(resyncRides.data?.not_attempted_count) && (
+        <Alert color="orange" title="Rate limited">
+          <Text size="sm">
+            {resyncRides.data!.not_attempted_count} ride(s) weren't attempted
+            {resyncRides.data!.retry_at && ` -- try again after ${formatDateTime(resyncRides.data!.retry_at)}`}.
+          </Text>
+        </Alert>
+      )}
+
       {showSelectionToolbar && (
-        <Group
-          justify="space-between"
+        <Stack
+          gap="xs"
           p="xs"
           style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}
         >
-          <Group gap="xs">
-            <Text size="sm">
-              {selectAllMatching ? `All ${meta?.total_count ?? 0} matching rides selected` : `${selectedIds.size} selected`}
-            </Text>
-            {!selectAllMatching && allLoadedSelected && meta && meta.total_count > rides.length && (
-              <Anchor component="button" type="button" size="sm" onClick={() => setSelectAllMatching(true)}>
-                Select all {meta.total_count} matching
-              </Anchor>
-            )}
-          </Group>
-          <Group gap="xs">
-            {status === 'attention' && (
-              <Tooltip
-                label="Select all N matching doesn't support resync -- each ride is its own Strava call"
-                disabled={!selectAllMatching}
-              >
-                <Button
-                  size="xs"
-                  variant="default"
-                  onClick={handleBulkResync}
-                  loading={resyncRides.isPending}
-                  disabled={selectAllMatching}
-                >
+          <Group justify="space-between">
+            <Group gap="xs">
+              <Text size="sm">
+                {selectAllMatching ? `All ${meta?.total_count ?? 0} matching rides selected` : `${selectedIds.size} selected`}
+              </Text>
+              {!selectAllMatching && allLoadedSelected && meta && meta.total_count > rides.length && (
+                <Anchor component="button" type="button" size="sm" onClick={() => setSelectAllMatching(true)}>
+                  Select all {meta.total_count} matching
+                </Anchor>
+              )}
+            </Group>
+            <Group gap="xs">
+              {status === 'attention' && canResyncSelected && (
+                <Button size="xs" variant="default" onClick={handleBulkResync} loading={resyncRides.isPending}>
                   Resync selected
                 </Button>
-              </Tooltip>
-            )}
-            {status === 'attention' && (
-              <Button size="xs" onClick={handleBulkIgnore} loading={ignoreRides.isPending}>
-                Ignore selected
+              )}
+              {status === 'attention' && !canResyncSelected && (
+                <Tooltip
+                  label={
+                    stravaStatus?.full_sync_available_at
+                      ? `Available again at ${formatDateTime(stravaStatus.full_sync_available_at)}, or narrow your selection to ${resyncThreshold} rides or fewer and resync them individually.`
+                      : undefined
+                  }
+                  disabled={!stravaStatus?.full_sync_available_at}
+                >
+                  <Button
+                    size="xs"
+                    variant="default"
+                    onClick={handleFullRefreshInstead}
+                    loading={fullRefreshSyncing}
+                    disabled={Boolean(stravaStatus?.full_sync_available_at)}
+                  >
+                    Refresh all rides
+                  </Button>
+                </Tooltip>
+              )}
+              {status === 'attention' && (
+                <Button size="xs" onClick={handleBulkIgnore} loading={ignoreRides.isPending}>
+                  Ignore selected
+                </Button>
+              )}
+              {status === 'ignored' && (
+                <Button size="xs" onClick={handleBulkUnignore} loading={unignoreRides.isPending}>
+                  Un-ignore selected
+                </Button>
+              )}
+              <Button size="xs" variant="subtle" onClick={clearSelection}>
+                Clear
               </Button>
-            )}
-            {status === 'ignored' && (
-              <Button size="xs" onClick={handleBulkUnignore} loading={unignoreRides.isPending}>
-                Un-ignore selected
-              </Button>
-            )}
-            <Button size="xs" variant="subtle" onClick={clearSelection}>
-              Clear
-            </Button>
+            </Group>
           </Group>
-        </Group>
+          {status === 'attention' && !canResyncSelected && (
+            <Text size="xs" c="dimmed">
+              Re-syncing {selectionSize} rides one by one would use {selectionSize} Strava requests; a full refresh
+              uses about {stravaStatus?.full_sync_request_estimate ?? '?'} and also picks up any other changes.
+            </Text>
+          )}
+        </Stack>
       )}
 
       {isPending && <Loader />}

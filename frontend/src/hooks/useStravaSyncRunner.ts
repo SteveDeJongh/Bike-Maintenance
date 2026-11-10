@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStravaStatus } from '../api/queries'
 import { useSyncStrava } from '../api/mutations'
+import type { SyncFailureCode } from '../types/models'
 
 const POLL_INTERVAL_MS = 2_000
 const POLL_CAP_MS = 30_000
@@ -15,6 +16,11 @@ const FULL_POLL_CAP_MS = 3 * 60_000
 export const INVALIDATE_KEYS = [
   ['strava'], ['bikes'], ['bike_rides'], ['dashboard'], ['maintenance_alerts'], ['components'], ['strava_rides'],
 ]
+
+export interface SyncFailure {
+  code: SyncFailureCode
+  retryAt: string | null
+}
 
 // Fully self-contained: owns its own polling state and its own
 // useStravaStatus poll (React Query dedupes this against any other
@@ -30,7 +36,10 @@ export const INVALIDATE_KEYS = [
 export function useStravaSyncRunner({ full = false }: { full?: boolean } = {}) {
   const queryClient = useQueryClient()
   const [polling, setPolling] = useState(false)
+  const [failure, setFailure] = useState<SyncFailure | null>(null)
+  const [stillRunning, setStillRunning] = useState(false)
   const preSyncRef = useRef<string | null>(null)
+  const preFailureRef = useRef<string | null>(null)
   const startedAtRef = useRef<number | null>(null)
   const syncMutation = useSyncStrava()
   const pollCapMs = full ? FULL_POLL_CAP_MS : POLL_CAP_MS
@@ -43,20 +52,39 @@ export function useStravaSyncRunner({ full = false }: { full?: boolean } = {}) {
     if (startedAtRef.current == null) startedAtRef.current = Date.now()
 
     const changed = watchedTimestamp !== preSyncRef.current
+    // last_sync_failed_kind matters because an incremental and a full sync
+    // aren't mutually exclusive (only the full path is lock-guarded) -- each
+    // hook instance should only react to a failure matching the run *it*
+    // triggered, not one from a differently-triggered run that happens to
+    // be in flight at the same time.
+    const failed = status?.last_sync_failed_at != null
+      && status.last_sync_failed_at !== preFailureRef.current
+      && status.last_sync_failed_kind === (full ? 'full' : 'incremental')
     const timedOut = Date.now() - startedAtRef.current > pollCapMs
 
-    if (changed || timedOut) {
+    if (changed || failed || timedOut) {
       setPolling(false)
       startedAtRef.current = null
-      if (changed) INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key }))
+      if (changed) {
+        // Nothing was deleted/changed by a failed run, so ride queries are
+        // only ever invalidated on an actual success.
+        INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key }))
+      } else if (failed) {
+        setFailure({ code: status!.last_sync_error!, retryAt: status!.last_sync_retry_at })
+      } else if (timedOut) {
+        setStillRunning(true)
+      }
     }
-  }, [watchedTimestamp, polling, pollCapMs, queryClient])
+  }, [watchedTimestamp, status, polling, pollCapMs, full, queryClient])
 
   function sync() {
     preSyncRef.current = watchedTimestamp ?? null
+    preFailureRef.current = status?.last_sync_failed_at ?? null
     startedAtRef.current = null
+    setFailure(null)
+    setStillRunning(false)
     syncMutation.mutate({ full }, { onSuccess: () => setPolling(true) })
   }
 
-  return { sync, syncing: syncMutation.isPending || polling, status, error: syncMutation.error }
+  return { sync, syncing: syncMutation.isPending || polling, status, error: syncMutation.error, failure, stillRunning }
 }

@@ -1,7 +1,10 @@
 import { Alert, Anchor, Badge, Button, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
+import { API_BASE_URL } from '../../api/client'
 import { formatDateTime, formatRelativeTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
+import { syncFailureMessage } from '../../utils/strava'
+import type { SyncFailure } from '../../hooks/useStravaSyncRunner'
 import type { DashboardSyncSection } from '../../types/models'
 
 function rideWord(count: number): string {
@@ -12,9 +15,11 @@ interface SyncStripProps {
   sync: DashboardSyncSection
   onSync: () => void
   syncing: boolean
+  failure: SyncFailure | null
+  stillRunning: boolean
 }
 
-export default function SyncStrip({ sync, onSync, syncing }: SyncStripProps) {
+export default function SyncStrip({ sync, onSync, syncing, failure, stillRunning }: SyncStripProps) {
   if (!sync.connected) {
     return (
       <Alert color="gray" title="Strava not connected">
@@ -47,6 +52,25 @@ export default function SyncStrip({ sync, onSync, syncing }: SyncStripProps) {
           Sync now
         </Button>
       </Group>
+
+      {failure && (
+        <Alert color="red" title="Sync failed">
+          <Group justify="space-between">
+            <Text size="sm">{syncFailureMessage(failure.code, failure.retryAt)}</Text>
+            {failure.code === 'auth_failed' && (
+              <Button component="a" href={`${API_BASE_URL}/auth/strava`} size="xs">
+                Connect to Strava
+              </Button>
+            )}
+          </Group>
+        </Alert>
+      )}
+
+      {stillRunning && (
+        <Alert color="gray" title="Sync still running">
+          <Text size="sm">Still running in the background. Check back shortly.</Text>
+        </Alert>
+      )}
 
       {unattributed.count > 0 && (
         <Alert color="orange" title="Some rides aren't attributed to a bike yet">

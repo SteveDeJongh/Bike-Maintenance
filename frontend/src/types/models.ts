@@ -282,6 +282,8 @@ export interface MaintenanceEvent {
   notes: string | null
 }
 
+export type SyncFailureCode = 'rate_limited' | 'strava_unavailable' | 'auth_failed' | 'unknown'
+
 export interface StravaStatus {
   connected: boolean
   athlete_id: number | null
@@ -290,6 +292,16 @@ export interface StravaStatus {
   // null when a full refresh can be triggered right now; otherwise the
   // time it becomes available (see StravaCredential#full_sync_available_at).
   full_sync_available_at: string | null
+  // Roughly how many Strava API calls a full refresh would cost right now
+  // (see StravaCredential#full_sync_request_estimate) -- the Rides tab uses
+  // this, alongside max_bulk_resync, to decide whether to offer "Resync
+  // selected" or route a large selection to a full refresh instead.
+  full_sync_request_estimate: number | null
+  max_bulk_resync: number
+  last_sync_failed_at: string | null
+  last_sync_error: SyncFailureCode | null
+  last_sync_failed_kind: 'full' | 'incremental' | null
+  last_sync_retry_at: string | null
 }
 
 interface StravaGearRow {

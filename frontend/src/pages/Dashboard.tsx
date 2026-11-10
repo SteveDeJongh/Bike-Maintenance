@@ -9,7 +9,7 @@ import RecentRidesTable from '../components/dashboard/RecentRidesTable'
 export default function Dashboard() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
   const { data, isPending, isError, error } = useDashboard(tz)
-  const { sync, syncing } = useStravaSyncRunner({ full: false })
+  const { sync, syncing, failure, stillRunning } = useStravaSyncRunner({ full: false })
 
   if (isPending) return <Loader />
 
@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   return (
     <Stack gap="xl">
-      <SyncStrip sync={data.sync} onSync={sync} syncing={syncing} />
+      <SyncStrip sync={data.sync} onSync={sync} syncing={syncing} failure={failure} stillRunning={stillRunning} />
       <Flex gap="xl" wrap="wrap">
         <BikeCards bikes={data.bikes} />
         <NeedsAttention attention={data.attention} />
