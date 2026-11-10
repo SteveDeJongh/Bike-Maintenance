@@ -1,8 +1,12 @@
 class StravaController < ApplicationController
-  # Defensive cap on POST /strava/rides/resync's explicit activity_ids list
-  # -- see that action's own comment for why (unbounded synchronous Strava
-  # calls, unlike ignore_rides' single update_all).
-  MAX_BULK_RESYNC = 100
+  # Hard cap on POST /strava/rides/resync's explicit activity_ids list --
+  # see that action's own comment for why (unbounded synchronous Strava
+  # calls, unlike ignore_rides' single update_all). 25 calls finish in a
+  # few seconds and keeps one click to a quarter of a 15-minute read
+  # window. The frontend routes a larger selection to a full refresh
+  # instead (see Strava::RideLog/the Rides tab) well before this would ever
+  # be hit by a real request -- this is the defensive backstop.
+  MAX_BULK_RESYNC = 25
 
   # Strava sign-in and the Strava data connection are the same OAuth grant
   # -- this callback serves both, decided by whether a session user exists
@@ -68,6 +72,8 @@ class StravaController < ApplicationController
       last_synced_at: credential&.last_synced_at,
       last_full_sync_at: credential&.last_full_sync_at,
       full_sync_available_at: credential&.full_sync_available_at,
+      full_sync_request_estimate: credential&.full_sync_request_estimate,
+      max_bulk_resync: MAX_BULK_RESYNC,
       last_sync_failed_at: credential&.last_sync_failed_at,
       last_sync_error: credential&.last_sync_error,
       last_sync_failed_kind: credential&.last_sync_failed_kind,
@@ -236,19 +242,24 @@ class StravaController < ApplicationController
   # POST /strava/rides/:id/resync -- re-fetches one activity from Strava and
   # re-applies attribution via the same Strava::ActivityUpsert path the sync
   # job uses, without touching last_synced_at/last_full_sync_at or running
-  # Strava::GearSync -- this is a standalone one-ride action, not a sync
-  # cycle. A 404 from Strava, or a type that's since changed to something
-  # StravaSyncJob::SYNCED_TYPES excludes, is treated the same way full-refresh
-  # reconciliation already treats it: indistinguishable from deleted, so the
-  # local row is removed.
+  # the full Strava::GearSync -- this is a standalone one-ride action, not a
+  # sync cycle. A 404 from Strava, or a type that's since changed to
+  # something StravaSyncJob::SYNCED_TYPES excludes, is treated the same way
+  # full-refresh reconciliation already treats it: indistinguishable from
+  # deleted, so the local row is removed. A successful resync also backfills
+  # StravaGear for its gear_id if the cache doesn't have it yet (a bike added
+  # on Strava since the last sync) -- see sync_uncached_gear.
   def resync_ride
     activity = current_user.strava_activities.find(params[:id])
     credential = current_user.strava_credential
     return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content if credential.nil?
 
     access_token = credential.ensure_fresh_access_token!
-    deleted = !resync_one(activity, access_token, Strava::Client.new)
-    render json: { deleted: deleted }
+    resynced = resync_one(activity, access_token, Strava::Client.new)
+    sync_uncached_gear([activity.gear_id]) if resynced
+    render json: { deleted: !resynced }
+  rescue Strava::Client::RateLimitedError => e
+    render json: { base: ["Strava's rate limit was reached"], retry_at: e.retry_at }, status: :too_many_requests
   rescue Strava::Client::Error
     render json: { base: ["Strava request failed -- try again shortly"] }, status: :bad_gateway
   end
@@ -258,38 +269,92 @@ class StravaController < ApplicationController
   # selection toolbar's "Resync selected". Deliberately doesn't support
   # all_matching the way ignore_rides does -- that could mean an unbounded
   # number of synchronous Strava calls in one request, unlike ignore's
-  # single update_all; a MAX_BULK_RESYNC cap on the explicit id list is the
-  # defensive backstop for the same reason. Refreshes the access token once
-  # up front rather than once per row. One row's Strava::Client::Error
-  # (5xx/rate-limit/timeout) is counted as a failure, not aborting the rest
-  # of the batch -- partial progress beats an all-or-nothing retry on a
-  # transient blip.
+  # single update_all; MAX_BULK_RESYNC is a hard cap on the explicit id list
+  # (422 above it, not a silent truncation) for the same reason -- the
+  # frontend's own threshold routing to a full refresh means a real request
+  # should never hit it. Refreshes the access token once up front rather
+  # than once per row. One row's ordinary Strava::Client::Error (5xx/
+  # timeout) is counted as a failure, not aborting the rest of the batch --
+  # partial progress beats an all-or-nothing retry on a transient blip. A
+  # RateLimitedError is different: every remaining call would fail too and
+  # still count against the daily limit, so it stops the batch instead,
+  # reporting how much was never attempted.
   def resync_rides
     credential = current_user.strava_credential
     return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content if credential.nil?
 
+    ids = Array(params[:activity_ids])
+    if ids.size > MAX_BULK_RESYNC
+      return render json: { base: ["At most #{MAX_BULK_RESYNC} rides can be resynced at once"] },
+        status: :unprocessable_content
+    end
+
     access_token = credential.ensure_fresh_access_token!
     client = Strava::Client.new
-    activities = current_user.strava_activities.where(id: Array(params[:activity_ids]).first(MAX_BULK_RESYNC))
+    # Preserve the requested order (not whatever order the DB happens to
+    # return) -- not_attempted_count/which rows got processed before a rate
+    # limit stopped the batch should match what the caller actually sent.
+    # Ids that aren't this user's own are silently dropped, same convention
+    # as every other bulk action here.
+    by_id = current_user.strava_activities.where(id: ids).index_by(&:id)
+    activities = ids.filter_map { |id| by_id[id.to_i] }
 
     resynced_count = 0
     deleted_count = 0
     failed_count = 0
+    not_attempted_count = nil
+    retry_at = nil
+    new_gear_ids = Set.new
 
-    activities.each do |activity|
-      if resync_one(activity, access_token, client)
-        resynced_count += 1
-      else
-        deleted_count += 1
+    activities.each_with_index do |activity, index|
+      begin
+        if resync_one(activity, access_token, client)
+          resynced_count += 1
+          new_gear_ids << activity.gear_id if activity.gear_id.present?
+        else
+          deleted_count += 1
+        end
+      rescue Strava::Client::RateLimitedError => e
+        retry_at = e.retry_at
+        not_attempted_count = activities.size - index
+        break
+      rescue Strava::Client::Error
+        failed_count += 1
       end
-    rescue Strava::Client::Error
-      failed_count += 1
     end
 
-    render json: { resynced_count: resynced_count, deleted_count: deleted_count, failed_count: failed_count }
+    sync_uncached_gear(new_gear_ids.to_a)
+
+    response = { resynced_count: resynced_count, deleted_count: deleted_count, failed_count: failed_count }
+    if retry_at
+      response[:not_attempted_count] = not_attempted_count
+      response[:retry_at] = retry_at
+    end
+    render json: response
   end
 
   private
+
+  # Fetches and caches StravaGear for any gear id not already known for this
+  # user -- resync_ride/resync_rides skip the full Strava::GearSync (which
+  # also hits GET /athlete and every other already-known id), so without
+  # this a ride that picks up a brand-new gear id would leave the Rides
+  # tab's Gear column blank, the Gear tab not listing it, and "Resolve gear"
+  # leading nowhere, until the next full/incremental sync. One fetch per
+  # distinct new gear id, not per ride -- GearSync#sync_gear's own rescue
+  # already skips silently on failure (including a 429), so this can't fail
+  # the ride resync it's called after.
+  def sync_uncached_gear(gear_ids)
+    gear_ids = gear_ids.compact.uniq
+    return if gear_ids.empty?
+
+    cached = current_user.strava_gears.where(strava_gear_id: gear_ids).pluck(:strava_gear_id)
+    missing = gear_ids - cached
+    return if missing.empty?
+
+    gear_sync = Strava::GearSync.new(current_user)
+    missing.each { |gear_id| gear_sync.sync_gear(gear_id) }
+  end
 
   # Returns true when the activity was resynced, false when it was deleted
   # (a 404 from Strava, or a type StravaSyncJob::SYNCED_TYPES now excludes --

@@ -14,6 +14,18 @@ module Strava
       end
     end
 
+    # Fetches and upserts a single gear id -- used after a single/bulk ride
+    # resync (StravaController) to backfill StravaGear for a gear id the
+    # cache doesn't have yet (a bike added on Strava since the last sync),
+    # without running the full #call (which also hits GET /athlete and every
+    # other already-known gear id -- unnecessary just to pick up one new id).
+    # upsert_gear's own rescue already skips silently on any Client::Error,
+    # so a failed/rate-limited gear fetch here can't fail the caller.
+    def sync_gear(gear_id)
+      access_token = user.strava_credential.ensure_fresh_access_token!
+      upsert_gear(gear_id, access_token)
+    end
+
     private
 
     attr_reader :user, :client

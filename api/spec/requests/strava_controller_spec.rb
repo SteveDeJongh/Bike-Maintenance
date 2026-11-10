@@ -12,6 +12,7 @@ RSpec.describe "Strava", type: :request do
       expect(JSON.parse(response.body)).to eq(
         "connected" => false, "athlete_id" => nil, "last_synced_at" => nil,
         "last_full_sync_at" => nil, "full_sync_available_at" => nil,
+        "full_sync_request_estimate" => nil, "max_bulk_resync" => 25,
         "last_sync_failed_at" => nil, "last_sync_error" => nil,
         "last_sync_failed_kind" => nil, "last_sync_retry_at" => nil,
       )
@@ -735,6 +736,7 @@ RSpec.describe "Strava", type: :request do
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:fetch_activity).with(999, access_token: anything).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_gear).and_return({})
 
       post "/strava/rides/#{ride.id}/resync"
 
@@ -755,6 +757,7 @@ RSpec.describe "Strava", type: :request do
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_gear).and_return({})
 
       post "/strava/rides/#{ride.id}/resync"
 
@@ -801,6 +804,25 @@ RSpec.describe "Strava", type: :request do
       expect(ride.reload.name).to eq("Original")
     end
 
+    it "responds 429 with retry_at when Strava rate limits the request" do
+      create(:strava_credential, user: current_user)
+      ride = create(:strava_activity, user: current_user, strava_id: 999, name: "Original")
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      retry_at = Time.zone.local(2026, 11, 10, 13, 0)
+      allow(client).to receive(:fetch_activity).and_raise(
+        Strava::Client::RateLimitedError.new(
+          "rate limited", read_limit: nil, read_usage: nil, overall_limit: nil, overall_usage: nil, retry_at: retry_at,
+        ),
+      )
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(Time.zone.parse(JSON.parse(response.body)["retry_at"])).to be_within(1.second).of(retry_at)
+      expect(ride.reload.name).to eq("Original")
+    end
+
     it "returns unprocessable_content when Strava isn't connected" do
       ride = create(:strava_activity, user: current_user, strava_id: 999)
 
@@ -815,6 +837,55 @@ RSpec.describe "Strava", type: :request do
       post "/strava/rides/#{other_ride.id}/resync"
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "backfills StravaGear for a gear_id the cache doesn't have yet" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "new-gear")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "new-gear"))
+      allow(client).to receive(:fetch_gear).with("new-gear", access_token: anything).and_return("name" => "New Bike")
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(ride.reload.bike_id).to eq(bike.id)
+      gear = StravaGear.find_by(user: current_user, strava_gear_id: "new-gear")
+      expect(gear).to be_present
+      expect(gear.name).to eq("New Bike")
+    end
+
+    it "doesn't re-fetch a gear_id already cached" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "g1")
+      create(:strava_gear, user: current_user, strava_gear_id: "g1")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_gear)
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(ride.reload.bike_id).to eq(bike.id)
+      expect(client).not_to have_received(:fetch_gear)
+    end
+
+    it "still resyncs the ride when the gear backfill fetch fails" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "new-gear")
+      ride = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 999)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "new-gear"))
+      allow(client).to receive(:fetch_gear).and_raise(Strava::Client::Error)
+
+      post "/strava/rides/#{ride.id}/resync"
+
+      expect(response).to have_http_status(:ok)
+      expect(ride.reload.bike_id).to eq(bike.id)
+      expect(StravaGear.find_by(user: current_user, strava_gear_id: "new-gear")).to be_nil
     end
   end
 
@@ -834,6 +905,7 @@ RSpec.describe "Strava", type: :request do
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_gear).and_return({})
 
       post "/strava/rides/resync", params: { activity_ids: rides.map(&:id) }
 
@@ -852,6 +924,7 @@ RSpec.describe "Strava", type: :request do
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:fetch_activity).with(2001, access_token: anything).and_return(raw_activity(gear_id: "g1"))
       allow(client).to receive(:fetch_activity).with(2002, access_token: anything).and_raise(Strava::Client::NotFoundError)
+      allow(client).to receive(:fetch_gear).and_return({})
 
       post "/strava/rides/resync", params: { activity_ids: [keep.id, gone.id] }
 
@@ -870,6 +943,7 @@ RSpec.describe "Strava", type: :request do
       allow(Strava::Client).to receive(:new).and_return(client)
       allow(client).to receive(:fetch_activity).with(3001, access_token: anything).and_raise(Strava::Client::Error)
       allow(client).to receive(:fetch_activity).with(3002, access_token: anything).and_return(raw_activity(gear_id: "g1"))
+      allow(client).to receive(:fetch_gear).and_return({})
 
       post "/strava/rides/resync", params: { activity_ids: [flaky.id, fine.id] }
 
@@ -879,18 +953,18 @@ RSpec.describe "Strava", type: :request do
       expect(fine.reload.bike_id).to eq(bike.id)
     end
 
-    it "caps the batch at MAX_BULK_RESYNC ids" do
+    it "rejects more than MAX_BULK_RESYNC ids with 422, rather than silently truncating" do
       create(:strava_credential, user: current_user)
       rides = create_list(:strava_activity, 3, user: current_user, bike_id: nil, gear_id: nil)
       stub_const("StravaController::MAX_BULK_RESYNC", 2)
       client = instance_double(Strava::Client)
       allow(Strava::Client).to receive(:new).and_return(client)
-      allow(client).to receive(:fetch_activity).and_return(raw_activity)
+      allow(client).to receive(:fetch_activity)
 
       post "/strava/rides/resync", params: { activity_ids: rides.map(&:id) }
 
-      body = JSON.parse(response.body)
-      expect(body["resynced_count"] + body["deleted_count"]).to eq(2)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(client).not_to have_received(:fetch_activity)
     end
 
     it "never touches another user's rides" do
@@ -910,6 +984,47 @@ RSpec.describe "Strava", type: :request do
       post "/strava/rides/resync", params: { activity_ids: [ride.id] }
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "stops the batch on a rate limit and reports what wasn't attempted" do
+      create(:strava_credential, user: current_user)
+      done = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 4001)
+      limited = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 4002)
+      never_attempted = create(:strava_activity, user: current_user, bike_id: nil, gear_id: nil, strava_id: 4003)
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      retry_at = Time.zone.local(2026, 11, 10, 13, 0)
+      allow(client).to receive(:fetch_activity).with(4001, access_token: anything).and_return(raw_activity)
+      allow(client).to receive(:fetch_activity).with(4002, access_token: anything).and_raise(
+        Strava::Client::RateLimitedError.new(
+          "rate limited", read_limit: nil, read_usage: nil, overall_limit: nil, overall_usage: nil, retry_at: retry_at,
+        ),
+      )
+
+      post "/strava/rides/resync", params: { activity_ids: [done.id, limited.id, never_attempted.id] }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["resynced_count"]).to eq(1)
+      expect(body["not_attempted_count"]).to eq(2)
+      expect(Time.zone.parse(body["retry_at"])).to be_within(1.second).of(retry_at)
+      expect(client).not_to have_received(:fetch_activity).with(4003, access_token: anything)
+    end
+
+    it "fetches a gear_id shared by several rides exactly once" do
+      create(:strava_credential, user: current_user)
+      bike = create(:bike, user: current_user, strava_gear_id: "new-gear")
+      rides = create_list(:strava_activity, 3, user: current_user, bike_id: nil, gear_id: nil)
+      rides.each_with_index { |r, i| r.update!(strava_id: 5000 + i) }
+      client = instance_double(Strava::Client)
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_activity).and_return(raw_activity(gear_id: "new-gear"))
+      allow(client).to receive(:fetch_gear).with("new-gear", access_token: anything).and_return("name" => "New Bike")
+
+      post "/strava/rides/resync", params: { activity_ids: rides.map(&:id) }
+
+      expect(rides).to all(satisfy { |r| r.reload.bike_id == bike.id })
+      expect(client).to have_received(:fetch_gear).once
     end
   end
 

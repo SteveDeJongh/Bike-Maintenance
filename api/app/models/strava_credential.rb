@@ -47,4 +47,19 @@ class StravaCredential < ApplicationRecord
   def full_sync_available?
     full_sync_available_at.nil?
   end
+
+  # Roughly how many Strava API calls a full refresh would cost right now:
+  # ceil(rides / 100) paginated listing calls, + 1 empty final page, +
+  # Strava::GearSync's 1 fetch_athlete call, + 1 fetch_gear call per
+  # distinct gear id. `gear` reads the StravaGear cache count rather than a
+  # fresh distinct-gear_id scan over activities -- in steady state these
+  # converge (GearSync upserts every known id into that cache), and this is
+  # a cheap pre-existing count instead of a `.distinct.pluck` that could
+  # scan thousands of rows. Used to decide whether a bulk resync of k rides
+  # (k calls) or a full refresh is cheaper -- see StravaController.
+  def full_sync_request_estimate
+    rides = user.strava_activities.count
+    gear = user.strava_gears.count
+    (rides / 100.0).ceil + 2 + gear
+  end
 end

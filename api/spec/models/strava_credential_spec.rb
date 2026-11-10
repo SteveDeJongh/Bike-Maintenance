@@ -107,4 +107,31 @@ RSpec.describe StravaCredential, type: :model do
       expect(credential.full_sync_available_at).to be_within(1.second).of(1.minute.ago + StravaCredential::RUNNING_TIMEOUT)
     end
   end
+
+  describe "#full_sync_request_estimate" do
+    it "is 2 (the paging overhead alone) with no rides and no gear" do
+      credential = create(:strava_credential)
+
+      expect(credential.full_sync_request_estimate).to eq(2)
+    end
+
+    it "rounds the ride count up to the next full page of 100" do
+      user = create(:user)
+      credential = create(:strava_credential, user: user)
+      bike = create(:bike, user: user)
+      create_list(:strava_activity, 101, user: user, bike: bike)
+
+      # ceil(101 / 100) = 2, + 2 paging overhead + 0 gear
+      expect(credential.full_sync_request_estimate).to eq(4)
+    end
+
+    it "adds one call per distinct cached gear id" do
+      user = create(:user)
+      credential = create(:strava_credential, user: user)
+      create_list(:strava_gear, 3, user: user)
+
+      # ceil(0 / 100) + 2 + 3 gear
+      expect(credential.full_sync_request_estimate).to eq(5)
+    end
+  end
 end
