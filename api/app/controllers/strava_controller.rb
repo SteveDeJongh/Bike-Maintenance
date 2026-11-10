@@ -68,6 +68,10 @@ class StravaController < ApplicationController
       last_synced_at: credential&.last_synced_at,
       last_full_sync_at: credential&.last_full_sync_at,
       full_sync_available_at: credential&.full_sync_available_at,
+      last_sync_failed_at: credential&.last_sync_failed_at,
+      last_sync_error: credential&.last_sync_error,
+      last_sync_failed_kind: credential&.last_sync_failed_kind,
+      last_sync_retry_at: credential&.last_sync_retry_at,
     }
   end
 

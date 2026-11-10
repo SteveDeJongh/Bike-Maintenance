@@ -22,11 +22,11 @@ class StravaSyncJob < ApplicationJob
   # deleted on Strava and a ride whose type changed to something
   # SYNCED_TYPES excludes (it still comes back in the listing, just never
   # added to seen_strava_ids, so it's indistinguishable from a deleted one).
-  # No rescue is added here deliberately -- this job already propagates any
-  # token-refresh/non-2xx/rate-limit error uncaught, and reconciliation runs
-  # strictly after the full listing succeeds, so an error anywhere in the
-  # loop means reconciliation (and last_full_sync_at) is simply never
-  # reached, by construction.
+  # Reconciliation runs strictly after the full listing succeeds, so an
+  # error anywhere in the loop means reconciliation (and last_full_sync_at)
+  # is simply never reached, by construction -- the rescue below exists to
+  # *record* that a run failed (see record_failure), not to swallow the
+  # error; it still re-raises so the job reports as failed.
   def perform(user_id, full_resync: false)
     user = User.find(user_id)
     credential = user.strava_credential
@@ -35,17 +35,48 @@ class StravaSyncJob < ApplicationJob
     if full_resync
       begin
         run_sync(user, credential, full_resync: true)
+      rescue StandardError => e
+        record_failure(credential, e, kind: "full")
+        raise
       ensure
         credential.update_column(:full_sync_started_at, nil)
       end
     else
-      run_sync(user, credential, full_resync: false)
+      begin
+        run_sync(user, credential, full_resync: false)
+      rescue StandardError => e
+        record_failure(credential, e, kind: "incremental")
+        raise
+      end
     end
   end
 
   private
 
   SYNCED_TYPES = %w[Ride VirtualRide].freeze
+
+  # Stores a category code, never the raw exception message, so
+  # GET /strava/status has something stable and user-facing to key UI copy
+  # off of. update_columns bypasses validations (can't itself fail to save)
+  # and skips callbacks, which nothing here needs.
+  def record_failure(credential, error, kind:)
+    attrs = {
+      last_sync_failed_at: Time.current,
+      last_sync_error: classify_error(error),
+      last_sync_failed_kind: kind,
+    }
+    attrs[:last_sync_retry_at] = error.retry_at if error.is_a?(Strava::Client::RateLimitedError)
+    credential.update_columns(attrs)
+  end
+
+  def classify_error(error)
+    case error
+    when Strava::Client::RateLimitedError then "rate_limited"
+    when Strava::Client::AuthenticationError then "auth_failed"
+    when Strava::Client::Error, Faraday::TimeoutError, Faraday::ConnectionFailed then "strava_unavailable"
+    else "unknown"
+    end
+  end
 
   def run_sync(user, credential, full_resync:)
     access_token = credential.ensure_fresh_access_token!
@@ -83,7 +114,11 @@ class StravaSyncJob < ApplicationJob
     Strava::GearSync.new(user).call
 
     reconcile!(user, seen_strava_ids, ended_naturally) if full_resync
-    credential.update!(last_synced_at: Time.current, **(full_resync ? { last_full_sync_at: Time.current } : {}))
+    credential.update!(
+      last_synced_at: Time.current,
+      last_sync_failed_at: nil, last_sync_error: nil, last_sync_failed_kind: nil, last_sync_retry_at: nil,
+      **(full_resync ? { last_full_sync_at: Time.current } : {}),
+    )
   end
 
   # Only ever called when the listing completed without raising -- see the

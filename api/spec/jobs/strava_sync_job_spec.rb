@@ -360,4 +360,98 @@ RSpec.describe StravaSyncJob, type: :job do
       expect(credential.reload.full_sync_started_at).to be_nil
     end
   end
+
+  describe "failure recording" do
+    def fail_paging_with(error)
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_raise(error)
+    end
+
+    it "records rate_limited and the retry_at, and re-raises" do
+      error = Strava::Client::RateLimitedError.new(
+        "rate limited", read_limit: nil, read_usage: nil, overall_limit: nil, overall_usage: nil,
+        retry_at: Time.zone.local(2026, 11, 10, 13, 0),
+      )
+      fail_paging_with(error)
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(Strava::Client::RateLimitedError)
+
+      credential.reload
+      expect(credential.last_sync_error).to eq("rate_limited")
+      expect(credential.last_sync_failed_kind).to eq("incremental")
+      expect(credential.last_sync_failed_at).to be_present
+      expect(credential.last_sync_retry_at).to eq(Time.zone.local(2026, 11, 10, 13, 0))
+    end
+
+    it "records auth_failed for a token refresh rejection" do
+      credential.update!(expires_at: 1.minute.ago) # forces ensure_fresh_access_token! to actually refresh
+      allow(client).to receive(:refresh_access_token).and_raise(Strava::Client::AuthenticationError, "revoked")
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(Strava::Client::AuthenticationError)
+
+      expect(credential.reload.last_sync_error).to eq("auth_failed")
+      expect(credential.reload.last_sync_retry_at).to be_nil
+    end
+
+    it "records strava_unavailable for a generic client error" do
+      fail_paging_with(Strava::Client::Error.new("Strava 500"))
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(Strava::Client::Error)
+
+      expect(credential.reload.last_sync_error).to eq("strava_unavailable")
+    end
+
+    it "records strava_unavailable for a network timeout" do
+      fail_paging_with(Faraday::TimeoutError.new("timed out"))
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(Faraday::TimeoutError)
+
+      expect(credential.reload.last_sync_error).to eq("strava_unavailable")
+    end
+
+    it "records unknown for anything else" do
+      fail_paging_with(RuntimeError.new("something else entirely"))
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(RuntimeError)
+
+      expect(credential.reload.last_sync_error).to eq("unknown")
+    end
+
+    it "records last_sync_failed_kind as full for a failed full refresh" do
+      fail_paging_with(Strava::Client::Error.new("boom"))
+
+      expect { StravaSyncJob.perform_now(user.id, full_resync: true) }.to raise_error(Strava::Client::Error)
+
+      expect(credential.reload.last_sync_failed_kind).to eq("full")
+    end
+
+    it "a failed full refresh never sets last_full_sync_at, so it doesn't start the cooldown" do
+      fail_paging_with(Strava::Client::Error.new("boom"))
+
+      expect { StravaSyncJob.perform_now(user.id, full_resync: true) }.to raise_error(Strava::Client::Error)
+
+      credential.reload
+      expect(credential.last_full_sync_at).to be_nil
+      expect(credential.full_sync_available_at).to be_nil
+    end
+
+    it "clears every failure column on the next successful run" do
+      credential.update!(
+        last_sync_failed_at: 1.hour.ago, last_sync_error: "rate_limited",
+        last_sync_failed_kind: "incremental", last_sync_retry_at: 1.hour.ago,
+      )
+      allow(client).to receive(:fetch_activities)
+        .with(access_token: anything, after: nil, page: 1, per_page: 100)
+        .and_return([])
+
+      StravaSyncJob.perform_now(user.id)
+
+      credential.reload
+      expect(credential.last_sync_failed_at).to be_nil
+      expect(credential.last_sync_error).to be_nil
+      expect(credential.last_sync_failed_kind).to be_nil
+      expect(credential.last_sync_retry_at).to be_nil
+    end
+  end
 end

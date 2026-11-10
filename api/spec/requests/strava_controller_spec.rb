@@ -12,6 +12,8 @@ RSpec.describe "Strava", type: :request do
       expect(JSON.parse(response.body)).to eq(
         "connected" => false, "athlete_id" => nil, "last_synced_at" => nil,
         "last_full_sync_at" => nil, "full_sync_available_at" => nil,
+        "last_sync_failed_at" => nil, "last_sync_error" => nil,
+        "last_sync_failed_kind" => nil, "last_sync_retry_at" => nil,
       )
     end
 
@@ -57,6 +59,21 @@ RSpec.describe "Strava", type: :request do
       get "/strava/status"
 
       expect(JSON.parse(response.body)["full_sync_available_at"]).to be_nil
+    end
+
+    it "reports the sync failure fields when the last run failed" do
+      create(:strava_credential, user: current_user,
+        last_sync_failed_at: Time.zone.local(2026, 11, 10, 9, 0),
+        last_sync_error: "rate_limited", last_sync_failed_kind: "full",
+        last_sync_retry_at: Time.zone.local(2026, 11, 10, 9, 15))
+
+      get "/strava/status"
+
+      body = JSON.parse(response.body)
+      expect(Time.zone.parse(body["last_sync_failed_at"])).to be_within(1.second).of(Time.zone.local(2026, 11, 10, 9, 0))
+      expect(body["last_sync_error"]).to eq("rate_limited")
+      expect(body["last_sync_failed_kind"]).to eq("full")
+      expect(Time.zone.parse(body["last_sync_retry_at"])).to be_within(1.second).of(Time.zone.local(2026, 11, 10, 9, 15))
     end
   end
 
