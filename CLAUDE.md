@@ -277,7 +277,33 @@ docker build .`), not the repo root.
   monitor/cadence sensor. `#ride_kind` (`"outdoor"`/`"trainer"`/`"virtual"`) is the
   one server-derived classification backing that table's Type column — `"trainer"`
   and `"virtual"` together are exactly `#indoor?`, so the frontend never
-  re-implements the indoor rule itself.
+  re-implements the indoor rule itself. `ignored_at` (nullable datetime) is a
+  user's explicit "don't track this ride" decision, mirroring `StravaGear#ignored_at`'s
+  shape but with no resurfacing concept — a ride's own data never changes after
+  sync, so there's no later signal to resurface against (see "Strava integration"
+  below). A validation (`not_ignored_while_attributed`) rejects `ignored_at` set
+  while `bike_id` is present — a ride can only be ignored while unattributed, and
+  `ignored_at` is never written from Strava's own data (there is none). Because
+  `StravaActivity.reconcile_for_bike!` attributes via `update_all`, outside the
+  validation's normal path, it clears `ignored_at` explicitly in that same
+  statement wherever it sets `bike_id` to a real value; every *other* write path
+  that can newly attribute a ride (sync, full refresh, single/bulk resync — see
+  "Strava integration" below) goes through `Strava::ActivityUpsert`, the one
+  shared place that applies the same rule (`attrs[:ignored_at] = nil if
+  bike.present?`) — the validation itself exists to reject an invalid *write*,
+  not to clean one up after the fact, so every writer still has to clear it
+  deliberately. `.ignored`/`.not_ignored` scopes split on the column directly;
+  `.needs_attention_for`/`.ignored_for` (class methods, same shape as
+  `StravaGear.unmapped_for`/`.ignored_for`) are the shared definition of "needs
+  attention" vs. "ignored" among a user's unattributed rides, factoring in
+  gear-level ignores too (an unattributed ride whose gear is ignored counts as
+  ignored, not needing attention) — every caller (`Dashboard::Summary`,
+  `Strava::RideLog`, `StravaController#ignore_rides`'s `all_matching` branch, see
+  below) goes through these rather than re-deriving the classification.
+  `#attribution_status`/`#reason` are the per-row instance-method versions of the
+  same classification, used once a batch of rides is already loaded (checking
+  `ignored_at` before the gear-ignore check, so a ride that's both individually
+  ignored and on ignored gear reports `"ride"`).
 - `StravaCredential`: user_id (unique — one row per user), access_token, refresh_token,
   expires_at, athlete_id (also unique — one Strava athlete can't be attached to two
   different app accounts; the identity-linking rules in "Authentication" below are
@@ -287,6 +313,26 @@ docker build .`), not the repo root.
   activities — the only "last completed sync" signal in the app (the incremental sync
   cursor itself is still just `StravaActivity.maximum(:moved_at)`, unrelated). It's
   what a `ServiceAlertDismissal` compares against to decide whether it's expired.
+  Also carries `last_full_sync_at` (nullable datetime, set only at the end of a
+  completed *full* refresh — see "Strava integration" below) and
+  `full_sync_started_at` (nullable datetime, a short-lived lock set right before
+  enqueuing a full refresh and cleared in the job's `ensure`, so a crashed job still
+  releases it). `#full_sync_available_at`/`#full_sync_available?` resolve both a
+  15-minute post-completion cooldown (`FULL_SYNC_COOLDOWN`) and a 10-minute
+  running-lock staleness fallback (`RUNNING_TIMEOUT`, in case the `ensure` never
+  fires) into a single "available again at" timestamp or `nil`.
+  `#full_sync_request_estimate` is roughly how many Strava API calls a full
+  refresh would cost right now — `ceil(rides / 100) + 2 + gear` (rides/gear
+  counted fresh from the DB each call, not cached) — used to decide whether
+  resyncing a bulk selection of rides one by one or running a full refresh is
+  cheaper (see "Strava rate limits" below). Also carries `last_sync_failed_at`
+  (datetime), `last_sync_error` (string — a category code: `"rate_limited"`/
+  `"strava_unavailable"`/`"auth_failed"`/`"unknown"`, never the raw exception
+  message), `last_sync_failed_kind` (`"full"`/`"incremental"`), and
+  `last_sync_retry_at` (datetime, only ever set alongside `"rate_limited"`) —
+  set by `StravaSyncJob` when a run raises, cleared on the next successful run
+  of either kind. These are how a failed sync stops failing silently; see
+  "Strava integration" below.
 - `StravaGear`: user_id, strava_gear_id, name, brand_name, model (DB column — the
   obvious `model_name` collides with `ActiveModel::Naming#model_name`, which every
   ActiveRecord model inherits; the API's JSON still calls it `model_name` for clarity),
@@ -427,7 +473,10 @@ escalation to a worse status.
 - `app/services/strava/client.rb` wraps the HTTP calls (token exchange/refresh,
   paginated activity fetch, `GET /athlete`, `GET /gear/{id}`) via Faraday;
   `StravaCredential#ensure_fresh_access_token!` decides when to refresh (6-hour access
-  token expiry) and persists Strava's rotated refresh_token. `client_id`/`client_secret`
+  token expiry) and persists Strava's rotated refresh_token — if Strava rejects the
+  refresh (a revoked/invalid refresh_token) with a 400/401, this raises
+  `Strava::Client::AuthenticationError` rather than the generic `Error` (see
+  `StravaSyncJob`'s failure recording below). `client_id`/`client_secret`
   live in `config/credentials.yml.enc` under a `strava:` key (`bin/rails
   credentials:edit`) — required before `GET /auth/strava` will work. `redirect_uri` is
   built from the current request's host (the `strava_callback_url` route helper — the
@@ -458,9 +507,74 @@ escalation to a worse status.
   full_resync: true)` ignores the incremental cursor and re-fetches from the beginning of
   the user's history — the cursor only looks forward from the latest already-stored
   activity, so it can't backfill history from before a change like widening
-  `SYNCED_TYPES`; safe to run repeatedly since `upsert_activity`'s
-  `find_or_initialize_by` is idempotent. `bin/rails strava:resync_all` runs it for every
-  connected user.
+  `SYNCED_TYPES`; safe to run repeatedly. Every row's actual write goes through
+  `Strava::ActivityUpsert.call(user:, activity:, raw:, bike:)` — the one place a raw
+  Strava payload gets applied to a `StravaActivity`, including the
+  attribution-clears-`ignored_at` rule (see the data model above). The job itself
+  only resolves `activity`/`bike` from two hashes preloaded *once per run*
+  (`bikes_by_gear_id`, `activities_by_strava_id`) rather than querying per row — the
+  dominant cost on a full resync's thousands of rows, fixed after profiling a real
+  run; `StravaController#resync_ride`/`#resync_rides` (below) resolve the same two
+  values per row instead (there's only ever one or a handful of rows), but call the
+  exact same `Strava::ActivityUpsert`, so the two paths can never drift on
+  attribution rules. `bin/rails strava:resync_all` runs a full resync for every
+  connected user. Paging is capped at `MAX_PAGES = 50` (5,000 rides) for an
+  incremental sync, or `FULL_SYNC_MAX_PAGES = 200` (20,000 rides) for a full resync —
+  a full history fetch is far more likely to need more pages than an incremental one
+  ever does (see "Strava rate limits" below for why 200 pages is still not always
+  enough to finish in one go).
+- **Full refresh**: `POST /strava/sync` with `{ full: true }` is the one user-triggered
+  way to pick up rides edited, moved to different gear, or deleted on Strava after the
+  fact — the incremental cursor only ever looks forward, so it can never see those
+  changes. Gated by `StravaCredential#full_sync_available_at` (a 15-minute post-completion
+  cooldown plus a 10-minute running-lock staleness fallback — see the data model above);
+  blocked, the endpoint responds `429` with `{ retry_at: }` and enqueues nothing.
+  Surfaced on the frontend as a "Refresh all rides" button next to "Sync now" on the
+  `/strava` page, disabled during the cooldown with the available-again time shown.
+  `StravaSyncJob#perform(user_id, full_resync: true)` additionally **reconciles**: it
+  tracks every `strava_id` seen whose `type` is in `SYNCED_TYPES` while paging (a ride
+  that changed to an excluded type, e.g. "Run", is simply never added to this set —
+  indistinguishable from a deleted one, which is exactly the behavior wanted), then after
+  paging finishes *without raising* — the failure-recording `rescue` below still
+  re-raises every error after recording it, so an error during paging means
+  reconciliation is never reached, by construction, same as before that `rescue`
+  existed — applies guards in order: paging hit the page cap → skip the delete entirely (the "did
+  we see everything" guarantee is void) but still record `last_full_sync_at`; paging
+  ended naturally but found zero activities while local rows exist → log a warning and
+  skip the delete (a suspiciously empty response, not trusted); otherwise →
+  `user.strava_activities.where.not(strava_id: seen_strava_ids.to_a).delete_all` (plain
+  `delete_all`, no callbacks need to run — nothing else in the schema references a
+  `strava_activities.id`) and log the deleted count. **Deleting a reconciled-away ride
+  changes bike/component mileage and interval statuses retroactively — this is intended,
+  matching Strava, not a gap.** `full_sync_started_at` is set by the controller right
+  before enqueuing and cleared by the job in an `ensure`, so a crashed job still releases
+  the lock (the staleness fallback above covers the case where even the `ensure` never
+  ran, e.g. a killed worker process). `GET /strava/status` exposes
+  `last_full_sync_at`/`full_sync_available_at`/`full_sync_request_estimate` (data
+  model above) and `max_bulk_resync` (below) alongside the existing incremental
+  fields, plus the four failure columns described below.
+
+  **Failed syncs are recorded, not silent**: `StravaSyncJob#perform` wraps each
+  run (incremental and full both) in a `rescue StandardError => e;
+  record_failure(credential, e, kind:); raise` — it still re-raises (the job
+  must keep reporting as failed to whatever runs it), but first stores a
+  category on the credential via `update_columns` (bypasses validations, so
+  recording a failure can't itself fail to save): `"rate_limited"` for a
+  `Strava::Client::RateLimitedError`, `"auth_failed"` for an
+  `AuthenticationError` (the OAuth token endpoint rejecting a revoked/invalid
+  refresh_token — see "Strava rate limits" below), `"strava_unavailable"` for
+  any other `Strava::Client::Error` or a Faraday timeout/connection failure,
+  `"unknown"` otherwise. A rate-limited failure also stores `last_sync_retry_at`
+  from the error's own `retry_at`. For the full path, this `rescue` runs (and
+  records) *before* the pre-existing `ensure` that clears
+  `full_sync_started_at` — Ruby runs `ensure` as the exception continues
+  propagating out of the `begin` block, so the lock release is unaffected. A
+  successful run (either kind) clears all four failure columns in the same
+  `credential.update!` call that already sets `last_synced_at`/
+  `last_full_sync_at`. Because `last_full_sync_at` is only ever set on that same
+  success path — never reached if the run raised — a failed full refresh can't
+  start the 15-minute cooldown, by construction. See `useStravaSyncRunner`
+  below for how the frontend surfaces this.
 - `Strava::GearSync` (`app/services/strava/gear_sync.rb`) populates `StravaGear`: the
   known gear id set is the union of the athlete's current `GET /athlete` bikes list and
   every `gear_id` ever seen in synced activity history (kept even if Strava's athlete
@@ -503,6 +617,112 @@ escalation to a worse status.
   (re-ignoring just sets it to now again). Retired gear is never auto-ignored — retired
   on Strava often still means "this bike's history matters," especially when parts
   moved to a newer bike.
+- **Ride-level ignore and the Rides tab**: the `/strava` page is two Mantine `Tabs`
+  (`?tab=gear` default, `?tab=rides`) — Gear is the section above, unchanged; Rides is
+  `GET /strava/rides` (`Strava::RideLog`, plain ActiveRecord `where`/`order`/`offset`/
+  `limit` over `StravaActivity.needs_attention_for`/`.ignored_for`/unfiltered — no raw
+  SQL needed, unlike `Bikes::RideHistory`, since this list has no per-bike odometer to
+  compute), filterable by `status` (`attention`/`ignored`/`all`, default `attention`),
+  `bike_id` (only applied for `all`), sorted by `date`/`distance`. Each ride's
+  `attribution`/`reason` (from `StravaActivity#attribution_status`/`#reason`, see the
+  data model above) drives a status badge and which row action shows: ignore (needs
+  attention), un-ignore (ignored by its own `ignored_at`, never offered for a
+  gear-ignored row — there's nothing on the ride itself to un-set), or "Resolve gear"
+  (an `unmapped_gear` row, linking to `?tab=gear&gear=<id>` — the Gear tab's matching
+  Unmapped gear row scrolls to and briefly highlights itself on mount when that param
+  is present). `POST /strava/rides/ignore` (by `activity_ids` or `all_matching: true`
+  — the latter always resolves against `needs_attention_for` server-side) and `POST
+  /strava/rides/unignore` both silently skip ineligible ids rather than erroring,
+  matching the gear-ignore flow's "no confirm modal, fully reversible" philosophy. The
+  Rides tab adopts the sortable/configurable-table system as its eighth table
+  (`strava_rides`, see "Sortable, configurable tables" below) with bulk selection
+  ("select all N matching" resolved server-side, not limited to loaded rows) layered on
+  top; its own `status`/`bike_id`/`sort`/`order` are local ephemeral state, not
+  persisted via `TableViewPreference`, same convention as Ride history's own
+  `typeFilter`. A tab badge shows the live `attention` count even while the Gear tab is
+  active, sourced from the same query the Rides tab itself uses so the two never
+  disagree. `app/services/strava/ride_serialization.rb`
+  (`Strava::RideSerialization::ATTRIBUTES`/`.base_json`) is the one shared ride-field
+  serializer behind both this endpoint and the Bike detail page's own
+  `GET /bikes/:id/rides` (see "Ride history" below) — no duplicated attribute list.
+  The Dashboard's sync banner and "No bike" recent-ride rows link here too (`?tab=rides`
+  for review/ignore, `?tab=gear` for gear mapping specifically).
+- **Single and bulk resync**: a full refresh is the only way to pick up a Strava
+  edit, but it costs `full_sync_request_estimate` calls regardless of how small
+  the actual fix was — too slow for "I fixed the gear on one ride." `POST
+  /strava/rides/:id/resync` re-fetches that one activity (`GET
+  /activities/{id}`, one call) and runs it through `Strava::ActivityUpsert`
+  exactly like the sync job does; a 404, or a type that's since changed to
+  something `SYNCED_TYPES` excludes, deletes the local row — the same
+  "indistinguishable from deleted" rule full-refresh reconciliation already
+  uses. `POST /strava/rides/resync` (`{ activity_ids: [...] }`) is the bulk
+  companion backing the Rides tab's "Needs attention" selection toolbar's
+  "Resync selected" — `StravaController::MAX_BULK_RESYNC` (25) is a hard cap
+  (`422` above it, not a silent truncation — a real request should never hit
+  this; see the frontend routing below) on top of refreshing the access token
+  once up front rather than once per row. Both actions deliberately skip
+  `last_synced_at`/`last_full_sync_at`/`Strava::GearSync#call` — this is a
+  standalone action, not a sync cycle — but each one **does** backfill
+  `StravaGear` for any gear_id it doesn't already have cached (a bike added on
+  Strava since the last sync), via the new `Strava::GearSync#sync_gear(gear_id)`
+  (`StravaController#sync_uncached_gear`, one fetch per distinct new gear id
+  even across a whole bulk batch, not per ride) — without this, a resynced ride
+  could carry a gear_id the Gear tab and the Rides tab's own Gear column had
+  never heard of, until the next full/incremental sync. See "Strava rate
+  limits" below for the stop-on-rate-limit behavior both actions share, and why
+  bulk resync has no `all_matching` variant the way ignore does.
+
+  **Frontend routing**: the Rides tab computes `threshold = min(max_bulk_resync,
+  full_sync_request_estimate)` from `GET /strava/status`. A selection at or
+  under that threshold shows "Resync selected" as always; a larger selection,
+  or "select all N matching" (which has no bounded id list to resync
+  individually at all), shows "Refresh all rides" instead, with a dimmed line
+  spelling out the call-count tradeoff. That button fires the *same*
+  `useStravaSyncRunner({ full: true })` instance the Strava page header already
+  owns — `Strava.tsx` passes it down to `RidesTab` as a `fullSync` prop (the
+  same lift-state-as-props pattern `Dashboard.tsx` already uses for
+  `SyncStrip`) rather than the tab running a second independent poller for the
+  same action.
+- **Strava rate limits**: Strava's defaults are 100 read requests per 15
+  minutes / 1,000 per day, and 200/2,000 overall; a request rejected for the
+  15-minute limit still counts toward the daily one. The 15-minute window
+  resets at `:00`/`:15`/`:30`/`:45` UTC. Every response carries
+  `X-ReadRateLimit-Limit`/`-Usage` and `X-RateLimit-Limit`/`-Usage`, each a
+  `"<15min>,<daily>"` pair — `Strava::Client` parses both on a 429 into
+  `RateLimitedError#read_limit`/`#read_usage`/`#overall_limit`/`#overall_usage`,
+  plus `#retry_at` (the next window boundary, computed from `Time.current`, not
+  parsed from a header Strava doesn't send). Per-action cost, as the code
+  stands: a single resync is 1 call; bulk resync of *k* rows is *k* calls (plus
+  one gear-fetch call per distinct new gear id); a full refresh is roughly
+  `ceil(rides / 100)` listing pages + 1 empty final page + 1 `GearSync`
+  `fetch_athlete` call + 1 `fetch_gear` call per distinct gear
+  (`full_sync_request_estimate`'s own formula). Resyncing *k* rows one by one
+  only beats a full refresh while *k* is smaller than that estimate — the
+  break-even depends on the user's own history size, which is why it's
+  computed (`full_sync_request_estimate`), never hardcoded.
+  `FULL_SYNC_MAX_PAGES` (200) itself can exceed one 15-minute read window — a
+  history over roughly 9,000 rides can't finish a full refresh in a single
+  window. It fails safely in that case: `StravaSyncJob` hits the
+  `RateLimitedError` mid-page, so (per the no-rescue-reaches-reconciliation
+  design above) nothing gets reconciled/deleted, and the failure is recorded as
+  `"rate_limited"` with `last_sync_retry_at` set, same as any other failure.
+  **Stop-on-rate-limit in resync**: an ordinary `Strava::Client::Error` (5xx/
+  timeout) on one row of a bulk resync is counted as `failed_count` and the
+  batch continues — partial progress beats an all-or-nothing retry on a
+  transient blip. A `RateLimitedError` is different: every remaining call would
+  fail too and still count against the daily limit, so `resync_rides` stops the
+  batch immediately instead, reporting `not_attempted_count` and `retry_at`
+  alongside whatever counts it had so far (a `200`, not an error — the rows
+  before it still committed). `resync_ride` (single) responds `429` with
+  `retry_at` for the same case, instead of the generic `502` any other
+  `Strava::Client::Error` gets.
+
+  **Flagged for the project plan doc** per this file's own convention: two
+  rounds of data-model changes landed here without a doc update at the time —
+  `strava_activities.ignored_at` and `strava_credentials.last_full_sync_at`/
+  `full_sync_started_at` from the Rides-tab/full-refresh round, plus this
+  round's `strava_credentials.last_sync_failed_at`/`last_sync_error`/
+  `last_sync_failed_kind`/`last_sync_retry_at`.
 - Bike-level stats (`Bike#total_distance`/`#total_moving_time`/`#first_ride_on`/
   `#last_ride_on`/`#total_elevation_gain`/`#installed_components_count`, shown on the
   Bikes list and detail page) sum/min/count directly over `strava_activities`/
@@ -657,10 +877,11 @@ Rails, no hosted auth vendor.
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on seven tables: the Bikes list, the Bike detail page's Installed components,
-History, and Ride history tables, and the Components/Maintenance Events/
-Assignments lists (each its own `table_key`: `bikes`, `bike_installed_components`,
-`bike_history`, `bike_rides`, `components`, `maintenance_events`, `assignments`).
+on eight tables: the Bikes list, the Bike detail page's Installed components,
+History, and Ride history tables, the Strava page's Rides tab, and the
+Components/Maintenance Events/Assignments lists (each its own `table_key`:
+`bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
+`strava_rides`, `components`, `maintenance_events`, `assignments`).
 A future page can adopt the same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
@@ -787,17 +1008,19 @@ data current?" and "what needs my attention?" at a glance — it replaced the ol
 distance/status computation happens here that doesn't already live elsewhere:
 
 - **`sync`** — `StravaCredential#last_synced_at`, a count/distance split of
-  `strava_activities` with `bike_id: nil` into `with_gear` (fixable via gear
+  `StravaActivity.needs_attention_for(user)` into `with_gear` (fixable via gear
   mapping) vs `without_gear` (Strava itself had no bike set), and
   `unmapped_gear_count` from `StravaGear.unmapped_for(user)` (promoted from a
   `StravaController#unmapped_gear`-private query to a model class method — that
-  controller action now calls the same method, output unchanged). A ride whose gear
-  is ignored (and hasn't resurfaced — see "Strava integration" above) is excluded from
-  `unattributed`/`with_gear` entirely via `StravaGear.ignored_for(user)`'s gear ids,
-  same as if it were attributed; a no-gear ride is explicitly spared from that
-  exclusion's `gear_id NOT IN (...)` check, since that's not NULL-safe on its own
-  (`where.not(gear_id: [...])` would otherwise also exclude a `NULL` `gear_id` via
-  SQL's three-valued `IN` logic).
+  controller action now calls the same method, output unchanged). `needs_attention_for`
+  (see the `StravaActivity` data model bullet and "Strava integration" above) is the
+  one shared definition of "unattributed and not ignored" — a ride whose gear is
+  ignored (and hasn't resurfaced), or that's individually ignored, is excluded from
+  `unattributed`/`with_gear` entirely by that scope, same as if it were attributed; a
+  no-gear ride is explicitly spared from the gear-ignore exclusion, since a plain
+  `NOT IN (...)` isn't NULL-safe on its own. `Strava::RideLog` (the Rides tab's
+  endpoint) is the other caller of the same scope — this count and the Rides tab's
+  own "Needs attention" count never disagree.
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
   `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
   `BikesController#index` already uses (no per-bike N+1), plus `mounted`
@@ -855,21 +1078,53 @@ genuine data-model change deliberately not made speculatively here. **Flagged fo
 the project plan doc** per this file's own convention, since it's a new pattern,
 not just a new feature.
 
-**Frontend**: `Dashboard.tsx` owns the one `useDashboard(tz)` query and the
-"Sync now" polling loop — `POST /strava/sync` only enqueues `StravaSyncJob`, so
-after a click it polls `GET /dashboard` every 2s (capped at 30s) until
-`sync.last_synced_at` changes, then invalidates `['maintenance_alerts']` too.
-`components/dashboard/`: `SyncStrip` (connection state, relative + absolute last
-sync via the new `formatRelativeTime` in `utils/datetime.ts`, the unattributed
-breakdown), `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by
-bike, "Not mounted" last; Log service reuses `MaintenanceEventFormModal` as-is),
-`RecentRidesTable`. The latter is a plain Mantine `Table` in a horizontal-scroll
-wrapper, **not** the sortable/configurable-table system above — that mechanism
-exists for a `TableViewPreference` row's worth of persisted column
-choices/ordering, which this fixed, non-configurable 14-day feed has no use for.
-`formatRemaining` (the "N km left"/"N km overdue" wording) was extracted out of
-`ServiceIntervalsSection.tsx` into `utils/serviceInterval.ts` so `AttentionRow`
-shares the exact same wording rather than re-deriving it.
+**Frontend**: `Dashboard.tsx` owns the one `useDashboard(tz)` query plus a
+`useStravaSyncRunner({ full: false })` for its "Sync now" button — see
+`useStravaSyncRunner` below for what that hook actually does (it replaced an
+earlier, Dashboard-only hand-rolled polling loop against `GET /dashboard`
+itself; polling now goes through `GET /strava/status` instead, shared with the
+Strava page). `components/dashboard/`: `SyncStrip` (connection state, relative
++ absolute last sync via `formatRelativeTime` in `utils/datetime.ts`, the
+unattributed breakdown, a "Review rides" link to `/strava?tab=rides`, and —
+from the hook's `failure`/`stillRunning` — a red "Sync failed" alert or a
+neutral "still running" one, passed down from `Dashboard.tsx` the same way
+`sync`/`syncing` already were), `BikeCards`/`BikeCard`, `NeedsAttention`/
+`AttentionRow` (grouped by bike, "Not mounted" last; Log service reuses
+`MaintenanceEventFormModal` as-is), `RecentRidesTable` (its "No bike" rows link
+to `/strava?tab=rides`; its "Link Strava gear" link, shown only when `gear_id`
+is present, to `/strava?tab=gear`). `RecentRidesTable` is a plain Mantine
+`Table` in a horizontal-scroll wrapper, **not** the sortable/configurable-table
+system above — that mechanism exists for a `TableViewPreference` row's worth of
+persisted column choices/ordering, which this fixed, non-configurable 14-day
+feed has no use for. `formatRemaining` (the "N km left"/"N km overdue" wording)
+was extracted out of `ServiceIntervalsSection.tsx` into
+`utils/serviceInterval.ts` so `AttentionRow` shares the exact same wording
+rather than re-deriving it.
+
+**`useStravaSyncRunner({ full })`** (`frontend/src/hooks/useStravaSyncRunner.ts`)
+is the one piece shared by both sync triggers on both pages (Dashboard's "Sync
+now"; the Strava page's "Sync now" *and* "Refresh all rides," each its own
+instance). `POST /strava/sync` only enqueues `StravaSyncJob`, so after a click
+it polls `GET /strava/status` every 2s (capped at 30s for an incremental sync,
+3 minutes for `full: true`) watching `last_synced_at`/`last_full_sync_at`
+(whichever matches `full`) for a change, *and* `last_sync_failed_at` for a
+change whose `last_sync_failed_kind` matches `full ? "full" : "incremental"`
+(the kind check matters because the two aren't mutually exclusive — only the
+full path is lock-guarded, so an incremental and a full run can be in flight at
+once). The hook returns `{ sync, syncing, status, error, failure,
+stillRunning }`. A changed timestamp is the only case that invalidates
+`INVALIDATE_KEYS` (every ride-derived query key: `strava`, `bikes`,
+`bike_rides`, `dashboard`, `maintenance_alerts`, `components`, `strava_rides` —
+exported so `useResyncRide`/`useResyncRides` can invalidate the exact same set
+after a resync, rather than a second hand-maintained copy) — never on
+`failure`, since nothing was deleted/changed by a run that didn't complete. A
+matching failure instead sets `failure: { code, retryAt }`, rendered via the
+shared `syncFailureMessage` (`utils/strava.ts`) —
+`rate_limited` names the retry time, `auth_failed` pairs with a "Connect to
+Strava" action, `strava_unavailable`/`unknown` are plain copy. If the poll cap
+is reached with neither a success nor a matching failure, `stillRunning:
+true` instead — a neutral "still running in the background" message rather
+than just going quiet, which is what happened before this existed.
 
 ## Ride history
 
@@ -893,7 +1148,11 @@ pagination's shared ordering. `Maintenance::RideContextSql` gained
 `.indoor` stay one rule, not a third hand-rolled copy; `Maintenance::CountedTowardQuery`
 gained optional `bike:`/`activity_ids:` params alongside its existing `since:`,
 so a page of rides is covered by one query rather than one per ride (the
-Dashboard's own `since:`-only call is unchanged).
+Dashboard's own `since:`-only call is unchanged). Each ride's base fields come
+from `Strava::RideSerialization.base_json` (`app/services/strava/ride_serialization.rb`)
+— the one shared serializer behind this endpoint and the Strava page's
+`GET /strava/rides` (see "Strava integration" above), merged with this
+endpoint's own `cumulative_distance_meters`/`counted_toward`.
 
 Sorting is deliberately narrower than every other adopter of the
 sortable/configurable-table system: the *only* sortable thing is the date order,
@@ -914,12 +1173,19 @@ to `https://www.strava.com/activities/{strava_id}` in a new tab, with "View on
 Strava" as the tooltip/accessible label per Strava's brand guideline for
 API-sourced content — the link uses the `orange` Mantine token (never a hardcoded
 hex) rather than this app's own `radar` accent, so it doesn't read as an in-app
-action. `formatSpeed` (`utils/speed.ts`) matches `formatDistance`'s own
-hardcoded-km convention (no metric/imperial setting exists anywhere in this app
-to plug into). The Avg power column reuses `formatPower`, dimmed with an
-"Estimated" tooltip when `device_watts` is `false`, and renders a literal `'—'`
-for `null` — distinct from `formatPower`'s own `'N/A'`, which stays unchanged for
-the Bike cards that already rely on it elsewhere.
+action (`components/ride/ViewOnStravaLink.tsx`, extracted so the Strava page's
+Rides tab — see "Strava integration" above — can render the same link). `formatSpeed`
+(`utils/speed.ts`) matches `formatDistance`'s own hardcoded-km convention (no
+metric/imperial setting exists anywhere in this app to plug into). The Avg power
+column reuses `formatPower`, dimmed with an "Estimated" tooltip when `device_watts`
+is `false`, and renders a literal `'—'` for `null` — distinct from `formatPower`'s
+own `'N/A'`, which stays unchanged for the Bike cards that already rely on it
+elsewhere. Every column renderer a ride-ish row could share with the Rides tab
+(ride-kind badge, distance/duration/elevation/speed/power formatting,
+`counted_toward` badges) lives in `components/ride/rideColumnRenderers.tsx`'s
+`SHARED_RIDE_COLUMN_RENDERERS`, typed over the fields common to `BikeRide` and
+`StravaRide` — this section's own `COLUMN_RENDERER` just spreads that in and adds
+its own `cumulative_distance_meters` column.
 
 ## Bike setup
 
@@ -1090,7 +1356,12 @@ table cell per row, not two).
    e.g. `tire_front`/`tire_rear` — and self-learning from every component save)
    shipped here too — see "Brand/model autocomplete" above. The `shock` category
    was retired in favor of `rear_suspension`, paired with `front_suspension` the
-   same way. Deploy, webhooks, and charts remain.
+   same way. The Bike detail page's Ride history table shipped here too — see
+   "Ride history" above. A user-triggered full Strava refresh (with
+   reconciliation), ride-level ignore, the Strava page's Gear/Rides tabs, and
+   single/bulk ride resync (with rate-limit awareness and a gear-cache
+   backfill) shipped here too — see "Strava integration" above. Deploy,
+   webhooks, and charts remain.
 
 ## Conventions
 
