@@ -98,7 +98,7 @@ export default function Strava() {
             <Button onClick={regularSync.sync} loading={regularSync.syncing}>
               Sync now
             </Button>
-            <Tooltip label="Re-reads your full Strava history so rides you've edited or deleted on Strava are updated here.">
+            <Tooltip label="Re-reads your full Strava history so rides you've edited or deleted on Strava are updated here. This re-reads your entire history, so it can take a minute or two.">
               <Button
                 variant="default"
                 onClick={fullSync.sync}
@@ -119,6 +119,12 @@ export default function Strava() {
               Reconnect to Strava
             </Button>
           </Group>
+          {fullSync.syncing && (
+            <Text size="xs" c="dimmed">
+              Refreshing your full ride history from Strava — this re-reads everything, so it can take a minute or
+              two depending on how many rides you have.
+            </Text>
+          )}
           <Text size="xs" c="dimmed">
             Reconnect if permissions change or the connection stops working — this
             re-approves the same account, it does not disconnect anything first.

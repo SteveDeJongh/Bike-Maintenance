@@ -13,7 +13,9 @@ class StravaSyncJob < ApplicationJob
   # activity types get synced (e.g. VirtualRide), since the cursor only looks
   # forward from the latest already-stored activity and has no way to know
   # history before that point is missing anything. Safe to run repeatedly:
-  # upsert_activity's find_or_initialize_by makes every call idempotent.
+  # upsert_activity's find-or-build-by-strava_id lookup (against a hash
+  # preloaded once per run, not re-queried per row) makes every call
+  # idempotent.
   #
   # On a full refresh, also reconciles: deletes local rides whose strava_id
   # wasn't seen anywhere in a *complete* listing -- covers both a ride
@@ -54,6 +56,14 @@ class StravaSyncJob < ApplicationJob
     page = 1
     ended_naturally = false
 
+    # Preloaded once per run, not re-queried per activity -- upsert_activity
+    # used to issue a Bike lookup and a StravaActivity lookup per row, which
+    # is the dominant cost on a full resync's 2,000+ rows (bikes are few;
+    # activities_by_strava_id covers the "does this row already exist"
+    # check that find_or_initialize_by was doing one row at a time).
+    bikes_by_gear_id = user.bikes.where.not(strava_gear_id: nil).index_by(&:strava_gear_id)
+    activities_by_strava_id = user.strava_activities.index_by(&:strava_id)
+
     while page <= max_pages
       activities = client.fetch_activities(access_token: access_token, after: after, page: page, per_page: 100)
       if activities.empty?
@@ -65,7 +75,7 @@ class StravaSyncJob < ApplicationJob
         next unless SYNCED_TYPES.include?(raw["type"])
 
         seen_strava_ids << raw["id"] if full_resync
-        upsert_activity(user, raw)
+        upsert_activity(user, raw, bikes_by_gear_id, activities_by_strava_id)
       end
       page += 1
     end
@@ -96,11 +106,11 @@ class StravaSyncJob < ApplicationJob
     Rails.logger.info("StravaSyncJob full resync for user #{user.id}: reconciliation deleted #{deleted} rides no longer on Strava.") if deleted.positive?
   end
 
-  def upsert_activity(user, raw)
+  def upsert_activity(user, raw, bikes_by_gear_id, activities_by_strava_id)
     return unless SYNCED_TYPES.include?(raw["type"])
 
-    activity = user.strava_activities.find_or_initialize_by(strava_id: raw["id"])
-    resolved_bike_id = user.bikes.find_by(strava_gear_id: raw["gear_id"])&.id
+    activity = activities_by_strava_id[raw["id"]] ||= user.strava_activities.build(strava_id: raw["id"])
+    resolved_bike_id = bikes_by_gear_id[raw["gear_id"]]&.id
 
     attrs = {
       user: user,
