@@ -554,15 +554,14 @@ this bike" gets computed and how the batch logger itself works.
   rows (a component picker from the same eligible list plus
   `ServiceTypeSelect`/`useServiceTypeIdResolver`, the exact pieces
   `MaintenanceEventFormModal` already uses) for a service with no interval.
-  Takes an optional `initialPerformedAt` prop — accepted but unused by both of
-  today's entry points (`BikeDetail`'s header "Log service" button,
-  a small "Log service" action on each Dashboard `BikeCard`) — the activity
-  log is the next feature expected to pass a ride's end time through it.
+  Takes an optional `initialPerformedAt` prop — unused by `BikeDetail`'s header
+  "Log service" button and the Dashboard `BikeCard`'s own "Log service" action, but
+  used by the Activity log's "Log service after this ride" row action (see
+  "Activity log" below), which passes a ride's `moved_at + elapsed_time`.
   Mutations (`useCreateServiceSession`/`useUpdateServiceSession`/
   `useDeleteServiceSession`) invalidate everything a single-event "Log
-  service" already does, plus `bikes` and `serviceable_components` — there's a
-  marked spot for a future `activity_log` query key once that feature exists,
-  not added yet.
+  service" already does, plus `bikes`, `serviceable_components`, and (since
+  the Activity log shipped) `activity`.
 - **Showing a session**: `ComponentServiceAndHistory`'s history table marks
   any event with `service_session_id` set with a small "Part of a service
   session · N items" control (N counts every event in the session, not just
@@ -991,11 +990,11 @@ Rails, no hosted auth vendor.
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on eight tables: the Bikes list, the Bike detail page's Installed components,
-History, and Ride history tables, the Strava page's Rides tab, and the
-Components/Maintenance Events/Assignments lists (each its own `table_key`:
+on nine tables: the Bikes list, the Bike detail page's Installed components,
+History, and Ride history tables, the Strava page's Rides tab, the Activity log,
+and the Components/Maintenance Events/Assignments lists (each its own `table_key`:
 `bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
-`strava_rides`, `components`, `maintenance_events`, `assignments`).
+`strava_rides`, `activity_log`, `components`, `maintenance_events`, `assignments`).
 A future page can adopt the same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
@@ -1012,7 +1011,11 @@ A future page can adopt the same UX without rework:
   lesson learned from a bug on the Bike detail page. If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
   force a remount via `key={tableKey}` rather than relying on the hook to notice the
-  change.
+  change. An optional `extraData` getter lets a page keep one more piece of state in
+  the same `TableViewPreference` row alongside columns/sort, spread into every save
+  the hook makes so toggling a column never silently drops it (a `PATCH` replaces the
+  whole `data` value, no deep merge) — the Activity log's persisted kind-chip
+  selection is the only user of this so far; every other adopter omits it.
 - `frontend/src/components/datatable/ColumnPicker.tsx` — the "+" icon/popover column
   picker (rendered as the last `<Table.Th>` in the header row, not floated above the
   table), with a draggable "Visible" section and a static "Available" section.
@@ -1228,9 +1231,9 @@ full path is lock-guarded, so an incremental and a full run can be in flight at
 once). The hook returns `{ sync, syncing, status, error, failure,
 stillRunning }`. A changed timestamp is the only case that invalidates
 `INVALIDATE_KEYS` (every ride-derived query key: `strava`, `bikes`,
-`bike_rides`, `dashboard`, `maintenance_alerts`, `components`, `strava_rides` —
-exported so `useResyncRide`/`useResyncRides` can invalidate the exact same set
-after a resync, rather than a second hand-maintained copy) — never on
+`bike_rides`, `dashboard`, `maintenance_alerts`, `components`, `strava_rides`,
+`activity` — exported so `useResyncRide`/`useResyncRides` can invalidate the exact
+same set after a resync, rather than a second hand-maintained copy) — never on
 `failure`, since nothing was deleted/changed by a run that didn't complete. A
 matching failure instead sets `failure: { code, retryAt }`, rendered via the
 shared `syncFailureMessage` (`utils/strava.ts`) —
@@ -1300,6 +1303,149 @@ elsewhere. Every column renderer a ride-ish row could share with the Rides tab
 `SHARED_RIDE_COLUMN_RENDERERS`, typed over the fields common to `BikeRide` and
 `StravaRide` — this section's own `COLUMN_RENDERER` just spreads that in and adds
 its own `cumulative_distance_meters` column.
+
+## Activity log
+
+A bike's whole story in order — rides, the service done between them, and setup
+changes — on one timeline, at `/activity`. Rides already showed up on the Dashboard
+(14 days), per bike (Ride history), and the Strava page's Rides tab (built for
+cleanup, not browsing); maintenance and component swaps were only ever visible per
+component. This page is purely for browsing — the Rides tab keeps its own job of
+fixing attribution/ignoring, untouched by this feature.
+
+**Four entry kinds** (used everywhere — chips, tooltips, the API's `kind` field):
+`ride` (source `strava_activities`), `service_session`/`maintenance_event` (both
+UI-labeled "Service" — a session-less event and a batch `ServiceSession` are the
+same user-facing bucket), and `setup_change` (source `component_assignments`, one
+entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
+
+- **`Activity::Feed.call(user, **params)`** (`app/services/activity/feed.rb`) has
+  two branches, not one mechanism forced to cover both: a keyset-paginated,
+  date-ordered default (any combination of kinds), and a separate offset-paginated
+  `sort: "distance"` branch restricted to `kinds == ["ride"]` (`422` otherwise,
+  `Activity::Feed::InvalidSortError`) — mirroring `Strava::RideLog`'s own
+  offset-pagination shape but implemented as its own method here, not a call-through
+  (that class has no `q`/date-range/`component_id` support, and the Rides tab stays
+  exactly as it is). The date-ordered branch is a raw-SQL `UNION ALL` of up to five
+  per-source-kind sub-selects (`ride`, `service_session`, `maintenance_event`,
+  `setup_installed`, `setup_removed`), each projecting only
+  `(occurred_at, kind, kind_rank, source_id, bike_id)` — the same "raw SQL for
+  ordering/ids, then hydrate real AR records" split `Bikes::RideHistory` already
+  uses. `kind_rank` (ride=0, service_session/maintenance_event=1, setup_installed/
+  setup_removed=2) is the tie-break when `occurred_at` is exactly equal — kept in the
+  *same* sort direction as the page's own `order` (not a fixed ascending rank), since
+  the keyset `WHERE (occurred_at, kind_rank, source_id) < (...)` tuple comparison
+  needs every column compared the same direction to stay correct. A session-less
+  `maintenance_event`'s bike isn't a stored column — resolved at `performed_at` via
+  a `LEFT JOIN LATERAL` against `component_assignments` (Postgres-specific, same tier
+  of raw SQL this codebase already uses for window functions/`IS DISTINCT FROM`) —
+  live in the SQL itself, not a post-hydration lookup, since the `bike_id` filter
+  needs it too. `component_id` filtering for rides reuses
+  `Maintenance::RideContextSql.predicate` as an `EXISTS` clause, the same join shape
+  `Maintenance::CountedTowardQuery` already uses — and ride items carry their own
+  `counted_toward`, computed via that same query, batched over the page's ride ids.
+  `q` (ride name search) is ride-only by design — when set, every other source
+  contributes zero rows (and zero `meta.kind_counts`), rather than searching fields
+  that don't have a name to match.
+- **The install/removal merge rule**: a `setup_removed` and a `setup_installed`
+  entry merge into one `replaced` entry when they're the same slot (`bike_id` +
+  `category` + `ride_context`) and the install's `started_at` is within
+  `Activity::Feed::MERGE_TOLERANCE` (1 minute) of the removal's `ended_at` — **not**
+  exact equality, despite that being the first, more obvious rule to reach for:
+  `ComponentAssignment`'s own `no_overlapping_assignment_for_bike_slot` validation
+  (`overlaps?`) treats an exactly-equal boundary as still overlapping, so a real
+  swap can never actually be created with one — it always has a small real gap, and
+  an exact-match rule would never fire on real data. The tolerance is the same
+  small, clock-skew-sized allowance this codebase already uses elsewhere
+  (`ServiceSession::FUTURE_TOLERANCE`, `StravaCredential`'s refresh buffer), not a
+  new fuzzy-matching concept. Merging is a post-hydration, in-memory pass over one
+  page's entries (bounded by `per_page`) — a replace pair that straddles an exact
+  page boundary displays as two separate entries instead of one, an accepted,
+  cosmetic limitation. Component retirement deliberately never appears here — it
+  has no captured timestamp (`Component#retired_on` is a plain date field with no
+  audit log of *when* it was toggled), so there's nothing to place chronologically
+  without a real data-model addition.
+- **`GET /activity`** (`ActivityController#index`), scoped through `current_user`
+  throughout. Params: `kinds[]` (`ride`/`service`/`setup`, default `["ride"]`),
+  `bike_id`, `from`/`to` (dates) + `tz` (reusing the Dashboard's own
+  tz-then-UTC-boundary convention), `q`, `component_id`, `order` (`desc`/`asc`),
+  `sort` (`date`/`distance`), `cursor` (opaque, keyset only — base64 of
+  `occurred_at|kind_rank|source_id`), `page` (offset, distance-sort only),
+  `per_page`. Response: `{ items, meta, next_cursor }` — `next_cursor` is `null` on
+  the last page, an opaque cursor string for the date branch, or a page number
+  (as a string) for the distance branch, so the frontend's `useInfiniteQuery` reads
+  one field regardless of which branch served the page. `meta.ride_totals`
+  (count/distance/moving_time/elevation) and `meta.kind_counts` are both computed
+  from the non-`kinds` filters alone, independent of the active `kinds[]`
+  selection — so the header stat and the chip counts stay meaningful regardless of
+  which chips are toggled (`kind_counts` counts pre-merge rows, so an
+  install+removal pair that displays as one "replaced" row still counts as two —
+  merging is a display nuance, not a fact about how many events exist). Every
+  non-ride item carries a server-built `summary` string (e.g. "Chain A · Wax",
+  "Installed Wheelset B on Gravel bike, replacing Wheelset A") — the frontend only
+  ever renders it, never assembles or parses the sentence itself; where a row needs
+  a clickable component name (see below), that's a separate small link affordance
+  next to the summary, not a hyperlinked substring within it.
+- **Indexes**: `strava_activities(user_id, moved_at, id)` is the one index added on
+  real justification — this feed is the first caller needing that table ordered by
+  user across every bike at once (every existing index on it is `bike_id`-scoped).
+  `service_sessions(user_id, performed_at, id)`, a partial
+  `maintenance_events(performed_at, id) WHERE service_session_id IS NULL`, and
+  `component_assignments(bike_id, started_at)` / `(bike_id, ended_at) WHERE ended_at
+  IS NOT NULL` were added too, but `EXPLAIN (ANALYZE, BUFFERS)` against this
+  account's real data showed Postgres preferring sequential scans over all of them
+  at current scale (true for a personal, near-single-tenant app) — added as cheap,
+  defensively reasonable indexes for the filtered-`WHERE` case, not because the
+  evidence demanded them. **Flagged for the project plan doc** per this file's own
+  convention, since five new indexes are a data-model change.
+- **Frontend**: `pages/Activity.tsx` (`/activity`, nav item "Activity"), gated on
+  `activity_log`'s `TableViewPreference` resolving first, same two-component
+  wrapper/Inner split as every other adopter. Kind chips (Rides/Service/Setup
+  changes, at least one always selected) persist in that *same*
+  `TableViewPreference` row as this table's own column/sort prefs, via
+  `useTableViewPreferences`' new `extraData` option (see "Sortable, configurable
+  tables" above) — not a second preference row. Bike/component/date-range/name-
+  search filters and the order/sort-metric controls are local, unpersisted state,
+  same convention as the Rides tab's own filters; the date/distance sort control
+  only renders when `kinds` is exactly `["ride"]` (mirroring the backend's `422`
+  rule), else a dimmed hint takes its place. The table's configurable columns
+  (`ACTIVITY_LOG_COLUMNS` in `constants.ts`) spread in
+  `SHARED_RIDE_COLUMN_RENDERERS` wholesale plus this page's own `bike` column (the
+  one ride column no other adopter needs, since every other one is already scoped
+  to a bike or shows it as its own pinned column). Pinned: a 28px icon-only gutter
+  (every row, including rides, via `@tabler/icons-react` — the app's first icon
+  library dependency, since every icon elsewhere here is a plain Unicode glyph),
+  then Date, then Name. A ride row renders normally through every visible column; a
+  non-ride row renders the gutter icon and Date, then one `<Table.Td
+  colSpan={1 + orderedColumns.length}>` absorbing the Name slot and every
+  configurable column into a single summary cell on a
+  `var(--mantine-color-gray-light)` surface — the `+1` for Name is why the span
+  tracks column visibility automatically rather than needing its own state. A
+  `service_session` row has a chevron expanding into indented sub-rows (component +
+  service type + note) and opens `ServiceSessionViewModal` on click;
+  `maintenance_event` links to `/components/:id?event=<id>`
+  (`ComponentServiceAndHistory` now reads that param and scrolls to/highlights the
+  matching history row, the same `?gear=<id>` convention `Strava.tsx` already used
+  for "Resolve gear"); `setup_change` links to the installed component, with a
+  second small link to the replaced one when the row is a merged entry. Ride row
+  actions: "Log service after this ride" (only when the ride has a bike — opens
+  `BatchServiceModal` with that bike and `moved_at + elapsed_time` as
+  `initialPerformedAt`, the prop that feature left unused for exactly this caller),
+  "View on Strava", and `ResyncRideButton` reused as-is. Deliberately no "change
+  bike" action — a tooltip on the Actions header explains why (fix it on Strava,
+  then Re-sync). Below 768px width the table swaps for a card list
+  (`NarrowActivityCard`) — ride cards keep date/name/bike/distance/moving time and
+  the same row actions; non-ride cards stay single lines, already compact enough.
+  Invalidation: `['activity']` is in `useStravaSyncRunner`'s `INVALIDATE_KEYS` (see
+  "Strava integration" above) and in every mutation whose data this feed reads —
+  ride/gear decisions and reassignment, a bike's `strava_gear_id` edits, every
+  maintenance event and service session mutation, and component assignment
+  create/update/delete.
+
+**Not built**: week/month/year grouping headers with subtotals (shared with Ride
+history); a weekly distance chart stacked by bike; a ride detail drawer; threshold
+markers on the ride that pushed an interval into warning/due; a "since last
+service" component-filter option; CSV export — all explicitly deferred.
 
 ## Bike setup
 
@@ -1477,7 +1623,9 @@ table cell per row, not two).
    backfill) shipped here too — see "Strava integration" above. Batch service
    logging (`ServiceSession`, `Bikes::ServiceableComponents`'s point-in-time
    eligibility, the `BatchServiceModal` logger) shipped here too — see
-   "Batch service logging" above. Deploy, webhooks, and charts remain.
+   "Batch service logging" above. The Activity log (`Activity::Feed`, the
+   `/activity` page) shipped here too — see "Activity log" above. Deploy,
+   webhooks, and charts remain.
 
 ## Conventions
 
