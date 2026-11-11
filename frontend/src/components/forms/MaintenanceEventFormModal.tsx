@@ -183,6 +183,12 @@ function MaintenanceEventForm({
             form.setFieldValue('performed_at', mantineLocalStringToIsoUtc(value))
           }
           error={form.errors.performed_at}
+          disabled={event?.service_session_id != null}
+          description={
+            event?.service_session_id != null
+              ? "Part of a service session — edit the date from the session marker on this component's history instead."
+              : undefined
+          }
         />
         <Textarea label="Notes" {...form.getInputProps('notes')} />
 

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core'
 import { useComponent, useMaintenanceEvents, useServiceTypes } from '../api/queries'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
+import ServiceSessionViewModal from './forms/ServiceSessionViewModal'
 import ServiceIntervalsSection from './ServiceIntervalsSection'
 import { formatDateTime } from '../utils/datetime'
 
@@ -16,12 +17,26 @@ export default function ComponentServiceAndHistory({ componentId }: { componentI
   const { data: events } = useMaintenanceEvents()
   const { data: serviceTypes } = useServiceTypes()
   const [logOpened, setLogOpened] = useState(false)
+  const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
 
   const history = useMemo(() => {
     return (events ?? [])
       .filter((event) => event.component_id === componentId)
       .sort((a, b) => b.performed_at.localeCompare(a.performed_at))
   }, [events, componentId])
+
+  // Counts every event in a session, not just this component's own --
+  // a session can span several components on the same bike -- so the
+  // marker's "N items" matches what the session view itself will show.
+  const sessionCounts = useMemo(() => {
+    const counts: Record<number, number> = {}
+    for (const event of events ?? []) {
+      if (event.service_session_id != null) {
+        counts[event.service_session_id] = (counts[event.service_session_id] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [events])
 
   if (isPending) return <Loader />
 
@@ -62,7 +77,22 @@ export default function ComponentServiceAndHistory({ componentId }: { componentI
               <Table.Tr key={event.id}>
                 <Table.Td>{formatDateTime(event.performed_at)}</Table.Td>
                 <Table.Td>{serviceTypes?.find((t) => t.id === event.service_type_id)?.name ?? ''}</Table.Td>
-                <Table.Td>{event.notes ?? ''}</Table.Td>
+                <Table.Td>
+                  {event.notes ?? ''}
+                  {event.service_session_id != null && (
+                    <div>
+                      <Anchor
+                        component="button"
+                        type="button"
+                        size="xs"
+                        c="dimmed"
+                        onClick={() => setViewingSessionId(event.service_session_id)}
+                      >
+                        Part of a service session · {sessionCounts[event.service_session_id]} items
+                      </Anchor>
+                    </div>
+                  )}
+                </Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -74,6 +104,14 @@ export default function ComponentServiceAndHistory({ componentId }: { componentI
         onClose={() => setLogOpened(false)}
         defaultComponentId={componentId}
       />
+
+      {viewingSessionId !== null && (
+        <ServiceSessionViewModal
+          opened
+          onClose={() => setViewingSessionId(null)}
+          sessionId={viewingSessionId}
+        />
+      )}
     </Stack>
   )
 }
