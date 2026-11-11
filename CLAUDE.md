@@ -202,11 +202,33 @@ docker build .`), not the repo root.
   `ComponentServiceInterval`, and `CategoryServiceInterval` all validate that any
   `service_type_id` they reference shares their own owner — see "Authentication"
   below for why this needed a fix).
-- `MaintenanceEvent`: component_id, service_type_id, performed_at (timestamp), notes.
-  Reachable from a `User` via `has_many through:` on `components` — no direct
-  `user_id` column of its own. Logging one is what resets a service interval's
-  baseline (see "Service intervals and maintenance alerts" below) — nothing is stored
-  as a counter; progress is always computed from event history.
+- `MaintenanceEvent`: component_id, service_type_id, performed_at (timestamp), notes,
+  service_session_id (nullable FK — see "Batch service logging" below). Reachable
+  from a `User` via `has_many through:` on `components` — no direct `user_id` column
+  of its own. Logging one is what resets a service interval's baseline (see "Service
+  intervals and maintenance alerts" below) — nothing is stored as a counter; progress
+  is always computed from event history. An event logged one at a time
+  (`ComponentDetail`, the Dashboard's single-component "Log service") has
+  `service_session_id: nil`, exactly as before this feature existed — only
+  `ServiceSessionsController#create`'s batch path ever sets it. Once set, the
+  event's own `performed_at` can't be edited directly (`on: :update` validation,
+  so creating it alongside the session is unaffected) — it always matches its
+  session's date, which only moves by editing the session itself. Destroying an
+  event whose session has no other events left destroys that session too
+  (`after_destroy`), so a session is never left empty.
+- `ServiceSession`: user_id, bike_id, performed_at (timestamp), notes (nullable).
+  Groups `MaintenanceEvent`s logged together on one bike in one batch (see "Batch
+  service logging" below) — `validates :bike_id`'s owner matches `user_id`.
+  Changing its own `performed_at` cascades to every one of its events via
+  `update_all` in the same request (bypassing their own validation deliberately,
+  the one legitimate way an event's date moves after creation) — not a separate
+  endpoint call per event. `FUTURE_TOLERANCE` (5 minutes, same order of magnitude
+  as `StravaCredential::REFRESH_BUFFER`) is the only place a future `performed_at`
+  is rejected in this app; plain single-event `MaintenanceEvent` logging has no
+  such check and is unchanged. Deleting a session deletes its events
+  (`dependent: :destroy`). Deliberately no "remove one event from its session" —
+  delete the event (which, per the rule above, deletes an emptied session too)
+  and re-log it instead; one less concept for the same result.
 - `CategoryServiceInterval`: user_id, category, service_type_id,
   distance_interval_meters (nullable), time_interval_days (nullable) — unique per
   `(user_id, category, service_type_id)`, at least one of distance/time required. A
@@ -461,6 +483,98 @@ scheduler is deployed, a dismissed alert stays hidden only until the user next
 presses "Sync now". Time-based intervals keep advancing regardless of sync (`days_used`
 is a plain date calculation), but a dismissal only lifts on a completed sync or on
 escalation to a worse status.
+
+## Batch service logging
+
+Maintenance usually happens in a session — wax the chain, top up sealant, clean
+the cassette, all on the same Saturday — but logging one service at a time
+through a component page has no way to record that several were done together.
+See the `MaintenanceEvent`/`ServiceSession` data model bullets above for the
+event/session rules themselves; this section covers how "what's serviceable on
+this bike" gets computed and how the batch logger itself works.
+
+- **`Bikes::ServiceableComponents.call(bike, at: Time.current)`**
+  (`app/services/bikes/serviceable_components.rb`) answers "what could a
+  service session on this bike cover, as of `at`?" — not just "now." Returns a
+  `Result` with two groups: `mounted` (an assignment on this bike with
+  `started_at <= at` and `ended_at` either `nil` or after `at`) and `off_bike`
+  (non-retired-as-of-`at` components with no active assignment *anywhere* at
+  `at`, whose most recent assignment ending at-or-before `at` was on *this*
+  bike — a component currently mounted on a *different* bike at `at` is
+  excluded from both groups here, correctly: it's neither mounted on this bike
+  nor off it, it's just elsewhere). Backdating to a date before a component
+  swap returns what was actually mounted *then*, not today's lineup. One
+  shared implementation, not two: the batch logger's own component picker
+  (`GET /bikes/:id/serviceable_components`) and `ServiceSessionsController`'s
+  create/update eligibility checks all go through this, so the picker and the
+  validation can never disagree about what's offered vs. accepted.
+- **`.off_bike_components_by_bike(user, at: Time.current)`** is the
+  class-level, whole-user, grouped-by-bike version of the same off-bike
+  computation — `Dashboard::Summary#off_bike_components_by_bike` is now a
+  one-line delegate to this at its default `at:`, rather than keeping a second,
+  separate "now"-only implementation. A component retired on the same calendar
+  day as `at` still excludes correctly (compares `retired_on` cast to a
+  timestamp against `at`, not a bare date, specifically so a same-day
+  retirement reads as "before" any later moment that day) — this is what keeps
+  the Dashboard's own output unchanged, not just approximately equivalent.
+- **`GET /bikes/:id/serviceable_components?at=<iso8601>`** (`BikesController`,
+  same home as the existing `:rides` member action) returns `{ mounted: [...],
+  off_bike: [...] }`, each component with its **enabled** service intervals
+  (`Maintenance::IntervalStatus.for_user`, batched once per request — never
+  per component) carrying `service_type_id`/`service_type_name`, `status`,
+  `driving_dimension`, `distance_remaining_meters`/`days_remaining`. That
+  status is computed **as of now**, never as of `at` — it exists to help the
+  user decide what to check, not to claim what the interval looked like on a
+  backdated date, and the UI copy says so.
+- **`POST /bikes/:id/service_sessions`** (`ServiceSessionsController#create`)
+  takes a flat `{ performed_at, notes?, events: [{ component_id,
+  service_type_id, notes? }, ...] }` (same shape convention as
+  `#component_setup`'s `{ installed_on, components: [...] }`, not nested under
+  a `service_session:` key) and creates the session plus every event in one
+  transaction. At least one event is required; a duplicate `(component_id,
+  service_type_id)` pair within the same request, an ineligible
+  `component_id` (checked against `Bikes::ServiceableComponents` at the
+  session's own `performed_at`), or an unknown `service_type_id` all reject
+  the *whole* request with `422 { row_errors: { "<index>": {...} } }` — same
+  key name and per-index shape as `#component_setup`'s own. A `service_type_id`
+  needs no interval set up on that component (the "Add other" path on a
+  service with nothing tracked yet). `GET`/`PATCH`/`DELETE
+  /service_sessions/:id` round it out; `PATCH`ing `performed_at` re-checks
+  every existing event's component against `Bikes::ServiceableComponents` at
+  the *new* time first, naming whichever would stop qualifying instead of
+  saving anything.
+- **`BatchServiceModal`** (`frontend/src/components/forms/BatchServiceModal.tsx`)
+  is the frontend: a date/time picker up top (refetching
+  `serviceable_components` on every change — whatever's still checked after a
+  refetch stays checked, the rest silently drop with a one-line dimmed note of
+  how many), components grouped mounted-first then a dimmed "Off the bike"
+  group, one row per enabled interval (checkbox, service type,
+  `ServiceStatusBadge`, `formatRemaining` — both reused as-is, not
+  reimplemented), a "Select all due and warning" shortcut, and "Add other…"
+  rows (a component picker from the same eligible list plus
+  `ServiceTypeSelect`/`useServiceTypeIdResolver`, the exact pieces
+  `MaintenanceEventFormModal` already uses) for a service with no interval.
+  Takes an optional `initialPerformedAt` prop — accepted but unused by both of
+  today's entry points (`BikeDetail`'s header "Log service" button,
+  a small "Log service" action on each Dashboard `BikeCard`) — the activity
+  log is the next feature expected to pass a ride's end time through it.
+  Mutations (`useCreateServiceSession`/`useUpdateServiceSession`/
+  `useDeleteServiceSession`) invalidate everything a single-event "Log
+  service" already does, plus `bikes` and `serviceable_components` — there's a
+  marked spot for a future `activity_log` query key once that feature exists,
+  not added yet.
+- **Showing a session**: `ComponentServiceAndHistory`'s history table marks
+  any event with `service_session_id` set with a small "Part of a service
+  session · N items" control (N counts every event in the session, not just
+  this component's own — a session can span several components on one bike),
+  opening `ServiceSessionViewModal` (date, note, every event, Edit
+  date/note, Delete session via `confirmDelete` naming the event count).
+  `MaintenanceEventFormModal`'s date field is `disabled` with explanatory text
+  whenever the event being edited is session-bound, matching the backend
+  validation up front rather than only surfacing it as a 422 after the fact.
+
+**Flagged for the project plan doc** per this file's own convention: the new
+`service_sessions` table and `maintenance_events.service_session_id`.
 
 ## Strava integration
 
@@ -1360,8 +1474,10 @@ table cell per row, not two).
    "Ride history" above. A user-triggered full Strava refresh (with
    reconciliation), ride-level ignore, the Strava page's Gear/Rides tabs, and
    single/bulk ride resync (with rate-limit awareness and a gear-cache
-   backfill) shipped here too — see "Strava integration" above. Deploy,
-   webhooks, and charts remain.
+   backfill) shipped here too — see "Strava integration" above. Batch service
+   logging (`ServiceSession`, `Bikes::ServiceableComponents`'s point-in-time
+   eligibility, the `BatchServiceModal` logger) shipped here too — see
+   "Batch service logging" above. Deploy, webhooks, and charts remain.
 
 ## Conventions
 
