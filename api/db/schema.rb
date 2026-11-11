@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -70,6 +70,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "ride_context", default: "both", null: false
+    t.index ["bike_id", "ended_at"], name: "index_component_assignments_on_bike_ended", where: "(ended_at IS NOT NULL)"
+    t.index ["bike_id", "started_at"], name: "index_component_assignments_on_bike_started"
     t.index ["bike_id"], name: "index_component_assignments_on_bike_id"
     t.index ["component_id"], name: "index_component_assignments_on_component_id"
   end
@@ -127,6 +129,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
     t.bigint "service_type_id", null: false
     t.bigint "service_session_id"
     t.index ["component_id"], name: "index_maintenance_events_on_component_id"
+    t.index ["performed_at", "id"], name: "index_maintenance_events_on_performed_id_sessionless", where: "(service_session_id IS NULL)"
     t.index ["service_session_id"], name: "index_maintenance_events_on_service_session_id"
     t.index ["service_type_id"], name: "index_maintenance_events_on_service_type_id"
   end
@@ -157,6 +160,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bike_id"], name: "index_service_sessions_on_bike_id"
+    t.index ["user_id", "performed_at", "id"], name: "index_service_sessions_on_user_performed_id"
     t.index ["user_id"], name: "index_service_sessions_on_user_id"
   end
 
@@ -199,6 +203,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
     t.index ["bike_id", "moved_at", "id"], name: "index_strava_activities_on_bike_moved_id"
     t.index ["bike_id"], name: "index_strava_activities_on_bike_id"
     t.index ["strava_id"], name: "index_strava_activities_on_strava_id", unique: true
+    t.index ["user_id", "moved_at", "id"], name: "index_strava_activities_on_user_moved_id"
     t.index ["user_id"], name: "index_strava_activities_on_user_id"
   end
 

@@ -52,6 +52,7 @@ RSpec.describe "Unauthenticated access", type: :request do
 
     [:post, "/service_alert_dismissals"], [:post, "/service_alert_dismissals/dismiss_all"],
 
+    [:get, "/activity"],
     [:get, "/dashboard"],
     [:get, "/maintenance_alerts"],
     [:get, "/notification_settings"], [:patch, "/notification_settings"],

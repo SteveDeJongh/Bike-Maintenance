@@ -27,6 +27,7 @@ Rails.application.routes.draw do
   resources :service_alert_dismissals, only: %i[ create ] do
     collection { post :dismiss_all }
   end
+  get   "activity",              to: "activity#index"
   get   "dashboard",             to: "dashboard#index"
   get   "maintenance_alerts",    to: "maintenance_alerts#index"
   get   "notification_settings", to: "notification_settings#show"
