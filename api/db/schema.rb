@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_10_192400) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_10_235332) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -125,7 +125,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_192400) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "service_type_id", null: false
+    t.bigint "service_session_id"
     t.index ["component_id"], name: "index_maintenance_events_on_component_id"
+    t.index ["service_session_id"], name: "index_maintenance_events_on_service_session_id"
     t.index ["service_type_id"], name: "index_maintenance_events_on_service_type_id"
   end
 
@@ -145,6 +147,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_192400) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["component_service_interval_id"], name: "idx_on_component_service_interval_id_29f0d01c93"
+  end
+
+  create_table "service_sessions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "bike_id", null: false
+    t.datetime "performed_at", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bike_id"], name: "index_service_sessions_on_bike_id"
+    t.index ["user_id"], name: "index_service_sessions_on_user_id"
   end
 
   create_table "service_types", force: :cascade do |t|
@@ -273,9 +286,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_192400) do
   add_foreign_key "component_service_intervals", "service_types"
   add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
+  add_foreign_key "maintenance_events", "service_sessions"
   add_foreign_key "maintenance_events", "service_types"
   add_foreign_key "notification_settings", "users"
   add_foreign_key "service_alert_dismissals", "component_service_intervals"
+  add_foreign_key "service_sessions", "bikes"
+  add_foreign_key "service_sessions", "users"
   add_foreign_key "service_types", "users"
   add_foreign_key "strava_activities", "bikes"
   add_foreign_key "strava_activities", "users"

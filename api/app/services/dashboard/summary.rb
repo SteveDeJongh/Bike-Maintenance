@@ -129,18 +129,13 @@ module Dashboard
     end
 
     # { bike_id => [Component, ...] } for every non-retired component with
-    # no active assignment anywhere, grouped by its most recent assignment's
-    # bike -- bounded by "currently unmounted" components (typically a
-    # handful), so one query per component here is fine, same precedent as
-    # Component#total_distance's per-assignment looping (see CLAUDE.md).
+    # no active assignment anywhere, grouped by the bike its most recent
+    # assignment was on -- the at: Time.current (the default) case of
+    # Bikes::ServiceableComponents.off_bike_components_by_bike, which the
+    # batch service logger also uses at an arbitrary point in time. One
+    # implementation, not two.
     def off_bike_components_by_bike
-      mounted_component_ids = Component.current_bikes_by_component(user).keys
-      unmounted = user.components.where(retired_on: nil).where.not(id: mounted_component_ids)
-
-      unmounted.each_with_object(Hash.new { |h, k| h[k] = [] }) do |component, hash|
-        last_assignment = component.component_assignments.order(started_at: :desc).first
-        hash[last_assignment.bike_id] << component if last_assignment
-      end
+      Bikes::ServiceableComponents.off_bike_components_by_bike(user)
     end
 
     # Every enabled interval whose status isn't ok, for a non-retired
