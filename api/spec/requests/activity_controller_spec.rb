@@ -5,8 +5,10 @@ RSpec.describe "Activity", type: :request do
   before { sign_in(current_user) }
 
   describe "GET /activity" do
-    it "returns a ride item in Strava::RideSerialization shape plus attribution/reason, no cumulative_distance_meters" do
+    it "returns a ride item in Strava::RideSerialization shape plus attribution/reason/counted_toward, no cumulative_distance_meters" do
       bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain", label: "Chain A")
+      create(:component_assignment, component: component, bike: bike, started_at: 2.days.ago, ended_at: nil)
       ride = create(:strava_activity, user: current_user, bike: bike, moved_at: 1.day.ago)
 
       get "/activity"
@@ -16,6 +18,7 @@ RSpec.describe "Activity", type: :request do
       expect(item["id"]).to eq(ride.id)
       expect(item["bike"]).to eq("id" => bike.id, "name" => bike.name)
       expect(item["attribution"]).to eq("attributed")
+      expect(item["counted_toward"]).to eq([ { "component_id" => component.id, "label" => "Chain A" } ])
       expect(item).not_to have_key("cumulative_distance_meters")
     end
 

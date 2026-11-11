@@ -149,7 +149,8 @@ module Activity
         .offset((page - 1) * per_page).limit(per_page).to_a
 
       ignored_gear_ids = StravaGear.ignored_for(user).pluck(:strava_gear_id)
-      items = rides.map { |ride| ride_item(ride, ignored_gear_ids) }
+      counted_toward = Maintenance::CountedTowardQuery.call(user, activity_ids: rides.map(&:id))
+      items = rides.map { |ride| ride_item(ride, ignored_gear_ids, counted_toward[ride.id]) }
 
       Result.new(
         items: items,
@@ -292,10 +293,11 @@ module Activity
       assignment_ids = ids_for.call("setup_installed") + ids_for.call("setup_removed")
       assignments_by_id = ComponentAssignment.includes(:component).where(id: assignment_ids).index_by(&:id)
       ignored_gear_ids = StravaGear.ignored_for(user).pluck(:strava_gear_id)
+      counted_toward = Maintenance::CountedTowardQuery.call(user, activity_ids: rides_by_id.keys)
 
       rows.filter_map do |row|
         case row["kind"]
-        when "ride" then ride_item(rides_by_id[row["source_id"].to_i], ignored_gear_ids)
+        when "ride" then ride_item(rides_by_id[row["source_id"].to_i], ignored_gear_ids, counted_toward[row["source_id"].to_i])
         when "service_session" then service_session_item(sessions_by_id[row["source_id"].to_i])
         when "maintenance_event" then maintenance_event_item(events_by_id[row["source_id"].to_i], row["bike_id"]&.to_i)
         when "setup_installed" then setup_change_item(assignments_by_id[row["source_id"].to_i], "installed")
@@ -308,7 +310,7 @@ module Activity
       @bikes_by_id ||= user.bikes.index_by(&:id)
     end
 
-    def ride_item(ride, ignored_gear_ids)
+    def ride_item(ride, ignored_gear_ids, counted_toward)
       return nil unless ride
 
       bike = ride.bike_id && bikes_by_id[ride.bike_id]
@@ -318,6 +320,7 @@ module Activity
         bike: bike && { id: bike.id, name: bike.name },
         attribution: ride.attribution_status(ignored_gear_ids),
         reason: ride.reason(ignored_gear_ids),
+        counted_toward: (counted_toward || []).map { |c| { component_id: c[:component_id], label: c[:label] } },
       )
     end
 
