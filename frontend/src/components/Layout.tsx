@@ -6,6 +6,7 @@ import { useCurrentUser } from '../api/queries'
 import { useLogout } from '../api/mutations'
 
 const navLinks = [
+  { to: '/activity', label: 'Activity' },
   { to: '/bikes', label: 'Bikes' },
   { to: '/components', label: 'Components' },
   { to: '/maintenance-events', label: 'Maintenance Events' },

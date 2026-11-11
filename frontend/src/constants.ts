@@ -423,6 +423,76 @@ export const STRAVA_RIDE_COLUMN_LABELS: Record<StravaRideColumn, string> = {
 
 export const DEFAULT_STRAVA_RIDE_COLUMNS: StravaRideColumn[] = ['status', 'gear', 'bike', 'distance_meters', 'ride_kind', 'moving_time']
 
+// The Activity log's three kind chips -- each UI kind's display name,
+// Tabler icon name, and its matching meta.kind_counts key. 'service' covers
+// both service_session and session-less maintenance_event entries, which
+// share one bucket here and in Activity::Feed's own kind_rank.
+export const ACTIVITY_UI_KINDS = ['ride', 'service', 'setup'] as const
+
+export const ACTIVITY_KIND_LABELS: Record<(typeof ACTIVITY_UI_KINDS)[number], string> = {
+  ride: 'Rides',
+  service: 'Service',
+  setup: 'Setup changes',
+}
+
+export const DEFAULT_ACTIVITY_KINDS: (typeof ACTIVITY_UI_KINDS)[number][] = ['ride']
+
+// The toggleable columns on the Activity log table. The icon gutter, Date,
+// and Name are always-shown, leading (pinned) columns -- not part of this
+// list. Every shared ride column (see SHARED_RIDE_COLUMN_RENDERERS) is
+// available here too, plus this page's own Bike column; a non-ride row
+// always spans every visible one of these in a single merged cell.
+export const ACTIVITY_LOG_COLUMNS = [
+  'bike',
+  'ride_kind',
+  'distance_meters',
+  'moving_time',
+  'total_elevation_gain',
+  'average_speed',
+  'average_watts',
+  'activity_type',
+  'elapsed_time',
+  'max_speed',
+  'weighted_average_watts',
+  'kilojoules',
+  'average_heartrate',
+  'max_heartrate',
+  'average_cadence',
+  'commute',
+  'counted_toward',
+] as const
+
+export type ActivityLogColumn = (typeof ACTIVITY_LOG_COLUMNS)[number]
+
+export const ACTIVITY_LOG_COLUMN_LABELS: Record<ActivityLogColumn, string> = {
+  bike: 'Bike',
+  ride_kind: 'Type',
+  distance_meters: 'Distance',
+  moving_time: 'Moving time',
+  total_elevation_gain: 'Elevation',
+  average_speed: 'Avg speed',
+  average_watts: 'Avg power',
+  activity_type: 'Sport type',
+  elapsed_time: 'Elapsed time',
+  max_speed: 'Max speed',
+  weighted_average_watts: 'Weighted avg power',
+  kilojoules: 'Energy (kJ)',
+  average_heartrate: 'Avg HR',
+  max_heartrate: 'Max HR',
+  average_cadence: 'Avg cadence',
+  commute: 'Commute',
+  counted_toward: 'Counted toward',
+}
+
+export const DEFAULT_ACTIVITY_LOG_COLUMNS: ActivityLogColumn[] = [
+  'bike',
+  'ride_kind',
+  'distance_meters',
+  'moving_time',
+  'total_elevation_gain',
+  'average_watts',
+]
+
 // Keyed by reason, with 'attributed' standing in for the null-reason
 // attributed case -- covers all five labels the Rides tab's Status column
 // shows. teal/yellow/gray mirror SERVICE_STATUS_COLORS' own ok/warning/

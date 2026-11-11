@@ -101,6 +101,11 @@ export interface TableViewPreferenceData {
   columns?: string[]
   sort_column?: string | null
   sort_direction?: 'asc' | 'desc'
+  // Activity log's persisted kind-chip selection -- stored alongside this
+  // same table's column/sort prefs (see useTableViewPreferences' extraData
+  // option) rather than a second preference row, since the backend already
+  // treats this whole value as free-form per-table JSON.
+  kinds?: string[]
 }
 
 // null means no enabled service interval at all (not "ok") -- the Components
@@ -567,4 +572,75 @@ export interface StravaRidesResponse {
     next_page: number | null
     status_counts: { attention: number; ignored: number; all: number }
   }
+}
+
+// GET /activity -- a bike's rides, service, and setup changes on one
+// timeline (Activity::Feed). Three UI-facing kinds (?kinds[]=); 'service'
+// covers both service_session and maintenance_event entries, which the
+// backend's kind_rank treats as the same tie-break bucket.
+export type ActivityUiKind = 'ride' | 'service' | 'setup'
+
+// Same ride fields as StravaRide, minus gear/ignored_at (nothing here is
+// Strava-gear-mapping-specific -- this page links to Strava itself, or to
+// the Rides tab, for that), plus kind/occurred_at for the merged timeline.
+export interface ActivityRideItem extends Omit<StravaRide, 'gear' | 'ignored_at'> {
+  kind: 'ride'
+  occurred_at: string
+}
+
+export interface ActivityServiceSessionItem {
+  kind: 'service_session'
+  id: number
+  occurred_at: string
+  bike: { id: number; name: string } | null
+  notes: string | null
+  item_count: number
+  items: { component_id: number; label: string; service_type_name: string; note: string | null }[]
+  summary: string
+}
+
+export interface ActivityMaintenanceEventItem {
+  kind: 'maintenance_event'
+  id: number
+  occurred_at: string
+  bike: { id: number; name: string } | null
+  component_id: number
+  label: string
+  service_type_name: string
+  note: string | null
+  summary: string
+}
+
+export interface ActivitySetupChangeItem {
+  kind: 'setup_change'
+  id: number
+  occurred_at: string
+  bike: { id: number; name: string } | null
+  action: 'installed' | 'removed' | 'replaced'
+  component: { id: number; label: string }
+  // Only set when action is 'replaced' (the removed side of a merged swap).
+  replaced_component: { id: number; label: string } | null
+  // null for the default ('both') -- see Activity::Feed#setup_change_item.
+  ride_context: 'outdoor_only' | 'indoor_only' | null
+  summary: string
+}
+
+export type ActivityItem =
+  | ActivityRideItem
+  | ActivityServiceSessionItem
+  | ActivityMaintenanceEventItem
+  | ActivitySetupChangeItem
+
+export interface ActivityFeedResponse {
+  items: ActivityItem[]
+  meta: {
+    // Independent of the active kinds[] selection -- always reflects the
+    // bike/date/q/component filters alone, so the header stat and chip
+    // counts stay meaningful regardless of which chips are toggled.
+    ride_totals: { count: number; distance_meters: number; moving_time: number; total_elevation_gain: number }
+    kind_counts: { ride: number; service: number; setup: number }
+  }
+  // Opaque: a keyset cursor for sort=date, or a page number for
+  // sort=distance -- the frontend never parses it, just echoes it back.
+  next_cursor: string | null
 }

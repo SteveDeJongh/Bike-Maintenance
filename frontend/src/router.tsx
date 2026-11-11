@@ -7,6 +7,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import VerifyEmail from './pages/VerifyEmail'
 import Dashboard from './pages/Dashboard'
+import Activity from './pages/Activity'
 import Bikes from './pages/Bikes'
 import BikeDetail from './pages/BikeDetail'
 import BikeSetup from './pages/BikeSetup'
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
         element: <Layout />,
         children: [
           { index: true, element: <Dashboard /> },
+          { path: 'activity', element: <Activity /> },
           { path: 'bikes', element: <Bikes /> },
           { path: 'bikes/:id', element: <BikeDetail /> },
           { path: 'bikes/:id/setup', element: <BikeSetup /> },

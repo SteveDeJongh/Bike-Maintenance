@@ -1,6 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
+  ActivityFeedResponse,
+  ActivityUiKind,
   BikeDetail,
   BikeRidesResponse,
   BikeType,
@@ -251,5 +253,51 @@ export function useDashboard(tz: string, options?: { refetchInterval?: number | 
     queryKey: ['dashboard', tz],
     queryFn: () => apiGet<DashboardSummary>(`/dashboard?tz=${encodeURIComponent(tz)}`),
     refetchInterval: options?.refetchInterval ?? false,
+  })
+}
+
+export interface ActivityFeedFilters {
+  kinds: ActivityUiKind[]
+  bikeId?: number
+  from?: string
+  to?: string
+  tz: string
+  q?: string
+  componentId?: number
+  order: 'asc' | 'desc'
+  sort: 'date' | 'distance'
+}
+
+// Same Load-more pagination shape as useBikeRides/useStravaRides. pageParam
+// is opaque -- a keyset cursor string for sort=date, or a page number
+// string for sort=distance (Activity::Feed's own two branches) -- sent back
+// as whichever param each branch actually reads. The query key includes
+// every filter/kinds/order/sort so changing any of them discards stale
+// pages automatically.
+export function useActivityFeed(filters: ActivityFeedFilters) {
+  const { kinds, bikeId, from, to, tz, q, componentId, order, sort } = filters
+
+  return useInfiniteQuery({
+    queryKey: ['activity', kinds, bikeId, from, to, tz, q, componentId, order, sort],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams()
+      kinds.forEach((kind) => params.append('kinds[]', kind))
+      if (bikeId) params.set('bike_id', String(bikeId))
+      if (from) params.set('from', from)
+      if (to) params.set('to', to)
+      params.set('tz', tz)
+      if (q) params.set('q', q)
+      if (componentId) params.set('component_id', String(componentId))
+      params.set('order', order)
+      params.set('sort', sort)
+      if (sort === 'distance') {
+        params.set('page', pageParam ?? '1')
+      } else if (pageParam) {
+        params.set('cursor', pageParam)
+      }
+      return apiGet<ActivityFeedResponse>(`/activity?${params.toString()}`)
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor,
   })
 }

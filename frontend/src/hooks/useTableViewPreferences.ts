@@ -17,6 +17,14 @@ interface UseTableViewPreferencesOptions<Column extends string, SortColumn exten
   defaultColumns: Column[]
   sortColumns: readonly SortColumn[]
   defaultSort: { column: SortColumn; direction: 'asc' | 'desc' }
+  // A getter (not a plain value, to avoid a stale closure) for any extra
+  // fields a page keeps in this same TableViewPreference row alongside
+  // columns/sort -- e.g. Activity log's persisted kind-chip selection.
+  // Spread into every save this hook makes, so toggling a column or
+  // changing sort never silently drops them (a PATCH replaces the whole
+  // data value, no deep merge). Every existing caller omits this and is
+  // unaffected.
+  extraData?: () => Record<string, unknown>
 }
 
 export function useTableViewPreferences<Column extends string, SortColumn extends string>({
@@ -26,6 +34,7 @@ export function useTableViewPreferences<Column extends string, SortColumn extend
   defaultColumns,
   sortColumns,
   defaultSort,
+  extraData,
 }: UseTableViewPreferencesOptions<Column, SortColumn>) {
   function isColumn(value: string): value is Column {
     return (allColumns as readonly string[]).includes(value)
@@ -52,7 +61,7 @@ export function useTableViewPreferences<Column extends string, SortColumn extend
   function save(next: { columns: Column[]; sortColumn: SortColumn; sortDirection: 'asc' | 'desc' }) {
     setSaveError(null)
     updatePreference.mutate(
-      { columns: next.columns, sort_column: next.sortColumn, sort_direction: next.sortDirection },
+      { columns: next.columns, sort_column: next.sortColumn, sort_direction: next.sortDirection, ...extraData?.() },
       {
         onError: (error) =>
           setSaveError(parseApiError(error).baseErrors.join(', ') || 'Could not save your preferences.'),
