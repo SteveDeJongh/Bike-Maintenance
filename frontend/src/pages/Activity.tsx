@@ -1,9 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
   Button,
+  Card,
   Group,
   Loader,
   SegmentedControl,
@@ -16,11 +18,19 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { useDebouncedValue } from '@mantine/hooks'
+import { useDebouncedValue, useMediaQuery } from '@mantine/hooks'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
-import { IconArrowBarUp, IconArrowsExchange, IconBike, IconTool, type Icon } from '@tabler/icons-react'
+import {
+  IconArrowBarUp,
+  IconArrowsExchange,
+  IconBike,
+  IconChevronDown,
+  IconChevronRight,
+  IconTool,
+  type Icon,
+} from '@tabler/icons-react'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import { useUpdateTableViewPreference } from '../api/mutations'
 import ColumnPicker from '../components/datatable/ColumnPicker'
@@ -29,6 +39,9 @@ import { useColumnDragSensors } from '../components/datatable/useColumnDragSenso
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../components/ride/rideColumnRenderers'
 import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
+import ResyncRideButton from '../components/ride/ResyncRideButton'
+import BatchServiceModal from '../components/forms/BatchServiceModal'
+import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import {
   ACTIVITY_UI_KINDS,
   ACTIVITY_KIND_LABELS,
@@ -44,7 +57,10 @@ import { formatDuration } from '../utils/duration'
 import { formatElevation } from '../utils/elevation'
 import type {
   ActivityItem,
+  ActivityMaintenanceEventItem,
   ActivityRideItem,
+  ActivityServiceSessionItem,
+  ActivitySetupChangeItem,
   ActivityUiKind,
   TableViewPreferenceData,
 } from '../types/models'
@@ -163,6 +179,14 @@ function nonRideNote(item: ActivityItem): string | null {
   return null
 }
 
+// "Log service after this ride" prefills the session's performed_at at the
+// ride's end, not its start -- the maintenance happened after riding it.
+function initialPerformedAtForRide(ride: ActivityRideItem): string {
+  const movedAtMs = new Date(ride.moved_at).getTime()
+  const elapsedMs = (ride.elapsed_time ?? 0) * 1000
+  return new Date(movedAtMs + elapsedMs).toISOString()
+}
+
 function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {
   const [kinds, setKinds] = useState<ActivityUiKind[]>(() => {
     const stored = initialData.kinds?.filter(isActivityUiKind)
@@ -175,6 +199,19 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
   const [qInput, setQInput] = useState('')
   const [q] = useDebouncedValue(qInput, 300)
   const [sortMetric, setSortMetric] = useState<SortMetric>('date')
+  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
+  const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
+  const [batchServiceRide, setBatchServiceRide] = useState<ActivityRideItem | null>(null)
+  const isNarrow = useMediaQuery('(max-width: 768px)')
+
+  function toggleSessionExpanded(sessionId: number) {
+    setExpandedSessionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(sessionId)) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+  }
 
   const rideOnly = kinds.length === 1 && kinds[0] === 'ride'
 
@@ -408,7 +445,20 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
         <EmptyState hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters} />
       )}
 
-      {!isPending && items.length > 0 && (
+      {!isPending && items.length > 0 && isNarrow && (
+        <Stack gap="xs">
+          {items.map((item, index) => (
+            <NarrowActivityCard
+              key={`${item.kind}-${item.id}-${index}`}
+              item={item}
+              onViewSession={setViewingSessionId}
+              onLogService={setBatchServiceRide}
+            />
+          ))}
+        </Stack>
+      )}
+
+      {!isPending && items.length > 0 && !isNarrow && (
         <>
           <Table.ScrollContainer minWidth={700}>
             <Table striped highlightOnHover>
@@ -430,7 +480,13 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
                           sortable={false}
                         />
                       ))}
-                      <Table.Th />
+                      <Table.Th>
+                        <Tooltip label="Change the bike on Strava, then Re-sync.">
+                          <Text size="xs" c="dimmed" style={{ cursor: 'help' }}>
+                            Actions
+                          </Text>
+                        </Tooltip>
+                      </Table.Th>
                       <Table.Th>
                         <ColumnPicker
                           allColumns={ACTIVITY_LOG_COLUMN_OPTIONS}
@@ -452,12 +508,20 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
                     item={item}
                     orderedColumns={orderedColumns}
                     mergedColSpan={mergedColSpan}
+                    expanded={item.kind === 'service_session' && expandedSessionIds.has(item.id)}
+                    onToggleExpand={() => item.kind === 'service_session' && toggleSessionExpanded(item.id)}
+                    onViewSession={setViewingSessionId}
+                    onLogService={setBatchServiceRide}
                   />
                 ))}
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
+        </>
+      )}
 
+      {!isPending && items.length > 0 && (
+        <>
           <Group justify="center">
             {hasNextPage && (
               <Button variant="default" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
@@ -472,19 +536,34 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
           )}
         </>
       )}
+
+      {batchServiceRide?.bike && (
+        <BatchServiceModal
+          opened
+          onClose={() => setBatchServiceRide(null)}
+          bikeId={batchServiceRide.bike.id}
+          initialPerformedAt={initialPerformedAtForRide(batchServiceRide)}
+        />
+      )}
+
+      {viewingSessionId !== null && (
+        <ServiceSessionViewModal opened onClose={() => setViewingSessionId(null)} sessionId={viewingSessionId} />
+      )}
     </Stack>
   )
 }
 
-function ActivityRow({
-  item,
-  orderedColumns,
-  mergedColSpan,
-}: {
+interface ActivityRowProps {
   item: ActivityItem
   orderedColumns: ActivityLogColumn[]
   mergedColSpan: number
-}) {
+  expanded: boolean
+  onToggleExpand: () => void
+  onViewSession: (sessionId: number) => void
+  onLogService: (ride: ActivityRideItem) => void
+}
+
+function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleExpand, onViewSession, onLogService }: ActivityRowProps) {
   const { Icon, label } = activityItemIconMeta(item)
 
   if (item.kind === 'ride') {
@@ -502,39 +581,231 @@ function ActivityRow({
         {orderedColumns.map((column) => (
           <Table.Td key={column}>{ACTIVITY_COLUMN_RENDERER[column](item)}</Table.Td>
         ))}
+        <Table.Td>
+          <RideRowActions ride={item} onLogService={onLogService} />
+        </Table.Td>
+        <Table.Td />
+      </Table.Tr>
+    )
+  }
+
+  return (
+    <>
+      <Table.Tr style={{ backgroundColor: 'var(--mantine-color-gray-light)' }}>
+        <Table.Td>
+          <Tooltip label={label}>
+            <Icon size={16} />
+          </Tooltip>
+        </Table.Td>
+        <Table.Td>{formatDateTime(item.occurred_at)}</Table.Td>
+        <Table.Td colSpan={mergedColSpan}>
+          <NonRideCellContent item={item} expanded={expanded} onToggleExpand={onToggleExpand} onViewSession={onViewSession} />
+        </Table.Td>
         <Table.Td />
         <Table.Td />
       </Table.Tr>
+      {item.kind === 'service_session' &&
+        expanded &&
+        item.items.map((sessionItem, itemIndex) => (
+          <Table.Tr key={itemIndex} style={{ backgroundColor: 'var(--mantine-color-gray-light)' }}>
+            <Table.Td />
+            <Table.Td />
+            <Table.Td colSpan={mergedColSpan}>
+              <Group gap="xs" wrap="nowrap" pl="lg">
+                <Anchor component={Link} to={`/components/${sessionItem.component_id}`} size="sm" c="dimmed">
+                  {sessionItem.label}
+                </Anchor>
+                <Text size="sm" c="dimmed">
+                  · {sessionItem.service_type_name}
+                </Text>
+                {sessionItem.note && (
+                  <Tooltip label={sessionItem.note}>
+                    <Text size="xs" c="dimmed" truncate maw={200}>
+                      {sessionItem.note}
+                    </Text>
+                  </Tooltip>
+                )}
+              </Group>
+            </Table.Td>
+            <Table.Td />
+            <Table.Td />
+          </Table.Tr>
+        ))}
+    </>
+  )
+}
+
+// Each kind's click target: maintenance_event navigates to its component
+// with ?event=<id> (ComponentServiceAndHistory scrolls to and highlights
+// that row); service_session opens ServiceSessionViewModal directly rather
+// than navigating anywhere; setup_change navigates to the installed
+// component, with a secondary link to the replaced one when the row is a
+// merged "replaced" entry -- two separate link affordances, since the
+// summary string itself is server-built and never parsed/recomposed here.
+function NonRideCellContent({
+  item,
+  expanded,
+  onToggleExpand,
+  onViewSession,
+}: {
+  item: ActivityServiceSessionItem | ActivityMaintenanceEventItem | ActivitySetupChangeItem
+  expanded: boolean
+  onToggleExpand: () => void
+  onViewSession: (sessionId: number) => void
+}) {
+  const note = nonRideNote(item)
+
+  const summaryNode = (() => {
+    if (item.kind === 'maintenance_event') {
+      return (
+        <Anchor component={Link} to={`/components/${item.component_id}?event=${item.id}`} size="sm" c="dimmed">
+          {item.summary}
+        </Anchor>
+      )
+    }
+    if (item.kind === 'service_session') {
+      return (
+        <Group gap={4} wrap="nowrap">
+          <ActionIcon variant="subtle" size="sm" color="gray" onClick={onToggleExpand} aria-label={expanded ? 'Collapse' : 'Expand'}>
+            {expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+          </ActionIcon>
+          <Anchor component="button" type="button" onClick={() => onViewSession(item.id)} size="sm" c="dimmed">
+            {item.summary}
+          </Anchor>
+        </Group>
+      )
+    }
+    return (
+      <Group gap={6} wrap="nowrap">
+        <Anchor component={Link} to={`/components/${item.component.id}`} size="sm" c="dimmed">
+          {item.summary}
+        </Anchor>
+        {item.replaced_component && (
+          <Anchor component={Link} to={`/components/${item.replaced_component.id}`} size="xs" c="dimmed">
+            (view {item.replaced_component.label})
+          </Anchor>
+        )}
+      </Group>
+    )
+  })()
+
+  return (
+    <Group gap="xs" wrap="nowrap">
+      {summaryNode}
+      {note && (
+        <Tooltip label={note}>
+          <Text size="xs" c="dimmed" truncate maw={240}>
+            {note}
+          </Text>
+        </Tooltip>
+      )}
+    </Group>
+  )
+}
+
+// "Log service after this ride" only when the ride has a bike -- no bike,
+// no session to log against. "Re-sync" reuses ResyncRideButton as-is,
+// including its own 429/retry-at handling. Deliberately no "change bike"
+// action -- attribution comes from Strava's own gear mapping, not anything
+// editable here.
+function RideRowActions({ ride, onLogService }: { ride: ActivityRideItem; onLogService: (ride: ActivityRideItem) => void }) {
+  return (
+    <Group gap={4} wrap="nowrap">
+      {ride.bike && (
+        <Button size="xs" variant="subtle" onClick={() => onLogService(ride)}>
+          Log service
+        </Button>
+      )}
+      <Button
+        size="xs"
+        variant="default"
+        component="a"
+        href={`https://www.strava.com/activities/${ride.strava_id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View on Strava
+      </Button>
+      <ResyncRideButton rideId={ride.id} />
+    </Group>
+  )
+}
+
+// Narrow-screen alternative to the table: ride rows become a compact card
+// (date/name/bike/distance/moving time); non-ride rows stay single lines,
+// since they're already compact -- same split the plan calls for.
+function NarrowActivityCard({
+  item,
+  onViewSession,
+  onLogService,
+}: {
+  item: ActivityItem
+  onViewSession: (sessionId: number) => void
+  onLogService: (ride: ActivityRideItem) => void
+}) {
+  const { Icon, label } = activityItemIconMeta(item)
+
+  if (item.kind === 'ride') {
+    return (
+      <Card withBorder padding="sm">
+        <Group justify="space-between" wrap="nowrap" mb={4}>
+          <Group gap={6} wrap="nowrap">
+            <Tooltip label={label}>
+              <Icon size={14} />
+            </Tooltip>
+            <Text size="xs" c="dimmed">
+              {formatDateTime(item.occurred_at)}
+            </Text>
+          </Group>
+          <RideRowActions ride={item} onLogService={onLogService} />
+        </Group>
+        <ViewOnStravaLink stravaId={item.strava_id} name={item.name} />
+        <Group gap="xs" mt={4}>
+          <Text size="sm">{item.bike ? item.bike.name : 'No bike'}</Text>
+          <Text size="sm" c="dimmed">
+            {formatDistance(item.distance_meters)}
+          </Text>
+          {item.moving_time != null && (
+            <Text size="sm" c="dimmed">
+              {formatDuration(item.moving_time)}
+            </Text>
+          )}
+        </Group>
+      </Card>
     )
   }
 
   const note = nonRideNote(item)
 
   return (
-    <Table.Tr style={{ backgroundColor: 'var(--mantine-color-gray-light)' }}>
-      <Table.Td>
+    <Card withBorder padding="sm" bg="var(--mantine-color-gray-light)">
+      <Group gap="xs" wrap="nowrap">
         <Tooltip label={label}>
-          <Icon size={16} />
+          <Icon size={14} />
         </Tooltip>
-      </Table.Td>
-      <Table.Td>{formatDateTime(item.occurred_at)}</Table.Td>
-      <Table.Td colSpan={mergedColSpan}>
-        <Group gap="xs" wrap="nowrap">
-          <Text size="sm" c="dimmed">
+        <Text size="xs" c="dimmed">
+          {formatDateTime(item.occurred_at)}
+        </Text>
+        {item.kind === 'service_session' ? (
+          <Anchor component="button" type="button" onClick={() => onViewSession(item.id)} size="sm" c="dimmed">
             {item.summary}
-          </Text>
-          {note && (
-            <Tooltip label={note}>
-              <Text size="xs" c="dimmed" truncate maw={240}>
-                {note}
-              </Text>
-            </Tooltip>
-          )}
-        </Group>
-      </Table.Td>
-      <Table.Td />
-      <Table.Td />
-    </Table.Tr>
+          </Anchor>
+        ) : item.kind === 'maintenance_event' ? (
+          <Anchor component={Link} to={`/components/${item.component_id}?event=${item.id}`} size="sm" c="dimmed">
+            {item.summary}
+          </Anchor>
+        ) : (
+          <Anchor component={Link} to={`/components/${item.component.id}`} size="sm" c="dimmed">
+            {item.summary}
+          </Anchor>
+        )}
+      </Group>
+      {note && (
+        <Text size="xs" c="dimmed" mt={2}>
+          {note}
+        </Text>
+      )}
+    </Card>
   )
 }
 
