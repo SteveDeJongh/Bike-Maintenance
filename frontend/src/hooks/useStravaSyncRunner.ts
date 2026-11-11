@@ -15,6 +15,7 @@ const FULL_POLL_CAP_MS = 3 * 60_000
 // than hand-maintaining a second copy of "every key derived from ride data."
 export const INVALIDATE_KEYS = [
   ['strava'], ['bikes'], ['bike_rides'], ['dashboard'], ['maintenance_alerts'], ['components'], ['strava_rides'],
+  ['activity'],
 ]
 
 export interface SyncFailure {

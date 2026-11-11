@@ -166,6 +166,7 @@ export function useCreateBike() {
       // it the moment a second gear-mapping edit touches the same bike.
       queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
       queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
+      queryClient.invalidateQueries({ queryKey: ['activity'] })
     },
   })
 }
@@ -186,6 +187,7 @@ export function useUpdateBike(id: number) {
       // change the moment strava_gear_id does.
       queryClient.invalidateQueries({ queryKey: ['bike_rides', id] })
       queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
+      queryClient.invalidateQueries({ queryKey: ['activity'] })
     },
   })
 }
@@ -329,6 +331,7 @@ function invalidateAssignmentRelatedQueries(queryClient: ReturnType<typeof useQu
   queryClient.invalidateQueries({ queryKey: ['component_assignments'] })
   queryClient.invalidateQueries({ queryKey: ['bikes'] })
   queryClient.invalidateQueries({ queryKey: ['components'] })
+  queryClient.invalidateQueries({ queryKey: ['activity'] })
 }
 
 export function useCreateComponentAssignment() {
@@ -395,6 +398,7 @@ function invalidateMaintenanceEventRelatedQueries(queryClient: ReturnType<typeof
   queryClient.invalidateQueries({ queryKey: ['components'] })
   queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  queryClient.invalidateQueries({ queryKey: ['activity'] })
 }
 
 export function useCreateMaintenanceEvent() {
@@ -419,7 +423,10 @@ export function useDeleteMaintenanceEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/maintenance_events/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_events'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
+      queryClient.invalidateQueries({ queryKey: ['activity'] })
+    },
   })
 }
 
@@ -441,9 +448,7 @@ export interface CreateServiceSessionPayload {
 // Everything invalidateMaintenanceEventRelatedQueries already covers, plus
 // bikes (the bike page's own installed-components table shows
 // service_status too) and serviceable_components (logging a service can
-// move an interval's status, which the picker's rows reflect). No
-// ['activity_log'] key yet -- that's the next feature to add here, once it
-// exists.
+// move an interval's status, which the picker's rows reflect).
 function invalidateServiceSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
   queryClient.invalidateQueries({ queryKey: ['components'] })
@@ -451,6 +456,7 @@ function invalidateServiceSessionQueries(queryClient: ReturnType<typeof useQuery
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
   queryClient.invalidateQueries({ queryKey: ['bikes'] })
   queryClient.invalidateQueries({ queryKey: ['serviceable_components'] })
+  queryClient.invalidateQueries({ queryKey: ['activity'] })
 }
 
 export function useCreateServiceSession() {
@@ -523,6 +529,7 @@ export function useReassignGear() {
       // unscoped rather than trying to target just one bike.
       queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
       queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
+      queryClient.invalidateQueries({ queryKey: ['activity'] })
     },
   })
 }
@@ -534,6 +541,7 @@ function invalidateGearDecisionQueries(queryClient: ReturnType<typeof useQueryCl
   queryClient.invalidateQueries({ queryKey: ['strava'] })
   queryClient.invalidateQueries({ queryKey: ['bikes'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  queryClient.invalidateQueries({ queryKey: ['activity'] })
   queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
 }
 
@@ -577,6 +585,7 @@ function invalidateRideDecisionQueries(queryClient: ReturnType<typeof useQueryCl
   queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
   queryClient.invalidateQueries({ queryKey: ['dashboard'] })
   queryClient.invalidateQueries({ queryKey: ['strava'] })
+  queryClient.invalidateQueries({ queryKey: ['activity'] })
 }
 
 // Re-fetches one ride from Strava (one API call, not a full paginated
