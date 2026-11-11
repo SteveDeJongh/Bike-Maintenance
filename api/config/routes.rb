@@ -9,8 +9,11 @@ Rails.application.routes.draw do
     member do
       post :component_setup
       get :rides
+      get :serviceable_components
     end
+    resources :service_sessions, only: %i[ create ]
   end
+  resources :service_sessions, only: %i[ show update destroy ]
   resources :bike_types, except: %i[ new edit ]
   resources :bike_component_slots, only: %i[ create destroy ]
   resources :table_view_preferences, param: :table_key, only: %i[ show update ]

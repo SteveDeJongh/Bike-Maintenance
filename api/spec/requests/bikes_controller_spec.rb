@@ -49,6 +49,29 @@ RSpec.describe "Bikes", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "404s on GET /bikes/:id/serviceable_components for another user's bike" do
+      other_bike = create(:bike)
+
+      get "/bikes/#{other_bike.id}/serviceable_components"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s on POST /bikes/:id/service_sessions for another user's bike" do
+      other_bike = create(:bike)
+      component = create(:component, user: other_bike.user)
+      service_type = create(:service_type, user: other_bike.user)
+      create(:component_assignment, bike: other_bike, component: component)
+
+      post "/bikes/#{other_bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [ { component_id: component.id, service_type_id: service_type.id } ],
+      }
+
+      expect(response).to have_http_status(:not_found)
+      expect(ServiceSession.where(bike: other_bike).count).to eq(0)
+    end
   end
 
   describe "POST /bikes" do
@@ -374,6 +397,273 @@ RSpec.describe "Bikes", type: :request do
       rides = JSON.parse(response.body)["rides"].index_by { |r| r["id"] }
       expect(rides[outdoor_ride.id]["counted_toward"]).to eq([{ "component_id" => outdoor_cassette.id, "label" => "Road cassette" }])
       expect(rides[indoor_ride.id]["counted_toward"]).to eq([{ "component_id" => indoor_cassette.id, "label" => "Trainer cassette" }])
+    end
+  end
+
+  describe "GET /bikes/:id/serviceable_components" do
+    it "splits mounted and off_bike at the given point in time" do
+      bike = create(:bike, user: current_user)
+      mounted = create(:component, user: current_user, label: "Chain A", category: "chain")
+      off_bike = create(:component, user: current_user, label: "Chain B", category: "chainring")
+      create(:component_assignment, bike: bike, component: mounted, started_at: 10.days.ago, ended_at: nil)
+      create(:component_assignment, bike: bike, component: off_bike, started_at: 10.days.ago, ended_at: 5.days.ago)
+
+      get "/bikes/#{bike.id}/serviceable_components"
+
+      body = JSON.parse(response.body)
+      expect(body["mounted"].map { |c| c["id"] }).to eq([ mounted.id ])
+      expect(body["off_bike"].map { |c| c["id"] }).to eq([ off_bike.id ])
+    end
+
+    it "includes each enabled interval's batched status, keyed with service type id/name" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      service_type = create(:service_type, user: current_user, name: "Full Wax")
+      interval = create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 300_000)
+
+      get "/bikes/#{bike.id}/serviceable_components"
+
+      row = JSON.parse(response.body)["mounted"].first["service_intervals"].first
+      expect(row["id"]).to eq(interval.id)
+      expect(row["service_type_id"]).to eq(service_type.id)
+      expect(row["service_type_name"]).to eq("Full Wax")
+      expect(row["status"]).to eq("ok")
+      expect(row).to have_key("distance_remaining_meters")
+      expect(row).to have_key("days_remaining")
+    end
+
+    it "omits a disabled interval" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      create(:component_service_interval, component: component, service_type: create(:service_type, user: current_user),
+        distance_interval_meters: 300_000, enabled: false)
+
+      get "/bikes/#{bike.id}/serviceable_components"
+
+      expect(JSON.parse(response.body)["mounted"].first["service_intervals"]).to eq([])
+    end
+
+    it "uses `at` to evaluate what was serviceable then, not now" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component,
+        started_at: Time.zone.local(2026, 1, 1, 8, 0), ended_at: Time.zone.local(2026, 1, 5, 8, 0))
+
+      get "/bikes/#{bike.id}/serviceable_components", params: { at: Time.zone.local(2026, 1, 3, 0, 0).iso8601 }
+
+      body = JSON.parse(response.body)
+      expect(body["mounted"].map { |c| c["id"] }).to eq([ component.id ])
+      expect(body["off_bike"]).to eq([])
+    end
+  end
+
+  describe "POST /bikes/:id/service_sessions" do
+    it "creates the session and every event in one transaction" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      service_type_a = create(:service_type, user: current_user, name: "Full Wax")
+      service_type_b = create(:service_type, user: current_user, name: "Full Clean")
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601, notes: "Saturday tune-up",
+        events: [
+          { component_id: component.id, service_type_id: service_type_a.id, notes: "fresh wax" },
+          { component_id: component.id, service_type_id: service_type_b.id },
+        ],
+      }
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["notes"]).to eq("Saturday tune-up")
+      expect(body["events"].size).to eq(2)
+      expect(body["events"].first["notes"]).to eq("fresh wax")
+      expect(ServiceSession.count).to eq(1)
+      expect(MaintenanceEvent.count).to eq(2)
+      expect(MaintenanceEvent.pluck(:performed_at).uniq.size).to eq(1)
+    end
+
+    it "requires at least one event" do
+      bike = create(:bike, user: current_user)
+
+      post "/bikes/#{bike.id}/service_sessions", params: { performed_at: Time.current.iso8601 }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"]).to be_present
+      expect(ServiceSession.count).to eq(0)
+    end
+
+    it "rejects a future performed_at" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: 1.hour.from_now.iso8601,
+        events: [ { component_id: component.id, service_type_id: create(:service_type, user: current_user).id } ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["performed_at"]).to be_present
+      expect(ServiceSession.count).to eq(0)
+    end
+
+    it "rolls back the whole request when one row is invalid, keyed by index" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      service_type = create(:service_type, user: current_user)
+      other_component = create(:component) # not eligible: belongs to another user, never on this bike
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [
+          { component_id: component.id, service_type_id: service_type.id },
+          { component_id: other_component.id, service_type_id: service_type.id },
+        ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      body = JSON.parse(response.body)
+      expect(body["row_errors"]["1"]["component_id"]).to be_present
+      expect(ServiceSession.count).to eq(0)
+      expect(MaintenanceEvent.count).to eq(0)
+    end
+
+    it "rejects a duplicate (component_id, service_type_id) pair within one request" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      service_type = create(:service_type, user: current_user)
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [
+          { component_id: component.id, service_type_id: service_type.id },
+          { component_id: component.id, service_type_id: service_type.id },
+        ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      body = JSON.parse(response.body)
+      expect(body["row_errors"]["1"]["base"]).to be_present
+    end
+
+    it "rejects a component not eligible for this bike at that time" do
+      bike = create(:bike, user: current_user)
+      not_mounted = create(:component, user: current_user, category: "chain")
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [ { component_id: not_mounted.id, service_type_id: create(:service_type, user: current_user).id } ],
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["row_errors"]["0"]["component_id"]).to be_present
+    end
+
+    it "accepts a service type with no interval set up on that component (the 'Add other' path)" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
+      service_type = create(:service_type, user: current_user, name: "One-off truing")
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [ { component_id: component.id, service_type_id: service_type.id } ],
+      }
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "resets interval status -- a created event becomes the new baseline" do
+      bike = create(:bike, user: current_user)
+      component = create(:component, user: current_user, category: "chain", acquired_on: 100.days.ago.to_date)
+      create(:component_assignment, bike: bike, component: component, started_at: 100.days.ago, ended_at: nil)
+      service_type = create(:service_type, user: current_user, name: "Full Wax")
+      create(:component_service_interval, component: component, service_type: service_type, time_interval_days: 30)
+
+      post "/bikes/#{bike.id}/service_sessions", params: {
+        performed_at: Time.current.iso8601,
+        events: [ { component_id: component.id, service_type_id: service_type.id } ],
+      }
+
+      expect(response).to have_http_status(:created)
+      status = Maintenance::IntervalStatus.for_component(component).first
+      expect(status.days_used).to eq(0)
+    end
+  end
+
+  describe "GET/PATCH/DELETE /service_sessions/:id" do
+    it "404s on another user's service session" do
+      other_session = create(:service_session)
+
+      get "/service_sessions/#{other_session.id}"
+      expect(response).to have_http_status(:not_found)
+
+      patch "/service_sessions/#{other_session.id}", params: { notes: "hijacked" }
+      expect(response).to have_http_status(:not_found)
+
+      delete "/service_sessions/#{other_session.id}"
+      expect(response).to have_http_status(:not_found)
+      expect(ServiceSession.exists?(other_session.id)).to be true
+    end
+
+    it "shows the session with its events" do
+      session = create(:service_session, bike: create(:bike, user: current_user), notes: "Tune-up")
+      component = create(:component, user: current_user)
+      create(:maintenance_event, service_session: session, component: component,
+        service_type: create(:service_type, user: current_user), performed_at: session.performed_at)
+
+      get "/service_sessions/#{session.id}"
+
+      body = JSON.parse(response.body)
+      expect(body["notes"]).to eq("Tune-up")
+      expect(body["events"].size).to eq(1)
+    end
+
+    it "updates performed_at and cascades it to every event" do
+      session = create(:service_session, user: current_user, bike: create(:bike, user: current_user),
+        performed_at: Time.zone.local(2026, 1, 1, 12, 0))
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: session.bike, component: component, started_at: 20.days.before(session.performed_at), ended_at: nil)
+      event = create(:maintenance_event, service_session: session, component: component,
+        service_type: create(:service_type, user: current_user), performed_at: session.performed_at)
+
+      new_time = Time.zone.local(2026, 1, 2, 9, 0)
+      patch "/service_sessions/#{session.id}", params: { performed_at: new_time.iso8601 }
+
+      expect(response).to have_http_status(:ok)
+      expect(event.reload.performed_at).to be_within(1.second).of(new_time)
+    end
+
+    it "rejects moving performed_at to a time an event's component no longer qualifies" do
+      bike = create(:bike, user: current_user)
+      session = create(:service_session, user: current_user, bike: bike, performed_at: Time.zone.local(2026, 1, 10, 12, 0))
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, bike: bike, component: component,
+        started_at: Time.zone.local(2026, 1, 5, 8, 0), ended_at: nil)
+      event = create(:maintenance_event, service_session: session, component: component,
+        service_type: create(:service_type, user: current_user), performed_at: session.performed_at)
+
+      patch "/service_sessions/#{session.id}", params: { performed_at: Time.zone.local(2026, 1, 1, 0, 0).iso8601 }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].first).to include(component.label)
+      expect(event.reload.performed_at).to be_within(1.second).of(Time.zone.local(2026, 1, 10, 12, 0))
+    end
+
+    it "deletes the session and cascades to its events" do
+      session = create(:service_session, bike: create(:bike, user: current_user))
+      event = create(:maintenance_event, service_session: session, component: create(:component, user: current_user),
+        service_type: create(:service_type, user: current_user), performed_at: session.performed_at)
+
+      delete "/service_sessions/#{session.id}"
+
+      expect(response).to have_http_status(:no_content)
+      expect(MaintenanceEvent.exists?(event.id)).to be false
     end
   end
 end

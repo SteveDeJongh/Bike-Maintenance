@@ -1,5 +1,5 @@
 class BikesController < ApplicationController
-  before_action :set_bike, only: %i[ show update destroy component_setup rides ]
+  before_action :set_bike, only: %i[ show update destroy component_setup rides serviceable_components ]
 
   # GET /bikes
   def index
@@ -162,9 +162,49 @@ class BikesController < ApplicationController
     }
   end
 
+  # GET /bikes/1/serviceable_components?at=<iso8601>
+  # "What's serviceable on this bike at `at`?" for the batch service logger's
+  # component picker -- mounted components, plus ones most recently taken off
+  # this bike (as opposed to another bike) by `at`. Shares
+  # Bikes::ServiceableComponents with ServiceSessionsController#create's own
+  # eligibility check, so the two can never disagree about what's offered vs.
+  # what's accepted. Interval status is batched once (Maintenance::IntervalStatus.for_user,
+  # not per component) and computed as of *now*, not `at` -- it's there to help
+  # the user choose, not a record of what it was on that date.
+  def serviceable_components
+    at = params[:at].present? ? (Time.zone.parse(params[:at]) || Time.current) : Time.current
+    result = Bikes::ServiceableComponents.call(@bike, at: at)
+    statuses_by_component = Maintenance::IntervalStatus.for_user(current_user)
+      .group_by { |status| status.component_service_interval.component_id }
+
+    render json: {
+      mounted: result.mounted.map { |c| serviceable_component_json(c, statuses_by_component[c.id] || []) },
+      off_bike: result.off_bike.map { |c| serviceable_component_json(c, statuses_by_component[c.id] || []) },
+    }
+  end
+
   private
     def set_bike
       @bike = current_user.bikes.find(params[:id])
+    end
+
+    def serviceable_component_json(component, statuses)
+      component.as_json(only: %i[ id label category ]).merge(
+        service_intervals: statuses.map { |status| interval_status_json(status) },
+      )
+    end
+
+    def interval_status_json(status)
+      interval = status.component_service_interval
+      {
+        id: interval.id,
+        service_type_id: interval.service_type_id,
+        service_type_name: interval.service_type.name,
+        status: status.status,
+        driving_dimension: status.driving_dimension,
+        distance_remaining_meters: status.distance_remaining_meters,
+        days_remaining: status.days_remaining,
+      }
     end
 
     def bike_params
