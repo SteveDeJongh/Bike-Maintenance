@@ -34,6 +34,7 @@ import {
 import { confirmDelete } from '../components/confirmDelete'
 import RideHistorySection from '../components/bike/RideHistorySection'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
+import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import RideContextCheckboxes from '../components/RideContextCheckboxes'
@@ -181,6 +182,7 @@ export default function BikeDetail() {
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [selectedAssignment, setSelectedAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [addCategory, setAddCategory] = useState<string | null>(null)
+  const [batchServiceOpened, setBatchServiceOpened] = useState(false)
   const createSlot = useCreateBikeComponentSlot()
 
   if (!Number.isFinite(bikeId) || (bikeError instanceof ApiError && bikeError.status === 404)) {
@@ -281,15 +283,20 @@ export default function BikeDetail() {
 
   return (
     <Stack>
-      <div>
-        <Group gap="sm">
-          <Title order={2}>{bike.name}</Title>
-          {bike.retired_on && <Badge color="gray">Retired</Badge>}
-        </Group>
-        <Text c="dimmed">
-          {[bike.make, bike.model].filter(Boolean).join(' ') || 'Unknown make/model'}
-        </Text>
-      </div>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Group gap="sm">
+            <Title order={2}>{bike.name}</Title>
+            {bike.retired_on && <Badge color="gray">Retired</Badge>}
+          </Group>
+          <Text c="dimmed">
+            {[bike.make, bike.model].filter(Boolean).join(' ') || 'Unknown make/model'}
+          </Text>
+        </div>
+        <Button variant="default" onClick={() => setBatchServiceOpened(true)}>
+          Log service
+        </Button>
+      </Group>
 
       <Group gap="xl">
         <div>
@@ -390,6 +397,8 @@ export default function BikeDetail() {
         onClose={() => setSelectedAssignment(null)}
         assignment={selectedAssignment}
       />
+
+      <BatchServiceModal opened={batchServiceOpened} onClose={() => setBatchServiceOpened(false)} bikeId={bike.id} />
     </Stack>
   )
 }

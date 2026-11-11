@@ -1,5 +1,7 @@
-import { Card, Group, Stack, Text } from '@mantine/core'
+import { useState } from 'react'
+import { Button, Card, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
+import BatchServiceModal from '../forms/BatchServiceModal'
 import { SERVICE_STATUS_COLORS } from '../../constants'
 import { formatDate } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -55,6 +57,8 @@ function MountedRow({ component }: { component: DashboardMountedComponent }) {
 }
 
 export default function BikeCard({ bike }: { bike: DashboardBike }) {
+  const [batchServiceOpened, setBatchServiceOpened] = useState(false)
+
   return (
     <Card withBorder padding="lg" radius="md" style={{ flex: '1 1 320px' }}>
       <Stack gap="sm">
@@ -62,9 +66,14 @@ export default function BikeCard({ bike }: { bike: DashboardBike }) {
           <Text component={Link} to={`/bikes/${bike.id}`} fw={600} size="lg">
             {bike.name}
           </Text>
-          <Text size="sm" c="dimmed">
-            {bike.last_ride_on ? `Last ride ${formatDate(bike.last_ride_on)}` : 'No rides yet'}
-          </Text>
+          <Stack gap={2} align="flex-end">
+            <Text size="sm" c="dimmed">
+              {bike.last_ride_on ? `Last ride ${formatDate(bike.last_ride_on)}` : 'No rides yet'}
+            </Text>
+            <Button size="compact-xs" variant="subtle" onClick={() => setBatchServiceOpened(true)}>
+              Log service
+            </Button>
+          </Stack>
         </Group>
 
         <Group gap="lg">
@@ -92,6 +101,8 @@ export default function BikeCard({ bike }: { bike: DashboardBike }) {
           </Text>
         )}
       </Stack>
+
+      <BatchServiceModal opened={batchServiceOpened} onClose={() => setBatchServiceOpened(false)} bikeId={bike.id} />
     </Card>
   )
 }

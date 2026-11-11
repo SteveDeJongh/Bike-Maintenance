@@ -12,6 +12,7 @@ import type {
   ComponentServiceInterval,
   MaintenanceEvent,
   NotificationSetting,
+  ServiceSession,
   ServiceType,
   TableViewPreferenceData,
   User,
@@ -135,7 +136,10 @@ export type BikePayload = Omit<Bike, 'id' | 'created_at'>
 export type BikeTypePayload = Omit<BikeType, 'id'>
 export type ComponentPayload = Omit<Component, 'id'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
-export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id'>
+// service_session_id is never sent here -- it's only ever set via the batch
+// service logger's own POST /bikes/:id/service_sessions, never through this
+// single-event create/update path.
+export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id' | 'service_session_id'>
 export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
 export type ServiceTypePayload = Omit<ServiceType, 'id'>
 export type CategoryServiceIntervalPayload = Omit<CategoryServiceInterval, 'id'>
@@ -416,6 +420,62 @@ export function useDeleteMaintenanceEvent() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/maintenance_events/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_events'] }),
+  })
+}
+
+// ServiceSession (the batch service logger)
+
+export interface ServiceSessionEventPayload {
+  component_id: number
+  service_type_id: number
+  notes?: string | null
+}
+
+export interface CreateServiceSessionPayload {
+  bikeId: number
+  performed_at: string
+  notes?: string | null
+  events: ServiceSessionEventPayload[]
+}
+
+// Everything invalidateMaintenanceEventRelatedQueries already covers, plus
+// bikes (the bike page's own installed-components table shows
+// service_status too) and serviceable_components (logging a service can
+// move an interval's status, which the picker's rows reflect). No
+// ['activity_log'] key yet -- that's the next feature to add here, once it
+// exists.
+function invalidateServiceSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
+  queryClient.invalidateQueries({ queryKey: ['components'] })
+  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  queryClient.invalidateQueries({ queryKey: ['bikes'] })
+  queryClient.invalidateQueries({ queryKey: ['serviceable_components'] })
+}
+
+export function useCreateServiceSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ bikeId, ...payload }: CreateServiceSessionPayload) =>
+      apiPost<ServiceSession>(`/bikes/${bikeId}/service_sessions`, payload),
+    onSuccess: () => invalidateServiceSessionQueries(queryClient),
+  })
+}
+
+export function useUpdateServiceSession(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: { performed_at?: string; notes?: string | null }) =>
+      apiPatch<ServiceSession>(`/service_sessions/${id}`, values),
+    onSuccess: () => invalidateServiceSessionQueries(queryClient),
+  })
+}
+
+export function useDeleteServiceSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/service_sessions/${id}`),
+    onSuccess: () => invalidateServiceSessionQueries(queryClient),
   })
 }
 

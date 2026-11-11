@@ -15,6 +15,8 @@ import type {
   MaintenanceAlert,
   MaintenanceEvent,
   NotificationSetting,
+  ServiceableComponentsResponse,
+  ServiceSession,
   ServiceType,
   StravaGear,
   StravaIgnoredGear,
@@ -68,6 +70,25 @@ export function useBikeRides(bikeId: number, type: 'all' | 'outdoor' | 'indoor',
       apiGet<BikeRidesResponse>(`/bikes/${bikeId}/rides?type=${type}&order=${order}&page=${pageParam}`),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.meta.next_page,
+  })
+}
+
+// BatchServiceModal's component picker -- refetches whenever `at` (the
+// session's own performed_at) changes, since eligibility is evaluated at
+// that point in time, not now.
+export function useServiceableComponents(bikeId: number, at: string) {
+  return useQuery({
+    queryKey: ['serviceable_components', bikeId, at],
+    queryFn: () => apiGet<ServiceableComponentsResponse>(`/bikes/${bikeId}/serviceable_components?at=${encodeURIComponent(at)}`),
+    enabled: Number.isFinite(bikeId) && Boolean(at),
+  })
+}
+
+export function useServiceSession(id: number) {
+  return useQuery({
+    queryKey: ['service_sessions', id],
+    queryFn: () => apiGet<ServiceSession>(`/service_sessions/${id}`),
+    enabled: Number.isFinite(id),
   })
 }
 

@@ -280,6 +280,55 @@ export interface MaintenanceEvent {
   service_type_id: number
   performed_at: string
   notes: string | null
+  // Set when this event was logged as part of a batch ServiceSession
+  // (BatchServiceModal) rather than one at a time -- its own performed_at
+  // can't be edited directly while this is set (see ServiceSession).
+  service_session_id: number | null
+}
+
+export interface ServiceSessionEvent {
+  id: number
+  component_id: number
+  service_type_id: number
+  performed_at: string
+  notes: string | null
+}
+
+export interface ServiceSession {
+  id: number
+  bike_id: number
+  performed_at: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+  events: ServiceSessionEvent[]
+}
+
+// One row of GET /bikes/:id/serviceable_components -- shared by the batch
+// logger's component picker and nothing else. status/driving_dimension/
+// *_remaining are computed as of now (not the `at` the request was made
+// for) -- they're there to help the user choose, not a record of what the
+// interval looked like at that point in time.
+export interface ServiceableComponentInterval {
+  id: number
+  service_type_id: number
+  service_type_name: string
+  status: ServiceStatus
+  driving_dimension: 'distance' | 'days'
+  distance_remaining_meters: number | null
+  days_remaining: number | null
+}
+
+export interface ServiceableComponent {
+  id: number
+  label: string
+  category: string
+  service_intervals: ServiceableComponentInterval[]
+}
+
+export interface ServiceableComponentsResponse {
+  mounted: ServiceableComponent[]
+  off_bike: ServiceableComponent[]
 }
 
 export type SyncFailureCode = 'rate_limited' | 'strava_unavailable' | 'auth_failed' | 'unknown'
