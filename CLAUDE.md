@@ -1160,7 +1160,13 @@ distance/status computation happens here that doesn't already live elsewhere:
   no-gear ride is explicitly spared from the gear-ignore exclusion, since a plain
   `NOT IN (...)` isn't NULL-safe on its own. `Strava::RideLog` (the Rides tab's
   endpoint) is the other caller of the same scope — this count and the Rides tab's
-  own "Needs attention" count never disagree.
+  own "Needs attention" count never disagree. Also carries `last_sync_failed_at`/
+  `last_sync_error`/`last_sync_retry_at`, straight from the credential (no
+  `last_sync_failed_kind` — the sync strip shows one generic failure line
+  regardless of full vs incremental, leaving that detail to the Strava page's own
+  status) — this is what lets the sync strip's failure item survive a page reload
+  instead of only ever reflecting `useStravaSyncRunner`'s in-memory, poll-only
+  failure (see "Frontend" below).
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
   `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
   `BikesController#index` already uses (no per-bike N+1), plus `mounted`
@@ -1223,23 +1229,51 @@ not just a new feature.
 `useStravaSyncRunner` below for what that hook actually does (it replaced an
 earlier, Dashboard-only hand-rolled polling loop against `GET /dashboard`
 itself; polling now goes through `GET /strava/status` instead, shared with the
-Strava page). `components/dashboard/`: `SyncStrip` (connection state, relative
-+ absolute last sync via `formatRelativeTime` in `utils/datetime.ts`, the
-unattributed breakdown, a "Review rides" link to `/strava?tab=rides`, and —
-from the hook's `failure`/`stillRunning` — a red "Sync failed" alert or a
-neutral "still running" one, passed down from `Dashboard.tsx` the same way
-`sync`/`syncing` already were), `BikeCards`/`BikeCard`, `NeedsAttention`/
-`AttentionRow` (grouped by bike, "Not mounted" last; Log service reuses
-`MaintenanceEventFormModal` as-is), `RecentRidesTable` (its "No bike" rows link
-to `/strava?tab=rides`; its "Link Strava gear" link, shown only when `gear_id`
-is present, to `/strava?tab=gear`). `RecentRidesTable` is a plain Mantine
-`Table` in a horizontal-scroll wrapper, **not** the sortable/configurable-table
-system above — that mechanism exists for a `TableViewPreference` row's worth of
-persisted column choices/ordering, which this fixed, non-configurable 14-day
-feed has no use for. `formatRemaining` (the "N km left"/"N km overdue" wording)
-was extracted out of `ServiceIntervalsSection.tsx` into
-`utils/serviceInterval.ts` so `AttentionRow` shares the exact same wording
-rather than re-deriving it.
+Strava page). `components/dashboard/`:
+
+- **`SyncStrip`** is the single place Strava-related issues surface on the
+  dashboard — one `Paper withBorder`, never a stack of full-width `Alert`
+  boxes. Row 1 (always shown): a badge summarizing the worst current state,
+  the connection/last-synced/ride-total line, and "Sync now" (or "Connect
+  Strava" when `!sync.connected`, reusing the exact same strip shape rather
+  than a separate disconnected-state component). Badge priority, highest
+  first: a sync in progress (`syncing` or `stillRunning`) → gray "Syncing…";
+  else a failure (`resolveFailure`, below) → red "Sync failed"; else any
+  ride/gear issue → orange "Needs attention"; else teal "Connected". Row 2
+  (only rendered when there's at least one item): a `Divider`, then a tight
+  one-line-per-issue list, each with a small colored dot, one sentence, and
+  its own action `Anchor` — sync failure (`syncFailureMessage`, "Reconnect
+  Strava" for `auth_failed` only), still running (no action), unmapped gear
+  ("Link gear" → `/strava?tab=gear`), no-bike-on-Strava rides ("Review rides"
+  → `/strava?tab=rides`) — in that order, and any combination can appear at
+  once (e.g. a failure *and* an unmapped-gear item). The detailed "map it,
+  track it as retired, or don't track it" guidance that used to live in this
+  box moved to where the user actually acts on it: a one-line hint above the
+  Gear tab's Unmapped gear table, and one appended to the Rides tab's own
+  hint text on its "Needs attention" view (see "Strava integration" below)
+  — the dashboard only ever surfaces that something needs attention and
+  links to where to fix it.
+  **`resolveFailure(sync, liveFailure)`** prefers `useStravaSyncRunner`'s own
+  in-memory `failure` (richer: it's from the exact run this page triggered),
+  but falls back to the credential's own `last_sync_failed_at`/
+  `last_sync_error`/`last_sync_retry_at` (`sync` section above) whenever
+  `last_sync_failed_at` is present and not already older than
+  `last_synced_at` — this is what lets the failure item survive a page
+  reload. No separate "clear" step: once a later sync succeeds,
+  `last_synced_at` moves past `last_sync_failed_at` and the function starts
+  returning `null` again on its own.
+- `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by bike,
+  "Not mounted" last; Log service reuses `MaintenanceEventFormModal` as-is),
+  `RecentRidesTable` (its "No bike" rows link to `/strava?tab=rides`; its
+  "Link Strava gear" link, shown only when `gear_id` is present, to
+  `/strava?tab=gear`). `RecentRidesTable` is a plain Mantine `Table` in a
+  horizontal-scroll wrapper, **not** the sortable/configurable-table system
+  above — that mechanism exists for a `TableViewPreference` row's worth of
+  persisted column choices/ordering, which this fixed, non-configurable
+  14-day feed has no use for. `formatRemaining` (the "N km left"/"N km
+  overdue" wording) was extracted out of `ServiceIntervalsSection.tsx` into
+  `utils/serviceInterval.ts` so `AttentionRow` shares the exact same wording
+  rather than re-deriving it.
 
 **`useStravaSyncRunner({ full })`** (`frontend/src/hooks/useStravaSyncRunner.ts`)
 is the one piece shared by both sync triggers on both pages (Dashboard's "Sync
