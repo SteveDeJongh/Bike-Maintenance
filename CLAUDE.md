@@ -437,22 +437,45 @@ above for the data model; this section covers how status gets computed and surfa
   (`NotificationSetting.effective_for`), and not be currently suppressed by a
   `ServiceAlertDismissal`. Ineligible intervals still compute and show a real status
   everywhere else (component page, table columns) — eligibility only gates the
-  app-wide banners.
+  banners.
 - API: `ServiceTypesController`, `CategoryServiceIntervalsController` (plus `POST
   .../:id/apply`), `ComponentServiceIntervalsController` (plus `POST
   .../apply_defaults`), `NotificationSettingsController` (singleton, upsert like
   `TableViewPreference`), `MaintenanceAlertsController#index` (`GET
   /maintenance_alerts`, banner-eligible statuses only), `ServiceAlertDismissalsController`
-  (`#create`, `#dismiss_all` with an optional `status` param). `ComponentsController#show`
+  (`#create`, `#dismiss_all` with an optional `status` param). Both the index and
+  `dismiss_all` take optional `bike_id`/`component_id` filters, applied *after*
+  banner-eligibility, via the one shared
+  `Maintenance::IntervalStatus.banner_eligible_for_user(user, bike_id:, component_id:)` —
+  so a scoped banner's "dismiss all" can never touch anything the matching index
+  call didn't itself show. Unscoped (every alert at once) still works for backwards
+  compatibility, but the frontend never calls either endpoint that way now — see
+  below. Every alert also carries `bike_ids`: every bike the component currently has
+  an active (`ended_at: nil`) assignment on — usually one, but a category with
+  `allows_multiple_assignments` can have the same component mounted `indoor_only` on
+  two bikes at once, and that alert belongs on both bikes' pages, unfiltered by
+  whichever `bike_id` the request happened to scope to. `ComponentsController#show`
   includes every enabled interval's full computed status; `ComponentsController#index`
   and `BikesController#show` (per installed component) include just the batched
   `service_status` summary.
-- Frontend: `Layout.tsx` renders `MaintenanceAlertBanners` above every page — a red
-  "due" list and a collapsed-by-default yellow "warning" count, each item linking to
-  its component with a "dismiss until next sync" control, each banner with its own
-  "dismiss all" (scoped to that banner's own status via the `dismiss_all` endpoint's
-  `status` param, so dismissing the due banner never also clears warnings). No
-  modals/toasts. `frontend/src/components/ServiceIntervalsSection.tsx` (rendered
+- Frontend: `MaintenanceAlertBanners` takes a required `scope` prop
+  (`{ bikeId } | { componentId }`, `types/models.ts`'
+  `MaintenanceAlertScope`) and renders on `BikeDetail`/`ComponentDetail` only, just
+  below the page title — not in `Layout.tsx`, which doesn't render it at all. The
+  Dashboard's "Needs attention" panel (see "Dashboard" below) is the app-wide
+  overview; these two banners are the equivalent, scoped detail. A red "due" list
+  and a collapsed-by-default yellow "warning" count, each item linking to its
+  component with a "dismiss until next sync" control, each banner with its own
+  "dismiss all" (scoped to both that banner's own status *and* the page's
+  `bikeId`/`componentId`, via `useDismissAllServiceAlerts(scope)` — so dismissing
+  the due banner on one bike never also clears warnings, or another bike's alerts).
+  No modals/toasts. On `ComponentDetail` (where the component is already named by
+  the page) each item reads just `"{service type} — {status}"` rather than
+  repeating the component label, and the banner title counts services rather than
+  components, since every item there is already the one known component; on
+  `BikeDetail` both stay `"{component label} — {service type}"` and the
+  components-count title, unchanged from before this scoping existed.
+  `frontend/src/components/ServiceIntervalsSection.tsx` (rendered
   by `ComponentServiceAndHistory.tsx`, shared by the standalone `ComponentDetail`
   page and `BikeDetail`'s `AssignmentDetailModal`) is where a component's
   intervals are enabled/disabled/overridden/removed/added (from a category
