@@ -70,6 +70,32 @@ module Maintenance
         .map { |interval| new(interval, distances[interval.id]).call }
     end
 
+    # The one place that resolves "banner-eligible, optionally scoped to one
+    # bike or one component" -- MaintenanceAlertsController#index and
+    # ServiceAlertDismissalsController#dismiss_all both call this, so a
+    # scoped "dismiss all" can never dismiss anything the matching banner
+    # didn't actually show. Scoping is applied after eligibility, same order
+    # the request specified. bike_id/component_id are safe against another
+    # user's id without any extra check: for_user(user) already limits the
+    # candidate statuses to this user's own components, so a foreign id
+    # simply never matches any of them.
+    def self.banner_eligible_for_user(user, bike_id: nil, component_id: nil)
+      credential = user.strava_credential
+      statuses = for_user(user).select { |status| status.banner_eligible?(credential: credential) }
+
+      if bike_id.present?
+        statuses = statuses.select do |status|
+          status.component_service_interval.component.component_assignments.exists?(bike_id: bike_id, ended_at: nil)
+        end
+      end
+
+      if component_id.present?
+        statuses = statuses.select { |status| status.component_service_interval.component_id == component_id.to_i }
+      end
+
+      statuses
+    end
+
     SEVERITY = { "ok" => 0, "warning" => 1, "due" => 2 }.freeze
 
     # One Result per component -- whichever of its enabled intervals is

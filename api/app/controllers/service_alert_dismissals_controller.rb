@@ -11,11 +11,16 @@ class ServiceAlertDismissalsController < ApplicationController
   # POST /service_alert_dismissals/dismiss_all
   # Dismisses every currently banner-eligible alert at once, or just those of
   # one status (params[:status]) -- backs each banner's own "dismiss all",
-  # which must not also clear the other banner's alerts.
+  # which must not also clear the other banner's alerts. Also accepts the
+  # same bike_id/component_id scope as GET /maintenance_alerts, so a scoped
+  # banner's "dismiss all" only ever dismisses what that banner was showing
+  # -- unscoped (every page, before the Bike/Component detail banners
+  # existed) still works, kept for backwards compatibility, but the
+  # frontend no longer calls it that way.
   def dismiss_all
-    credential = current_user.strava_credential
-    statuses = Maintenance::IntervalStatus.for_user(current_user)
-    eligible = statuses.select { |status| status.banner_eligible?(credential: credential) }
+    eligible = Maintenance::IntervalStatus.banner_eligible_for_user(
+      current_user, bike_id: params[:bike_id], component_id: params[:component_id],
+    )
     eligible = eligible.select { |status| status.status == params[:status] } if params[:status].present?
 
     eligible.each do |status|

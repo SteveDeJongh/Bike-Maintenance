@@ -74,5 +74,47 @@ RSpec.describe "ServiceAlertDismissals", type: :request do
       statuses = JSON.parse(response.body).map { |a| a["status"] }
       expect(statuses).to eq([ "warning" ])
     end
+
+    it "scoped to bike_id, dismisses only that bike's alerts, leaving other bikes' alerts undismissed" do
+      bike = create(:bike, user: current_user)
+      other_bike = create(:bike, user: current_user)
+      service_type = create(:service_type, user: current_user)
+      component = create(:component, user: current_user, category: "chain")
+      other_component = create(:component, user: current_user, category: "cassette")
+      interval = create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      other_interval = create(:component_service_interval, component: other_component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:component_assignment, component: other_component, bike: other_bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+      create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+      create(:strava_activity, bike: other_bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+
+      post "/service_alert_dismissals/dismiss_all", params: { bike_id: bike.id }
+
+      expect(response).to have_http_status(:no_content)
+      expect(interval.service_alert_dismissals.count).to eq(1)
+      expect(other_interval.service_alert_dismissals.count).to eq(0)
+    end
+
+    it "scoped to component_id, dismisses only that component's alert" do
+      component = due_interval(current_user).component
+      other_component = due_interval(current_user).component
+
+      post "/service_alert_dismissals/dismiss_all", params: { component_id: component.id }
+
+      expect(response).to have_http_status(:no_content)
+      expect(component.component_service_intervals.first.service_alert_dismissals.count).to eq(1)
+      expect(other_component.component_service_intervals.first.service_alert_dismissals.count).to eq(0)
+    end
+
+    it "does not dismiss another user's alerts via a foreign bike_id" do
+      other_interval = due_interval(create(:user))
+      mine = due_interval(current_user)
+
+      post "/service_alert_dismissals/dismiss_all", params: { bike_id: other_interval.component.component_assignments.first.bike_id }
+
+      expect(response).to have_http_status(:no_content)
+      expect(other_interval.service_alert_dismissals.count).to eq(0)
+      expect(mine.service_alert_dismissals.count).to eq(0)
+    end
   end
 end
