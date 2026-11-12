@@ -278,6 +278,9 @@ function UnmappedGearSection() {
   return (
     <Stack>
       <Title order={3}>Unmapped gear</Title>
+      <Text size="sm" c="dimmed">
+        Map each row to a bike, track it as a retired bike, or choose not to track it.
+      </Text>
 
       {isPending && <Loader />}
 

@@ -271,6 +271,7 @@ function RidesTabInner({ initialData, fullSync }: { initialData: TableViewPrefer
 
       <Text size="xs" c="dimmed">
         Fixed a ride on Strava? Use "Refresh all rides" above to pull the change in.
+        {status === 'attention' && " You can also ignore any ride you don't want to track."}
       </Text>
 
       {saveError && (
