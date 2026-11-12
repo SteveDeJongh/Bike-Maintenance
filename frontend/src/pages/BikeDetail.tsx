@@ -37,6 +37,7 @@ import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
+import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import RideContextCheckboxes from '../components/RideContextCheckboxes'
 import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
@@ -297,6 +298,8 @@ export default function BikeDetail() {
           Log service
         </Button>
       </Group>
+
+      <MaintenanceAlertBanners scope={{ bikeId: bike.id }} />
 
       <Group gap="xl">
         <div>

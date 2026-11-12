@@ -256,10 +256,15 @@ export interface NotificationSetting {
   warning_threshold_percent: number
 }
 
+// MaintenanceAlertBanners' required scope -- the Bike/Component detail
+// pages are its only two renderers, each passing exactly one of these.
+export type MaintenanceAlertScope = { bikeId: number } | { componentId: number }
+
 // GET /maintenance_alerts -- banner-eligible (installed, not retired,
-// notifications on, not currently dismissed) non-ok statuses across every
-// component. status is never 'ok' here (see ServiceStatus); only due/warning
-// alerts are ever eligible for the banners.
+// notifications on, not currently dismissed) non-ok statuses, optionally
+// scoped to one bike or one component (see MaintenanceAlertScope above).
+// status is never 'ok' here (see ServiceStatus); only due/warning alerts
+// are ever eligible for the banners.
 export interface MaintenanceAlert {
   component_service_interval_id: number
   component_id: number
@@ -269,6 +274,11 @@ export interface MaintenanceAlert {
   status: 'warning' | 'due'
   distance_remaining_meters: number | null
   days_remaining: number | null
+  // Every bike the component is currently mounted on -- almost always one,
+  // but a shared indoor_only component (see ComponentAssignment's
+  // allows_multiple_assignments exception) can be mounted on two bikes at
+  // once, and its alert belongs on both of their pages.
+  bike_ids: number[]
 }
 
 // User-defined kind of maintenance (wax, sealant top-up, brake bleed, ...) --

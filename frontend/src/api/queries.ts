@@ -15,6 +15,7 @@ import type {
   ComponentWithServiceStatus,
   DashboardSummary,
   MaintenanceAlert,
+  MaintenanceAlertScope,
   MaintenanceEvent,
   NotificationSetting,
   ServiceableComponentsResponse,
@@ -232,13 +233,27 @@ export function useNotificationSetting() {
   })
 }
 
-// Banner-eligible alerts, polled by Layout.tsx app-wide. Short staleTime
-// since logging a service, a sync, or a dismissal should reflect quickly in
-// the banners without needing a manual refresh.
-export function useMaintenanceAlerts() {
+// The query-param (and dismiss_all body) shape for a MaintenanceAlertScope
+// -- shared with useDismissAllServiceAlerts (api/mutations.ts) so the two
+// can never encode a scope differently.
+export function maintenanceAlertScopeParams(scope: MaintenanceAlertScope): Record<string, number> {
+  return 'bikeId' in scope ? { bike_id: scope.bikeId } : { component_id: scope.componentId }
+}
+
+// Banner-eligible alerts for one bike or one component (MaintenanceAlertBanners'
+// two renderers, Bike/Component detail). Short staleTime since logging a
+// service, a sync, or a dismissal should reflect quickly in the banners
+// without needing a manual refresh.
+export function useMaintenanceAlerts(scope: MaintenanceAlertScope) {
   return useQuery({
-    queryKey: ['maintenance_alerts'],
-    queryFn: () => apiGet<MaintenanceAlert[]>('/maintenance_alerts'),
+    queryKey: ['maintenance_alerts', scope],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(maintenanceAlertScopeParams(scope))) {
+        params.set(key, String(value))
+      }
+      return apiGet<MaintenanceAlert[]>(`/maintenance_alerts?${params.toString()}`)
+    },
     staleTime: 30_000,
   })
 }

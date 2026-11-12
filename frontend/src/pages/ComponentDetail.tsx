@@ -6,6 +6,7 @@ import { useComponent } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
+import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import { categoryLabel } from '../constants'
 import { formatDistance } from '../utils/distance'
 
@@ -63,6 +64,8 @@ export default function ComponentDetail() {
           Edit
         </Button>
       </Group>
+
+      <MaintenanceAlertBanners scope={{ componentId: componentId }} />
 
       <ComponentIdentityStatus
         componentId={componentId}

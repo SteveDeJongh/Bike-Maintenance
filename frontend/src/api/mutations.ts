@@ -10,6 +10,7 @@ import type {
   ComponentAssignment,
   ComponentCategorySetting,
   ComponentServiceInterval,
+  MaintenanceAlertScope,
   MaintenanceEvent,
   NotificationSetting,
   ServiceSession,
@@ -17,6 +18,7 @@ import type {
   TableViewPreferenceData,
   User,
 } from '../types/models'
+import { maintenanceAlertScopeParams } from './queries'
 
 // Auth
 
@@ -779,12 +781,14 @@ export function useDismissServiceAlert() {
   })
 }
 
-// Dismisses every alert of one status (backs each banner's own "dismiss
-// all" -- it must not also clear the other banner's alerts).
-export function useDismissAllServiceAlerts() {
+// Dismisses every alert of one status within one scope (backs each
+// banner's own "dismiss all" -- it must not also clear the other banner's
+// alerts, or another bike/component's).
+export function useDismissAllServiceAlerts(scope: MaintenanceAlertScope) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (status: 'warning' | 'due') => apiPost<void>('/service_alert_dismissals/dismiss_all', { status }),
+    mutationFn: (status: 'warning' | 'due') =>
+      apiPost<void>('/service_alert_dismissals/dismiss_all', { status, ...maintenanceAlertScopeParams(scope) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] }),
   })
 }
