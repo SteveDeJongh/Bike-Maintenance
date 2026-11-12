@@ -2,21 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStravaStatus } from '../api/queries'
 import { useSyncStrava } from '../api/mutations'
+import { invalidate, RIDE_DATA_GROUPS } from '../api/invalidation'
 import type { SyncFailureCode } from '../types/models'
 
 const POLL_INTERVAL_MS = 2_000
 const POLL_CAP_MS = 30_000
 const FULL_POLL_CAP_MS = 3 * 60_000
-
-// Every ride-derived key, invalidated once polling detects completion --
-// the same fixed list regardless of caller or full/incremental. Exported
-// so useResyncRide (api/mutations.ts) can invalidate the same set after a
-// single-ride resync, which can also change bike_id/distance -- rather
-// than hand-maintaining a second copy of "every key derived from ride data."
-export const INVALIDATE_KEYS = [
-  ['strava'], ['bikes'], ['bike_rides'], ['dashboard'], ['maintenance_alerts'], ['components'], ['strava_rides'],
-  ['activity'],
-]
 
 export interface SyncFailure {
   code: SyncFailureCode
@@ -69,7 +60,8 @@ export function useStravaSyncRunner({ full = false }: { full?: boolean } = {}) {
       if (changed) {
         // Nothing was deleted/changed by a failed run, so ride queries are
         // only ever invalidated on an actual success.
-        INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key }))
+        // Every ride-derived query -- see RIDE_DATA_GROUPS.
+        invalidate(queryClient, ...RIDE_DATA_GROUPS)
       } else if (failed) {
         setFailure({ code: status!.last_sync_error!, retryAt: status!.last_sync_retry_at })
       } else if (timedOut) {

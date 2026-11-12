@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiDelete, apiPatch, apiPost, apiPut } from './client'
-import { INVALIDATE_KEYS } from '../hooks/useStravaSyncRunner'
+import { BIKE_CHANGE_GROUPS, invalidate, RIDE_DATA_GROUPS } from './invalidation'
 import type {
   Bike,
   BikeComponentSlot,
@@ -154,22 +154,7 @@ export function useCreateBike() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: BikePayload) => apiPost<Bike>('/bikes', { bike: values }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-      // A bike can be created with a strava_gear_id already set (the
-      // gear-mapping screen's "create new bike" flow, including "track as
-      // retired bike"), so the unmapped-gear list needs to reflect that too
-      // -- and the dashboard's unattributed-rides notification, since
-      // mapping gear changes what it counts.
-      queryClient.invalidateQueries({ queryKey: ['strava'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      // Ride history's own cache has nothing to invalidate for a brand-new
-      // bike id yet, but this keeps the two mutations symmetric and covers
-      // it the moment a second gear-mapping edit touches the same bike.
-      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
-      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
-      queryClient.invalidateQueries({ queryKey: ['activity'] })
-    },
+    onSuccess: () => invalidate(queryClient, ...BIKE_CHANGE_GROUPS),
   })
 }
 
@@ -177,20 +162,7 @@ export function useUpdateBike(id: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: Partial<BikePayload>) => apiPatch<Bike>(`/bikes/${id}`, { bike: values }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-      // A changed strava_gear_id triggers server-side reconciliation of
-      // previously-unmapped activities, so the gear-mapping screen's list
-      // needs to reflect that too -- and the dashboard's unattributed-rides
-      // notification, same reasoning as useCreateBike above.
-      queryClient.invalidateQueries({ queryKey: ['strava'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      // This bike's Ride history section -- which rides are "its" rides can
-      // change the moment strava_gear_id does.
-      queryClient.invalidateQueries({ queryKey: ['bike_rides', id] })
-      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
-      queryClient.invalidateQueries({ queryKey: ['activity'] })
-    },
+    onSuccess: () => invalidate(queryClient, ...BIKE_CHANGE_GROUPS),
   })
 }
 
@@ -198,7 +170,7 @@ export function useDeleteBike() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/bikes/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+    onSuccess: () => invalidate(queryClient, ...BIKE_CHANGE_GROUPS),
   })
 }
 
@@ -226,15 +198,7 @@ export function useComponentSetup(bikeId: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: ComponentSetupPayload) => apiPost<Bike>(`/bikes/${bikeId}/component_setup`, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-      queryClient.invalidateQueries({ queryKey: ['components'] })
-      queryClient.invalidateQueries({ queryKey: ['component_assignments'] })
-      queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
-      // A row's brand may have been remembered onto its category's
-      // common_brands server-side -- see Component#remember_brand.
-      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history', 'categorySettings'),
   })
 }
 
@@ -244,7 +208,7 @@ export function useCreateBikeType() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: BikeTypePayload) => apiPost<BikeType>('/bike_types', { bike_type: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bike_types'] }),
+    onSuccess: () => invalidate(queryClient, 'bikeTypes'),
   })
 }
 
@@ -252,7 +216,7 @@ export function useUpdateBikeType(id: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: Partial<BikeTypePayload>) => apiPatch<BikeType>(`/bike_types/${id}`, { bike_type: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bike_types'] }),
+    onSuccess: () => invalidate(queryClient, 'bikeTypes'),
   })
 }
 
@@ -262,23 +226,19 @@ export function useDeleteBikeType() {
     mutationFn: (id: number) => apiDelete(`/bike_types/${id}`),
     // A deleted bike type nullifies bike_type_id on bikes using it, so the
     // Bikes list's Type column needs refreshing too.
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bike_types'] })
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'bikeTypes', 'serviceStatus'),
   })
 }
 
 // BikeComponentSlot
-// Slots are embedded in GET /bikes/:id, so invalidating ['bikes'] (which also
-// covers ['bikes', id] via react-query's prefix matching) is enough to refresh them.
+// Slots are embedded in GET /bikes/:id ('serviceStatus' covers ['bikes']).
 
 export function useCreateBikeComponentSlot() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: BikeComponentSlotPayload) =>
       apiPost<BikeComponentSlot>('/bike_component_slots', { bike_component_slot: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceStatus'),
   })
 }
 
@@ -286,7 +246,7 @@ export function useDeleteBikeComponentSlot() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/bike_component_slots/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bikes'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceStatus'),
   })
 }
 
@@ -296,12 +256,7 @@ export function useCreateComponent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: ComponentPayload) => apiPost<Component>('/components', { component: values }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['components'] })
-      // A new brand may have been remembered onto its category's
-      // common_brands server-side -- see Component#remember_brand.
-      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'serviceStatus', 'categorySettings'),
   })
 }
 
@@ -310,10 +265,7 @@ export function useUpdateComponent(id: number) {
   return useMutation({
     mutationFn: (values: Partial<ComponentPayload>) =>
       apiPatch<Component>(`/components/${id}`, { component: values }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['components'] })
-      queryClient.invalidateQueries({ queryKey: ['component_category_settings'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'serviceStatus', 'history', 'categorySettings'),
   })
 }
 
@@ -321,27 +273,21 @@ export function useDeleteComponent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/components/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['components'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceStatus', 'history', 'setup', 'intervals'),
   })
 }
 
 // ComponentAssignment
-// Assignments affect both a bike's and a component's view, so invalidate all
-// three query keys broadly on every mutation — cheap at this data scale.
+// Moving a component on/off a bike changes which rides accrue to it, so
+// service status (alerts, dashboard, picker) moves too, not just the views.
 
-function invalidateAssignmentRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['component_assignments'] })
-  queryClient.invalidateQueries({ queryKey: ['bikes'] })
-  queryClient.invalidateQueries({ queryKey: ['components'] })
-  queryClient.invalidateQueries({ queryKey: ['activity'] })
-}
 
 export function useCreateComponentAssignment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: ComponentAssignmentPayload) =>
       apiPost<ComponentAssignment>('/component_assignments', { component_assignment: values }),
-    onSuccess: () => invalidateAssignmentRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
   })
 }
 
@@ -350,7 +296,7 @@ export function useUpdateComponentAssignment(id: number) {
   return useMutation({
     mutationFn: (values: Partial<ComponentAssignmentPayload>) =>
       apiPatch<ComponentAssignment>(`/component_assignments/${id}`, { component_assignment: values }),
-    onSuccess: () => invalidateAssignmentRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
   })
 }
 
@@ -358,7 +304,7 @@ export function useDeleteComponentAssignment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/component_assignments/${id}`),
-    onSuccess: () => invalidateAssignmentRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
   })
 }
 
@@ -368,7 +314,7 @@ export function useCreateServiceType() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: ServiceTypePayload) => apiPost<ServiceType>('/service_types', { service_type: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceTypes'),
   })
 }
 
@@ -377,7 +323,7 @@ export function useUpdateServiceType(id: number) {
   return useMutation({
     mutationFn: (values: Partial<ServiceTypePayload>) =>
       apiPatch<ServiceType>(`/service_types/${id}`, { service_type: values }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceTypes', 'serviceStatus', 'history', 'intervals'),
   })
 }
 
@@ -385,30 +331,22 @@ export function useDeleteServiceType() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/service_types/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service_types'] }),
+    onSuccess: () => invalidate(queryClient, 'serviceTypes'),
   })
 }
 
 // MaintenanceEvent
-// Logging an event is what resets a service interval's baseline, so every
-// mutation here also invalidates components (total_distance and each
-// interval's computed status) and the alert banners -- not just the event
-// list itself.
+// Logging (or deleting) an event is what moves a service interval's
+// baseline, so every mutation here refreshes service status too -- not just
+// the event list itself.
 
-function invalidateMaintenanceEventRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
-  queryClient.invalidateQueries({ queryKey: ['components'] })
-  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
-  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-  queryClient.invalidateQueries({ queryKey: ['activity'] })
-}
 
 export function useCreateMaintenanceEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: MaintenanceEventPayload) =>
       apiPost<MaintenanceEvent>('/maintenance_events', { maintenance_event: values }),
-    onSuccess: () => invalidateMaintenanceEventRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -417,7 +355,7 @@ export function useUpdateMaintenanceEvent(id: number) {
   return useMutation({
     mutationFn: (values: Partial<MaintenanceEventPayload>) =>
       apiPatch<MaintenanceEvent>(`/maintenance_events/${id}`, { maintenance_event: values }),
-    onSuccess: () => invalidateMaintenanceEventRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -425,10 +363,7 @@ export function useDeleteMaintenanceEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/maintenance_events/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
-      queryClient.invalidateQueries({ queryKey: ['activity'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -447,26 +382,12 @@ export interface CreateServiceSessionPayload {
   events: ServiceSessionEventPayload[]
 }
 
-// Everything invalidateMaintenanceEventRelatedQueries already covers, plus
-// bikes (the bike page's own installed-components table shows
-// service_status too) and serviceable_components (logging a service can
-// move an interval's status, which the picker's rows reflect).
-function invalidateServiceSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['maintenance_events'] })
-  queryClient.invalidateQueries({ queryKey: ['components'] })
-  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
-  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-  queryClient.invalidateQueries({ queryKey: ['bikes'] })
-  queryClient.invalidateQueries({ queryKey: ['serviceable_components'] })
-  queryClient.invalidateQueries({ queryKey: ['activity'] })
-}
-
 export function useCreateServiceSession() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ bikeId, ...payload }: CreateServiceSessionPayload) =>
       apiPost<ServiceSession>(`/bikes/${bikeId}/service_sessions`, payload),
-    onSuccess: () => invalidateServiceSessionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -475,7 +396,7 @@ export function useUpdateServiceSession(id: number) {
   return useMutation({
     mutationFn: (values: { performed_at?: string; notes?: string | null }) =>
       apiPatch<ServiceSession>(`/service_sessions/${id}`, values),
-    onSuccess: () => invalidateServiceSessionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -483,7 +404,7 @@ export function useDeleteServiceSession() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/service_sessions/${id}`),
-    onSuccess: () => invalidateServiceSessionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'history', 'serviceStatus'),
   })
 }
 
@@ -497,15 +418,7 @@ export function useSyncStrava() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload?: { full?: boolean }) => apiPost<void>('/strava/sync', payload ?? {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['strava'] })
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-      // Enqueue-time, not completion-time, same as the two keys above --
-      // useStravaSyncRunner's own completion-triggered invalidation is what
-      // actually makes ride data correct; this is just an immediate,
-      // best-effort refresh in the meantime.
-      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
-    },
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -513,7 +426,7 @@ export function useRefreshGear() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => apiPost<void>('/strava/refresh_gear', {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['strava'] }),
+    onSuccess: () => invalidate(queryClient, 'gear'),
   })
 }
 
@@ -522,36 +435,15 @@ export function useReassignGear() {
   return useMutation({
     mutationFn: ({ gearId, bikeId }: { gearId: string; bikeId: number | null }) =>
       apiPatch<void>(`/strava/mapped_gear/${gearId}`, { bike_id: bikeId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['strava'] })
-      queryClient.invalidateQueries({ queryKey: ['bikes'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      // Affects both the old and new bike's ride lists -- the payload only
-      // carries the new bikeId, not the previous one, so this invalidates
-      // unscoped rather than trying to target just one bike.
-      queryClient.invalidateQueries({ queryKey: ['bike_rides'] })
-      queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
-      queryClient.invalidateQueries({ queryKey: ['activity'] })
-    },
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
-}
-
-function invalidateGearDecisionQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  // Covers unmapped_gear/ignored_gear/mapped_gear/status by prefix, same as
-  // useSyncStrava above. strava_rides too -- a gear decision changes which
-  // rides need attention, so the Rides tab (and its tab badge) must follow.
-  queryClient.invalidateQueries({ queryKey: ['strava'] })
-  queryClient.invalidateQueries({ queryKey: ['bikes'] })
-  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-  queryClient.invalidateQueries({ queryKey: ['activity'] })
-  queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
 }
 
 export function useIgnoreGear() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (gearId: string) => apiPost<void>('/strava/ignore_gear', { gear_id: gearId }),
-    onSuccess: () => invalidateGearDecisionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -559,7 +451,7 @@ export function useUnignoreGear() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (gearId: string) => apiPost<void>('/strava/unignore_gear', { gear_id: gearId }),
-    onSuccess: () => invalidateGearDecisionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -570,7 +462,7 @@ export function useIgnoreRides() {
   return useMutation({
     mutationFn: (payload: { activity_ids: number[] } | { all_matching: true; status: string }) =>
       apiPost<{ ignored_count: number }>('/strava/rides/ignore', payload),
-    onSuccess: () => invalidateRideDecisionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -579,28 +471,18 @@ export function useUnignoreRides() {
   return useMutation({
     mutationFn: (payload: { activity_ids: number[] }) =>
       apiPost<{ unignored_count: number }>('/strava/rides/unignore', payload),
-    onSuccess: () => invalidateRideDecisionQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
-}
-
-function invalidateRideDecisionQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['strava_rides'] })
-  queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-  queryClient.invalidateQueries({ queryKey: ['strava'] })
-  queryClient.invalidateQueries({ queryKey: ['activity'] })
 }
 
 // Re-fetches one ride from Strava (one API call, not a full paginated
 // history refresh) and re-applies attribution -- can change bike_id/
-// distance, so it invalidates the broader INVALIDATE_KEYS set
-// useStravaSyncRunner already defines, not the narrower
-// invalidateRideDecisionQueries above (which ignore/unignore use, since
-// neither of those can move mileage between bikes).
+// distance.
 export function useResyncRide() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (rideId: number) => apiPost<{ deleted: boolean }>(`/strava/rides/${rideId}/resync`, {}),
-    onSuccess: () => INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key })),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -624,7 +506,7 @@ export function useResyncRides() {
   return useMutation({
     mutationFn: (payload: { activity_ids: number[] }) =>
       apiPost<ResyncRidesResult>('/strava/rides/resync', payload),
-    onSuccess: () => INVALIDATE_KEYS.forEach((key) => queryClient.invalidateQueries({ queryKey: key })),
+    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
   })
 }
 
@@ -646,7 +528,7 @@ export function useSaveComponentCategorySettings() {
           }),
         ),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['component_category_settings'] }),
+    onSuccess: () => invalidate(queryClient, 'categorySettings'),
   })
 }
 
@@ -666,24 +548,16 @@ export function useUpdateTableViewPreference(tableKey: string) {
 }
 
 // CategoryServiceInterval / ComponentServiceInterval
-// Both affect components' live status, so every mutation here invalidates
-// broadly (components, their service intervals, and the alert banners) --
-// cheap at this data scale, same reasoning ComponentAssignment's mutations
-// already use.
+// Both affect components' live status, so every mutation here also
+// refreshes service status.
 
-function invalidateIntervalRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['category_service_intervals'] })
-  queryClient.invalidateQueries({ queryKey: ['component_service_intervals'] })
-  queryClient.invalidateQueries({ queryKey: ['components'] })
-  queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
-}
 
 export function useCreateCategoryServiceInterval() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: CategoryServiceIntervalPayload) =>
       apiPost<CategoryServiceInterval>('/category_service_intervals', { category_service_interval: values }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -692,7 +566,7 @@ export function useUpdateCategoryServiceInterval(id: number) {
   return useMutation({
     mutationFn: (values: Partial<CategoryServiceIntervalPayload>) =>
       apiPatch<CategoryServiceInterval>(`/category_service_intervals/${id}`, { category_service_interval: values }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -700,7 +574,7 @@ export function useDeleteCategoryServiceInterval() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/category_service_intervals/${id}`),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -710,7 +584,7 @@ export function useApplyCategoryServiceInterval(id: number) {
   return useMutation({
     mutationFn: (componentIds: number[]) =>
       apiPost<void>(`/category_service_intervals/${id}/apply`, { component_ids: componentIds }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -719,7 +593,7 @@ export function useCreateComponentServiceInterval() {
   return useMutation({
     mutationFn: (values: ComponentServiceIntervalPayload) =>
       apiPost<ComponentServiceInterval>('/component_service_intervals', { component_service_interval: values }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -728,7 +602,7 @@ export function useUpdateComponentServiceInterval(id: number) {
   return useMutation({
     mutationFn: (values: Partial<ComponentServiceIntervalPayload>) =>
       apiPatch<ComponentServiceInterval>(`/component_service_intervals/${id}`, { component_service_interval: values }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -736,7 +610,7 @@ export function useDeleteComponentServiceInterval() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => apiDelete(`/component_service_intervals/${id}`),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -749,7 +623,7 @@ export function useApplyDefaultComponentServiceIntervals() {
         component_id: componentId,
         category_service_interval_ids: categoryServiceIntervalIds,
       }),
-    onSuccess: () => invalidateIntervalRelatedQueries(queryClient),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }
 
@@ -761,23 +635,20 @@ export function useUpdateNotificationSetting() {
   return useMutation({
     mutationFn: (values: Partial<NotificationSettingPayload>) =>
       apiPatch<NotificationSetting>('/notification_settings', { notification_setting: values }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notification_settings'] })
-      queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] })
-    },
+    onSuccess: () => invalidate(queryClient, 'notificationSettings', 'alertVisibility'),
   })
 }
 
 // ServiceAlertDismissal
-// A dismissal only ever affects banner visibility, not any interval's
-// computed status, so only the banners query needs invalidating.
+// A dismissal only ever affects alert visibility (the banners, and the
+// dashboard's "dismissed" flag), not any interval's computed status.
 
 export function useDismissServiceAlert() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (componentServiceIntervalId: number) =>
       apiPost<void>('/service_alert_dismissals', { component_service_interval_id: componentServiceIntervalId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] }),
+    onSuccess: () => invalidate(queryClient, 'alertVisibility'),
   })
 }
 
@@ -789,6 +660,6 @@ export function useDismissAllServiceAlerts(scope: MaintenanceAlertScope) {
   return useMutation({
     mutationFn: (status: 'warning' | 'due') =>
       apiPost<void>('/service_alert_dismissals/dismiss_all', { status, ...maintenanceAlertScopeParams(scope) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['maintenance_alerts'] }),
+    onSuccess: () => invalidate(queryClient, 'alertVisibility'),
   })
 }

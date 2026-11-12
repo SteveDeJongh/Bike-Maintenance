@@ -582,9 +582,9 @@ this bike" gets computed and how the batch logger itself works.
   used by the Activity log's "Log service after this ride" row action (see
   "Activity log" below), which passes a ride's `moved_at + elapsed_time`.
   Mutations (`useCreateServiceSession`/`useUpdateServiceSession`/
-  `useDeleteServiceSession`) invalidate everything a single-event "Log
-  service" already does, plus `bikes`, `serviceable_components`, and (since
-  the Activity log shipped) `activity`.
+  `useDeleteServiceSession`) invalidate the `history` and `serviceStatus`
+  groups, same as single-event "Log service" (see "Cache invalidation" under
+  Conventions).
 - **Showing a session**: `ComponentServiceAndHistory`'s history table marks
   any event with `service_session_id` set with a small "Part of a service
   session · N items" control (N counts every event in the session, not just
@@ -1287,10 +1287,8 @@ change whose `last_sync_failed_kind` matches `full ? "full" : "incremental"`
 full path is lock-guarded, so an incremental and a full run can be in flight at
 once). The hook returns `{ sync, syncing, status, error, failure,
 stillRunning }`. A changed timestamp is the only case that invalidates
-`INVALIDATE_KEYS` (every ride-derived query key: `strava`, `bikes`,
-`bike_rides`, `dashboard`, `maintenance_alerts`, `components`, `strava_rides`,
-`activity` — exported so `useResyncRide`/`useResyncRides` can invalidate the exact
-same set after a resync, rather than a second hand-maintained copy) — never on
+`RIDE_DATA_GROUPS` (`api/invalidation.ts` — every ride-derived query; the same
+set `useResyncRide`/`useResyncRides` and the gear/ride decision mutations use) — never on
 `failure`, since nothing was deleted/changed by a run that didn't complete. A
 matching failure instead sets `failure: { code, retryAt }`, rendered via the
 shared `syncFailureMessage` (`utils/strava.ts`) —
@@ -1493,8 +1491,8 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   then Re-sync). Below 768px width the table swaps for a card list
   (`NarrowActivityCard`) — ride cards keep date/name/bike/distance/moving time and
   the same row actions; non-ride cards stay single lines, already compact enough.
-  Invalidation: `['activity']` is in `useStravaSyncRunner`'s `INVALIDATE_KEYS` (see
-  "Strava integration" above) and in every mutation whose data this feed reads —
+  Invalidation: `['activity']` is in the `history` invalidation group (see "Cache
+  invalidation" under Conventions), used by every mutation whose data this feed reads —
   ride/gear decisions and reassignment, a bike's `strava_gear_id` edits, every
   maintenance event and service session mutation, and component assignment
   create/update/delete.
@@ -1696,3 +1694,11 @@ table cell per row, not two).
   integration (e.g. `Strava::Client`). Zeitwerk autoloads it with no config change.
 - If a change here affects the data model or architecture, flag it back to the project
   plan doc rather than only updating this file.
+- **Cache invalidation**: every mutation's `onSuccess` calls
+  `invalidate(queryClient, ...groups)` from `frontend/src/api/invalidation.ts` —
+  never hand-listed `invalidateQueries` calls (the one exception is a
+  single-key cache like `['me']` or `['table_view_preferences', key]`). Groups are
+  coarse on purpose (`serviceStatus`, `history`, `setup`, `gear`, `rides`,
+  `intervals`, …); pick every group whose server response the write can change, and
+  when in doubt include it — over-invalidating only refetches mounted queries. A new
+  query key must be added to a group in the same change.
