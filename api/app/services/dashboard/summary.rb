@@ -50,6 +50,16 @@ module Dashboard
         connected: credential.present?,
         last_synced_at: credential&.last_synced_at,
         rides_total: user.strava_activities.count,
+        # Lets the sync strip survive a reload -- useStravaSyncRunner's own
+        # `failure` is in-memory only (set from a live poll), so without
+        # these the "Sync failed" item would vanish the instant the page
+        # refreshes even though the credential still records it. Not
+        # exposing last_sync_failed_kind here deliberately -- the strip
+        # shows one generic failure line regardless of full vs incremental,
+        # leaving the kind-aware detail to the Strava page's own status.
+        last_sync_failed_at: credential&.last_sync_failed_at,
+        last_sync_error: credential&.last_sync_error,
+        last_sync_retry_at: credential&.last_sync_retry_at,
         unattributed: {
           count: unattributed.count,
           distance_meters: unattributed.sum(:distance_meters),

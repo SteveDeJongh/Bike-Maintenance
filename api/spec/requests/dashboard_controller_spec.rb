@@ -42,6 +42,40 @@ RSpec.describe "Dashboard", type: :request do
         expect(unattributed["without_gear"]).to eq("count" => 1, "distance_meters" => 5_000)
       end
 
+      it "reports last_sync_failed_at/last_sync_error/last_sync_retry_at from the credential" do
+        create(:strava_credential, user: current_user,
+          last_sync_failed_at: Time.zone.local(2026, 11, 4, 9, 0),
+          last_sync_error: "rate_limited",
+          last_sync_retry_at: Time.zone.local(2026, 11, 4, 9, 15))
+
+        get "/dashboard"
+
+        sync = JSON.parse(response.body)["sync"]
+        expect(sync["last_sync_failed_at"]).to eq("2026-11-04T09:00:00.000Z")
+        expect(sync["last_sync_error"]).to eq("rate_limited")
+        expect(sync["last_sync_retry_at"]).to eq("2026-11-04T09:15:00.000Z")
+      end
+
+      it "reports null failure fields when there has never been a failure" do
+        create(:strava_credential, user: current_user)
+
+        get "/dashboard"
+
+        sync = JSON.parse(response.body)["sync"]
+        expect(sync["last_sync_failed_at"]).to be_nil
+        expect(sync["last_sync_error"]).to be_nil
+        expect(sync["last_sync_retry_at"]).to be_nil
+      end
+
+      it "reports null failure fields with no credential at all" do
+        get "/dashboard"
+
+        sync = JSON.parse(response.body)["sync"]
+        expect(sync["last_sync_failed_at"]).to be_nil
+        expect(sync["last_sync_error"]).to be_nil
+        expect(sync["last_sync_retry_at"]).to be_nil
+      end
+
       it "sources unmapped_gear_count from the same place as /strava/unmapped_gear" do
         create(:strava_gear, user: current_user, strava_gear_id: "g1")
         create(:bike, user: current_user, strava_gear_id: "g2")
