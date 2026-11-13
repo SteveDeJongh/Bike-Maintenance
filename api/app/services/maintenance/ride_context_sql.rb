@@ -2,8 +2,8 @@ module Maintenance
   # The one shared SQL fragment for ride_context filtering between a
   # component_assignments row and a strava_activities row -- kept bit-for-bit
   # equivalent to ComponentAssignment#activities_from's Ruby-level semantics
-  # (StravaActivity.indoor/#outdoor), proven by BatchedDistanceQuery's parity
-  # specs and CountedTowardQuery's. Extracted so BatchedDistanceQuery and any
+  # (StravaActivity.indoor/#outdoor), proven by BatchedPositionQuery's parity
+  # specs and CountedTowardQuery's. Extracted so BatchedPositionQuery and any
   # other batched query joining the same two tables can never drift apart on
   # this logic. IS DISTINCT FROM (not Rails' NULL-unsafe-looking but actually
   # NULL-safe where.not) is deliberate -- matches StravaActivity.outdoor

@@ -4,7 +4,7 @@ class ComponentsController < ApplicationController
   # GET /components
   def index
     @components = current_user.components
-    statuses = Maintenance::IntervalStatus.worst_status_by_component(current_user)
+    statuses = Maintenance::RequirementStatus.worst_status_by_component(current_user)
     bikes_by_component = Component.current_bikes_by_component(current_user)
     render json: @components.map { |component|
       component.as_json.merge(
@@ -16,7 +16,7 @@ class ComponentsController < ApplicationController
 
   # GET /components/1
   def show
-    service_intervals = Maintenance::IntervalStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
+    service_intervals = Maintenance::RequirementStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
     current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike).map { |a| { id: a.bike.id, name: a.bike.name } }
 
     render json: @component.as_json(methods: %i[ total_distance ]).merge(

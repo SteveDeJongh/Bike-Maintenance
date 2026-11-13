@@ -1,7 +1,7 @@
 module Dashboard
   # Assembles the one GET /dashboard payload entirely from existing
   # services/queries -- no distance or status computation happens here that
-  # doesn't already live in Maintenance::IntervalStatus/BatchedDistanceQuery,
+  # doesn't already live in Maintenance::RequirementStatus/BatchedPositionQuery,
   # Component.current_bikes_by_component, or StravaGear.unmapped_for.
   class Summary
     def self.call(user, tz: nil)
@@ -78,7 +78,7 @@ module Dashboard
       this_month_distances = user.strava_activities.where(moved_at: month_start..)
         .group(:bike_id).sum(:distance_meters)
 
-      worst_results = Maintenance::IntervalStatus.worst_result_by_component(user)
+      worst_results = Maintenance::RequirementStatus.worst_result_by_component(user)
       off_bike_by_bike = off_bike_components_by_bike
 
       user.bikes.where(retired_on: nil).map do |bike|
@@ -157,10 +157,10 @@ module Dashboard
     def attention_section
       bikes_by_component = Component.current_bikes_by_component(user)
 
-      items = Maintenance::IntervalStatus.for_user(user).reject { |result| result.status == "ok" || result.retired? }
+      items = Maintenance::RequirementStatus.for_user(user).reject { |result| result.status == "ok" || result.retired? }
         .map { |result| attention_item(result, bikes_by_component) }
 
-      items.sort_by { |item| [ -Maintenance::IntervalStatus::SEVERITY.fetch(item[:status]), -item[:fraction_used] ] }
+      items.sort_by { |item| [ -Maintenance::RequirementStatus::SEVERITY.fetch(item[:status]), -item[:fraction_used] ] }
     end
 
     def attention_item(result, bikes_by_component)

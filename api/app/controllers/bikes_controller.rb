@@ -46,7 +46,7 @@ class BikesController < ApplicationController
       },
     )
 
-    statuses = Maintenance::IntervalStatus.worst_status_by_component(current_user)
+    statuses = Maintenance::RequirementStatus.worst_status_by_component(current_user)
     payload["component_assignments"].each do |assignment|
       assignment["component"]["service_status"] = statuses[assignment["component"]["id"]]
     end
@@ -168,13 +168,13 @@ class BikesController < ApplicationController
   # this bike (as opposed to another bike) by `at`. Shares
   # Bikes::ServiceableComponents with ServiceSessionsController#create's own
   # eligibility check, so the two can never disagree about what's offered vs.
-  # what's accepted. Interval status is batched once (Maintenance::IntervalStatus.for_user,
+  # what's accepted. Interval status is batched once (Maintenance::RequirementStatus.for_user,
   # not per component) and computed as of *now*, not `at` -- it's there to help
   # the user choose, not a record of what it was on that date.
   def serviceable_components
     at = params[:at].present? ? (Time.zone.parse(params[:at]) || Time.current) : Time.current
     result = Bikes::ServiceableComponents.call(@bike, at: at)
-    statuses_by_component = Maintenance::IntervalStatus.for_user(current_user)
+    statuses_by_component = Maintenance::RequirementStatus.for_user(current_user)
       .group_by { |status| status.component_service_requirement.component_id }
 
     render json: {

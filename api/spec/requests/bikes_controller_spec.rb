@@ -591,7 +591,7 @@ RSpec.describe "Bikes", type: :request do
       }
 
       expect(response).to have_http_status(:created)
-      status = Maintenance::IntervalStatus.for_component(component).first
+      status = Maintenance::RequirementStatus.for_component(component).first
       expect(status.days_used).to eq(0)
     end
   end

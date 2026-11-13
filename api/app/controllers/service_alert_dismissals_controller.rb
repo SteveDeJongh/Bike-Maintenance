@@ -18,7 +18,7 @@ class ServiceAlertDismissalsController < ApplicationController
   # existed) still works, kept for backwards compatibility, but the
   # frontend no longer calls it that way.
   def dismiss_all
-    eligible = Maintenance::IntervalStatus.banner_eligible_for_user(
+    eligible = Maintenance::RequirementStatus.banner_eligible_for_user(
       current_user, bike_id: params[:bike_id], component_id: params[:component_id],
     )
     eligible = eligible.select { |status| status.status == params[:status] } if params[:status].present?
@@ -38,6 +38,6 @@ class ServiceAlertDismissalsController < ApplicationController
     end
 
     def status_for(requirement)
-      Maintenance::IntervalStatus.for_component(requirement.component).find { |s| s.component_service_requirement.id == requirement.id }
+      Maintenance::RequirementStatus.for_component(requirement.component).find { |s| s.component_service_requirement.id == requirement.id }
     end
 end

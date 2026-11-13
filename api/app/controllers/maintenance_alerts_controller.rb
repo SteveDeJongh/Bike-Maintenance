@@ -6,7 +6,7 @@ class MaintenanceAlertsController < ApplicationController
   # detail pages' own banners; unscoped is unused by the frontend now, but
   # stays supported).
   def index
-    eligible = Maintenance::IntervalStatus.banner_eligible_for_user(
+    eligible = Maintenance::RequirementStatus.banner_eligible_for_user(
       current_user, bike_id: params[:bike_id], component_id: params[:component_id],
     )
 
