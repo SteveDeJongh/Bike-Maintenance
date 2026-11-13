@@ -16,7 +16,7 @@ class ComponentsController < ApplicationController
 
   # GET /components/1
   def show
-    service_intervals = Maintenance::IntervalStatus.for_component(@component).map { |status| serialize_interval_status(status) }
+    service_intervals = Maintenance::IntervalStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
     current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike).map { |a| { id: a.bike.id, name: a.bike.name } }
 
     render json: @component.as_json(methods: %i[ total_distance ]).merge(
@@ -60,13 +60,23 @@ class ComponentsController < ApplicationController
       params.require(:component).permit(:label, :category, :acquired_on, :retired_on, :brand, :model, :notes)
     end
 
-    def serialize_interval_status(status)
-      interval = status.component_service_interval
-      interval.as_json(only: %i[ id category_service_interval_id service_type_id distance_interval_meters
-                                  time_interval_days enabled ]).merge(
-        effective_distance_interval_meters: interval.effective_distance_interval_meters,
-        effective_time_interval_days: interval.effective_time_interval_days,
-        service_type_name: interval.service_type.name,
+    # Increment-1 compatibility shim: keeps the OLD JSON shape
+    # (service_type_id/distance_interval_meters/time_interval_days/
+    # service_type_name) the existing frontend still reads, derived from the
+    # new requirement/satisfier schema's single (position 1) satisfier.
+    # Increment 3 replaces this with the real requirement/satisfiers payload.
+    def serialize_requirement_status(status)
+      requirement = status.component_service_requirement
+      effective = requirement.effective
+      satisfier = effective[:satisfiers].first
+
+      requirement.as_json(only: %i[ id category_service_requirement_id enabled ]).merge(
+        service_type_id: satisfier && satisfier[:service_type_id],
+        distance_interval_meters: requirement.distance_meters,
+        time_interval_days: requirement.calendar_unit == "day" ? requirement.calendar_amount : nil,
+        effective_distance_interval_meters: effective[:distance_meters],
+        effective_time_interval_days: effective[:calendar_unit] == "day" ? effective[:calendar_amount] : nil,
+        service_type_name: satisfier && satisfier[:service_type_name],
         status: status.status,
         distance_remaining_meters: status.distance_remaining_meters,
         days_remaining: status.days_remaining,

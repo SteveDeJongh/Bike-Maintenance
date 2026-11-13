@@ -5,7 +5,7 @@ RSpec.describe Maintenance::IntervalStatus do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain", acquired_on: baseline.to_date)
     service_type = create(:service_type, user: bike.user)
-    interval = create(:component_service_interval, component: component, service_type: service_type,
+    interval = create(:component_service_requirement, component: component, service_type: service_type,
       distance_interval_meters: distance_interval_meters, time_interval_days: time_interval_days)
     create(:component_assignment, component: component, bike: bike, started_at: baseline, ended_at: nil)
     [interval, bike]
@@ -91,7 +91,7 @@ RSpec.describe Maintenance::IntervalStatus do
 
       result = described_class.for_component(interval.component).first
 
-      expect(result.component_service_interval).to eq(interval)
+      expect(result.component_service_requirement).to eq(interval)
       expect(result.status).to eq("due")
     end
 
@@ -111,9 +111,9 @@ RSpec.describe Maintenance::IntervalStatus do
       component = create(:component, user: bike.user, category: "chain", acquired_on: Time.zone.local(2026, 1, 1))
       ok_type = create(:service_type, user: bike.user)
       due_type = create(:service_type, user: bike.user)
-      ok_interval = create(:component_service_interval, component: component, service_type: ok_type,
+      ok_interval = create(:component_service_requirement, component: component, service_type: ok_type,
         distance_interval_meters: 1_000_000)
-      due_interval = create(:component_service_interval, component: component, service_type: due_type,
+      due_interval = create(:component_service_requirement, component: component, service_type: due_type,
         distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
@@ -121,7 +121,7 @@ RSpec.describe Maintenance::IntervalStatus do
 
       results = described_class.worst_result_by_component(bike.user)
 
-      expect(results[component.id].component_service_interval).to eq(due_interval)
+      expect(results[component.id].component_service_requirement).to eq(due_interval)
       expect(results[component.id].status).to eq("due")
     end
 
@@ -175,7 +175,7 @@ RSpec.describe Maintenance::IntervalStatus do
     it "#dismissed? is public and reflects an active dismissal of the matching status" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
-      create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "due", dismissed_at: Time.current)
+      create(:service_alert_dismissal, component_service_requirement: interval, dismissed_status: "due", dismissed_at: Time.current)
 
       expect(status_for(interval).dismissed?(credential: nil)).to be true
     end
@@ -227,7 +227,7 @@ RSpec.describe Maintenance::IntervalStatus do
     it "is suppressed by a matching, still-active dismissal" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
-      create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "due", dismissed_at: Time.current)
+      create(:service_alert_dismissal, component_service_requirement: interval, dismissed_status: "due", dismissed_at: Time.current)
 
       expect(status_for(interval).banner_eligible?(credential: nil)).to be false
     end
@@ -235,7 +235,7 @@ RSpec.describe Maintenance::IntervalStatus do
     it "shows again once a sync completes after the dismissal" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
-      create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "due",
+      create(:service_alert_dismissal, component_service_requirement: interval, dismissed_status: "due",
         dismissed_at: 1.hour.ago)
       credential = create(:strava_credential, user: interval.component.user, last_synced_at: Time.current)
 
@@ -245,7 +245,7 @@ RSpec.describe Maintenance::IntervalStatus do
     it "shows again immediately if the dismissed status has escalated" do
       interval, bike = build_interval(distance_interval_meters: 300_000)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 300_000)
-      create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "warning",
+      create(:service_alert_dismissal, component_service_requirement: interval, dismissed_status: "warning",
         dismissed_at: Time.current)
 
       expect(status_for(interval).banner_eligible?(credential: nil)).to be true

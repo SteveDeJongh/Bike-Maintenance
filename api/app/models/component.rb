@@ -3,7 +3,7 @@ class Component < ApplicationRecord
   has_many :component_assignments, dependent: :destroy
   has_many :bikes, through: :component_assignments
   has_many :maintenance_events, dependent: :destroy
-  has_many :component_service_intervals, dependent: :destroy
+  has_many :component_service_requirements, dependent: :destroy
 
   validates :label, presence: true
   validates :category, presence: true
@@ -17,7 +17,7 @@ class Component < ApplicationRecord
   # default (false), so a nil brand/model never reaches the lambda.
   normalizes :brand, :model, with: ->(value) { value.squish.presence }
 
-  after_create :apply_category_service_intervals
+  after_create :apply_category_service_requirements
   # Fires on create (brand/category go from nil -> set) and on any update
   # that changes brand or category while brand is (now) present -- a
   # retire/label-only edit touches neither, so no redundant write. Catches
@@ -84,16 +84,15 @@ class Component < ApplicationRecord
   private
 
   # Creating a component in a category auto-creates an enabled, linked
-  # ComponentServiceInterval for each of that category's suggested
-  # templates -- adding a template later does NOT retroactively attach to
-  # existing components (that's a deliberate, explicit "apply to" action
-  # instead, since silently attaching to everything would be surprising).
-  def apply_category_service_intervals
-    CategoryServiceInterval.where(user_id: user_id, category: category).find_each do |template|
-      component_service_intervals.create!(
-        category_service_interval: template,
-        service_type_id: template.service_type_id,
-      )
+  # ComponentServiceRequirement for each of that category's templates --
+  # adding a template later does NOT retroactively attach to existing
+  # components (that's a deliberate, explicit "apply to" action instead,
+  # since silently attaching to everything would be surprising). A linked
+  # row has no satisfiers/name/thresholds of its own -- it inherits all of
+  # that live from the template (see ComponentServiceRequirement#effective).
+  def apply_category_service_requirements
+    CategoryServiceRequirement.where(user_id: user_id, category: category).find_each do |template|
+      component_service_requirements.create!(category_service_requirement: template)
     end
   end
 

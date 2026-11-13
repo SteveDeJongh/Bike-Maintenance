@@ -104,7 +104,7 @@ RSpec.describe "Bikes", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
@@ -420,7 +420,7 @@ RSpec.describe "Bikes", type: :request do
       component = create(:component, user: current_user, category: "chain")
       create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
       service_type = create(:service_type, user: current_user, name: "Full Wax")
-      interval = create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 300_000)
+      interval = create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 300_000)
 
       get "/bikes/#{bike.id}/serviceable_components"
 
@@ -437,7 +437,7 @@ RSpec.describe "Bikes", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
-      create(:component_service_interval, component: component, service_type: create(:service_type, user: current_user),
+      create(:component_service_requirement, component: component, service_type: create(:service_type, user: current_user),
         distance_interval_meters: 300_000, enabled: false)
 
       get "/bikes/#{bike.id}/serviceable_components"
@@ -583,7 +583,7 @@ RSpec.describe "Bikes", type: :request do
       component = create(:component, user: current_user, category: "chain", acquired_on: 100.days.ago.to_date)
       create(:component_assignment, bike: bike, component: component, started_at: 100.days.ago, ended_at: nil)
       service_type = create(:service_type, user: current_user, name: "Full Wax")
-      create(:component_service_interval, component: component, service_type: service_type, time_interval_days: 30)
+      create(:component_service_requirement, component: component, service_type: service_type, time_interval_days: 30)
 
       post "/bikes/#{bike.id}/service_sessions", params: {
         performed_at: Time.current.iso8601,

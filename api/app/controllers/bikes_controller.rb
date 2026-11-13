@@ -175,7 +175,7 @@ class BikesController < ApplicationController
     at = params[:at].present? ? (Time.zone.parse(params[:at]) || Time.current) : Time.current
     result = Bikes::ServiceableComponents.call(@bike, at: at)
     statuses_by_component = Maintenance::IntervalStatus.for_user(current_user)
-      .group_by { |status| status.component_service_interval.component_id }
+      .group_by { |status| status.component_service_requirement.component_id }
 
     render json: {
       mounted: result.mounted.map { |c| serviceable_component_json(c, statuses_by_component[c.id] || []) },
@@ -195,11 +195,12 @@ class BikesController < ApplicationController
     end
 
     def interval_status_json(status)
-      interval = status.component_service_interval
+      requirement = status.component_service_requirement
+      satisfier = requirement.effective_satisfiers.first
       {
-        id: interval.id,
-        service_type_id: interval.service_type_id,
-        service_type_name: interval.service_type.name,
+        id: requirement.id,
+        service_type_id: satisfier && satisfier[:service_type_id],
+        service_type_name: satisfier && satisfier[:service_type_name],
         status: status.status,
         driving_dimension: status.driving_dimension,
         distance_remaining_meters: status.distance_remaining_meters,

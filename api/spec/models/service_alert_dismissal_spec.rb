@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe ServiceAlertDismissal, type: :model do
-  it "is valid with a component_service_interval, dismissed_at, and dismissed_status" do
+  it "is valid with a component_service_requirement, dismissed_at, and dismissed_status" do
     expect(build(:service_alert_dismissal)).to be_valid
   end
 
@@ -19,9 +19,9 @@ RSpec.describe ServiceAlertDismissal, type: :model do
     expect(dismissal.errors[:dismissed_status]).to be_present
   end
 
-  it "is destroyed along with its component_service_interval" do
-    interval = create(:component_service_interval)
-    dismissal = create(:service_alert_dismissal, component_service_interval: interval)
+  it "is destroyed along with its component_service_requirement" do
+    interval = create(:component_service_requirement)
+    dismissal = create(:service_alert_dismissal, component_service_requirement: interval)
 
     interval.destroy!
 

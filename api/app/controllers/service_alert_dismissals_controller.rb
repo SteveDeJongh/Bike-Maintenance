@@ -1,10 +1,10 @@
 class ServiceAlertDismissalsController < ApplicationController
   # POST /service_alert_dismissals
   def create
-    interval = find_interval(params[:component_service_interval_id])
-    status = status_for(interval)
+    requirement = find_requirement(params[:component_service_interval_id])
+    status = status_for(requirement)
 
-    dismissal = interval.service_alert_dismissals.create!(dismissed_at: Time.current, dismissed_status: status.status)
+    dismissal = requirement.service_alert_dismissals.create!(dismissed_at: Time.current, dismissed_status: status.status)
     render json: dismissal, status: :created
   end
 
@@ -24,7 +24,7 @@ class ServiceAlertDismissalsController < ApplicationController
     eligible = eligible.select { |status| status.status == params[:status] } if params[:status].present?
 
     eligible.each do |status|
-      status.component_service_interval.service_alert_dismissals.create!(
+      status.component_service_requirement.service_alert_dismissals.create!(
         dismissed_at: Time.current, dismissed_status: status.status,
       )
     end
@@ -33,11 +33,11 @@ class ServiceAlertDismissalsController < ApplicationController
   end
 
   private
-    def find_interval(id)
-      ComponentServiceInterval.joins(:component).where(components: { user_id: current_user.id }).find(id)
+    def find_requirement(id)
+      ComponentServiceRequirement.joins(:component).where(components: { user_id: current_user.id }).find(id)
     end
 
-    def status_for(interval)
-      Maintenance::IntervalStatus.for_component(interval.component).find { |s| s.component_service_interval.id == interval.id }
+    def status_for(requirement)
+      Maintenance::IntervalStatus.for_component(requirement.component).find { |s| s.component_service_requirement.id == requirement.id }
     end
 end

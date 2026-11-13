@@ -5,7 +5,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain")
     service_type = bike.user.service_types.find_by!(name: "wax")
-    interval = create(:component_service_interval, component: component, service_type: service_type,
+    interval = create(:component_service_requirement, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike,
       started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
@@ -23,7 +23,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain", acquired_on: Date.new(2025, 1, 1))
     service_type = bike.user.service_types.find_by!(name: "wax")
-    interval = create(:component_service_interval, component: component, service_type: service_type,
+    interval = create(:component_service_requirement, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike,
       started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
@@ -39,7 +39,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "cassette")
     service_type = bike.user.service_types.find_by!(name: "wax")
-    interval = create(:component_service_interval, component: component, service_type: service_type,
+    interval = create(:component_service_requirement, component: component, service_type: service_type,
       distance_interval_meters: 300_000)
     create(:component_assignment, component: component, bike: bike, ride_context: "indoor_only",
       started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
@@ -57,7 +57,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
     bike = create(:bike)
     component = create(:component, user: bike.user, category: "chain")
     service_type = bike.user.service_types.find_by!(name: "wax")
-    interval = create(:component_service_interval, component: component, service_type: service_type, enabled: false)
+    interval = create(:component_service_requirement, component: component, service_type: service_type, enabled: false)
     create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
     create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 10, 9, 0), distance_meters: 5_000)
 
@@ -71,7 +71,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
       bike = create(:bike)
       component = create(:component, user: bike.user, category: "chain")
       service_type = bike.user.service_types.find_by!(name: "wax")
-      interval = create(:component_service_interval, component: component, service_type: service_type)
+      interval = create(:component_service_requirement, component: component, service_type: service_type)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
       create(:component_assignment, component: component, bike: bike,
@@ -88,7 +88,7 @@ RSpec.describe Maintenance::BatchedDistanceQuery do
       bike = create(:bike)
       component = create(:component, user: bike.user, category: "chain")
       service_type = bike.user.service_types.find_by!(name: "wax")
-      interval = create(:component_service_interval, component: component, service_type: service_type)
+      interval = create(:component_service_requirement, component: component, service_type: service_type)
       create(:component_assignment, component: component, bike: bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:maintenance_event, component: component, service_type: service_type,

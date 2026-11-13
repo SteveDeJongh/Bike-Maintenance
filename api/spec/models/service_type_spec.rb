@@ -45,5 +45,13 @@ RSpec.describe ServiceType, type: :model do
       expect(service_type.destroy).to be_falsey
       expect(ServiceType.exists?(service_type.id)).to be true
     end
+
+    it "is not destroyed when a service requirement satisfier references it" do
+      template = create(:category_service_requirement)
+      service_type = template.satisfiers.first.service_type
+
+      expect(service_type.destroy).to be_falsey
+      expect(ServiceType.exists?(service_type.id)).to be true
+    end
   end
 end

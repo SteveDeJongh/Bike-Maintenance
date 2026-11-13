@@ -130,7 +130,8 @@ module Dashboard
     def display_metric(component, result)
       return { service_type_name: nil, distance_meters: component.total_distance, days: nil } if result.nil?
 
-      service_type_name = result.component_service_interval.service_type.name
+      satisfier = result.component_service_requirement.effective_satisfiers.first
+      service_type_name = satisfier && satisfier[:service_type_name]
       if result.driving_dimension == :distance
         { service_type_name: service_type_name, distance_meters: result.distance_used_meters, days: nil }
       else
@@ -163,8 +164,10 @@ module Dashboard
     end
 
     def attention_item(result, bikes_by_component)
-      interval = result.component_service_interval
-      component = interval.component
+      requirement = result.component_service_requirement
+      component = requirement.component
+      effective = requirement.effective
+      satisfier = effective[:satisfiers].first
       # A component can (rarely) be mounted on more than one bike at once
       # (the documented shared indoor_only-cassette case) -- picking the
       # first is a deliberate display simplification, not a data gap.
@@ -173,14 +176,14 @@ module Dashboard
       {
         component_id: component.id,
         component_label: component.label,
-        service_type_id: interval.service_type_id,
-        service_type_name: interval.service_type.name,
+        service_type_id: satisfier && satisfier[:service_type_id],
+        service_type_name: satisfier && satisfier[:service_type_name],
         status: result.status,
         driving_dimension: result.driving_dimension,
         distance_used_meters: result.distance_used_meters,
-        effective_distance_interval_meters: interval.effective_distance_interval_meters,
+        effective_distance_interval_meters: effective[:distance_meters],
         days_used: result.days_used,
-        effective_time_interval_days: interval.effective_time_interval_days,
+        effective_time_interval_days: effective[:calendar_unit] == "day" ? effective[:calendar_amount] : nil,
         distance_remaining_meters: result.distance_remaining_meters,
         days_remaining: result.days_remaining,
         fraction_used: result.fraction_used,

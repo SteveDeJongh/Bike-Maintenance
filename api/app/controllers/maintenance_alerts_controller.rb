@@ -15,15 +15,16 @@ class MaintenanceAlertsController < ApplicationController
 
   private
     def serialize(status)
-      interval = status.component_service_interval
-      component = interval.component
+      requirement = status.component_service_requirement
+      component = requirement.component
+      satisfier = requirement.effective_satisfiers.first
 
       {
-        component_service_interval_id: interval.id,
+        component_service_interval_id: requirement.id,
         component_id: component.id,
         component_label: component.label,
         category: component.category,
-        service_type_name: interval.service_type.name,
+        service_type_name: satisfier && satisfier[:service_type_name],
         status: status.status,
         distance_remaining_meters: status.distance_remaining_meters,
         days_remaining: status.days_remaining,

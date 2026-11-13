@@ -89,7 +89,7 @@ RSpec.describe "Components", type: :request do
     it "includes each enabled interval's computed status" do
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
 
       get "/components/#{component.id}"
 
@@ -103,7 +103,7 @@ RSpec.describe "Components", type: :request do
     it "still includes a disabled interval, with its own computed status, so it can be re-enabled in place" do
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000, enabled: false)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000, enabled: false)
 
       get "/components/#{component.id}"
 
@@ -150,7 +150,7 @@ RSpec.describe "Components", type: :request do
       bike = create(:bike, user: current_user)
       due_component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: due_component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: due_component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: due_component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 

@@ -34,8 +34,8 @@ class User < ApplicationRecord
   has_many :table_view_preferences, dependent: :destroy
   has_many :component_category_settings, dependent: :destroy
   has_many :service_types, dependent: :destroy
-  has_many :category_service_intervals, dependent: :destroy
-  has_many :component_service_intervals, through: :components
+  has_many :category_service_requirements, dependent: :destroy
+  has_many :component_service_requirements, through: :components
   has_one :notification_setting, dependent: :destroy
   has_many :user_identities, dependent: :destroy
 

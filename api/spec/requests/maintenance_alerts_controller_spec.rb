@@ -9,7 +9,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
@@ -26,14 +26,14 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
       other_bike = create(:bike)
       other_component = create(:component, user: other_bike.user, category: "chain")
       other_service_type = other_bike.user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: other_component, bike: other_bike,
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: other_bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -48,7 +48,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
@@ -64,7 +64,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       bike_b = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "cassette")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike_a, ride_context: "indoor_only",
         started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:component_assignment, component: component, bike: bike_b, ride_context: "indoor_only",
@@ -85,8 +85,8 @@ RSpec.describe "MaintenanceAlerts", type: :request do
         mounted = create(:component, user: current_user, category: "chain")
         elsewhere = create(:component, user: current_user, category: "cassette")
         service_type = current_user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: mounted, service_type: service_type, distance_interval_meters: 1_000)
-        create(:component_service_interval, component: elsewhere, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: mounted, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: elsewhere, service_type: service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: mounted, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:component_assignment, component: elsewhere, bike: other_bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -102,7 +102,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
         other_bike = create(:bike)
         other_component = create(:component, user: other_bike.user, category: "chain")
         other_service_type = other_bike.user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: other_component, bike: other_bike,
           started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, bike: other_bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -119,8 +119,8 @@ RSpec.describe "MaintenanceAlerts", type: :request do
         wanted = create(:component, user: current_user, category: "chain")
         other = create(:component, user: current_user, category: "cassette")
         service_type = current_user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: wanted, service_type: service_type, distance_interval_meters: 1_000)
-        create(:component_service_interval, component: other, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: wanted, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: other, service_type: service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: wanted, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:component_assignment, component: other, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
@@ -135,7 +135,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
         other_bike = create(:bike)
         other_component = create(:component, user: other_bike.user, category: "chain")
         other_service_type = other_bike.user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: other_component, bike: other_bike,
           started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, bike: other_bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)

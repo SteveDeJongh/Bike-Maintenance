@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_13_224822) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -49,17 +49,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
     t.index ["user_id"], name: "index_bikes_on_user_id"
   end
 
-  create_table "category_service_intervals", force: :cascade do |t|
+  create_table "category_service_requirements", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "category", null: false
-    t.bigint "service_type_id", null: false
-    t.integer "distance_interval_meters"
-    t.integer "time_interval_days"
+    t.integer "distance_meters"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["service_type_id"], name: "index_category_service_intervals_on_service_type_id"
-    t.index ["user_id", "category", "service_type_id"], name: "index_csi_on_user_category_service_type", unique: true
-    t.index ["user_id"], name: "index_category_service_intervals_on_user_id"
+    t.string "name", null: false
+    t.integer "moving_time_seconds"
+    t.integer "calendar_amount"
+    t.string "calendar_unit"
+    t.string "ride_filter", default: "all", null: false
+    t.index "user_id, category, lower((name)::text)", name: "index_csr_on_user_category_lower_name", unique: true
+    t.index ["user_id"], name: "index_category_service_requirements_on_user_id"
   end
 
   create_table "component_assignments", force: :cascade do |t|
@@ -91,19 +93,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
     t.index ["user_id"], name: "index_component_category_settings_on_user_id"
   end
 
-  create_table "component_service_intervals", force: :cascade do |t|
+  create_table "component_service_requirements", force: :cascade do |t|
     t.bigint "component_id", null: false
-    t.bigint "category_service_interval_id"
-    t.bigint "service_type_id", null: false
-    t.integer "distance_interval_meters"
-    t.integer "time_interval_days"
+    t.bigint "category_service_requirement_id"
+    t.integer "distance_meters"
     t.boolean "enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["category_service_interval_id"], name: "idx_on_category_service_interval_id_d73a69d3de"
-    t.index ["component_id", "service_type_id"], name: "index_csi_on_component_and_service_type", unique: true
-    t.index ["component_id"], name: "index_component_service_intervals_on_component_id"
-    t.index ["service_type_id"], name: "index_component_service_intervals_on_service_type_id"
+    t.string "name"
+    t.integer "moving_time_seconds"
+    t.integer "calendar_amount"
+    t.string "calendar_unit"
+    t.string "ride_filter"
+    t.index "component_id, lower((name)::text)", name: "index_csr_on_component_and_lower_name_custom", unique: true, where: "(category_service_requirement_id IS NULL)"
+    t.index ["category_service_requirement_id"], name: "idx_on_category_service_requirement_id_ed6c3c845b"
+    t.index ["component_id", "category_service_requirement_id"], name: "index_csr_on_component_and_requirement_linked", unique: true, where: "(category_service_requirement_id IS NOT NULL)"
+    t.index ["component_id"], name: "index_component_service_requirements_on_component_id"
   end
 
   create_table "components", force: :cascade do |t|
@@ -144,12 +149,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
   end
 
   create_table "service_alert_dismissals", force: :cascade do |t|
-    t.bigint "component_service_interval_id", null: false
+    t.bigint "component_service_requirement_id", null: false
     t.datetime "dismissed_at", null: false
     t.string "dismissed_status", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["component_service_interval_id"], name: "idx_on_component_service_interval_id_29f0d01c93"
+    t.index ["component_service_requirement_id"], name: "idx_on_component_service_requirement_id_5bd3058ab4"
+  end
+
+  create_table "service_requirement_satisfiers", force: :cascade do |t|
+    t.string "owner_type", null: false
+    t.bigint "owner_id", null: false
+    t.bigint "service_type_id", null: false
+    t.integer "position", null: false
+    t.integer "allowance_distance_meters"
+    t.integer "allowance_moving_time_seconds"
+    t.integer "allowance_calendar_amount"
+    t.string "allowance_calendar_unit"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_type", "owner_id", "position"], name: "index_satisfiers_on_owner_and_position"
+    t.index ["owner_type", "owner_id", "service_type_id"], name: "index_satisfiers_on_owner_and_service_type", unique: true
+    t.index ["service_type_id"], name: "index_service_requirement_satisfiers_on_service_type_id"
   end
 
   create_table "service_sessions", force: :cascade do |t|
@@ -281,20 +302,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_005315) do
   add_foreign_key "bike_types", "users"
   add_foreign_key "bikes", "bike_types"
   add_foreign_key "bikes", "users"
-  add_foreign_key "category_service_intervals", "service_types"
-  add_foreign_key "category_service_intervals", "users"
+  add_foreign_key "category_service_requirements", "users"
   add_foreign_key "component_assignments", "bikes"
   add_foreign_key "component_assignments", "components"
   add_foreign_key "component_category_settings", "users"
-  add_foreign_key "component_service_intervals", "category_service_intervals"
-  add_foreign_key "component_service_intervals", "components"
-  add_foreign_key "component_service_intervals", "service_types"
+  add_foreign_key "component_service_requirements", "category_service_requirements"
+  add_foreign_key "component_service_requirements", "components"
   add_foreign_key "components", "users"
   add_foreign_key "maintenance_events", "components"
   add_foreign_key "maintenance_events", "service_sessions"
   add_foreign_key "maintenance_events", "service_types"
   add_foreign_key "notification_settings", "users"
-  add_foreign_key "service_alert_dismissals", "component_service_intervals"
+  add_foreign_key "service_alert_dismissals", "component_service_requirements"
+  add_foreign_key "service_requirement_satisfiers", "service_types"
   add_foreign_key "service_sessions", "bikes"
   add_foreign_key "service_sessions", "users"
   add_foreign_key "service_types", "users"

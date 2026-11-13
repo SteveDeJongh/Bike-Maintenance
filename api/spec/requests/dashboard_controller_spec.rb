@@ -187,7 +187,7 @@ RSpec.describe "Dashboard", type: :request do
         bike = create(:bike, user: current_user)
         component = create(:component, user: current_user, category: "chain", label: "Chain A")
         service_type = current_user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil,
           ride_context: "outdoor_only")
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_200)
@@ -257,7 +257,7 @@ RSpec.describe "Dashboard", type: :request do
       def due_component(bike:, label: "Chain A")
         component = create(:component, user: current_user, category: "chain", label: label)
         service_type = current_user.service_types.find_by!(name: "wax")
-        create(:component_service_interval, component: component, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
         component
@@ -268,7 +268,7 @@ RSpec.describe "Dashboard", type: :request do
         due = due_component(bike: bike)
         ok_component = create(:component, user: current_user, category: "saddle")
         ok_type = current_user.service_types.find_by!(name: "inspect")
-        create(:component_service_interval, component: ok_component, service_type: ok_type, distance_interval_meters: 1_000_000)
+        create(:component_service_requirement, component: ok_component, service_type: ok_type, distance_interval_meters: 1_000_000)
         create(:component_assignment, component: ok_component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
 
         get "/dashboard"
@@ -293,8 +293,8 @@ RSpec.describe "Dashboard", type: :request do
       it "still includes a dismissed interval, flagged, not hidden" do
         bike = create(:bike, user: current_user)
         component = due_component(bike: bike)
-        interval = component.component_service_intervals.first
-        create(:service_alert_dismissal, component_service_interval: interval, dismissed_status: "due", dismissed_at: Time.current)
+        interval = component.component_service_requirements.first
+        create(:service_alert_dismissal, component_service_requirement: interval, dismissed_status: "due", dismissed_at: Time.current)
 
         get "/dashboard"
 
@@ -331,7 +331,7 @@ RSpec.describe "Dashboard", type: :request do
 
         warning_component = create(:component, user: current_user, category: "cassette", label: "Warning Component")
         warning_type = current_user.service_types.find_by!(name: "inspect")
-        create(:component_service_interval, component: warning_component, service_type: warning_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: warning_component, service_type: warning_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: warning_component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 960)
 
@@ -400,7 +400,7 @@ RSpec.describe "Dashboard", type: :request do
         other_bike = create(:bike)
         other_component = create(:component, user: other_bike.user, category: "chain")
         other_service_type = create(:service_type, user: other_bike.user)
-        create(:component_service_interval, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
+        create(:component_service_requirement, component: other_component, service_type: other_service_type, distance_interval_meters: 1_000)
         create(:component_assignment, component: other_component, bike: other_bike,
           started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
         create(:strava_activity, user: other_bike.user, bike: other_bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
