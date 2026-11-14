@@ -187,7 +187,8 @@ RSpec.describe "Dashboard", type: :request do
         bike = create(:bike, user: current_user)
         component = create(:component, user: current_user, category: "chain", label: "Chain A")
         service_type = current_user.service_types.find_by!(name: "wax")
-        create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
+        requirement = create(:component_service_requirement, component: component, service_type: service_type,
+          name: "Chain lube", distance_interval_meters: 1_000)
         create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil,
           ride_context: "outdoor_only")
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_200)
@@ -200,11 +201,28 @@ RSpec.describe "Dashboard", type: :request do
         expect(mounted["ride_context"]).to eq("outdoor_only")
         expect(mounted["service_status"]).to eq("due")
         expect(mounted["display_metric"]).to eq(
-          "service_type_name" => "wax", "distance_meters" => 1_200, "days" => nil,
+          "requirement_name" => requirement.name, "distance_meters" => 1_200,
+          "moving_time_seconds" => nil, "days" => nil, "since_service_type_name" => nil,
         )
       end
 
-      it "falls back to total_distance with a nil service_type_name when the component has no enabled interval" do
+      it "names the setting event's own service type once a service has been logged" do
+        bike = create(:bike, user: current_user)
+        component = create(:component, user: current_user, category: "chain", label: "Chain A")
+        service_type = current_user.service_types.find_by!(name: "wax")
+        create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
+        create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+        create(:maintenance_event, component: component, service_type: service_type, performed_at: Time.zone.local(2026, 1, 2))
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 400)
+
+        get "/dashboard"
+
+        mounted = JSON.parse(response.body)["bikes"].first["mounted"].first
+        expect(mounted["display_metric"]["since_service_type_name"]).to eq("wax")
+        expect(mounted["display_metric"]["distance_meters"]).to eq(400)
+      end
+
+      it "falls back to total_distance with a nil requirement_name when the component has no enabled interval" do
         bike = create(:bike, user: current_user)
         component = create(:component, user: current_user, category: "saddle")
         create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
@@ -214,7 +232,8 @@ RSpec.describe "Dashboard", type: :request do
 
         mounted = JSON.parse(response.body)["bikes"].first["mounted"].first
         expect(mounted["display_metric"]).to eq(
-          "service_type_name" => nil, "distance_meters" => 500, "days" => nil,
+          "requirement_name" => nil, "distance_meters" => 500,
+          "moving_time_seconds" => nil, "days" => nil, "since_service_type_name" => nil,
         )
       end
 

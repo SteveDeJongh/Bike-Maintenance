@@ -190,22 +190,33 @@ class BikesController < ApplicationController
 
     def serviceable_component_json(component, statuses)
       component.as_json(only: %i[ id label category ]).merge(
-        service_intervals: statuses.map { |status| interval_status_json(status) },
+        service_requirements: statuses.map { |status| interval_status_json(status) },
       )
     end
 
     def interval_status_json(status)
       requirement = status.component_service_requirement
-      satisfier = requirement.effective_satisfiers.first
+      effective = requirement.effective
       {
         id: requirement.id,
-        service_type_id: satisfier && satisfier[:service_type_id],
-        service_type_name: satisfier && satisfier[:service_type_name],
+        requirement_name: effective[:name],
+        satisfiers: effective[:satisfiers],
         status: status.status,
         driving_dimension: status.driving_dimension,
         distance_remaining_meters: status.distance_remaining_meters,
+        moving_time_remaining_seconds: status.moving_time_remaining_seconds,
         days_remaining: status.days_remaining,
+        setting_event: setting_event_json(status),
       }
+    end
+
+    # {id:, service_type_name:, performed_at:} | nil -- same shape as the
+    # other three consumers' own helpers of the same name.
+    def setting_event_json(status)
+      event = status.setting_event
+      return nil unless event
+
+      { id: event.id, service_type_name: event.service_type.name, performed_at: event.performed_at }
     end
 
     def bike_params

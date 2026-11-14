@@ -16,11 +16,11 @@ class ComponentsController < ApplicationController
 
   # GET /components/1
   def show
-    service_intervals = Maintenance::RequirementStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
+    service_requirements = Maintenance::RequirementStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
     current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike).map { |a| { id: a.bike.id, name: a.bike.name } }
 
     render json: @component.as_json(methods: %i[ total_distance ]).merge(
-      service_intervals: service_intervals,
+      service_requirements: service_requirements,
       current_bikes: current_bikes,
     )
   end
@@ -60,27 +60,43 @@ class ComponentsController < ApplicationController
       params.require(:component).permit(:label, :category, :acquired_on, :retired_on, :brand, :model, :notes)
     end
 
-    # Increment-1 compatibility shim: keeps the OLD JSON shape
-    # (service_type_id/distance_interval_meters/time_interval_days/
-    # service_type_name) the existing frontend still reads, derived from the
-    # new requirement/satisfier schema's single (position 1) satisfier.
-    # Increment 3 replaces this with the real requirement/satisfiers payload.
+    # The real requirement/satisfiers payload (increment 3) -- effective_*
+    # values already resolve template inheritance/overrides, and
+    # satisfiers are already fully resolved (service_type id+name+position+
+    # per-dimension allowance) via ComponentServiceRequirement#effective, so
+    # this method only has to read, never re-derive.
     def serialize_requirement_status(status)
       requirement = status.component_service_requirement
       effective = requirement.effective
-      satisfier = effective[:satisfiers].first
 
       requirement.as_json(only: %i[ id category_service_requirement_id enabled ]).merge(
-        service_type_id: satisfier && satisfier[:service_type_id],
-        distance_interval_meters: requirement.distance_meters,
-        time_interval_days: requirement.calendar_unit == "day" ? requirement.calendar_amount : nil,
-        effective_distance_interval_meters: effective[:distance_meters],
-        effective_time_interval_days: effective[:calendar_unit] == "day" ? effective[:calendar_amount] : nil,
-        service_type_name: satisfier && satisfier[:service_type_name],
+        requirement_name: effective[:name],
+        distance_meters: effective[:distance_meters],
+        moving_time_seconds: effective[:moving_time_seconds],
+        calendar_amount: effective[:calendar_amount],
+        calendar_unit: effective[:calendar_unit],
+        ride_filter: effective[:ride_filter],
+        satisfiers: effective[:satisfiers],
         status: status.status,
-        distance_remaining_meters: status.distance_remaining_meters,
-        days_remaining: status.days_remaining,
         driving_dimension: status.driving_dimension,
+        distance_used_meters: status.distance_used_meters,
+        distance_remaining_meters: status.distance_remaining_meters,
+        moving_time_used_seconds: status.moving_time_used_seconds,
+        moving_time_remaining_seconds: status.moving_time_remaining_seconds,
+        days_used: status.days_used,
+        days_remaining: status.days_remaining,
+        setting_event: setting_event_json(status),
       )
+    end
+
+    # {id:, service_type_name:, performed_at:} | nil -- nil in the
+    # synthetic-fallback case (no real satisfying service logged yet). Same
+    # shape as MaintenanceAlertsController/Dashboard::Summary's own helpers
+    # of the same name -- duplicated rather than shared, three lines each.
+    def setting_event_json(status)
+      event = status.setting_event
+      return nil unless event
+
+      { id: event.id, service_type_name: event.service_type.name, performed_at: event.performed_at }
     end
 end

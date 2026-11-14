@@ -18,12 +18,27 @@ Rails.application.routes.draw do
   resources :bike_component_slots, only: %i[ create destroy ]
   resources :table_view_preferences, param: :table_key, only: %i[ show update ]
   resources :component_category_settings, param: :category, only: %i[ index update ]
+  # Increment-1/3 compatibility shim routes -- old wire contract, kept alive
+  # until the frontend cuts over to the requirement/satisfier endpoints
+  # below (increment 4+), then removed.
   resources :category_service_intervals, except: %i[ new edit ] do
     member { post :apply }
   end
   resources :component_service_intervals, except: %i[ new edit ] do
     collection { post :apply_defaults }
   end
+
+  resources :category_service_requirements, except: %i[ new edit ] do
+    member { post :apply }
+    resources :satisfiers, only: %i[ create ], controller: "service_requirement_satisfiers"
+    patch "satisfiers/reorder", to: "service_requirement_satisfiers#reorder"
+  end
+  resources :component_service_requirements, except: %i[ new edit ] do
+    collection { post :apply_defaults }
+    resources :satisfiers, only: %i[ create ], controller: "service_requirement_satisfiers"
+    patch "satisfiers/reorder", to: "service_requirement_satisfiers#reorder"
+  end
+  resources :service_requirement_satisfiers, only: %i[ update destroy ]
   resources :service_alert_dismissals, only: %i[ create ] do
     collection { post :dismiss_all }
   end

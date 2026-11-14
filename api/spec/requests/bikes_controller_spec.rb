@@ -415,25 +415,28 @@ RSpec.describe "Bikes", type: :request do
       expect(body["off_bike"].map { |c| c["id"] }).to eq([ off_bike.id ])
     end
 
-    it "includes each enabled interval's batched status, keyed with service type id/name" do
+    it "includes each enabled requirement's batched status, with its name and resolved satisfiers" do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
       service_type = create(:service_type, user: current_user, name: "Full Wax")
-      interval = create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 300_000)
+      requirement = create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 300_000)
 
       get "/bikes/#{bike.id}/serviceable_components"
 
-      row = JSON.parse(response.body)["mounted"].first["service_intervals"].first
-      expect(row["id"]).to eq(interval.id)
-      expect(row["service_type_id"]).to eq(service_type.id)
-      expect(row["service_type_name"]).to eq("Full Wax")
+      row = JSON.parse(response.body)["mounted"].first["service_requirements"].first
+      expect(row["id"]).to eq(requirement.id)
+      expect(row["requirement_name"]).to eq(requirement.name)
+      expect(row["satisfiers"].first["service_type_id"]).to eq(service_type.id)
+      expect(row["satisfiers"].first["service_type_name"]).to eq("Full Wax")
       expect(row["status"]).to eq("ok")
       expect(row).to have_key("distance_remaining_meters")
+      expect(row).to have_key("moving_time_remaining_seconds")
       expect(row).to have_key("days_remaining")
+      expect(row).to have_key("setting_event")
     end
 
-    it "omits a disabled interval" do
+    it "omits a disabled requirement" do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       create(:component_assignment, bike: bike, component: component, started_at: 10.days.ago, ended_at: nil)
@@ -442,7 +445,7 @@ RSpec.describe "Bikes", type: :request do
 
       get "/bikes/#{bike.id}/serviceable_components"
 
-      expect(JSON.parse(response.body)["mounted"].first["service_intervals"]).to eq([])
+      expect(JSON.parse(response.body)["mounted"].first["service_requirements"]).to eq([])
     end
 
     it "uses `at` to evaluate what was serviceable then, not now" do

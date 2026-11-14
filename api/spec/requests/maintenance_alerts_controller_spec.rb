@@ -9,7 +9,7 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      requirement = create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
       create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
@@ -18,8 +18,13 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       expect(body.length).to eq(1)
-      expect(body.first["status"]).to eq("due")
-      expect(body.first["component_id"]).to eq(component.id)
+      alert = body.first
+      expect(alert["status"]).to eq("due")
+      expect(alert["component_id"]).to eq(component.id)
+      expect(alert["component_service_requirement_id"]).to eq(requirement.id)
+      expect(alert["requirement_name"]).to eq(requirement.name)
+      expect(alert["setting_event"]).to be_nil # no MaintenanceEvent logged -- synthetic fallback point
+      expect(alert["setting_position"]).to eq(0)
     end
 
     it "excludes an ok interval, and only current_user's intervals" do

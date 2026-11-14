@@ -50,6 +50,20 @@ RSpec.describe "Unauthenticated access", type: :request do
     [:get, "/component_service_intervals/999999"], [:patch, "/component_service_intervals/999999"],
     [:delete, "/component_service_intervals/999999"], [:post, "/component_service_intervals/apply_defaults"],
 
+    [:get, "/category_service_requirements"], [:post, "/category_service_requirements"],
+    [:get, "/category_service_requirements/999999"], [:patch, "/category_service_requirements/999999"],
+    [:delete, "/category_service_requirements/999999"], [:post, "/category_service_requirements/999999/apply"],
+    [:post, "/category_service_requirements/999999/satisfiers"],
+    [:patch, "/category_service_requirements/999999/satisfiers/reorder"],
+
+    [:get, "/component_service_requirements"], [:post, "/component_service_requirements"],
+    [:get, "/component_service_requirements/999999"], [:patch, "/component_service_requirements/999999"],
+    [:delete, "/component_service_requirements/999999"], [:post, "/component_service_requirements/apply_defaults"],
+    [:post, "/component_service_requirements/999999/satisfiers"],
+    [:patch, "/component_service_requirements/999999/satisfiers/reorder"],
+
+    [:patch, "/service_requirement_satisfiers/999999"], [:delete, "/service_requirement_satisfiers/999999"],
+
     [:post, "/service_alert_dismissals"], [:post, "/service_alert_dismissals/dismiss_all"],
 
     [:get, "/activity"],

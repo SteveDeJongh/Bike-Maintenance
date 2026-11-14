@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # This controller is otherwise plain CRUD; this spec exists narrowly for
-# #show's service_intervals inclusion, the one piece of real controller
+# #show's service_requirements inclusion, the one piece of real controller
 # logic here (not covered by Component's own model specs, which don't
 # exercise the JSON serialization layer).
 RSpec.describe "Components", type: :request do
@@ -86,31 +86,34 @@ RSpec.describe "Components", type: :request do
   end
 
   describe "GET /components/:id" do
-    it "includes each enabled interval's computed status" do
+    it "includes each enabled requirement's computed status" do
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
+      requirement = create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000)
 
       get "/components/#{component.id}"
 
       expect(response).to have_http_status(:ok)
-      intervals = JSON.parse(response.body)["service_intervals"]
-      expect(intervals.length).to eq(1)
-      expect(intervals.first["service_type_name"]).to eq("wax")
-      expect(intervals.first["status"]).to eq("ok")
+      requirements = JSON.parse(response.body)["service_requirements"]
+      expect(requirements.length).to eq(1)
+      item = requirements.first
+      expect(item["requirement_name"]).to eq(requirement.name)
+      expect(item["satisfiers"].first["service_type_name"]).to eq("wax")
+      expect(item["status"]).to eq("ok")
+      expect(item["setting_event"]).to be_nil
     end
 
-    it "still includes a disabled interval, with its own computed status, so it can be re-enabled in place" do
+    it "still includes a disabled requirement, with its own computed status, so it can be re-enabled in place" do
       component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
       create(:component_service_requirement, component: component, service_type: service_type, distance_interval_meters: 1_000, enabled: false)
 
       get "/components/#{component.id}"
 
-      intervals = JSON.parse(response.body)["service_intervals"]
-      expect(intervals.length).to eq(1)
-      expect(intervals.first["enabled"]).to eq(false)
-      expect(intervals.first["status"]).to eq("ok")
+      requirements = JSON.parse(response.body)["service_requirements"]
+      expect(requirements.length).to eq(1)
+      expect(requirements.first["enabled"]).to eq(false)
+      expect(requirements.first["status"]).to eq("ok")
     end
 
     it "includes current_bikes, empty when not currently installed" do
