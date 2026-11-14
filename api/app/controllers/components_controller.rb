@@ -86,6 +86,7 @@ class ComponentsController < ApplicationController
         days_used: status.days_used,
         days_remaining: status.days_remaining,
         setting_event: setting_event_json(status),
+        setting_position: status.setting_position,
       )
     end
 

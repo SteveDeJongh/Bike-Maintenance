@@ -101,6 +101,7 @@ RSpec.describe "Components", type: :request do
       expect(item["satisfiers"].first["service_type_name"]).to eq("wax")
       expect(item["status"]).to eq("ok")
       expect(item["setting_event"]).to be_nil
+      expect(item["setting_position"]).to eq(0)
     end
 
     it "still includes a disabled requirement, with its own computed status, so it can be re-enabled in place" do
