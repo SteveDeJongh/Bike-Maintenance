@@ -120,22 +120,38 @@ module Dashboard
       }
     end
 
-    # The driving interval's distance-or-days-used since its baseline, with
-    # its service type name -- or, with no enabled interval at all, the
-    # component's plain lifetime total_distance (service_type_name: nil
-    # signals "this is just a total," not "since a service"). Meters/days
-    # only -- formatting into "N km since wax" is the frontend's job, same
-    # as everywhere else in the app (see CLAUDE.md: the API always returns
-    # meters, the UI always converts via formatDistance).
+    # The driving requirement's distance/moving-time/days-used since its
+    # setting event, with the requirement's own name and (separately) the
+    # setting event's own service type name -- or, with no enabled
+    # requirement at all, the component's plain lifetime total_distance
+    # (requirement_name: nil signals "this is just a total," not "since a
+    # service"). since_service_type_name is specifically the setting
+    # event's service type -- with multiple satisfiers this is no longer
+    # always the same string as the requirement's own name, so "N km since
+    # X" needs its own field rather than reusing requirement_name. Meters/
+    # seconds/days only -- formatting into "N km since wax" is the
+    # frontend's job, same as everywhere else in the app (see CLAUDE.md:
+    # the API always returns meters, the UI always converts via
+    # formatDistance).
     def display_metric(component, result)
-      return { service_type_name: nil, distance_meters: component.total_distance, days: nil } if result.nil?
+      if result.nil?
+        return {
+          requirement_name: nil, distance_meters: component.total_distance,
+          moving_time_seconds: nil, days: nil, since_service_type_name: nil,
+        }
+      end
 
-      satisfier = result.component_service_requirement.effective_satisfiers.first
-      service_type_name = satisfier && satisfier[:service_type_name]
-      if result.driving_dimension == :distance
-        { service_type_name: service_type_name, distance_meters: result.distance_used_meters, days: nil }
+      requirement_name = result.component_service_requirement.effective[:name]
+      since_service_type_name = result.setting_event&.service_type&.name
+
+      base = { requirement_name: requirement_name, since_service_type_name: since_service_type_name }
+      case result.driving_dimension
+      when :distance
+        base.merge(distance_meters: result.distance_used_meters, moving_time_seconds: nil, days: nil)
+      when :moving_time
+        base.merge(distance_meters: nil, moving_time_seconds: result.moving_time_used_seconds, days: nil)
       else
-        { service_type_name: service_type_name, distance_meters: nil, days: result.days_used }
+        base.merge(distance_meters: nil, moving_time_seconds: nil, days: result.days_used)
       end
     end
 
@@ -167,7 +183,6 @@ module Dashboard
       requirement = result.component_service_requirement
       component = requirement.component
       effective = requirement.effective
-      satisfier = effective[:satisfiers].first
       # A component can (rarely) be mounted on more than one bike at once
       # (the documented shared indoor_only-cassette case) -- picking the
       # first is a deliberate display simplification, not a data gap.
@@ -176,22 +191,40 @@ module Dashboard
       {
         component_id: component.id,
         component_label: component.label,
-        service_type_id: satisfier && satisfier[:service_type_id],
-        service_type_name: satisfier && satisfier[:service_type_name],
+        requirement_id: requirement.id,
+        requirement_name: effective[:name],
         status: result.status,
         driving_dimension: result.driving_dimension,
         distance_used_meters: result.distance_used_meters,
-        effective_distance_interval_meters: effective[:distance_meters],
+        effective_distance_meters: effective[:distance_meters],
+        moving_time_used_seconds: result.moving_time_used_seconds,
+        effective_moving_time_seconds: effective[:moving_time_seconds],
         days_used: result.days_used,
-        effective_time_interval_days: effective[:calendar_unit] == "day" ? effective[:calendar_amount] : nil,
+        effective_calendar_amount: effective[:calendar_amount],
+        effective_calendar_unit: effective[:calendar_unit],
         distance_remaining_meters: result.distance_remaining_meters,
+        moving_time_remaining_seconds: result.moving_time_remaining_seconds,
         days_remaining: result.days_remaining,
         fraction_used: result.fraction_used,
+        setting_event: setting_event_json(result),
         dismissed: result.dismissed?(credential: credential),
         notifications_off: !result.notifications_enabled?,
         mounted: result.mounted?,
         bike: bike,
       }
+    end
+
+    # Same shape/reasoning as MaintenanceAlertsController's own
+    # setting_event_json -- {id:, service_type_name:, performed_at:} | nil,
+    # nil in the synthetic-fallback case (no real satisfying service logged
+    # yet). No shared module for two three-line methods across a
+    # controller and a service object; duplication here is cheaper than
+    # the indirection.
+    def setting_event_json(result)
+      event = result.setting_event
+      return nil unless event
+
+      { id: event.id, service_type_name: event.service_type.name, performed_at: event.performed_at }
     end
 
     def recent_rides_section
