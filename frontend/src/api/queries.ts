@@ -8,10 +8,12 @@ import type {
   BikeType,
   BikeWithStats,
   CategoryServiceInterval,
+  CategoryServiceRequirement,
   ComponentAssignment,
   ComponentCategorySetting,
   ComponentDetail,
   ComponentServiceInterval,
+  ComponentServiceRequirement,
   ComponentWithServiceStatus,
   DashboardSummary,
   MaintenanceAlert,
@@ -223,6 +225,37 @@ export function useAllComponentServiceIntervals() {
   return useQuery({
     queryKey: ['component_service_intervals'],
     queryFn: () => apiGet<ComponentServiceInterval[]>('/component_service_intervals'),
+  })
+}
+
+// Service requirements -- replaces the two hooks above (and
+// useComponentServiceIntervals below) once every remaining frontend
+// consumer of the old /category_service_intervals and
+// /component_service_intervals shim endpoints is migrated off them.
+
+export function useCategoryServiceRequirements() {
+  return useQuery({
+    queryKey: ['category_service_requirements'],
+    queryFn: () => apiGet<CategoryServiceRequirement[]>('/category_service_requirements'),
+  })
+}
+
+export function useComponentServiceRequirements(componentId: number) {
+  return useQuery({
+    queryKey: ['component_service_requirements', componentId],
+    queryFn: () => apiGet<ComponentServiceRequirement[]>(`/component_service_requirements?component_id=${componentId}`),
+    enabled: Number.isFinite(componentId),
+  })
+}
+
+// Every component_service_requirement across all of the user's components
+// -- used by the category template editor's "apply to" checklist, which
+// needs to know which components already hold a linked row for a given
+// template.
+export function useAllComponentServiceRequirements() {
+  return useQuery({
+    queryKey: ['component_service_requirements'],
+    queryFn: () => apiGet<ComponentServiceRequirement[]>('/component_service_requirements'),
   })
 }
 

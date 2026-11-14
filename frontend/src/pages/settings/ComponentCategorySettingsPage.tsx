@@ -17,7 +17,7 @@ import {
 import { useComponentCategorySettings } from '../../api/queries'
 import { useSaveComponentCategorySettings } from '../../api/mutations'
 import RideContextCheckboxes from '../../components/RideContextCheckboxes'
-import CategoryServiceIntervalsModal from '../../components/forms/CategoryServiceIntervalsModal'
+import CategoryServiceRequirementsModal from '../../components/forms/CategoryServiceRequirementsModal'
 import { categoryLabel } from '../../constants'
 import type { ComponentCategorySetting } from '../../types/models'
 import { useAllCategories } from '../../hooks/useAllCategories'
@@ -204,7 +204,7 @@ function CategoryTable({
             <Table.Th>Notifications</Table.Th>
             <Table.Th>Warning %</Table.Th>
             <Table.Th>Common brands</Table.Th>
-            <Table.Th>Service intervals</Table.Th>
+            <Table.Th>Service requirements</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -297,7 +297,7 @@ function CategoryTable({
       </Table>
 
       {manageIntervalsCategory && (
-        <CategoryServiceIntervalsModal
+        <CategoryServiceRequirementsModal
           opened
           category={manageIntervalsCategory}
           onClose={() => setManageIntervalsCategory(null)}

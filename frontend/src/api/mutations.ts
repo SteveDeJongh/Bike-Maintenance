@@ -5,14 +5,18 @@ import type {
   Bike,
   BikeComponentSlot,
   BikeType,
+  CalendarUnit,
   CategoryServiceInterval,
+  CategoryServiceRequirement,
   Component,
   ComponentAssignment,
   ComponentCategorySetting,
   ComponentServiceInterval,
+  ComponentServiceRequirement,
   MaintenanceAlertScope,
   MaintenanceEvent,
   NotificationSetting,
+  ServiceRequirementSatisfier,
   ServiceSession,
   ServiceType,
   TableViewPreferenceData,
@@ -623,6 +627,157 @@ export function useApplyDefaultComponentServiceIntervals() {
         component_id: componentId,
         category_service_interval_ids: categoryServiceIntervalIds,
       }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// Service requirements / satisfiers
+// Replaces the CategoryServiceInterval/ComponentServiceInterval mutations
+// above -- satisfiers are created inline with their owner on #create (one
+// transaction, so "at least one satisfier" is never left with a gap), and
+// managed afterward through the dedicated satisfier hooks below. Every
+// mutation here also refreshes service status, same as the old intervals.
+
+export type CategoryServiceRequirementPayload = Omit<CategoryServiceRequirement, 'id' | 'user_id' | 'satisfiers'>
+export type ComponentServiceRequirementPayload = Omit<ComponentServiceRequirement, 'id' | 'satisfiers' | 'effective'>
+
+export interface SatisfierInput {
+  service_type_id: number
+  allowance_distance_meters?: number | null
+  allowance_moving_time_seconds?: number | null
+  allowance_calendar_amount?: number | null
+  allowance_calendar_unit?: CalendarUnit | null
+}
+
+export function useCreateCategoryServiceRequirement() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ values, satisfiers }: { values: CategoryServiceRequirementPayload; satisfiers: SatisfierInput[] }) =>
+      apiPost<CategoryServiceRequirement>('/category_service_requirements', {
+        category_service_requirement: values,
+        satisfiers,
+      }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useUpdateCategoryServiceRequirement(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<CategoryServiceRequirementPayload>) =>
+      apiPatch<CategoryServiceRequirement>(`/category_service_requirements/${id}`, { category_service_requirement: values }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useDeleteCategoryServiceRequirement() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/category_service_requirements/${id}`),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// Applies a category template to the given, not-yet-linked components.
+export function useApplyCategoryServiceRequirement(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (componentIds: number[]) =>
+      apiPost<void>(`/category_service_requirements/${id}/apply`, { component_ids: componentIds }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// satisfiers is omitted entirely for a linked create (category_service_requirement_id
+// set) -- sending it (even []) is rejected, since a linked row has no
+// satisfiers of its own.
+export function useCreateComponentServiceRequirement() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ values, satisfiers }: { values: ComponentServiceRequirementPayload; satisfiers?: SatisfierInput[] }) =>
+      apiPost<ComponentServiceRequirement>('/component_service_requirements', {
+        component_service_requirement: values,
+        ...(satisfiers ? { satisfiers } : {}),
+      }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useUpdateComponentServiceRequirement(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<ComponentServiceRequirementPayload>) =>
+      apiPatch<ComponentServiceRequirement>(`/component_service_requirements/${id}`, { component_service_requirement: values }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useDeleteComponentServiceRequirement() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/component_service_requirements/${id}`),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// "+ Add from category defaults" on the component page.
+export function useApplyDefaultComponentServiceRequirements() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ componentId, categoryServiceRequirementIds }: { componentId: number; categoryServiceRequirementIds: number[] }) =>
+      apiPost<ComponentServiceRequirement[]>('/component_service_requirements/apply_defaults', {
+        component_id: componentId,
+        category_service_requirement_ids: categoryServiceRequirementIds,
+      }),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// Satisfiers are nested under whichever owner they belong to -- a category
+// template, or a custom (unlinked) component requirement. A linked
+// component requirement has no satisfiers of its own (see
+// ServiceRequirementSatisfier#owner_is_a_template_or_unlinked_component_requirement)
+// -- never construct a SatisfierOwner for one.
+export type SatisfierOwner = { type: 'category'; id: number } | { type: 'component'; id: number }
+
+function satisfierOwnerPath(owner: SatisfierOwner): string {
+  return owner.type === 'category'
+    ? `/category_service_requirements/${owner.id}/satisfiers`
+    : `/component_service_requirements/${owner.id}/satisfiers`
+}
+
+export function useCreateServiceRequirementSatisfier(owner: SatisfierOwner) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: SatisfierInput) => apiPost<ServiceRequirementSatisfier>(satisfierOwnerPath(owner), values),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useUpdateServiceRequirementSatisfier(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<SatisfierInput>) =>
+      apiPatch<ServiceRequirementSatisfier>(`/service_requirement_satisfiers/${id}`, values),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+export function useDeleteServiceRequirementSatisfier() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`/service_requirement_satisfiers/${id}`),
+    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
+  })
+}
+
+// satisfierIds is the complete, reordered id list -- must be exactly the
+// owner's current satisfier ids or the backend rejects the whole request.
+export function useReorderServiceRequirementSatisfiers(owner: SatisfierOwner) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (satisfierIds: number[]) =>
+      apiPatch<ServiceRequirementSatisfier[]>(`${satisfierOwnerPath(owner)}/reorder`, { satisfier_ids: satisfierIds }),
     onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
   })
 }

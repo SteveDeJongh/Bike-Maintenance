@@ -151,7 +151,7 @@ export interface ComponentWithServiceStatus extends Component {
 
 export interface ComponentDetail extends Component {
   total_distance: number
-  service_intervals: ComponentServiceIntervalWithStatus[]
+  service_requirements: ComponentServiceRequirementWithStatus[]
   current_bikes: ComponentCurrentBike[]
 }
 
@@ -247,6 +247,129 @@ export interface ComponentServiceIntervalWithStatus extends ComponentServiceInte
   driving_dimension: 'distance' | 'days'
 }
 
+// --- Service requirements (replaces CategoryServiceInterval/
+// ComponentServiceInterval above -- those stay in place only until every
+// remaining frontend consumer of the old /category_service_intervals and
+// /component_service_intervals shim endpoints is migrated off them) ---
+//
+// See CLAUDE.md "Service intervals and maintenance alerts": a requirement
+// (e.g. "Chain lube") comes due on up to three independent dimensions
+// (distance/moving_time/calendar), is cleared by one or more satisfiers
+// (service types, each with its own resolved allowance per dimension), and
+// can narrow (never widen) which rides count via ride_filter on top of a
+// component's own ride_context.
+export type RideFilter = 'all' | 'outdoor' | 'indoor'
+export type CalendarUnit = 'day' | 'month' | 'year'
+export type RequirementDimension = 'distance' | 'moving_time' | 'days'
+
+// A requirement's own thresholds, raw -- the DB's actual nullable
+// override/value columns (never "effective"). allowance_* fields are the
+// satisfier's own override on top of whichever requirement owns it; nil on
+// an allowance means "inherits this requirement's own threshold for that
+// dimension" (see ServiceRequirementSatisfier#allowances_match_owner_thresholds).
+export interface ServiceRequirementSatisfier {
+  id: number
+  service_type_id: number
+  service_type_name: string
+  position: number
+  allowance_distance_meters: number | null
+  allowance_moving_time_seconds: number | null
+  allowance_calendar_amount: number | null
+  allowance_calendar_unit: CalendarUnit | null
+}
+
+// A ComponentServiceRequirement's live-resolved view (inheritance +
+// per-dimension satisfier allowances already applied) -- always read this
+// for display/status, never resolve inheritance in the frontend itself.
+export interface EffectiveServiceRequirement {
+  name: string
+  distance_meters: number | null
+  moving_time_seconds: number | null
+  calendar_amount: number | null
+  calendar_unit: CalendarUnit | null
+  ride_filter: RideFilter
+  satisfiers: ServiceRequirementSatisfier[]
+}
+
+// A per-category suggested requirement template (e.g. "Chain lube" @
+// 500km, hot-wax-or-drip-wax) -- user-managed on the Settings page,
+// applied to a category's components as a linked ComponentServiceRequirement.
+// Never itself inherits anything, so its own columns already are the
+// "effective" values -- no separate resolved view needed.
+export interface CategoryServiceRequirement {
+  id: number
+  user_id: number
+  category: string
+  name: string
+  distance_meters: number | null
+  moving_time_seconds: number | null
+  calendar_amount: number | null
+  calendar_unit: CalendarUnit | null
+  ride_filter: RideFilter
+  satisfiers: ServiceRequirementSatisfier[]
+}
+
+// What actually applies to one component -- either linked to a
+// CategoryServiceRequirement template (category_service_requirement_id
+// set; name/thresholds/ride_filter/satisfiers are null/empty here and
+// inherited live through `effective`, with these columns available only as
+// per-component overrides) or fully custom (category_service_requirement_id
+// null, everything its own, satisfiers non-empty). A linked row's own
+// `satisfiers` array is the TEMPLATE's raw satisfiers (for display/"edit
+// the category default" linking) -- editing them goes through the
+// template's own endpoint, never this row's.
+export interface ComponentServiceRequirement {
+  id: number
+  component_id: number
+  category_service_requirement_id: number | null
+  name: string | null
+  distance_meters: number | null
+  moving_time_seconds: number | null
+  calendar_amount: number | null
+  calendar_unit: CalendarUnit | null
+  ride_filter: RideFilter | null
+  enabled: boolean
+  satisfiers: ServiceRequirementSatisfier[]
+  effective: EffectiveServiceRequirement
+}
+
+// {id, service_type_name, performed_at} for whichever MaintenanceEvent
+// produced a requirement's current due point (the "setting event") on its
+// driving dimension -- null in the synthetic-fallback case (no matching
+// service logged yet). The same shape everywhere it appears (alerts,
+// dashboard, component show) -- the backend never pre-formats this into a
+// sentence; see DashboardDisplayMetric's own note on why.
+export interface SettingEvent {
+  id: number
+  service_type_name: string
+  performed_at: string
+}
+
+// The enriched shape GET /components/:id returns for each requirement --
+// ComponentServiceRequirement's effective values plus the live-computed
+// status across all three dimensions.
+export interface ComponentServiceRequirementWithStatus {
+  id: number
+  category_service_requirement_id: number | null
+  enabled: boolean
+  requirement_name: string
+  distance_meters: number | null
+  moving_time_seconds: number | null
+  calendar_amount: number | null
+  calendar_unit: CalendarUnit | null
+  ride_filter: RideFilter
+  satisfiers: ServiceRequirementSatisfier[]
+  status: ServiceStatus
+  driving_dimension: RequirementDimension
+  distance_used_meters: number | null
+  distance_remaining_meters: number | null
+  moving_time_used_seconds: number | null
+  moving_time_remaining_seconds: number | null
+  days_used: number | null
+  days_remaining: number | null
+  setting_event: SettingEvent | null
+}
+
 // Singleton per user, GET/PATCH /notification_settings. id is null when the
 // user has no row yet -- the response still carries the real hardcoded
 // defaults (true/5), never a separate "missing" shape to special-case.
@@ -264,16 +387,23 @@ export type MaintenanceAlertScope = { bikeId: number } | { componentId: number }
 // notifications on, not currently dismissed) non-ok statuses, optionally
 // scoped to one bike or one component (see MaintenanceAlertScope above).
 // status is never 'ok' here (see ServiceStatus); only due/warning alerts
-// are ever eligible for the banners.
+// are ever eligible for the banners. setting_position is the raw
+// meters/seconds/date the setting_event produced on the driving dimension
+// -- unformatted (same convention as everywhere else), currently unused by
+// the banners but available for a future "last: drip wax at 2,140 km"
+// treatment there.
 export interface MaintenanceAlert {
-  component_service_interval_id: number
+  component_service_requirement_id: number
   component_id: number
   component_label: string
   category: string
-  service_type_name: string
+  requirement_name: string
   status: 'warning' | 'due'
   distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
   days_remaining: number | null
+  setting_event: SettingEvent | null
+  setting_position: number | string | null
   // Every bike the component is currently mounted on -- almost always one,
   // but a shared indoor_only component (see ComponentAssignment's
   // allows_multiple_assignments exception) can be mounted on two bikes at
@@ -323,22 +453,28 @@ export interface ServiceSession {
 // logger's component picker and nothing else. status/driving_dimension/
 // *_remaining are computed as of now (not the `at` the request was made
 // for) -- they're there to help the user choose, not a record of what the
-// interval looked like at that point in time.
-export interface ServiceableComponentInterval {
+// requirement looked like at that point in time. satisfiers is the
+// requirement's live-resolved satisfier list (service_type id+name+
+// position+resolved allowances), so BatchServiceModal can group one row
+// per service type across every component's requirements without a
+// second request.
+export interface ServiceableComponentRequirement {
   id: number
-  service_type_id: number
-  service_type_name: string
+  requirement_name: string
+  satisfiers: ServiceRequirementSatisfier[]
   status: ServiceStatus
-  driving_dimension: 'distance' | 'days'
+  driving_dimension: RequirementDimension
   distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
   days_remaining: number | null
+  setting_event: SettingEvent | null
 }
 
 export interface ServiceableComponent {
   id: number
   label: string
   category: string
-  service_intervals: ServiceableComponentInterval[]
+  service_requirements: ServiceableComponentRequirement[]
 }
 
 export interface ServiceableComponentsResponse {
@@ -431,14 +567,20 @@ export interface DashboardSyncSection {
   }
 }
 
-// Meters/days only, same as everywhere else in the app (the API always
-// returns meters, the UI always converts via formatDistance) --
-// service_type_name: null means "no enabled interval," so distance_meters
+// Meters/seconds/days only, same as everywhere else in the app (the API
+// always returns meters, the UI always converts via formatDistance) --
+// requirement_name: null means "no enabled requirement," so distance_meters
 // is just the component's plain lifetime total, not a since-service figure.
+// since_service_type_name is specifically the setting event's own service
+// type -- with multiple satisfiers this can differ from requirement_name
+// (e.g. "Chain lube" cleared by a drip wax), so "N km since X" needs its
+// own field rather than reusing the requirement's name.
 export interface DashboardDisplayMetric {
-  service_type_name: string | null
+  requirement_name: string | null
   distance_meters: number | null
+  moving_time_seconds: number | null
   days: number | null
+  since_service_type_name: string | null
 }
 
 export interface DashboardMountedComponent {
@@ -469,23 +611,28 @@ export interface DashboardBike {
 }
 
 // Broader than the alert banners (MaintenanceAlert) -- every non-ok,
-// non-retired interval, including ones a banner would hide (dismissed,
+// non-retired requirement, including ones a banner would hide (dismissed,
 // notifications off, not currently mounted). Those three are flags here
 // instead of exclusions, so the dashboard can label rather than hide them.
 export interface DashboardAttentionItem {
   component_id: number
   component_label: string
-  service_type_id: number
-  service_type_name: string
+  requirement_id: number
+  requirement_name: string
   status: 'warning' | 'due'
-  driving_dimension: 'distance' | 'days'
+  driving_dimension: RequirementDimension
   distance_used_meters: number | null
-  effective_distance_interval_meters: number | null
+  effective_distance_meters: number | null
+  moving_time_used_seconds: number | null
+  effective_moving_time_seconds: number | null
   days_used: number | null
-  effective_time_interval_days: number | null
+  effective_calendar_amount: number | null
+  effective_calendar_unit: CalendarUnit | null
   distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
   days_remaining: number | null
   fraction_used: number
+  setting_event: SettingEvent | null
   dismissed: boolean
   notifications_off: boolean
   mounted: boolean
