@@ -18,7 +18,7 @@ RSpec.describe "ServiceAlertDismissals", type: :request do
     it "records the current status as the dismissal" do
       interval = due_interval(current_user)
 
-      post "/service_alert_dismissals", params: { component_service_interval_id: interval.id }
+      post "/service_alert_dismissals", params: { component_service_requirement_id: interval.id }
 
       expect(response).to have_http_status(:created)
       dismissal = interval.service_alert_dismissals.first
@@ -28,7 +28,7 @@ RSpec.describe "ServiceAlertDismissals", type: :request do
     it "does not allow dismissing another user's interval" do
       other_interval = due_interval(create(:user))
 
-      post "/service_alert_dismissals", params: { component_service_interval_id: other_interval.id }
+      post "/service_alert_dismissals", params: { component_service_requirement_id: other_interval.id }
 
       expect(response).to have_http_status(:not_found)
     end

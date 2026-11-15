@@ -210,47 +210,9 @@ export interface ComponentCategorySetting {
   brand_list_partner: string | null
 }
 
-// A per-category suggested service interval ("wax every 300km"), applied to
-// that category's components as a linked ComponentServiceInterval -- see
-// ComponentServiceInterval below.
-export interface CategoryServiceInterval {
-  id: number
-  category: string
-  service_type_id: number
-  distance_interval_meters: number | null
-  time_interval_days: number | null
-}
-
-// What actually applies to one component: either linked to a
-// CategoryServiceInterval template (category_service_interval_id set,
-// inheriting the template's values live unless overridden here) or fully
-// custom (category_service_interval_id null, values always its own).
-export interface ComponentServiceInterval {
-  id: number
-  component_id: number
-  category_service_interval_id: number | null
-  service_type_id: number
-  distance_interval_meters: number | null
-  time_interval_days: number | null
-  enabled: boolean
-}
-
-// The enriched shape GET /components/:id returns for each interval --
-// ComponentServiceInterval's own columns plus the live-computed status.
-export interface ComponentServiceIntervalWithStatus extends ComponentServiceInterval {
-  effective_distance_interval_meters: number | null
-  effective_time_interval_days: number | null
-  service_type_name: string
-  status: ServiceStatus
-  distance_remaining_meters: number | null
-  days_remaining: number | null
-  driving_dimension: 'distance' | 'days'
-}
-
-// --- Service requirements (replaces CategoryServiceInterval/
-// ComponentServiceInterval above -- those stay in place only until every
-// remaining frontend consumer of the old /category_service_intervals and
-// /component_service_intervals shim endpoints is migrated off them) ---
+// --- Service requirements (replaces the old single-service-type
+// CategoryServiceInterval/ComponentServiceInterval types/endpoints, fully
+// migrated off as of increment 6) ---
 //
 // See CLAUDE.md "Service intervals and maintenance alerts": a requirement
 // (e.g. "Chain lube") comes due on up to three independent dimensions

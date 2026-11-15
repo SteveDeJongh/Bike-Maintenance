@@ -29,15 +29,7 @@ export const INVALIDATION_GROUPS = {
   // Ride lists -- the Strava Rides tab and each bike's Ride history.
   rides: [['strava_rides'], ['bike_rides']],
   // Category templates and per-component service requirement config.
-  // Both the old shim keys and the new requirement/satisfier keys are
-  // listed here -- they're two JSON views over the exact same underlying
-  // rows (see CategoryServiceIntervalsController/ComponentServiceIntervalsController's
-  // own comments), so every write through either surface must invalidate
-  // both until the old shim's last frontend consumer is migrated off it.
-  intervals: [
-    ['category_service_intervals'], ['component_service_intervals'],
-    ['category_service_requirements'], ['component_service_requirements'],
-  ],
+  intervals: [['category_service_requirements'], ['component_service_requirements']],
   // Per-category settings, including brands remembered from component saves
   // (Component#remember_brand).
   categorySettings: [['component_category_settings']],

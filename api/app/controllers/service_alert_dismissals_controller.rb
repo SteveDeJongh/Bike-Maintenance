@@ -1,7 +1,7 @@
 class ServiceAlertDismissalsController < ApplicationController
   # POST /service_alert_dismissals
   def create
-    requirement = find_requirement(params[:component_service_interval_id])
+    requirement = find_requirement(params[:component_service_requirement_id])
     status = status_for(requirement)
 
     dismissal = requirement.service_alert_dismissals.create!(dismissed_at: Time.current, dismissed_status: status.status)

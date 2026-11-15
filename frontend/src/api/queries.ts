@@ -7,12 +7,10 @@ import type {
   BikeRidesResponse,
   BikeType,
   BikeWithStats,
-  CategoryServiceInterval,
   CategoryServiceRequirement,
   ComponentAssignment,
   ComponentCategorySetting,
   ComponentDetail,
-  ComponentServiceInterval,
   ComponentServiceRequirement,
   ComponentWithServiceStatus,
   DashboardSummary,
@@ -202,36 +200,6 @@ export function useTableViewPreference(tableKey: string) {
     queryFn: () => apiGet<{ data: TableViewPreferenceData }>(`/table_view_preferences/${tableKey}`),
   })
 }
-
-export function useCategoryServiceIntervals() {
-  return useQuery({
-    queryKey: ['category_service_intervals'],
-    queryFn: () => apiGet<CategoryServiceInterval[]>('/category_service_intervals'),
-  })
-}
-
-export function useComponentServiceIntervals(componentId: number) {
-  return useQuery({
-    queryKey: ['component_service_intervals', componentId],
-    queryFn: () => apiGet<ComponentServiceInterval[]>(`/component_service_intervals?component_id=${componentId}`),
-    enabled: Number.isFinite(componentId),
-  })
-}
-
-// Every component_service_interval across all of the user's components --
-// used by the category template editor's "apply to" checklist, which needs
-// to know which components already hold a row for a given service type.
-export function useAllComponentServiceIntervals() {
-  return useQuery({
-    queryKey: ['component_service_intervals'],
-    queryFn: () => apiGet<ComponentServiceInterval[]>('/component_service_intervals'),
-  })
-}
-
-// Service requirements -- replaces the two hooks above (and
-// useComponentServiceIntervals below) once every remaining frontend
-// consumer of the old /category_service_intervals and
-// /component_service_intervals shim endpoints is migrated off them.
 
 export function useCategoryServiceRequirements() {
   return useQuery({

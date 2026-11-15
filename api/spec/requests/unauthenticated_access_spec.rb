@@ -42,14 +42,6 @@ RSpec.describe "Unauthenticated access", type: :request do
 
     [:get, "/component_category_settings"], [:patch, "/component_category_settings/chain"],
 
-    [:get, "/category_service_intervals"], [:post, "/category_service_intervals"],
-    [:get, "/category_service_intervals/999999"], [:patch, "/category_service_intervals/999999"],
-    [:delete, "/category_service_intervals/999999"], [:post, "/category_service_intervals/999999/apply"],
-
-    [:get, "/component_service_intervals"], [:post, "/component_service_intervals"],
-    [:get, "/component_service_intervals/999999"], [:patch, "/component_service_intervals/999999"],
-    [:delete, "/component_service_intervals/999999"], [:post, "/component_service_intervals/apply_defaults"],
-
     [:get, "/category_service_requirements"], [:post, "/category_service_requirements"],
     [:get, "/category_service_requirements/999999"], [:patch, "/category_service_requirements/999999"],
     [:delete, "/category_service_requirements/999999"], [:post, "/category_service_requirements/999999/apply"],

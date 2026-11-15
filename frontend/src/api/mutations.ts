@@ -6,12 +6,10 @@ import type {
   BikeComponentSlot,
   BikeType,
   CalendarUnit,
-  CategoryServiceInterval,
   CategoryServiceRequirement,
   Component,
   ComponentAssignment,
   ComponentCategorySetting,
-  ComponentServiceInterval,
   ComponentServiceRequirement,
   MaintenanceAlertScope,
   MaintenanceEvent,
@@ -148,8 +146,6 @@ export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id' | 'service_session_id'>
 export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
 export type ServiceTypePayload = Omit<ServiceType, 'id'>
-export type CategoryServiceIntervalPayload = Omit<CategoryServiceInterval, 'id'>
-export type ComponentServiceIntervalPayload = Omit<ComponentServiceInterval, 'id'>
 export type NotificationSettingPayload = Omit<NotificationSetting, 'id'>
 
 // Bike
@@ -551,92 +547,12 @@ export function useUpdateTableViewPreference(tableKey: string) {
   })
 }
 
-// CategoryServiceInterval / ComponentServiceInterval
-// Both affect components' live status, so every mutation here also
-// refreshes service status.
-
-
-export function useCreateCategoryServiceInterval() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (values: CategoryServiceIntervalPayload) =>
-      apiPost<CategoryServiceInterval>('/category_service_intervals', { category_service_interval: values }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-export function useUpdateCategoryServiceInterval(id: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (values: Partial<CategoryServiceIntervalPayload>) =>
-      apiPatch<CategoryServiceInterval>(`/category_service_intervals/${id}`, { category_service_interval: values }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-export function useDeleteCategoryServiceInterval() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => apiDelete(`/category_service_intervals/${id}`),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-// Applies a category template to the given, not-yet-covered components.
-export function useApplyCategoryServiceInterval(id: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (componentIds: number[]) =>
-      apiPost<void>(`/category_service_intervals/${id}/apply`, { component_ids: componentIds }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-export function useCreateComponentServiceInterval() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (values: ComponentServiceIntervalPayload) =>
-      apiPost<ComponentServiceInterval>('/component_service_intervals', { component_service_interval: values }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-export function useUpdateComponentServiceInterval(id: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (values: Partial<ComponentServiceIntervalPayload>) =>
-      apiPatch<ComponentServiceInterval>(`/component_service_intervals/${id}`, { component_service_interval: values }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-export function useDeleteComponentServiceInterval() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => apiDelete(`/component_service_intervals/${id}`),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
-// "+ Add from category defaults" on the component page.
-export function useApplyDefaultComponentServiceIntervals() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ componentId, categoryServiceIntervalIds }: { componentId: number; categoryServiceIntervalIds: number[] }) =>
-      apiPost<ComponentServiceInterval[]>('/component_service_intervals/apply_defaults', {
-        component_id: componentId,
-        category_service_interval_ids: categoryServiceIntervalIds,
-      }),
-    onSuccess: () => invalidate(queryClient, 'intervals', 'serviceStatus'),
-  })
-}
-
 // Service requirements / satisfiers
-// Replaces the CategoryServiceInterval/ComponentServiceInterval mutations
-// above -- satisfiers are created inline with their owner on #create (one
-// transaction, so "at least one satisfier" is never left with a gap), and
-// managed afterward through the dedicated satisfier hooks below. Every
-// mutation here also refreshes service status, same as the old intervals.
+// Both affect components' live status, so every mutation here also
+// refreshes service status. Satisfiers are created inline with their
+// owner on #create (one transaction, so "at least one satisfier" is never
+// left with a gap), and managed afterward through the dedicated satisfier
+// hooks below.
 
 export type CategoryServiceRequirementPayload = Omit<CategoryServiceRequirement, 'id' | 'user_id' | 'satisfiers'>
 export type ComponentServiceRequirementPayload = Omit<ComponentServiceRequirement, 'id' | 'satisfiers' | 'effective'>
@@ -801,8 +717,8 @@ export function useUpdateNotificationSetting() {
 export function useDismissServiceAlert() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (componentServiceIntervalId: number) =>
-      apiPost<void>('/service_alert_dismissals', { component_service_interval_id: componentServiceIntervalId }),
+    mutationFn: (componentServiceRequirementId: number) =>
+      apiPost<void>('/service_alert_dismissals', { component_service_requirement_id: componentServiceRequirementId }),
     onSuccess: () => invalidate(queryClient, 'alertVisibility'),
   })
 }
