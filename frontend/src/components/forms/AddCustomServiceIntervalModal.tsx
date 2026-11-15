@@ -1,9 +1,20 @@
-import { useState } from 'react'
-import { Alert, Button, Group, Modal, NumberInput, Stack } from '@mantine/core'
-import { useCreateComponentServiceInterval } from '../../api/mutations'
+import { useRef, useState } from 'react'
+import { Alert, Button, Group, Modal, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import { useCreateComponentServiceRequirement } from '../../api/mutations'
 import { formatApiError } from '../../api/errors'
-import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
+import {
+  CALENDAR_UNIT_OPTIONS,
+  RIDE_FILTER_OPTIONS,
+  draftSatisfiersReady,
+  emptyDraftSatisfier,
+  hoursToSeconds,
+  kmToMeters,
+  resolveDraftSatisfiers,
+} from './serviceRequirementHelpers'
+import type { ActiveDimensions, DraftSatisfier } from './serviceRequirementHelpers'
+import { DraftSatisfierRow } from './serviceRequirementShared'
+import type { CalendarUnit, RideFilter } from '../../types/models'
 
 interface AddCustomServiceIntervalModalProps {
   opened: boolean
@@ -11,43 +22,73 @@ interface AddCustomServiceIntervalModalProps {
   componentId: number
 }
 
+// A custom (unlinked) requirement, created with its satisfiers inline in
+// one transactional call -- same create-then-apply-nothing shape as a
+// brand-new category template, minus the apply-to-components step (there's
+// nothing to apply a component-specific requirement to).
 export default function AddCustomServiceIntervalModal({
   opened,
   onClose,
   componentId,
 }: AddCustomServiceIntervalModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Add custom service interval">
-      {opened && <AddCustomServiceIntervalForm onClose={onClose} componentId={componentId} />}
+    <Modal opened={opened} onClose={onClose} title="Add custom service requirement">
+      {opened && <AddCustomServiceRequirementForm key={componentId} onClose={onClose} componentId={componentId} />}
     </Modal>
   )
 }
 
-function AddCustomServiceIntervalForm({ onClose, componentId }: { onClose: () => void; componentId: number }) {
-  const [serviceTypeId, setServiceTypeId] = useState('')
-  const [newTypeName, setNewTypeName] = useState('')
-  const [km, setKm] = useState<number | ''>('')
-  const [days, setDays] = useState<number | ''>('')
-  const createInterval = useCreateComponentServiceInterval()
+function AddCustomServiceRequirementForm({ onClose, componentId }: { onClose: () => void; componentId: number }) {
+  const createRequirement = useCreateComponentServiceRequirement()
   const { resolveServiceTypeId, isCreatingServiceType, createServiceTypeError } = useServiceTypeIdResolver()
+  const nextDraftKey = useRef(1)
 
-  const typeReady = serviceTypeId !== '' && (serviceTypeId !== CREATE_NEW_SERVICE_TYPE || newTypeName.trim() !== '')
-  const canSubmit = typeReady && (km !== '' || days !== '')
+  const [name, setName] = useState('')
+  const [km, setKm] = useState<number | ''>('')
+  const [hours, setHours] = useState<number | ''>('')
+  const [calendarAmount, setCalendarAmount] = useState<number | ''>('')
+  const [calendarUnit, setCalendarUnit] = useState<CalendarUnit>('month')
+  const [rideFilter, setRideFilter] = useState<RideFilter>('all')
+  const [draftSatisfiers, setDraftSatisfiers] = useState<DraftSatisfier[]>([emptyDraftSatisfier('0')])
+
+  const activeDimensions: ActiveDimensions = { distance: km !== '', movingTime: hours !== '', calendar: calendarAmount !== '' }
+
+  function updateDraft(key: string, changes: Partial<DraftSatisfier>) {
+    setDraftSatisfiers((prev) => prev.map((d) => (d.key === key ? { ...d, ...changes } : d)))
+  }
+
+  function addDraftRow() {
+    const key = String(nextDraftKey.current++)
+    setDraftSatisfiers((prev) => [...prev, emptyDraftSatisfier(key)])
+  }
+
+  function removeDraftRow(key: string) {
+    setDraftSatisfiers((prev) => (prev.length > 1 ? prev.filter((d) => d.key !== key) : prev))
+  }
+
+  const thresholdSet = km !== '' || hours !== '' || calendarAmount !== ''
+  const canSubmit = name.trim() !== '' && thresholdSet && draftSatisfiersReady(draftSatisfiers)
 
   async function handleSubmit() {
     if (!canSubmit) return
 
-    const resolvedServiceTypeId = await resolveServiceTypeId(serviceTypeId, newTypeName).catch(() => null)
-    if (resolvedServiceTypeId === null) return
+    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, resolveServiceTypeId)
+    if (resolvedSatisfiers === null) return
 
-    createInterval.mutate(
+    createRequirement.mutate(
       {
-        component_id: componentId,
-        service_type_id: resolvedServiceTypeId,
-        category_service_interval_id: null,
-        distance_interval_meters: km === '' ? null : Math.round(km * 1000),
-        time_interval_days: days === '' ? null : days,
-        enabled: true,
+        values: {
+          component_id: componentId,
+          category_service_requirement_id: null,
+          name: name.trim(),
+          distance_meters: kmToMeters(km),
+          moving_time_seconds: hoursToSeconds(hours),
+          calendar_amount: calendarAmount === '' ? null : calendarAmount,
+          calendar_unit: calendarAmount === '' ? null : calendarUnit,
+          ride_filter: rideFilter,
+          enabled: true,
+        },
+        satisfiers: resolvedSatisfiers,
       },
       { onSuccess: onClose },
     )
@@ -55,31 +96,70 @@ function AddCustomServiceIntervalForm({ onClose, componentId }: { onClose: () =>
 
   return (
     <Stack>
-      <ServiceTypeSelect
-        value={serviceTypeId}
-        onChange={setServiceTypeId}
-        newTypeName={newTypeName}
-        onNewTypeNameChange={setNewTypeName}
-      />
-      <Group>
+      <TextInput label="Name" value={name} onChange={(event) => setName(event.currentTarget.value)} required w={300} />
+      <Group align="flex-end" wrap="wrap">
         <NumberInput label="Every (km)" value={km} onChange={(v) => setKm(v === '' ? '' : Number(v))} min={0} w={120} />
-        <NumberInput
-          label="Every (days)"
-          value={days}
-          onChange={(v) => setDays(v === '' ? '' : Number(v))}
-          min={0}
-          w={120}
-        />
+        <NumberInput label="Every (hours)" value={hours} onChange={(v) => setHours(v === '' ? '' : Number(v))} min={0} w={120} />
+        <Group gap={4} align="flex-end" wrap="nowrap">
+          <NumberInput
+            label="Every"
+            value={calendarAmount}
+            onChange={(v) => setCalendarAmount(v === '' ? '' : Number(v))}
+            min={0}
+            w={90}
+          />
+          <Select
+            data={CALENDAR_UNIT_OPTIONS}
+            value={calendarUnit}
+            onChange={(v) => setCalendarUnit((v as CalendarUnit | null) ?? 'month')}
+            w={100}
+            allowDeselect={false}
+          />
+        </Group>
       </Group>
+      {!thresholdSet && (
+        <Text size="xs" c="red">
+          Set at least one of distance, hours, or calendar.
+        </Text>
+      )}
+
+      <div>
+        <Text size="sm" fw={500} mb={4}>
+          Counts
+        </Text>
+        <SegmentedControl data={RIDE_FILTER_OPTIONS} value={rideFilter} onChange={(v) => setRideFilter(v as RideFilter)} />
+        {rideFilter !== 'all' && calendarAmount !== '' && (
+          <Text size="xs" c="dimmed" mt={4}>
+            Calendar time keeps counting on indoor rides.
+          </Text>
+        )}
+      </div>
+
+      <Text fw={500} size="sm">
+        Satisfied by
+      </Text>
+      {draftSatisfiers.map((draft) => (
+        <DraftSatisfierRow
+          key={draft.key}
+          draft={draft}
+          activeDimensions={activeDimensions}
+          canRemove={draftSatisfiers.length > 1}
+          onChange={(changes) => updateDraft(draft.key, changes)}
+          onRemove={() => removeDraftRow(draft.key)}
+        />
+      ))}
+      <Button size="xs" variant="default" onClick={addDraftRow} style={{ alignSelf: 'flex-start' }}>
+        + Add another satisfier
+      </Button>
 
       {createServiceTypeError && <Alert color="red">{formatApiError(createServiceTypeError)}</Alert>}
-      {createInterval.isError && <Alert color="red">{formatApiError(createInterval.error)}</Alert>}
+      {createRequirement.isError && <Alert color="red">{formatApiError(createRequirement.error)}</Alert>}
 
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={!canSubmit} loading={createInterval.isPending || isCreatingServiceType}>
+        <Button onClick={handleSubmit} disabled={!canSubmit} loading={createRequirement.isPending || isCreatingServiceType}>
           Add
         </Button>
       </Group>

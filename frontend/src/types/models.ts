@@ -368,6 +368,11 @@ export interface ComponentServiceRequirementWithStatus {
   days_used: number | null
   days_remaining: number | null
   setting_event: SettingEvent | null
+  // The raw meters/seconds/date setting_event produced on the driving
+  // dimension -- unformatted (same meters-not-km convention as
+  // everywhere else). 0 (or the component's baseline date) in the
+  // synthetic-fallback case, matching setting_event: null.
+  setting_position: number | string
 }
 
 // Singleton per user, GET/PATCH /notification_settings. id is null when the

@@ -1,103 +1,33 @@
 import { useMemo, useRef, useState } from 'react'
-import {
-  ActionIcon,
-  Alert,
-  Button,
-  Checkbox,
-  Group,
-  Loader,
-  Modal,
-  NumberInput,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core'
-import {
-  useApplyCategoryServiceRequirement,
-  useCreateCategoryServiceRequirement,
-  useCreateServiceRequirementSatisfier,
-  useDeleteCategoryServiceRequirement,
-  useDeleteServiceRequirementSatisfier,
-  useReorderServiceRequirementSatisfiers,
-  useUpdateCategoryServiceRequirement,
-  useUpdateServiceRequirementSatisfier,
-} from '../../api/mutations'
-import type { SatisfierInput } from '../../api/mutations'
+import { Alert, Button, Checkbox, Group, Loader, Modal, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import { useApplyCategoryServiceRequirement, useCreateCategoryServiceRequirement, useDeleteCategoryServiceRequirement, useUpdateCategoryServiceRequirement } from '../../api/mutations'
 import { useAllComponentServiceRequirements, useCategoryServiceRequirements, useComponents } from '../../api/queries'
 import { categoryLabel } from '../../constants'
 import { formatApiError } from '../../api/errors'
-import { formatDistance } from '../../utils/distance'
-import { formatDuration } from '../../utils/duration'
 import { confirmDelete } from '../confirmDelete'
-import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
-import type { CalendarUnit, CategoryServiceRequirement, RideFilter, ServiceRequirementSatisfier } from '../../types/models'
+import {
+  CALENDAR_UNIT_OPTIONS,
+  RIDE_FILTER_LABELS,
+  RIDE_FILTER_OPTIONS,
+  activeDimensionsOf,
+  draftSatisfiersReady,
+  emptyDraftSatisfier,
+  formatThresholdSummary,
+  hoursToSeconds,
+  kmToMeters,
+  metersToKm,
+  resolveDraftSatisfiers,
+  secondsToHours,
+} from './serviceRequirementHelpers'
+import type { ActiveDimensions, DraftSatisfier } from './serviceRequirementHelpers'
+import { DraftSatisfierRow, SatisfiersEditor } from './serviceRequirementShared'
+import type { CalendarUnit, CategoryServiceRequirement, RideFilter } from '../../types/models'
 
 interface CategoryServiceRequirementsModalProps {
   opened: boolean
   onClose: () => void
   category: string
-}
-
-const RIDE_FILTER_OPTIONS = [
-  { value: 'all', label: 'All rides' },
-  { value: 'outdoor', label: 'Outdoor only' },
-  { value: 'indoor', label: 'Indoor only' },
-]
-
-const RIDE_FILTER_LABELS: Record<RideFilter, string> = {
-  all: 'All rides',
-  outdoor: 'Outdoor only',
-  indoor: 'Indoor only',
-}
-
-const CALENDAR_UNIT_OPTIONS = [
-  { value: 'day', label: 'days' },
-  { value: 'month', label: 'months' },
-  { value: 'year', label: 'years' },
-]
-
-function metersToKm(meters: number | null): number | '' {
-  return meters == null ? '' : meters / 1000
-}
-function kmToMeters(km: number | ''): number | null {
-  return km === '' ? null : Math.round(km * 1000)
-}
-function secondsToHours(seconds: number | null): number | '' {
-  return seconds == null ? '' : seconds / 3600
-}
-function hoursToSeconds(hours: number | ''): number | null {
-  return hours === '' ? null : Math.round(hours * 3600)
-}
-
-// Whichever threshold is reached first drives the requirement due, so this
-// joins every set dimension with " / " -- same convention as the old
-// formatInterval (distance / days) in utils/serviceInterval.ts, extended to
-// a third dimension.
-function formatThresholdSummary(requirement: CategoryServiceRequirement): string {
-  const parts: string[] = []
-  if (requirement.distance_meters != null) parts.push(formatDistance(requirement.distance_meters))
-  if (requirement.moving_time_seconds != null) parts.push(formatDuration(requirement.moving_time_seconds))
-  if (requirement.calendar_amount != null && requirement.calendar_unit != null) {
-    parts.push(`${requirement.calendar_amount} ${requirement.calendar_unit}${requirement.calendar_amount === 1 ? '' : 's'}`)
-  }
-  return parts.join(' / ') || 'No threshold set'
-}
-
-interface ActiveDimensions {
-  distance: boolean
-  movingTime: boolean
-  calendar: boolean
-}
-
-function activeDimensionsOf(requirement: { distance_meters: number | null; moving_time_seconds: number | null; calendar_amount: number | null }): ActiveDimensions {
-  return {
-    distance: requirement.distance_meters != null,
-    movingTime: requirement.moving_time_seconds != null,
-    calendar: requirement.calendar_amount != null,
-  }
 }
 
 export default function CategoryServiceRequirementsModal({ opened, onClose, category }: CategoryServiceRequirementsModalProps) {
@@ -316,214 +246,6 @@ function RequirementFieldsEditor({ template }: { template: CategoryServiceRequir
   )
 }
 
-function SatisfiersEditor({
-  owner,
-  satisfiers,
-  activeDimensions,
-}: {
-  owner: { type: 'category'; id: number }
-  satisfiers: ServiceRequirementSatisfier[]
-  activeDimensions: ActiveDimensions
-}) {
-  const reorder = useReorderServiceRequirementSatisfiers(owner)
-  const createSatisfier = useCreateServiceRequirementSatisfier(owner)
-  const { resolveServiceTypeId, isCreatingServiceType, createServiceTypeError } = useServiceTypeIdResolver()
-
-  const ordered = useMemo(() => [...satisfiers].sort((a, b) => a.position - b.position), [satisfiers])
-
-  const [addingTypeId, setAddingTypeId] = useState('')
-  const [addingTypeName, setAddingTypeName] = useState('')
-
-  function moveSatisfier(index: number, direction: -1 | 1) {
-    const target = index + direction
-    if (target < 0 || target >= ordered.length) return
-    const next = [...ordered]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    reorder.mutate(next.map((s) => s.id))
-  }
-
-  async function handleAdd() {
-    if (!addingTypeId) return
-    const serviceTypeId = await resolveServiceTypeId(addingTypeId, addingTypeName).catch(() => null)
-    if (serviceTypeId === null) return
-
-    createSatisfier.mutate(
-      { service_type_id: serviceTypeId },
-      {
-        onSuccess: () => {
-          setAddingTypeId('')
-          setAddingTypeName('')
-        },
-      },
-    )
-  }
-
-  return (
-    <Stack gap="xs">
-      <Text fw={500} size="sm">
-        Satisfied by
-      </Text>
-      {ordered.map((satisfier, index) => (
-        <SatisfierRow
-          key={satisfier.id}
-          satisfier={satisfier}
-          activeDimensions={activeDimensions}
-          canRemove={ordered.length > 1}
-          canMoveUp={index > 0}
-          canMoveDown={index < ordered.length - 1}
-          onMoveUp={() => moveSatisfier(index, -1)}
-          onMoveDown={() => moveSatisfier(index, 1)}
-        />
-      ))}
-      <Group align="flex-end" wrap="wrap" gap="xs">
-        <div style={{ minWidth: 200 }}>
-          <ServiceTypeSelect
-            label="Add satisfier"
-            value={addingTypeId}
-            onChange={setAddingTypeId}
-            newTypeName={addingTypeName}
-            onNewTypeNameChange={setAddingTypeName}
-          />
-        </div>
-        <Button size="xs" onClick={handleAdd} disabled={!addingTypeId} loading={createSatisfier.isPending || isCreatingServiceType}>
-          Add
-        </Button>
-      </Group>
-      {createServiceTypeError && <Alert color="red">{formatApiError(createServiceTypeError)}</Alert>}
-      {createSatisfier.isError && <Alert color="red">{formatApiError(createSatisfier.error)}</Alert>}
-      {reorder.isError && <Alert color="red">{formatApiError(reorder.error)}</Alert>}
-    </Stack>
-  )
-}
-
-function SatisfierRow({
-  satisfier,
-  activeDimensions,
-  canRemove,
-  canMoveUp,
-  canMoveDown,
-  onMoveUp,
-  onMoveDown,
-}: {
-  satisfier: ServiceRequirementSatisfier
-  activeDimensions: ActiveDimensions
-  canRemove: boolean
-  canMoveUp: boolean
-  canMoveDown: boolean
-  onMoveUp: () => void
-  onMoveDown: () => void
-}) {
-  const updateSatisfier = useUpdateServiceRequirementSatisfier(satisfier.id)
-  const deleteSatisfier = useDeleteServiceRequirementSatisfier()
-
-  const [km, setKm] = useState<number | ''>(metersToKm(satisfier.allowance_distance_meters))
-  const [hours, setHours] = useState<number | ''>(secondsToHours(satisfier.allowance_moving_time_seconds))
-  const [calendarAmount, setCalendarAmount] = useState<number | ''>(satisfier.allowance_calendar_amount ?? '')
-  const [calendarUnit, setCalendarUnit] = useState<CalendarUnit>(satisfier.allowance_calendar_unit ?? 'month')
-
-  function handleRemove() {
-    confirmDelete({
-      title: 'Remove satisfier',
-      message: `Remove ${satisfier.service_type_name} as a way to satisfy this requirement? This cannot be undone.`,
-      onConfirm: () => deleteSatisfier.mutate(satisfier.id),
-    })
-  }
-
-  return (
-    <Group align="flex-end" wrap="wrap" gap="xs">
-      <Text w={160}>{satisfier.service_type_name}</Text>
-      {activeDimensions.distance && (
-        <NumberInput
-          label="km"
-          placeholder="same as requirement"
-          value={km}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setKm(next)
-            updateSatisfier.mutate({ allowance_distance_meters: kmToMeters(next) })
-          }}
-          min={0}
-          w={150}
-        />
-      )}
-      {activeDimensions.movingTime && (
-        <NumberInput
-          label="hours"
-          placeholder="same as requirement"
-          value={hours}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setHours(next)
-            updateSatisfier.mutate({ allowance_moving_time_seconds: hoursToSeconds(next) })
-          }}
-          min={0}
-          w={150}
-        />
-      )}
-      {activeDimensions.calendar && (
-        <Group gap={4} align="flex-end" wrap="nowrap">
-          <NumberInput
-            label="calendar"
-            placeholder="same"
-            value={calendarAmount}
-            onChange={(v) => {
-              const next = v === '' ? '' : Number(v)
-              setCalendarAmount(next)
-              updateSatisfier.mutate({
-                allowance_calendar_amount: next === '' ? null : next,
-                allowance_calendar_unit: next === '' ? null : calendarUnit,
-              })
-            }}
-            min={0}
-            w={90}
-          />
-          <Select
-            data={CALENDAR_UNIT_OPTIONS}
-            value={calendarUnit}
-            onChange={(v) => {
-              const next = (v as CalendarUnit | null) ?? 'month'
-              setCalendarUnit(next)
-              if (calendarAmount !== '') updateSatisfier.mutate({ allowance_calendar_unit: next })
-            }}
-            w={100}
-            allowDeselect={false}
-          />
-        </Group>
-      )}
-      <Group gap={4} wrap="nowrap">
-        <ActionIcon variant="default" disabled={!canMoveUp} onClick={onMoveUp} aria-label={`Move ${satisfier.service_type_name} up`}>
-          ↑
-        </ActionIcon>
-        <ActionIcon variant="default" disabled={!canMoveDown} onClick={onMoveDown} aria-label={`Move ${satisfier.service_type_name} down`}>
-          ↓
-        </ActionIcon>
-        <Button size="xs" variant="subtle" color="red" disabled={!canRemove} onClick={handleRemove} loading={deleteSatisfier.isPending}>
-          Remove
-        </Button>
-      </Group>
-      {updateSatisfier.isError && (
-        <Text c="red" size="xs">
-          {formatApiError(updateSatisfier.error)}
-        </Text>
-      )}
-    </Group>
-  )
-}
-
-interface DraftSatisfier {
-  key: string
-  typeId: string
-  typeName: string
-  km: number | ''
-  hours: number | ''
-  calendarAmount: number | ''
-  calendarUnit: CalendarUnit
-}
-
-function emptyDraftSatisfier(key: string): DraftSatisfier {
-  return { key, typeId: '', typeName: '', km: '', hours: '', calendarAmount: '', calendarUnit: 'month' }
-}
-
 function NewTemplateForm({
   category,
   onCreated,
@@ -561,26 +283,13 @@ function NewTemplateForm({
   }
 
   const thresholdSet = km !== '' || hours !== '' || calendarAmount !== ''
-  const satisfiersReady = draftSatisfiers.every(
-    (d) => d.typeId !== '' && (d.typeId !== CREATE_NEW_SERVICE_TYPE || d.typeName.trim() !== ''),
-  )
-  const canSubmit = name.trim() !== '' && thresholdSet && satisfiersReady
+  const canSubmit = name.trim() !== '' && thresholdSet && draftSatisfiersReady(draftSatisfiers)
 
   async function handleCreate() {
     if (!canSubmit) return
 
-    const resolvedSatisfiers: SatisfierInput[] = []
-    for (const draft of draftSatisfiers) {
-      const serviceTypeId = await resolveServiceTypeId(draft.typeId, draft.typeName).catch(() => null)
-      if (serviceTypeId === null) return
-      resolvedSatisfiers.push({
-        service_type_id: serviceTypeId,
-        allowance_distance_meters: kmToMeters(draft.km),
-        allowance_moving_time_seconds: hoursToSeconds(draft.hours),
-        allowance_calendar_amount: draft.calendarAmount === '' ? null : draft.calendarAmount,
-        allowance_calendar_unit: draft.calendarAmount === '' ? null : draft.calendarUnit,
-      })
-    }
+    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, resolveServiceTypeId)
+    if (resolvedSatisfiers === null) return
 
     createTemplate.mutate(
       {
@@ -647,58 +356,14 @@ function NewTemplateForm({
         Satisfied by
       </Text>
       {draftSatisfiers.map((draft) => (
-        <Group key={draft.key} align="flex-end" wrap="wrap" gap="xs">
-          <div style={{ minWidth: 200 }}>
-            <ServiceTypeSelect
-              value={draft.typeId}
-              onChange={(v) => updateDraft(draft.key, { typeId: v })}
-              newTypeName={draft.typeName}
-              onNewTypeNameChange={(v) => updateDraft(draft.key, { typeName: v })}
-            />
-          </div>
-          {activeDimensions.distance && (
-            <NumberInput
-              label="km"
-              placeholder="same as requirement"
-              value={draft.km}
-              onChange={(v) => updateDraft(draft.key, { km: v === '' ? '' : Number(v) })}
-              min={0}
-              w={150}
-            />
-          )}
-          {activeDimensions.movingTime && (
-            <NumberInput
-              label="hours"
-              placeholder="same as requirement"
-              value={draft.hours}
-              onChange={(v) => updateDraft(draft.key, { hours: v === '' ? '' : Number(v) })}
-              min={0}
-              w={150}
-            />
-          )}
-          {activeDimensions.calendar && (
-            <Group gap={4} align="flex-end" wrap="nowrap">
-              <NumberInput
-                label="calendar"
-                placeholder="same"
-                value={draft.calendarAmount}
-                onChange={(v) => updateDraft(draft.key, { calendarAmount: v === '' ? '' : Number(v) })}
-                min={0}
-                w={90}
-              />
-              <Select
-                data={CALENDAR_UNIT_OPTIONS}
-                value={draft.calendarUnit}
-                onChange={(v) => updateDraft(draft.key, { calendarUnit: (v as CalendarUnit | null) ?? 'month' })}
-                w={100}
-                allowDeselect={false}
-              />
-            </Group>
-          )}
-          <Button size="xs" variant="subtle" color="red" disabled={draftSatisfiers.length <= 1} onClick={() => removeDraftRow(draft.key)}>
-            Remove
-          </Button>
-        </Group>
+        <DraftSatisfierRow
+          key={draft.key}
+          draft={draft}
+          activeDimensions={activeDimensions}
+          canRemove={draftSatisfiers.length > 1}
+          onChange={(changes) => updateDraft(draft.key, changes)}
+          onRemove={() => removeDraftRow(draft.key)}
+        />
       ))}
       <Button size="xs" variant="default" onClick={addDraftRow} style={{ alignSelf: 'flex-start' }}>
         + Add another satisfier
