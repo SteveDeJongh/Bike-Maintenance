@@ -297,6 +297,7 @@ RSpec.describe "Dashboard", type: :request do
         expect(attention.first["status"]).to eq("due")
         expect(attention.first["bike"]).to eq("id" => bike.id, "name" => bike.name)
         expect(attention.first["mounted"]).to be true
+        expect(attention.first["satisfiers"].first["service_type_name"]).to eq("wax")
       end
 
       it "excludes a retired component even if its interval is due" do

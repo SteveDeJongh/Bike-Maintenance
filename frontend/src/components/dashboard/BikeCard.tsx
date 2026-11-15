@@ -5,16 +5,23 @@ import BatchServiceModal from '../forms/BatchServiceModal'
 import { SERVICE_STATUS_COLORS } from '../../constants'
 import { formatDate } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
+import { formatDuration } from '../../utils/duration'
 import type { DashboardBike, DashboardDisplayMetric, DashboardMountedComponent } from '../../types/models'
 
+// since_service_type_name is specifically the setting event's own service
+// type (the thing that reset this clock) -- not always the same string as
+// the requirement's own name, now that a requirement can have more than
+// one satisfier (e.g. "Chain lube" cleared by a drip wax).
 function formatDisplayMetric(metric: DashboardDisplayMetric): string {
+  const since = metric.since_service_type_name
   if (metric.distance_meters != null) {
-    return metric.service_type_name
-      ? `${formatDistance(metric.distance_meters)} since ${metric.service_type_name}`
-      : formatDistance(metric.distance_meters)
+    return since ? `${formatDistance(metric.distance_meters)} since ${since}` : formatDistance(metric.distance_meters)
+  }
+  if (metric.moving_time_seconds != null) {
+    return since ? `${formatDuration(metric.moving_time_seconds)} since ${since}` : formatDuration(metric.moving_time_seconds)
   }
   if (metric.days != null) {
-    return `${metric.days}d since ${metric.service_type_name}`
+    return since ? `${metric.days}d since ${since}` : `${metric.days}d`
   }
   return '—'
 }

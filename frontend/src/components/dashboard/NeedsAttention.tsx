@@ -61,7 +61,7 @@ export default function NeedsAttention({ attention }: { attention: DashboardAtte
               {group.label}
             </Text>
             {group.items.map((item) => (
-              <AttentionRow key={`${item.component_id}-${item.service_type_id}`} item={item} />
+              <AttentionRow key={`${item.component_id}-${item.requirement_id}`} item={item} />
             ))}
           </Stack>
         ))

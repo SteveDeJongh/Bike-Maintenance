@@ -193,6 +193,7 @@ module Dashboard
         component_label: component.label,
         requirement_id: requirement.id,
         requirement_name: effective[:name],
+        satisfiers: effective[:satisfiers],
         status: result.status,
         driving_dimension: result.driving_dimension,
         distance_used_meters: result.distance_used_meters,

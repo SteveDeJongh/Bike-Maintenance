@@ -9,12 +9,13 @@ import type { DashboardAttentionItem } from '../../types/models'
 
 export default function AttentionRow({ item }: { item: DashboardAttentionItem }) {
   const [logOpened, setLogOpened] = useState(false)
+  const primarySatisfier = [...item.satisfiers].sort((a, b) => a.position - b.position)[0]
 
   return (
     <Stack gap={4} p="xs" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
       <Group justify="space-between" wrap="nowrap" align="flex-start">
         <Text component={Link} to={`/components/${item.component_id}`} size="sm" fw={500}>
-          {item.component_label} — {item.service_type_name}
+          {item.component_label} — {item.requirement_name}
         </Text>
         <Group gap={4} wrap="nowrap">
           <ServiceStatusBadge status={item.status} />
@@ -32,7 +33,8 @@ export default function AttentionRow({ item }: { item: DashboardAttentionItem })
       </Group>
 
       <Text size="xs" c="dimmed">
-        {formatRemaining(item.distance_remaining_meters, item.days_remaining)}
+        {formatRemaining(item.distance_remaining_meters, item.days_remaining, item.moving_time_remaining_seconds)}
+        {item.setting_event && ` (from ${item.setting_event.service_type_name})`}
       </Text>
 
       <Progress value={Math.min(Math.max(item.fraction_used, 0), 1) * 100} color={SERVICE_STATUS_COLORS[item.status]} />
@@ -47,7 +49,7 @@ export default function AttentionRow({ item }: { item: DashboardAttentionItem })
         opened={logOpened}
         onClose={() => setLogOpened(false)}
         defaultComponentId={item.component_id}
-        defaultServiceTypeId={item.service_type_id}
+        defaultServiceTypeId={primarySatisfier?.service_type_id}
       />
     </Stack>
   )

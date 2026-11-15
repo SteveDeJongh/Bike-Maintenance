@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Alert, Anchor, Button, Checkbox, Group, Loader, Modal, Select, Stack, Text, Textarea, Title } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { Link } from 'react-router-dom'
@@ -7,11 +7,11 @@ import { useCreateServiceSession } from '../../api/mutations'
 import { useServiceableComponents } from '../../api/queries'
 import { formatApiError } from '../../api/errors'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
+import { SERVICE_STATUS_SEVERITY } from '../../constants'
 import ServiceStatusBadge from '../ServiceStatusBadge'
 import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
-import { formatRemaining } from '../../utils/serviceInterval'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
-import type { ServiceableComponent, ServiceableComponentInterval } from '../../types/models'
+import type { ServiceableComponent, ServiceStatus } from '../../types/models'
 
 interface AddOtherRow {
   key: string
@@ -39,11 +39,57 @@ export default function BatchServiceModal({ opened, onClose, bikeId, initialPerf
   )
 }
 
-function allIntervalIds(data: { mounted: ServiceableComponent[]; off_bike: ServiceableComponent[] } | undefined) {
-  if (!data) return new Set<number>()
-  return new Set(
-    [...data.mounted, ...data.off_bike].flatMap((component) => component.service_intervals.map((interval) => interval.id)),
+// One row per (component, service type) that satisfies at least one of that
+// component's enabled requirements -- not one row per requirement. A
+// service type satisfying two requirements at once (e.g. a 200h service
+// that also clears a 50h one) shows as a single checkbox that logs one
+// MaintenanceEvent and clears both, same as ComponentDetail's own split
+// "Log service" button.
+interface ServiceTypeRow {
+  key: string
+  componentId: number
+  serviceTypeId: number
+  serviceTypeName: string
+  requirements: { id: number; name: string; status: ServiceStatus }[]
+}
+
+function rowKey(componentId: number, serviceTypeId: number): string {
+  return `${componentId}:${serviceTypeId}`
+}
+
+function rowsForComponent(component: ServiceableComponent): ServiceTypeRow[] {
+  const byType = new Map<number, ServiceTypeRow>()
+
+  for (const requirement of component.service_requirements) {
+    for (const satisfier of requirement.satisfiers) {
+      const existing = byType.get(satisfier.service_type_id)
+      const row =
+        existing ??
+        ({
+          key: rowKey(component.id, satisfier.service_type_id),
+          componentId: component.id,
+          serviceTypeId: satisfier.service_type_id,
+          serviceTypeName: satisfier.service_type_name,
+          requirements: [],
+        } satisfies ServiceTypeRow)
+      row.requirements.push({ id: requirement.id, name: requirement.requirement_name, status: requirement.status })
+      byType.set(satisfier.service_type_id, row)
+    }
+  }
+
+  return [...byType.values()]
+}
+
+function worstStatusOf(requirements: { status: ServiceStatus }[]): ServiceStatus {
+  return requirements.reduce<ServiceStatus>(
+    (worst, r) => (SERVICE_STATUS_SEVERITY[r.status] > SERVICE_STATUS_SEVERITY[worst] ? r.status : worst),
+    'ok',
   )
+}
+
+function allRowKeys(data: { mounted: ServiceableComponent[]; off_bike: ServiceableComponent[] } | undefined): Set<string> {
+  if (!data) return new Set()
+  return new Set([...data.mounted, ...data.off_bike].flatMap((component) => rowsForComponent(component).map((row) => row.key)))
 }
 
 function BatchServiceForm({
@@ -57,8 +103,8 @@ function BatchServiceForm({
 }) {
   const [performedAt, setPerformedAt] = useState(initialPerformedAt ?? nowIsoUtc())
   const [notes, setNotes] = useState('')
-  const [checkedIntervalIds, setCheckedIntervalIds] = useState<Set<number>>(new Set())
-  const [intervalNotes, setIntervalNotes] = useState<Record<number, string>>({})
+  const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set())
+  const [rowNotes, setRowNotes] = useState<Record<string, string>>({})
   const [addOtherRows, setAddOtherRows] = useState<AddOtherRow[]>([])
   const [droppedCount, setDroppedCount] = useState(0)
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
@@ -78,10 +124,10 @@ function BatchServiceForm({
   const [prevData, setPrevData] = useState(data)
   if (data !== prevData) {
     setPrevData(data)
-    const validIds = allIntervalIds(data)
-    const stillChecked = new Set([...checkedIntervalIds].filter((id) => validIds.has(id)))
-    setDroppedCount(checkedIntervalIds.size - stillChecked.size)
-    if (stillChecked.size !== checkedIntervalIds.size) setCheckedIntervalIds(stillChecked)
+    const validKeys = allRowKeys(data)
+    const stillChecked = new Set([...checkedKeys].filter((key) => validKeys.has(key)))
+    setDroppedCount(checkedKeys.size - stillChecked.size)
+    if (stillChecked.size !== checkedKeys.size) setCheckedKeys(stillChecked)
   }
 
   function handleDateChange(value: string | null) {
@@ -89,22 +135,30 @@ function BatchServiceForm({
     if (iso) setPerformedAt(iso)
   }
 
-  function toggleInterval(id: number) {
-    setCheckedIntervalIds((prev) => {
+  function toggleRow(key: string) {
+    setCheckedKeys((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
+  // Per non-ok requirement, its position-1 satisfier -- deduped by key, so
+  // two due/warning requirements on the same component that share a
+  // satisfier (e.g. a 200h service clearing both a 50h and a 200h
+  // requirement) only ever add one row.
   function selectAllDueAndWarning() {
     if (!data) return
-    const ids = [...data.mounted, ...data.off_bike]
-      .flatMap((component) => component.service_intervals)
-      .filter((interval) => interval.status === 'due' || interval.status === 'warning')
-      .map((interval) => interval.id)
-    setCheckedIntervalIds((prev) => new Set([...prev, ...ids]))
+    const keys: string[] = []
+    for (const component of eligibleComponents) {
+      for (const requirement of component.service_requirements) {
+        if (requirement.status === 'ok') continue
+        const primary = [...requirement.satisfiers].sort((a, b) => a.position - b.position)[0]
+        if (primary) keys.push(rowKey(component.id, primary.service_type_id))
+      }
+    }
+    setCheckedKeys((prev) => new Set([...prev, ...keys]))
   }
 
   function addOtherRow() {
@@ -123,8 +177,15 @@ function BatchServiceForm({
   const eligibleComponents = data ? [...data.mounted, ...data.off_bike] : []
   const componentOptions = eligibleComponents.map((c) => ({ value: String(c.id), label: c.label }))
   const validAddOtherRows = addOtherRows.filter((row) => row.componentId && row.serviceTypeId)
-  const selectedCount = checkedIntervalIds.size + validAddOtherRows.length
+  const selectedCount = checkedKeys.size + validAddOtherRows.length
   const empty = !isPending && !isError && eligibleComponents.length === 0
+
+  const rowsByComponentId = useMemo(() => {
+    const map = new Map<number, ServiceTypeRow[]>()
+    for (const component of eligibleComponents) map.set(component.id, rowsForComponent(component))
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- eligibleComponents is derived fresh from `data` every render; keying off `data` avoids an always-new-array dependency.
+  }, [data])
 
   async function handleSubmit() {
     setBaseError(null)
@@ -134,13 +195,13 @@ function BatchServiceForm({
     const pending: PendingEvent[] = []
 
     for (const component of eligibleComponents) {
-      for (const interval of component.service_intervals) {
-        if (!checkedIntervalIds.has(interval.id)) continue
+      for (const row of rowsByComponentId.get(component.id) ?? []) {
+        if (!checkedKeys.has(row.key)) continue
         pending.push({
-          rowKey: `interval-${interval.id}`,
+          rowKey: row.key,
           component_id: component.id,
-          service_type_id: interval.service_type_id,
-          notes: intervalNotes[interval.id]?.trim() || null,
+          service_type_id: row.serviceTypeId,
+          notes: rowNotes[row.key]?.trim() || null,
         })
       }
     }
@@ -201,8 +262,7 @@ function BatchServiceForm({
         onChange={handleDateChange}
       />
       <Text size="xs" c="dimmed">
-        Status and remaining/overdue shown below is as of today — it's here to help you choose, not a record of
-        what it was on this date.
+        Status shown below is as of today — it's here to help you choose, not a record of what it was on this date.
       </Text>
       {droppedCount > 0 && (
         <Text size="xs" c="dimmed">
@@ -250,11 +310,12 @@ function BatchServiceForm({
                 <ComponentGroup
                   key={component.id}
                   component={component}
-                  checkedIntervalIds={checkedIntervalIds}
-                  intervalNotes={intervalNotes}
+                  rows={rowsByComponentId.get(component.id) ?? []}
+                  checkedKeys={checkedKeys}
+                  rowNotes={rowNotes}
                   rowErrors={rowErrors}
-                  onToggle={toggleInterval}
-                  onNoteChange={(id, value) => setIntervalNotes((prev) => ({ ...prev, [id]: value }))}
+                  onToggle={toggleRow}
+                  onNoteChange={(key, value) => setRowNotes((prev) => ({ ...prev, [key]: value }))}
                 />
               ))}
             </Stack>
@@ -269,11 +330,12 @@ function BatchServiceForm({
                 <ComponentGroup
                   key={component.id}
                   component={component}
-                  checkedIntervalIds={checkedIntervalIds}
-                  intervalNotes={intervalNotes}
+                  rows={rowsByComponentId.get(component.id) ?? []}
+                  checkedKeys={checkedKeys}
+                  rowNotes={rowNotes}
                   rowErrors={rowErrors}
-                  onToggle={toggleInterval}
-                  onNoteChange={(id, value) => setIntervalNotes((prev) => ({ ...prev, [id]: value }))}
+                  onToggle={toggleRow}
+                  onNoteChange={(key, value) => setRowNotes((prev) => ({ ...prev, [key]: value }))}
                 />
               ))}
             </Stack>
@@ -316,63 +378,73 @@ function BatchServiceForm({
 
 function ComponentGroup({
   component,
-  checkedIntervalIds,
-  intervalNotes,
+  rows,
+  checkedKeys,
+  rowNotes,
   rowErrors,
   onToggle,
   onNoteChange,
 }: {
   component: ServiceableComponent
-  checkedIntervalIds: Set<number>
-  intervalNotes: Record<number, string>
+  rows: ServiceTypeRow[]
+  checkedKeys: Set<string>
+  rowNotes: Record<string, string>
   rowErrors: Record<string, string>
-  onToggle: (id: number) => void
-  onNoteChange: (id: number, value: string) => void
+  onToggle: (key: string) => void
+  onNoteChange: (key: string, value: string) => void
 }) {
-  if (component.service_intervals.length === 0) return null
+  if (rows.length === 0) return null
 
   return (
     <Stack gap={4}>
       <Text size="sm" fw={500}>
         {component.label}
       </Text>
-      {component.service_intervals.map((interval) => (
-        <IntervalRow
-          key={interval.id}
-          interval={interval}
-          checked={checkedIntervalIds.has(interval.id)}
-          note={intervalNotes[interval.id] ?? ''}
-          error={rowErrors[`interval-${interval.id}`]}
-          onToggle={() => onToggle(interval.id)}
-          onNoteChange={(value) => onNoteChange(interval.id, value)}
+      {rows.map((row) => (
+        <ServiceTypeRowView
+          key={row.key}
+          row={row}
+          checked={checkedKeys.has(row.key)}
+          note={rowNotes[row.key] ?? ''}
+          error={rowErrors[row.key]}
+          onToggle={() => onToggle(row.key)}
+          onNoteChange={(value) => onNoteChange(row.key, value)}
         />
       ))}
     </Stack>
   )
 }
 
-function IntervalRow({
-  interval,
+// "Drip wax · clears Chain lube (due)" -- a service type satisfying more
+// than one requirement at once lists all of them, each with its own
+// status; the row's own badge is the worst status across them, so a scan
+// down the list still reads the same way the old one-badge-per-row table
+// did.
+function ServiceTypeRowView({
+  row,
   checked,
   note,
   error,
   onToggle,
   onNoteChange,
 }: {
-  interval: ServiceableComponentInterval
+  row: ServiceTypeRow
   checked: boolean
   note: string
   error: string | undefined
   onToggle: () => void
   onNoteChange: (value: string) => void
 }) {
+  const worstStatus = worstStatusOf(row.requirements)
+  const clears = row.requirements.map((r) => `${r.name} (${r.status})`).join(', ')
+
   return (
     <Stack gap={2} pl="md">
       <Group gap="sm" wrap="nowrap">
-        <Checkbox checked={checked} onChange={onToggle} label={interval.service_type_name} />
-        <ServiceStatusBadge status={interval.status} />
-        <Text size="sm" c={interval.status === 'due' ? 'red' : 'dimmed'}>
-          {formatRemaining(interval.distance_remaining_meters, interval.days_remaining)}
+        <Checkbox checked={checked} onChange={onToggle} label={row.serviceTypeName} />
+        <ServiceStatusBadge status={worstStatus} />
+        <Text size="sm" c="dimmed">
+          clears {clears}
         </Text>
       </Group>
       {checked && (

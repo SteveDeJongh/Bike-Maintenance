@@ -624,6 +624,10 @@ export interface DashboardAttentionItem {
   component_label: string
   requirement_id: number
   requirement_name: string
+  // Resolved satisfiers (service_type id+name+position+allowance), same
+  // shape as everywhere else -- position 1 is "Log service"'s default
+  // service type, same convention as ComponentDetail's own split button.
+  satisfiers: ServiceRequirementSatisfier[]
   status: 'warning' | 'due'
   driving_dimension: RequirementDimension
   distance_used_meters: number | null

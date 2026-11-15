@@ -52,7 +52,7 @@ function AlertItemRow({
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs">
       <Anchor component={Link} to={`/components/${item.component_id}`} size="sm">
-        {compact ? `${item.service_type_name} — ${item.status}` : `${item.component_label} — ${item.service_type_name}`}
+        {compact ? `${item.requirement_name} — ${item.status}` : `${item.component_label} — ${item.requirement_name}`}
       </Anchor>
       <Tooltip label="Dismiss until next sync">
         <Button size="compact-xs" variant="subtle" loading={dismissing} onClick={onDismiss}>
@@ -96,11 +96,11 @@ function DueBanner({
       <Stack gap={4}>
         {items.map((item) => (
           <AlertItemRow
-            key={item.component_service_interval_id}
+            key={item.component_service_requirement_id}
             item={item}
             compact={compact}
-            dismissing={dismissOne.isPending && dismissOne.variables === item.component_service_interval_id}
-            onDismiss={() => dismissOne.mutate(item.component_service_interval_id)}
+            dismissing={dismissOne.isPending && dismissOne.variables === item.component_service_requirement_id}
+            onDismiss={() => dismissOne.mutate(item.component_service_requirement_id)}
           />
         ))}
       </Stack>
@@ -143,11 +143,11 @@ function WarningBanner({
         <Stack gap={4}>
           {items.map((item) => (
             <AlertItemRow
-              key={item.component_service_interval_id}
+              key={item.component_service_requirement_id}
               item={item}
               compact={compact}
-              dismissing={dismissOne.isPending && dismissOne.variables === item.component_service_interval_id}
-              onDismiss={() => dismissOne.mutate(item.component_service_interval_id)}
+              dismissing={dismissOne.isPending && dismissOne.variables === item.component_service_requirement_id}
+              onDismiss={() => dismissOne.mutate(item.component_service_requirement_id)}
             />
           ))}
           <Group justify="flex-end">
