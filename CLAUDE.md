@@ -148,7 +148,7 @@ docker build .`), not the repo root.
   `cassette` seeds `allows_multiple_assignments: true` — deliberately *not*
   hardcoded logic, every row is changeable via the Settings page.
   `handlebar_tape`'s label is `"Handlebar Tape/Grips"` (key unchanged — renaming it
-  would mean a data migration across components/slots/settings/intervals for no
+  would mean a data migration across components/slots/settings/requirements for no
   gain). For users existing before a given category was added, a migration backfills
   it (`find_or_create_by`-equivalent `ON CONFLICT DO NOTHING`, never overwriting an
   edited row); for every user since, it's `Users::Provision` (see "Authentication"
@@ -191,23 +191,23 @@ docker build .`), not the repo root.
 - `ServiceType`: user_id, name — unique per `(user_id, lower(name))`. A user-defined
   kind of maintenance (wax, sealant top-up, brake bleed, ...), replacing
   `MaintenanceEvent`'s old hardcoded `event_type` enum — per this file's own rule,
-  something that now drives real computation (service intervals) gets a real model,
-  not free text like `category`. Renaming is safe everywhere (every reference is by
-  id); deleting a type still in use by any `MaintenanceEvent` or service interval is
-  blocked (`restrict_with_error`). Managed on the Settings page, and every
-  service-type picker in the app can also create one inline. `Users::Provision` seeds
-  `wax`/`clean`/`replace`/`inspect` for every new user (the same fallback the original
-  migration used for a user with no existing events — a brand new user always matches
-  that fallback). Belongs to its owning user *directly* (`MaintenanceEvent`,
-  `ComponentServiceInterval`, and `CategoryServiceInterval` all validate that any
-  `service_type_id` they reference shares their own owner — see "Authentication"
-  below for why this needed a fix).
+  something that now drives real computation (service requirements) gets a real
+  model, not free text like `category`. Renaming is safe everywhere (every
+  reference is by id); deleting a type still in use by any `MaintenanceEvent` or
+  `ServiceRequirementSatisfier` is blocked (`restrict_with_error`). Managed on the
+  Settings page, and every service-type picker in the app can also create one
+  inline. `Users::Provision` seeds `wax`/`clean`/`replace`/`inspect` for every new
+  user (the same fallback the original migration used for a user with no existing
+  events — a brand new user always matches that fallback). Belongs to its owning
+  user *directly* (`MaintenanceEvent` and `ServiceRequirementSatisfier` both
+  validate that any `service_type_id` they reference shares their own owner — see
+  "Authentication" below for why this needed a fix).
 - `MaintenanceEvent`: component_id, service_type_id, performed_at (timestamp), notes,
   service_session_id (nullable FK — see "Batch service logging" below). Reachable
   from a `User` via `has_many through:` on `components` — no direct `user_id` column
-  of its own. Logging one is what resets a service interval's baseline (see "Service
-  intervals and maintenance alerts" below) — nothing is stored as a counter; progress
-  is always computed from event history. An event logged one at a time
+  of its own. Logging one is what moves a service requirement's due point forward
+  (see "Service intervals and maintenance alerts" below) — nothing is stored as a
+  counter; progress is always computed from event history. An event logged one at a time
   (`ComponentDetail`, the Dashboard's single-component "Log service") has
   `service_session_id: nil`, exactly as before this feature existed — only
   `ServiceSessionsController#create`'s batch path ever sets it. Once set, the
@@ -229,36 +229,75 @@ docker build .`), not the repo root.
   (`dependent: :destroy`). Deliberately no "remove one event from its session" —
   delete the event (which, per the rule above, deletes an emptied session too)
   and re-log it instead; one less concept for the same result.
-- `CategoryServiceInterval`: user_id, category, service_type_id,
-  distance_interval_meters (nullable), time_interval_days (nullable) — unique per
-  `(user_id, category, service_type_id)`, at least one of distance/time required. A
-  suggested interval template for a category (e.g. chain → wax every 300 km),
-  user-managed on the Component Categories settings page. Creating a component in a
-  category auto-creates an enabled, linked `ComponentServiceInterval` for each of
-  that category's templates (`Component#after_create`); adding a template later does
+- `CategoryServiceRequirement`: user_id, category, name, distance_meters (nullable),
+  moving_time_seconds (nullable), calendar_amount (nullable integer) + calendar_unit
+  (nullable, `"day"`/`"month"`/`"year"` — a real unit, never converted to days, so
+  due-date math is real calendar arithmetic via `Date#advance`, not a fixed 30/365-day
+  assumption), ride_filter (`"all"`/`"outdoor"`/`"indoor"`, DB default `"all"`) —
+  unique per `(user_id, category, lower(name))`, at least one of the three thresholds
+  required. A suggested requirement template for a category (e.g. chain → "Chain
+  lube" every 500 km), user-managed on the Component Categories settings page.
+  Replaces the old single-service-type `CategoryServiceInterval` — what comes due is
+  now a named thing with its own thresholds, cleared by one or more service types
+  (`ServiceRequirementSatisfier` below), not tied to exactly one. `ride_filter`
+  narrows (never widens) which rides count toward the distance/moving-time
+  dimensions, on top of whatever a component's own `ride_context` already admits —
+  calendar time keeps advancing regardless of `ride_filter`, since it isn't
+  ride-derived at all (see "Service intervals and maintenance alerts" below for how
+  this composes with `ride_context` in the batched query). Creating a component in a
+  category auto-creates an enabled, linked `ComponentServiceRequirement` for each of
+  that category's templates (`Component#after_create`) — a linked row has no
+  satisfiers of its own, it inherits the template's; adding a template later does
   **not** retroactively attach to existing components — that's an explicit "apply to
-  these components" action instead (`POST /category_service_intervals/:id/apply`).
-  Deleting a template deletes its linked `ComponentServiceInterval` rows; custom
-  (unlinked) rows are untouched.
-- `ComponentServiceInterval`: component_id, category_service_interval_id (nullable —
-  null means custom, not linked to a template), service_type_id,
-  distance_interval_meters (nullable), time_interval_days (nullable), enabled
-  (boolean, default `true`) — unique per `(component_id, service_type_id)`, at least
-  one of distance/time/linked-template required. What actually applies to one
-  component. A **linked** row (template id set) inherits the template's values live
-  through `#effective_distance_interval_meters`/`#effective_time_interval_days` —
-  its own value columns are nilable per-component overrides, `nil` meaning "use the
-  template" — callers always go through those two methods, never resolve the
-  inheritance themselves. A **custom** row (no template) carries its own values
-  directly. Disabling (`enabled: false`) keeps the row, evaluated as if absent, and
-  re-enablable in place; removing (destroy) is a real delete — the component loses
-  that category default entirely, and nothing re-adds it automatically. The component
-  page offers "+ Add from category defaults" (`POST
-  /component_service_intervals/apply_defaults`) listing the category's templates not
-  currently represented on this component by service type — this is also how a
-  previously-removed default gets added back, since there is no removal history:
-  "never had it" and "had it and removed it" are treated identically, both simply
-  available to add.
+  these components" action instead (`POST /category_service_requirements/:id/apply`).
+  Deleting a template deletes its linked `ComponentServiceRequirement` rows and its
+  own satisfiers; custom (unlinked) component rows are untouched.
+- `ComponentServiceRequirement`: component_id, category_service_requirement_id
+  (nullable — null means custom, not linked to a template), name (nullable — always
+  `nil` on a linked row, required on a custom one), distance_meters/
+  moving_time_seconds/calendar_amount/calendar_unit/ride_filter (all nullable — on a
+  linked row these are per-component *overrides* of the template, `nil` meaning
+  "inherit"; on a custom row they're its own real values, same at-least-one-threshold
+  rule as a template), enabled (boolean, default `true`) — unique per `(component_id,
+  category_service_requirement_id)` where linked, and per `(component_id,
+  lower(name))` where custom (two independent partial unique indexes, not one
+  constraint, since the two row kinds share no field to collide on). What actually
+  applies to one component. `#effective` is the **one** method that resolves a
+  linked row's live inheritance (name/thresholds/ride_filter/satisfiers, falling back
+  to the template wherever this row's own column is `nil`) or, for a custom row,
+  just reflects its own columns and satisfiers straight back — callers (status
+  computation, every serializer) always go through this, never resolve inheritance
+  themselves. A linked row's own `satisfiers` association is always empty;
+  `#effective[:satisfiers]` is what actually resolves to the template's own,
+  allowances included. Disabling (`enabled: false`) keeps the row, evaluated as if
+  absent, and re-enablable in place; removing (destroy) is a real delete — the
+  component loses that category default entirely, and nothing re-adds it
+  automatically. The component page offers "+ Add from category defaults" (`POST
+  /component_service_requirements/apply_defaults`) listing the category's templates
+  not currently **linked** on this component (not "same service type" — a template
+  can have more than one satisfier now, so that's no longer a meaningful dedup key)
+  — this is also how a previously-removed default gets added back, since there is no
+  removal history: "never had it" and "had it and removed it" are treated
+  identically, both simply available to add.
+- `ServiceRequirementSatisfier`: owner (polymorphic — a `CategoryServiceRequirement`
+  template, or an **unlinked** `ComponentServiceRequirement`; never a linked row,
+  which has none of its own), service_type_id, position (integer — position 1 is the
+  default service type for "Log service"/"Select all due and warning"),
+  allowance_distance_meters/allowance_moving_time_seconds/allowance_calendar_amount+
+  allowance_calendar_unit (all nullable — per-dimension overrides on how far *this*
+  satisfier's own service buys; `nil` on a dimension means "same as the owning
+  requirement's own effective threshold for that dimension," resolved by
+  `ComponentServiceRequirement#effective_satisfiers`/the status algorithm below,
+  never by the caller) — unique per `(owner, service_type_id)`; an allowance can only
+  be set on a dimension the owner itself actually has a threshold on
+  (`allowances_match_owner_thresholds`). What clears a requirement, and how far it
+  buys: e.g. "Chain lube" (500 km) satisfied by a hot wax (no override — inherits
+  500 km) or a drip wax (`allowance_distance_meters: 250_000` — a shorter-lived
+  service). `before_destroy` blocks removing an owner's **last** satisfier directly
+  (`ensure_not_last_satisfier`) — a requirement always needs at least one — but
+  `has_many :satisfiers` on both owner models uses `dependent: :delete_all`, not
+  `:destroy`, specifically so that guard never blocks a cascading destroy of the
+  whole owner (template or custom row) along with its only satisfier.
 - `NotificationSetting`: user_id (unique — one row per user), notifications_enabled
   (boolean, default `true`), warning_threshold_percent (integer, default `5`). Global
   per-user defaults for service alerts; a missing row behaves as the hardcoded
@@ -267,9 +306,9 @@ docker build .`), not the repo root.
   `NotificationSetting.effective_for(user:, category:)` is the one place that
   resolves category-override-then-global-then-hardcoded-default — callers never
   chase that fallback chain themselves.
-- `ServiceAlertDismissal`: component_service_interval_id, dismissed_at (timestamp),
+- `ServiceAlertDismissal`: component_service_requirement_id, dismissed_at (timestamp),
   dismissed_status (`"warning"` or `"due"`). Recorded by `POST
-  /service_alert_dismissals` (one interval) or `POST
+  /service_alert_dismissals` (one requirement) or `POST
   /service_alert_dismissals/dismiss_all` (every currently banner-eligible alert, or
   just those of one status via an optional `status` param — backs each banner's own
   "dismiss all" without clearing the other banner's alerts too). A dismissal only
@@ -396,67 +435,141 @@ every current caller of these two specific methods (`ComponentDetail`, and a bik
 own small "Installed components" table) only ever renders a handful of components at
 once; neither is used to back a many-row table column. Previously-noted future idea,
 now resolved by a different, purpose-built query rather than by changing these two
-methods: `Maintenance::BatchedDistanceQuery` (see "Service intervals and maintenance
+methods: `Maintenance::BatchedPositionQuery` (see "Service intervals and maintenance
 alerts" below) implements exactly the batched join this note called for — a
 `component_assignments` ⨝ `strava_activities` join on `bike_id` with a `moved_at`
-range condition, `GROUP BY` the thing being measured — for service-interval
-distance-since-baseline instead of `total_distance`, since that's what actually
-needed to show on a many-row table (the Components list's and Bike detail's
+range condition, `GROUP BY` the thing being measured — for service-requirement
+distance/moving-time-since-baseline instead of `total_distance`, since that's what
+actually needed to show on a many-row table (the Components list's and Bike detail's
 `service_status` columns). If `total_distance`/`distance_since` themselves ever need
 to back a many-row column too, the same pattern is now proven out and ready to reuse.
 
 ## Service intervals and maintenance alerts
 
-User-defined "do service type X every N km and/or every N days" tracking, resolving
-the "needs maintenance" future idea originally noted under Bike-level stats below.
-Recording a service means creating a `MaintenanceEvent` of that type — nothing is
-stored as a counter, progress is always computed from event history, same as
-`Component#distance_since` above. See the `ServiceType`/`CategoryServiceInterval`/
-`ComponentServiceInterval`/`NotificationSetting`/`ServiceAlertDismissal` bullets
-above for the data model; this section covers how status gets computed and surfaced.
+User-defined "this comes due every N km / N hours / N months, cleared by one or
+more service types" tracking, resolving the "needs maintenance" future idea
+originally noted under Bike-level stats below. Recording a service means creating
+a `MaintenanceEvent` of that type — nothing is stored as a counter, progress is
+always computed from event history, same as `Component#distance_since` above. See
+the `ServiceType`/`CategoryServiceRequirement`/`ComponentServiceRequirement`/
+`ServiceRequirementSatisfier`/`NotificationSetting`/`ServiceAlertDismissal` bullets
+above for the data model; this section covers how status gets computed and
+surfaced. This replaced an earlier, simpler single-service-type `*Interval` model
+(`CategoryServiceInterval`/`ComponentServiceInterval`, and the old
+`Maintenance::IntervalStatus`/`Maintenance::BatchedDistanceQuery` service objects)
+with the requirement/satisfier model below, to support alternative services that
+clear the same requirement at different allowances (a 500 km hot wax or a 250 km
+drip wax both satisfy "Chain lube"), a service that also clears a smaller one (a
+200 h fork service resets a 50 h one too), calendar/moving-time dimensions, and
+ride-filtered counting.
 
-- `Maintenance::BatchedDistanceQuery.call(user)` — one raw SQL query (a CTE computing
-  each enabled `ComponentServiceInterval`'s baseline — most recent matching
-  `MaintenanceEvent`, else the component's earliest assignment, else `acquired_on` —
-  joined to `strava_activities` the same way `ComponentAssignment#activities_from`
-  already filters by `ride_context`) returning `{component_service_interval_id =>
-  {distance_meters, baseline_at}}` for every one of the user's enabled intervals at
-  once. The one piece of real batching in this feature — everything below reads from
-  it rather than looping per interval.
-- `Maintenance::IntervalStatus` wraps one interval's status: distance/time fraction
-  used (whichever dimension is set; `days_used` is a cheap date subtraction, not
-  batched), `due` when either fraction reaches 1.0, `warning` when either is within
-  the effective `warning_threshold_percent` of 1.0, else `ok`. `.for_component`/
-  `.for_user` are the two entry points (both batched via `BatchedDistanceQuery`);
-  `.worst_status_by_component(user)` reduces that to one status per component
-  (due > warning > ok) for the `service_status` table column. A component with no
-  enabled interval has no entry — rendered as a dash, not an `ok` badge.
+- **The due-point algorithm** (`Maintenance::RequirementStatus#call`) computes
+  status independently per **active dimension** (distance/moving_time/calendar —
+  whichever of a requirement's effective thresholds are actually set; more than one
+  can be active at once, e.g. "50 hours or 1 year"). For each dimension, the
+  **candidates** are every `MaintenanceEvent` on the component whose service type
+  is one of the requirement's effective satisfiers, plus one **synthetic fallback
+  point** at position 0 (dated at the component's baseline — its first
+  assignment's `started_at`, else `acquired_on`) whose implicit allowance is the
+  dimension's own effective threshold — this is what makes "no satisfying event
+  yet" fall out of the *same* formula with no special case: due = 0 + threshold,
+  i.e. today's plain fraction. The **due point** is the `MAX`, over every
+  candidate, of `(that candidate's position on this dimension) + (that candidate's
+  own resolved allowance for this dimension)` — because it's a max, an
+  earlier/shorter service (a drip wax logged shortly after a hot wax) can never
+  pull the due point earlier; a later, real service that legitimately buys further
+  out still moves it forward, even past an earlier candidate's own due point. The
+  **setting event** is whichever candidate produced that max (`nil` for the
+  synthetic point — "no real service logged yet"); ties prefer the later one.
+  Position, for distance/moving_time, is cumulative ride-filtered (the component's
+  own `ride_context` ∩ the requirement's `ride_filter`) distance/moving_time up to
+  and including that candidate's timestamp; for calendar, it's just the
+  candidate's own date, and its due point is `date.advance(unit => amount)` using
+  **that specific candidate's own** resolved calendar allowance (which can differ
+  in unit from the requirement's own stated one — e.g. a satisfier that only buys
+  6 months toward a 1-year requirement) — `Date#advance` handles mixed units and
+  end-of-month clamping for free (Jan 31 + 1 month → Feb 28/29), confirmed standard
+  Ruby/Rails behavior, not something this app implements. `driving_dimension` is
+  whichever active dimension has the highest fraction-used (ties broken distance >
+  moving_time > calendar, arbitrary but fixed); `status` is the worst of
+  due/warning/ok across *every* active dimension, same `warning_threshold_percent`
+  rule as before, generalized from two dimensions to three.
+- `Maintenance::BatchedPositionQuery.call(user)` batches the distance/moving-time
+  position lookups above across a whole user's requirements in one SQL pass (the
+  calendar dimension needs no SQL — it's plain `Date` arithmetic over timestamps
+  already in hand). Two phases: (1) in Ruby, from one cheap
+  `MaintenanceEvent.group(:component_id, :service_type_id).maximum(:performed_at)`
+  aggregate, find each requirement's **bounding cutoff** — any candidate event
+  strictly before the most recent occurrence of the satisfier with the *largest*
+  resolved allowance on a given dimension is provably dominated (its own due point
+  can never exceed that satisfier's) and excluded entirely, so only a handful of
+  recent events (usually one long-lived service plus a few short-lived ones since)
+  ever need a real position computed; a requirement with two active numeric
+  dimensions uses one shared, more conservative cutoff (the earlier of the two)
+  rather than two independent ones. (2) One SQL pass over exactly the remaining
+  checkpoints — a small Ruby-built `VALUES` list of `(requirement, checkpoint_at)`
+  pairs (every bounded-in candidate event, plus "now") — joined to
+  `component_assignments ⨝ strava_activities` the same windowed way every other
+  batched query in this codebase already does, intersected with **both**
+  `Maintenance::RideContextSql.predicate` (the assignment's own `ride_context`) and
+  the new `Maintenance::RideFilterSql.predicate` (the requirement's `ride_filter`,
+  reusing `RideContextSql`'s own indoor/outdoor predicates rather than redefining
+  the indoor rule a second time) — an `AND`, which is what makes `ride_filter`
+  narrow what `ride_context` already admits and never widen it, by construction.
+  `.for_component(component)` (the component detail page) and `.for_user(user)`
+  (everything else: banners, Dashboard, table columns) both go through
+  `BatchedPositionQuery` — one implementation, not two separate per-component vs.
+  per-user code paths that could drift apart; `.for_component` just calls it scoped
+  to the component's own user and filters the result down to that one component's
+  requirements afterward. `.worst_status_by_component(user)`/
+  `.worst_result_by_component(user)` reduce `.for_user`'s results to one
+  status/`Result` per component (due > warning > ok) for the `service_status` table
+  column and the Dashboard's own per-component display. A component with no
+  enabled requirement has no entry — rendered as a dash, not an `ok` badge.
+- `strava_activities.moving_time` is nullable with no backfill for rows synced
+  before it was added (`20261015223545_add_analytics_fields_to_strava_activities`)
+  — `SUM()` already silently skips nulls, matching every other `moving_time`
+  consumer in this app, but a moving-time requirement under-counts historical
+  rides until the user runs a full Strava refresh (see "Strava integration" below)
+  to backfill it; not fixed as part of this feature.
 - Banner eligibility (`Result#banner_eligible?`) is stricter than just "not ok": the
   component must be currently installed (an assignment with `ended_at: nil`), not
   retired, have notifications enabled for its category
   (`NotificationSetting.effective_for`), and not be currently suppressed by a
-  `ServiceAlertDismissal`. Ineligible intervals still compute and show a real status
-  everywhere else (component page, table columns) — eligibility only gates the
-  banners.
-- API: `ServiceTypesController`, `CategoryServiceIntervalsController` (plus `POST
-  .../:id/apply`), `ComponentServiceIntervalsController` (plus `POST
-  .../apply_defaults`), `NotificationSettingsController` (singleton, upsert like
+  `ServiceAlertDismissal`. Ineligible requirements still compute and show a real
+  status everywhere else (component page, table columns) — eligibility only gates
+  the banners.
+- API: `ServiceTypesController`, `CategoryServiceRequirementsController` (plus
+  `POST .../:id/apply`), `ComponentServiceRequirementsController` (plus `POST
+  .../apply_defaults`), `ServiceRequirementSatisfiersController` (nested under
+  either owner for `#create`/`#reorder` — `PATCH .../satisfiers/reorder` takes the
+  owner's complete, reordered satisfier id list or the whole request is rejected —
+  flat `/service_requirement_satisfiers/:id` for `#update`/`#destroy`; a create or
+  reorder against a **linked** `ComponentServiceRequirement` is rejected outright:
+  "Linked requirements use their template's satisfiers — edit the category default
+  instead"), `NotificationSettingsController` (singleton, upsert like
   `TableViewPreference`), `MaintenanceAlertsController#index` (`GET
   /maintenance_alerts`, banner-eligible statuses only), `ServiceAlertDismissalsController`
   (`#create`, `#dismiss_all` with an optional `status` param). Both the index and
   `dismiss_all` take optional `bike_id`/`component_id` filters, applied *after*
   banner-eligibility, via the one shared
-  `Maintenance::IntervalStatus.banner_eligible_for_user(user, bike_id:, component_id:)` —
-  so a scoped banner's "dismiss all" can never touch anything the matching index
+  `Maintenance::RequirementStatus.banner_eligible_for_user(user, bike_id:, component_id:)`
+  — so a scoped banner's "dismiss all" can never touch anything the matching index
   call didn't itself show. Unscoped (every alert at once) still works for backwards
   compatibility, but the frontend never calls either endpoint that way now — see
-  below. Every alert also carries `bike_ids`: every bike the component currently has
-  an active (`ended_at: nil`) assignment on — usually one, but a category with
-  `allows_multiple_assignments` can have the same component mounted `indoor_only` on
-  two bikes at once, and that alert belongs on both bikes' pages, unfiltered by
-  whichever `bike_id` the request happened to scope to. `ComponentsController#show`
-  includes every enabled interval's full computed status; `ComponentsController#index`
-  and `BikesController#show` (per installed component) include just the batched
+  below. Every alert also carries `requirement_name`, `setting_event`
+  (`{id, service_type_name, performed_at} | nil`) and a raw, unformatted
+  `setting_position` (meters/seconds/a date string, matching `driving_dimension` —
+  the backend never pre-formats this into a sentence, same API-returns-raw-values
+  convention as everywhere else) alongside `bike_ids`: every bike the component
+  currently has an active (`ended_at: nil`) assignment on — usually one, but a
+  category with `allows_multiple_assignments` can have the same component mounted
+  `indoor_only` on two bikes at once, and that alert belongs on both bikes' pages,
+  unfiltered by whichever `bike_id` the request happened to scope to.
+  `ComponentsController#show` includes every enabled-or-not requirement's full
+  computed status (`service_requirements`, including its resolved `satisfiers` and
+  `setting_event`/`setting_position`); `ComponentsController#index` and
+  `BikesController#show` (per installed component) include just the batched
   `service_status` summary.
 - Frontend: `MaintenanceAlertBanners` takes a required `scope` prop
   (`{ bikeId } | { componentId }`, `types/models.ts`'
@@ -470,42 +583,97 @@ above for the data model; this section covers how status gets computed and surfa
   `bikeId`/`componentId`, via `useDismissAllServiceAlerts(scope)` — so dismissing
   the due banner on one bike never also clears warnings, or another bike's alerts).
   No modals/toasts. On `ComponentDetail` (where the component is already named by
-  the page) each item reads just `"{service type} — {status}"` rather than
+  the page) each item reads just `"{requirement name} — {status}"` rather than
   repeating the component label, and the banner title counts services rather than
   components, since every item there is already the one known component; on
-  `BikeDetail` both stay `"{component label} — {service type}"` and the
+  `BikeDetail` both stay `"{component label} — {requirement name}"` and the
   components-count title, unchanged from before this scoping existed.
-  `frontend/src/components/ServiceIntervalsSection.tsx` (rendered
-  by `ComponentServiceAndHistory.tsx`, shared by the standalone `ComponentDetail`
-  page and `BikeDetail`'s `AssignmentDetailModal`) is where a component's
-  intervals are enabled/disabled/overridden/removed/added (from a category
-  default or custom) and where a service gets logged (`MaintenanceEventFormModal`
-  with the interval's service type/component prefilled). Its table merges
-  distance/time into one "Interval" column (`formatInterval` in
-  `utils/serviceInterval.ts`, alongside the existing `formatRemaining` — only the
-  dimension(s) actually set, never a "—" for a blank one), with a dimmed
-  "(overridden)" suffix when a linked row's own distance/time columns are set
-  (i.e. overriding the category template rather than inheriting it). Editing one
-  interval opens `EditServiceIntervalModal` (not inline-in-row) — for a linked
-  row it shows the template's own default values and a "Reset to default" action
-  that clears both override columns (`nil` already means "inherit the template,"
-  so this needs no backend support beyond the existing `PATCH`). Edit/Remove
-  collapse into a `⋯` `ActionIcon`+`Menu` (Remove still via `confirmDelete`) below
-  a width threshold measured on the section's own element via Mantine's
-  `useElementSize` — not a viewport breakpoint, since this section also renders
-  inside a modal narrower than the window — and the table itself is wrapped in
-  `Table.ScrollContainer` so only it, never the rest of the modal, scrolls
-  horizontally if it still doesn't fit. "Log service" never collapses.
+- **Settings → Component Categories**: `CategoryServiceRequirementsModal.tsx` (one
+  template per row — name; three threshold inputs, km/hours/calendar amount+unit,
+  each independently clearable, ≥1 required; a `SegmentedControl` for
+  `ride_filter` with a dimmed "Calendar time keeps counting on indoor rides" note
+  next to the calendar field whenever the filter isn't "all"; an ordered
+  "Satisfied by" list — `SatisfiersEditor`/`SatisfierRow`, a service-type picker
+  with inline create plus per-dimension allowance override inputs only shown for a
+  dimension the requirement actually has, each with a "same as requirement"
+  placeholder when unset, reorder via up/down `ActionIcon`s wired straight to
+  `PATCH .../satisfiers/reorder`, remove disabled on the last satisfier; the
+  apply-to-components checklist, deduped by "already linked to this template," not
+  by service type) replaces the old single-service-type
+  `CategoryServiceIntervalsModal`. A brand-new template's satisfiers are collected
+  locally as drafts (`DraftSatisfierRow`) and submitted together with the template
+  in one transactional create call, so "at least one satisfier" is never left with
+  a gap. These pieces (`SatisfiersEditor`/`SatisfierRow`/`DraftSatisfierRow`, the
+  unit conversion helpers, the `CALENDAR_UNIT_OPTIONS`/`RIDE_FILTER_OPTIONS`
+  constants) live in `frontend/src/components/forms/serviceRequirementHelpers.ts`
+  (plain functions/constants) and `serviceRequirementShared.tsx` (components —
+  split into two files only so the JSX one satisfies react-refresh's
+  "components-only export" rule) and are reused as-is by `ComponentDetail`'s own
+  custom-requirement editor below — "Custom requirements edit satisfiers inline
+  with the same editor as Settings" is implemented literally as shared code, not a
+  second copy.
+- **ComponentDetail → Service requirements**
+  (`frontend/src/components/ServiceIntervalsSection.tsx`, rendered by
+  `ComponentServiceAndHistory.tsx`, shared by the standalone `ComponentDetail` page
+  and `BikeDetail`'s `AssignmentDetailModal`): one row per requirement (enabled or
+  not, so its Switch can be flipped back on in place) — name + a dimmed secondary
+  line (every satisfier's service type name joined with "or", a `· last: {setting
+  event's service type} at {formatted setting_position}` clause once a real
+  service has been logged — omitted, not shown blank, in the synthetic-fallback
+  case — and a `· outdoor/indoor rides only` note when `ride_filter` narrows
+  counting), a progress bar on the driving dimension, a "Default"/"Custom" marker,
+  remaining/overdue text across every *active* dimension at once (`formatRemaining`
+  in `utils/serviceInterval.ts`, extended from two args to an optional third,
+  moving-time one — a requirement can now have more than one dimension counting
+  down simultaneously, e.g. "50h or 1 year"; the old two-field table's separate
+  "Interval" threshold column was dropped in this redesign, since the satisfiers
+  line and remaining text together already say what's threatening to come due), a
+  status badge, an enable `Switch`, and Remove. "Log service" is a **split
+  button**: the primary action logs the requirement's position-1 satisfier; a
+  dropdown (hidden entirely for a single-satisfier requirement — nothing to pick)
+  lists the rest. Before opening `MaintenanceEventFormModal`, it checks whether
+  the chosen service type also clears any **other** requirement on the same
+  component (the same satisfier service type appearing in more than one
+  requirement's list) and, if so, confirms first ("This also clears: Fork 50h")
+  via a non-destructive `modals.openConfirmModal` — skipped entirely when there's
+  nothing else to name, so a plain single-requirement log stays the one-click
+  action it always was. A **linked** row's overrides (three thresholds +
+  `ride_filter`, "Reset to default" nulling all of them at once) go through
+  `EditServiceIntervalModal`, showing the template's own effective values as
+  context — same shape as the old two-field version, just three dimensions
+  instead of two. A **custom** row expands inline instead (an "Edit"/"Done"
+  toggle, mirroring the Settings template editor's own `editing` state) into its
+  own name/threshold/ride-filter fields plus the shared `SatisfiersEditor` — fed
+  the **raw** satisfiers from `GET /component_service_requirements?component_id=`
+  (not the already-resolved ones on `GET /components/:id`'s payload), specifically
+  so an unset allowance shows its "same as requirement" placeholder instead of a
+  resolved number that would look like someone had typed it in. "+ Add custom
+  requirement" (`AddCustomServiceIntervalModal.tsx`) mirrors the Settings "new
+  template" flow — name/thresholds/ride_filter/draft satisfiers collected locally,
+  submitted together in one transactional create. "+ Add from category defaults"
+  is unchanged in UX, now deduped by linked-template rather than service type.
   `ServiceStatusBadge`/`SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY` back the
   `service_status` column on the Components list and Bike detail's Installed
-  Components table (through the existing configurable-table system), and (as of
-  the above) the Service intervals table's own Status column too.
+  Components table (through the existing configurable-table system), and the
+  Service requirements table's own Status column too.
+- **`BatchServiceModal`** (see "Batch service logging" below): rows are one per
+  service type across a component's requirements, not one per requirement — see
+  that section for the full redesign.
 
-**Known limitation**: sync is still manual (see "Strava integration" below) — until a
-scheduler is deployed, a dismissed alert stays hidden only until the user next
-presses "Sync now". Time-based intervals keep advancing regardless of sync (`days_used`
-is a plain date calculation), but a dismissal only lifts on a completed sync or on
-escalation to a worse status.
+**Known limitation**: sync is still manual (see "Strava integration" below) — until
+a scheduler is deployed, a dismissed alert stays hidden only until the user next
+presses "Sync now". Calendar-based requirements keep advancing regardless of sync
+(calendar position is a plain date calculation), but a dismissal only lifts on a
+completed sync or on escalation to a worse status.
+
+**Flagged for the project plan doc** per this file's own convention: this feature
+renamed `category_service_intervals`/`component_service_intervals` to
+`category_service_requirements`/`component_service_requirements`, added `name`/
+`moving_time_seconds`/`calendar_amount`/`calendar_unit`/`ride_filter` to both
+(dropping their old `service_type_id`/`time_interval_days` columns), and added the
+new `service_requirement_satisfiers` table (owner polymorphic, service_type_id,
+position, four nullable allowance columns) — a real multi-table data-model change,
+not just a feature addition.
 
 ## Batch service logging
 
@@ -542,13 +710,16 @@ this bike" gets computed and how the batch logger itself works.
   the Dashboard's own output unchanged, not just approximately equivalent.
 - **`GET /bikes/:id/serviceable_components?at=<iso8601>`** (`BikesController`,
   same home as the existing `:rides` member action) returns `{ mounted: [...],
-  off_bike: [...] }`, each component with its **enabled** service intervals
-  (`Maintenance::IntervalStatus.for_user`, batched once per request — never
-  per component) carrying `service_type_id`/`service_type_name`, `status`,
-  `driving_dimension`, `distance_remaining_meters`/`days_remaining`. That
-  status is computed **as of now**, never as of `at` — it exists to help the
-  user decide what to check, not to claim what the interval looked like on a
-  backdated date, and the UI copy says so.
+  off_bike: [...] }`, each component with its **enabled** service requirements
+  (`Maintenance::RequirementStatus.for_user`, batched once per request — never
+  per component) carrying `requirement_name`, its resolved `satisfiers`
+  (service_type id+name+position+allowance — the whole list, not just position 1,
+  so `BatchServiceModal` can group by service type across every component's
+  requirements without a second request), `status`, `driving_dimension`,
+  `distance_remaining_meters`/`moving_time_remaining_seconds`/`days_remaining`, and
+  `setting_event`. That status is computed **as of now**, never as of `at` — it
+  exists to help the user decide what to check, not to claim what the requirement
+  looked like on a backdated date, and the UI copy says so.
 - **`POST /bikes/:id/service_sessions`** (`ServiceSessionsController#create`)
   takes a flat `{ performed_at, notes?, events: [{ component_id,
   service_type_id, notes? }, ...] }` (same shape convention as
@@ -560,7 +731,7 @@ this bike" gets computed and how the batch logger itself works.
   session's own `performed_at`), or an unknown `service_type_id` all reject
   the *whole* request with `422 { row_errors: { "<index>": {...} } }` — same
   key name and per-index shape as `#component_setup`'s own. A `service_type_id`
-  needs no interval set up on that component (the "Add other" path on a
+  needs no requirement set up on that component (the "Add other" path on a
   service with nothing tracked yet). `GET`/`PATCH`/`DELETE
   /service_sessions/:id` round it out; `PATCH`ing `performed_at` re-checks
   every existing event's component against `Bikes::ServiceableComponents` at
@@ -571,20 +742,35 @@ this bike" gets computed and how the batch logger itself works.
   `serviceable_components` on every change — whatever's still checked after a
   refetch stays checked, the rest silently drop with a one-line dimmed note of
   how many), components grouped mounted-first then a dimmed "Off the bike"
-  group, one row per enabled interval (checkbox, service type,
-  `ServiceStatusBadge`, `formatRemaining` — both reused as-is, not
-  reimplemented), a "Select all due and warning" shortcut, and "Add other…"
-  rows (a component picker from the same eligible list plus
+  group. Rows are **one per (component, service type)** that satisfies at least
+  one of that component's enabled requirements — not one per requirement — so a
+  service type satisfying two requirements at once (a 200 h service that also
+  clears a 50 h one) shows as a single checkbox that logs one event and clears
+  both, the same convention `ComponentDetail`'s own split "Log service" button
+  uses. Each row names every requirement it clears, each with its own status
+  ("Drip Wax · clears Chain lube (due), Chain re-wax (ok)"), and the row's own
+  `ServiceStatusBadge` is the worst status across them (`SERVICE_STATUS_SEVERITY`).
+  "Select all due and warning" picks, per non-ok requirement, its position-1
+  satisfier — deduped by `(component, service type)` key, so two due requirements
+  on the same component that share a satisfier only ever add one row. "Add
+  other…" rows (a component picker from the same eligible list plus
   `ServiceTypeSelect`/`useServiceTypeIdResolver`, the exact pieces
-  `MaintenanceEventFormModal` already uses) for a service with no interval.
-  Takes an optional `initialPerformedAt` prop — unused by `BikeDetail`'s header
-  "Log service" button and the Dashboard `BikeCard`'s own "Log service" action, but
-  used by the Activity log's "Log service after this ride" row action (see
-  "Activity log" below), which passes a ride's `moved_at + elapsed_time`.
-  Mutations (`useCreateServiceSession`/`useUpdateServiceSession`/
-  `useDeleteServiceSession`) invalidate the `history` and `serviceStatus`
-  groups, same as single-event "Log service" (see "Cache invalidation" under
-  Conventions).
+  `MaintenanceEventFormModal` already uses) are unchanged — they were always
+  service-type-first, with no requirement concept to group by. The old
+  per-interval remaining-distance text was dropped from each row (a row can now
+  clear several requirements with different remaining amounts, and the
+  "clears X (status)" list already says what matters) — `ComponentDetail`'s own
+  rows still show full remaining text per requirement. Takes an optional
+  `initialPerformedAt` prop — unused by `BikeDetail`'s header "Log service"
+  button and the Dashboard `BikeCard`'s own "Log service" action, but used by
+  the Activity log's "Log service after this ride" row action (see "Activity
+  log" below), which passes a ride's `moved_at + elapsed_time`. Mutations
+  (`useCreateServiceSession`/`useUpdateServiceSession`/`useDeleteServiceSession`)
+  invalidate the `history` and `serviceStatus` groups, same as single-event
+  "Log service" (see "Cache invalidation" under Conventions) — unchanged by the
+  rows-per-service-type redesign, since the actual API payload a session create
+  sends (`component_id`/`service_type_id` pairs) never changed, only how the
+  frontend groups checkboxes into that payload.
 - **Showing a session**: `ComponentServiceAndHistory`'s history table marks
   any event with `service_session_id` set with a small "Part of a service
   session · N items" control (N counts every event in the session, not just
@@ -681,7 +867,7 @@ this bike" gets computed and how the batch logger itself works.
   `user.strava_activities.where.not(strava_id: seen_strava_ids.to_a).delete_all` (plain
   `delete_all`, no callbacks need to run — nothing else in the schema references a
   `strava_activities.id`) and log the deleted count. **Deleting a reconciled-away ride
-  changes bike/component mileage and interval statuses retroactively — this is intended,
+  changes bike/component mileage and requirement statuses retroactively — this is intended,
   matching Strava, not a gap.** `full_sync_started_at` is set by the controller right
   before enqueuing and cleared by the job in an `ensure`, so a crashed job still releases
   the lock (the staleness fallback above covers the case where even the `ensure` never
@@ -1170,23 +1356,33 @@ distance/status computation happens here that doesn't already live elsewhere:
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
   `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
   `BikesController#index` already uses (no per-bike N+1), plus `mounted`
-  (currently-installed components, each with a `display_metric`: meters/days only,
-  same API-returns-meters/UI-converts convention as everywhere else — see
-  `formatDistance`) and `off_bike` (non-retired components whose most recent
-  assignment was on this bike but have no active one anywhere). Both draw their
-  per-component status from `Maintenance::IntervalStatus.worst_result_by_component`
-  (returns the full winning `Result`, not just its status string — a small,
-  justified extension over the pre-existing `worst_status_by_component`, now a
-  one-line wrapper over it) and their bike-grouping from
-  `Component.current_bikes_by_component` (promoted the same way as
-  `StravaGear.unmapped_for`, from a `ComponentsController`-private method).
-- **`attention`** — every enabled, non-ok, non-retired interval
-  (`Maintenance::IntervalStatus.for_user`), deliberately broader than the alert
+  (currently-installed components, each with a `display_metric`:
+  `{requirement_name, distance_meters, moving_time_seconds, days,
+  since_service_type_name}`, meters/seconds/days only, same
+  API-returns-meters/UI-converts convention as everywhere else — see
+  `formatDistance`/`formatDuration`; `since_service_type_name` is specifically the
+  **setting event's** own service type, not always the same string as
+  `requirement_name` now that a requirement can have more than one satisfier, e.g.
+  "Chain lube" cleared by a drip wax) and `off_bike` (non-retired components whose
+  most recent assignment was on this bike but have no active one anywhere). Both
+  draw their per-component status from
+  `Maintenance::RequirementStatus.worst_result_by_component` (returns the full
+  winning `Result`, not just its status string — a small, justified extension over
+  the pre-existing `worst_status_by_component`, now a one-line wrapper over it) and
+  their bike-grouping from `Component.current_bikes_by_component` (promoted the
+  same way as `StravaGear.unmapped_for`, from a `ComponentsController`-private
+  method).
+- **`attention`** — every enabled, non-ok, non-retired requirement
+  (`Maintenance::RequirementStatus.for_user`), deliberately broader than the alert
   banners' `Result#banner_eligible?`: a dismissed or notifications-off item, or one
   on a currently-unmounted component, still appears here, just flagged
   (`dismissed`/`notifications_off`/`mounted`) rather than hidden. Ordered
   due-before-warning, then by `Result#fraction_used` (new, cheap arithmetic over
-  numbers the status computation already has) descending.
+  numbers the status computation already has) descending. Each item carries the
+  requirement's resolved `satisfiers` (needed so the frontend's "Log service"
+  button on this item can default to the position-1 satisfier, same convention as
+  `ComponentDetail`'s own split button — the item has no single `service_type_id`
+  of its own to pre-fill with otherwise) and `setting_event`.
 - **`recent_rides`** — every activity in a rolling 14-day window (not
   calendar-day-sensitive, so no `tz` needed) plus `summary: {count, distance_meters}`.
   Each ride's `counted_toward` (which components its mileage counts toward) comes
@@ -1194,7 +1390,7 @@ distance/status computation happens here that doesn't already live elsewhere:
   (`app/services/maintenance/counted_toward_query.rb`) — one batched SQL query
   (`strava_activities` ⨝ `component_assignments` ⨝ `components` on `bike_id` + the
   assignment window + ride_context) for the whole window at once, the same
-  batching precedent as `Maintenance::BatchedDistanceQuery`. `indoor` comes from
+  batching precedent as `Maintenance::BatchedPositionQuery`. `indoor` comes from
   the new `StravaActivity#indoor?` instance method (mirrors the `.indoor`/`.outdoor`
   scopes for one already-loaded record). `gear_id` rides alongside a `null` bike
   specifically so the frontend can offer "Link Strava gear" only for the
@@ -1202,9 +1398,11 @@ distance/status computation happens here that doesn't already live elsewhere:
 
 **`Maintenance::RideContextSql.predicate(assignment_alias:, activity_alias:)`**
 (`app/services/maintenance/ride_context_sql.rb`) is the one shared SQL fragment
-behind every batched ride_context filter — extracted from
-`BatchedDistanceQuery`'s inline SQL, and the second caller is
-`CountedTowardQuery` above. It has to stay bit-for-bit equivalent to
+behind every batched ride_context filter — originally extracted from the old
+`BatchedDistanceQuery`'s inline SQL (now `BatchedPositionQuery`, see "Service
+intervals and maintenance alerts" above, which also composes it with the newer
+`Maintenance::RideFilterSql` for a requirement's own `ride_filter`), and the
+second caller is `CountedTowardQuery` above. It has to stay bit-for-bit equivalent to
 `StravaActivity.indoor`/`.outdoor` (used by `ComponentAssignment#activities_from`,
 the Ruby-level windowing primitive every per-component mileage computation funnels
 through) — `IS DISTINCT FROM`, not `where.not`, specifically for NULL-safety parity.
@@ -1263,17 +1461,22 @@ Strava page). `components/dashboard/`:
   `last_synced_at` moves past `last_sync_failed_at` and the function starts
   returning `null` again on its own.
 - `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by bike,
-  "Not mounted" last; Log service reuses `MaintenanceEventFormModal` as-is),
-  `RecentRidesTable` (its "No bike" rows link to `/strava?tab=rides`; its
-  "Link Strava gear" link, shown only when `gear_id` is present, to
-  `/strava?tab=gear`). `RecentRidesTable` is a plain Mantine `Table` in a
-  horizontal-scroll wrapper, **not** the sortable/configurable-table system
-  above — that mechanism exists for a `TableViewPreference` row's worth of
-  persisted column choices/ordering, which this fixed, non-configurable
-  14-day feed has no use for. `formatRemaining` (the "N km left"/"N km
-  overdue" wording) was extracted out of `ServiceIntervalsSection.tsx` into
-  `utils/serviceInterval.ts` so `AttentionRow` shares the exact same wording
-  rather than re-deriving it.
+  "Not mounted" last; each row reads `"{component label} — {requirement name}"`
+  plus a `(from {setting_event's service type})` clause once a real service has
+  been logged; "Log service" reuses `MaintenanceEventFormModal` as-is, pre-filled
+  with the item's **position-1 satisfier** — `[...item.satisfiers].sort((a, b) =>
+  a.position - b.position)[0]`, same default-satisfier convention as
+  `ComponentDetail`'s own split button), `RecentRidesTable` (its "No bike" rows
+  link to `/strava?tab=rides`; its "Link Strava gear" link, shown only when
+  `gear_id` is present, to `/strava?tab=gear`). `RecentRidesTable` is a plain
+  Mantine `Table` in a horizontal-scroll wrapper, **not** the
+  sortable/configurable-table system above — that mechanism exists for a
+  `TableViewPreference` row's worth of persisted column choices/ordering, which
+  this fixed, non-configurable 14-day feed has no use for. `formatRemaining` (the
+  "N km left"/"N km overdue" wording, now extended to a third, moving-time
+  argument — see "Service intervals and maintenance alerts" above) lives in
+  `utils/serviceInterval.ts` so `AttentionRow` and `ComponentDetail`'s own rows
+  share the exact same wording rather than re-deriving it.
 
 **`useStravaSyncRunner({ full })`** (`frontend/src/hooks/useStravaSyncRunner.ts`)
 is the one piece shared by both sync triggers on both pages (Dashboard's "Sync
@@ -1499,7 +1702,7 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
 
 **Not built**: week/month/year grouping headers with subtotals (shared with Ride
 history); a weekly distance chart stacked by bike; a ride detail drawer; threshold
-markers on the ride that pushed an interval into warning/due; a "since last
+markers on the ride that pushed a requirement into warning/due; a "since last
 service" component-filter option; CSV export — all explicitly deferred.
 
 ## Bike setup
@@ -1549,9 +1752,10 @@ from a user-editable **bike type** preset.
   indoor/outdoor split to be a manual follow-up action on the Bike detail page.
   `installed_on`/a row's `acquired_on` need no date→timestamp conversion — assigning
   a bare date string straight into a timestamp column already casts to midnight UTC
-  via Rails' normal attribute typecasting, the same assumption
-  `Maintenance::BatchedDistanceQuery`'s `acquired_on::timestamp` cast already relies
-  on, so this reuses that convention rather than inventing a new one.
+  via Rails' normal attribute typecasting, the same assumption every requirement's
+  synthetic-fallback baseline date relies on when it falls back to `acquired_on` (see
+  "Service intervals and maintenance alerts" below), so this reuses that convention
+  rather than inventing a new one.
 - **`/bikes/:id/setup`** (`BikeSetup.tsx`) is a page, not a step inside
   `BikeFormModal` — the checklist can run to 18 rows. One row per `trackable`
   category from `useAllCategories()` not already fully slotted; a category already
@@ -1641,7 +1845,7 @@ table cell per row, not two).
 2. Core CRUD — Bike, Component, ComponentAssignment, MaintenanceEvent models +
    JSON REST controllers (index/show/create/update/destroy), consumed by the
    separate Vite frontend. Done. `Component#show` returns `total_distance`
-   (and, since Phase 4, each service interval's computed status).
+   (and, since Phase 4, each service requirement's computed status).
 3. Strava OAuth + activity sync + gear-to-bike mapping. Done, with one
    intentional deferral: sync is manually triggered for now (`bin/rails
    strava:sync_all` is ready for a future scheduler once the app is deployed).
@@ -1679,8 +1883,11 @@ table cell per row, not two).
    logging (`ServiceSession`, `Bikes::ServiceableComponents`'s point-in-time
    eligibility, the `BatchServiceModal` logger) shipped here too — see
    "Batch service logging" above. The Activity log (`Activity::Feed`, the
-   `/activity` page) shipped here too — see "Activity log" above. Deploy,
-   webhooks, and charts remain.
+   `/activity` page) shipped here too — see "Activity log" above. Service
+   intervals were rewritten into the requirement/satisfier model (multiple
+   services satisfying one requirement at different allowances, moving-time and
+   calendar dimensions, ride-filtered counting) shipped here too — see "Service
+   intervals and maintenance alerts" above. Deploy, webhooks, and charts remain.
 
 ## Conventions
 

@@ -53,10 +53,9 @@ interface ThresholdOwner {
 }
 
 // Whichever threshold is reached first drives the requirement due, so this
-// joins every set dimension with " / " -- same convention as the old
-// formatInterval (distance / days) in utils/serviceInterval.ts, extended to
-// a third dimension. Takes any requirement-shaped object (a template, a raw
-// ComponentServiceRequirement, or a WithStatus row's effective values).
+// joins every set dimension with " / ". Takes any requirement-shaped object
+// (a template, a raw ComponentServiceRequirement, or a WithStatus row's
+// effective values).
 export function formatThresholdSummary(requirement: ThresholdOwner): string {
   const parts: string[] = []
   if (requirement.distance_meters != null) parts.push(formatDistance(requirement.distance_meters))
