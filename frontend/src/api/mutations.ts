@@ -308,6 +308,31 @@ export function useDeleteComponentAssignment() {
   })
 }
 
+export interface SwapComponentAssignmentPayload {
+  assignmentId: number
+  component_id: number
+  swapped_at: string
+}
+
+export interface SwapComponentAssignmentResult {
+  assignment: ComponentAssignment
+  ended_assignment: ComponentAssignment
+}
+
+// The one-step chain-swap action: ends assignmentId at swapped_at and
+// installs component_id in its place, same bike and slot. Invalidates the
+// same groups Remove/Install already do (setup, serviceStatus, history) --
+// serviceStatus's own group already covers ['dashboard'], so a separate
+// dashboard entry isn't needed.
+export function useSwapComponentAssignment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ assignmentId, ...body }: SwapComponentAssignmentPayload) =>
+      apiPost<SwapComponentAssignmentResult>(`/component_assignments/${assignmentId}/swap`, body),
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
+  })
+}
+
 // ServiceType
 
 export function useCreateServiceType() {

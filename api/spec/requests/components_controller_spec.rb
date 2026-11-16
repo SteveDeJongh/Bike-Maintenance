@@ -125,14 +125,16 @@ RSpec.describe "Components", type: :request do
       expect(JSON.parse(response.body)["current_bikes"]).to eq([])
     end
 
-    it "includes the one bike a component is currently installed on" do
+    it "includes the one bike a component is currently installed on, with that assignment's own id (for swap)" do
       bike = create(:bike, user: current_user, name: "Juan Solo")
       component = create(:component, user: current_user)
-      create(:component_assignment, component: component, bike: bike, ended_at: nil)
+      assignment = create(:component_assignment, component: component, bike: bike, ended_at: nil)
 
       get "/components/#{component.id}"
 
-      expect(JSON.parse(response.body)["current_bikes"]).to eq([ { "id" => bike.id, "name" => "Juan Solo" } ])
+      expect(JSON.parse(response.body)["current_bikes"]).to eq(
+        [ { "id" => bike.id, "name" => "Juan Solo", "assignment_id" => assignment.id } ],
+      )
     end
 
     it "includes both bikes for a component concurrently shared indoor_only across two bikes" do

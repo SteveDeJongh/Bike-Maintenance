@@ -4,6 +4,7 @@ import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Text, Title } from 
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
+import SwapComponentModal from '../components/forms/SwapComponentModal'
 import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
@@ -17,6 +18,7 @@ export default function ComponentDetail() {
   const { data: component, isPending, error } = useComponent(componentId)
 
   const [editOpened, setEditOpened] = useState(false)
+  const [swapAssignmentId, setSwapAssignmentId] = useState<number | null>(null)
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -60,9 +62,23 @@ export default function ComponentDetail() {
             </Text>
           )}
         </div>
-        <Button variant="default" onClick={() => setEditOpened(true)}>
-          Edit
-        </Button>
+        <Group gap="xs" align="flex-start">
+          {component.current_bikes.map(
+            (bike) =>
+              bike.assignment_id != null && (
+                <Button
+                  key={bike.id}
+                  variant="default"
+                  onClick={() => setSwapAssignmentId(bike.assignment_id!)}
+                >
+                  {component.current_bikes.length > 1 ? `Swap (${bike.name})…` : 'Swap…'}
+                </Button>
+              ),
+          )}
+          <Button variant="default" onClick={() => setEditOpened(true)}>
+            Edit
+          </Button>
+        </Group>
       </Group>
 
       <MaintenanceAlertBanners scope={{ componentId: componentId }} />
@@ -86,6 +102,16 @@ export default function ComponentDetail() {
         onClose={() => setEditOpened(false)}
         component={component}
       />
+
+      {swapAssignmentId != null && (
+        <SwapComponentModal
+          opened
+          onClose={() => setSwapAssignmentId(null)}
+          assignmentId={swapAssignmentId}
+          category={component.category}
+          currentComponentId={component.id}
+        />
+      )}
     </Stack>
   )
 }

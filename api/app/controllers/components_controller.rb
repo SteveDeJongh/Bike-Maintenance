@@ -17,7 +17,8 @@ class ComponentsController < ApplicationController
   # GET /components/1
   def show
     service_requirements = Maintenance::RequirementStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
-    current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike).map { |a| { id: a.bike.id, name: a.bike.name } }
+    current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike)
+      .map { |a| { id: a.bike.id, name: a.bike.name, assignment_id: a.id } }
 
     render json: @component.as_json(methods: %i[ total_distance ]).merge(
       service_requirements: service_requirements,

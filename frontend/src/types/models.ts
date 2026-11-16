@@ -134,6 +134,10 @@ export interface Component {
 export interface ComponentCurrentBike {
   id: number
   name: string
+  // Only present on GET /components/:id (ComponentDetail), not the
+  // Components list's own current_bikes -- the one-step swap action needs
+  // this assignment's own id, which the list has no use for.
+  assignment_id?: number
 }
 
 // GET /components adds these read-only fields on top of Component's own
@@ -552,6 +556,10 @@ export interface DashboardDisplayMetric {
 
 export interface DashboardMountedComponent {
   component_id: number
+  // The active assignment this mounted row represents -- needed by the
+  // one-step swap action (POST /component_assignments/:id/swap), which
+  // this row's own "Swap" tap target uses.
+  assignment_id: number
   label: string
   category: string
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'

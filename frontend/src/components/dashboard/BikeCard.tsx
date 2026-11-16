@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Card, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
+import SwapComponentModal from '../forms/SwapComponentModal'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { SERVICE_STATUS_COLORS } from '../../constants'
 import { formatDate } from '../../utils/datetime'
@@ -41,27 +42,47 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Tapping the row is the phone shortcut for a swap -- it opens
+// SwapComponentModal directly (preselecting the other component when
+// there's exactly one eligible), so the whole flow is a tap to open plus
+// a tap on the modal's own "Swap" button to confirm, nothing more.
 function MountedRow({ component }: { component: DashboardMountedComponent }) {
+  const [swapOpened, setSwapOpened] = useState(false)
   const dotColor = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
 
   return (
-    <Group justify="space-between" wrap="nowrap" gap="xs">
-      <Group gap={6} wrap="nowrap">
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            flexShrink: 0,
-            borderRadius: '50%',
-            backgroundColor: `var(--mantine-color-${dotColor}-6)`,
-          }}
-        />
-        <Text size="sm">{component.label}</Text>
+    <>
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        gap="xs"
+        onClick={() => setSwapOpened(true)}
+        style={{ cursor: 'pointer' }}
+      >
+        <Group gap={6} wrap="nowrap">
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              flexShrink: 0,
+              borderRadius: '50%',
+              backgroundColor: `var(--mantine-color-${dotColor}-6)`,
+            }}
+          />
+          <Text size="sm">{component.label}</Text>
+        </Group>
+        <Text size="sm" c={component.service_status === 'due' ? 'red' : 'dimmed'}>
+          {formatDisplayMetric(component.display_metric)}
+        </Text>
       </Group>
-      <Text size="sm" c={component.service_status === 'due' ? 'red' : 'dimmed'}>
-        {formatDisplayMetric(component.display_metric)}
-      </Text>
-    </Group>
+      <SwapComponentModal
+        opened={swapOpened}
+        onClose={() => setSwapOpened(false)}
+        assignmentId={component.assignment_id}
+        category={component.category}
+        currentComponentId={component.component_id}
+      />
+    </>
   )
 }
 

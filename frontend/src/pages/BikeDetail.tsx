@@ -39,6 +39,7 @@ import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import EndAssignmentModal from '../components/forms/EndAssignmentModal'
+import SwapComponentModal from '../components/forms/SwapComponentModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import RideContextCheckboxes from '../components/RideContextCheckboxes'
 import ServiceStatusBadge from '../components/ServiceStatusBadge'
@@ -664,48 +665,69 @@ function SlotRow({
   onRowClick: (assignment: ComponentAssignmentWithStats) => void
   orderedColumns: InstalledComponentColumn[]
 }) {
+  const [swapOpened, setSwapOpened] = useState(false)
+
   if (assignment) {
     return (
-      <Table.Tr onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
-        <Table.Td>{categoryLabel(slot.category)}</Table.Td>
-        <Table.Td>
-          {assignment.ride_context === 'both' ? (
-            RIDE_CONTEXT_LABELS.both
-          ) : (
-            <Badge size="sm" color={assignment.ride_context === 'indoor_only' ? 'grape' : 'blue'}>
-              {RIDE_CONTEXT_LABELS[assignment.ride_context]}
-            </Badge>
-          )}
-        </Table.Td>
-        <Table.Td>
-          <Anchor
-            component={Link}
-            to={`/components/${assignment.component_id}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {assignment.component.label}
-          </Anchor>
-        </Table.Td>
-        {orderedColumns.map((column) => (
-          <Table.Td key={column}>{installedComponentRenderer[column](assignment)}</Table.Td>
-        ))}
-        <Table.Td>
-          <Group justify="flex-end">
-            <Button
-              size="xs"
-              variant="subtle"
-              color="red"
-              onClick={(event) => {
-                event.stopPropagation()
-                onEndAssignment(assignment)
-              }}
+      <>
+        <Table.Tr onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
+          <Table.Td>{categoryLabel(slot.category)}</Table.Td>
+          <Table.Td>
+            {assignment.ride_context === 'both' ? (
+              RIDE_CONTEXT_LABELS.both
+            ) : (
+              <Badge size="sm" color={assignment.ride_context === 'indoor_only' ? 'grape' : 'blue'}>
+                {RIDE_CONTEXT_LABELS[assignment.ride_context]}
+              </Badge>
+            )}
+          </Table.Td>
+          <Table.Td>
+            <Anchor
+              component={Link}
+              to={`/components/${assignment.component_id}`}
+              onClick={(event) => event.stopPropagation()}
             >
-              Remove
-            </Button>
-          </Group>
-        </Table.Td>
-        <Table.Td />
-      </Table.Tr>
+              {assignment.component.label}
+            </Anchor>
+          </Table.Td>
+          {orderedColumns.map((column) => (
+            <Table.Td key={column}>{installedComponentRenderer[column](assignment)}</Table.Td>
+          ))}
+          <Table.Td>
+            <Group justify="flex-end" gap="xs">
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setSwapOpened(true)
+                }}
+              >
+                Swap…
+              </Button>
+              <Button
+                size="xs"
+                variant="subtle"
+                color="red"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEndAssignment(assignment)
+                }}
+              >
+                Remove
+              </Button>
+            </Group>
+          </Table.Td>
+          <Table.Td />
+        </Table.Tr>
+        <SwapComponentModal
+          opened={swapOpened}
+          onClose={() => setSwapOpened(false)}
+          assignmentId={assignment.id}
+          category={assignment.component.category}
+          currentComponentId={assignment.component_id}
+        />
+      </>
     )
   }
 

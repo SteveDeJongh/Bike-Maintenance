@@ -104,7 +104,16 @@ docker build .`), not the repo root.
   Timestamps, not dates: a component can be swapped more than once in a day.
   Validates that `component.user_id == bike.user_id` (no cross-user assignments).
   Reachable from a `User` via `has_many through:` on `bikes` — no direct `user_id`
-  column of its own.
+  column of its own. `#overlaps?` (the private helper both overlap validations above
+  share) is **half-open** (`[started_at, ended_at)`), matching attribution's own
+  windowing (`#activities_from`, `Component#total_distance`) — a range that starts
+  exactly where another ends does not overlap, same as a ride on that exact instant
+  is already credited to exactly one of the two, never both. This is what makes the
+  one-step swap (`ComponentAssignments::Swap`, see "One-step component swap" below)
+  a valid assignment pair at all: its two assignments always share an exact boundary.
+  **Flagged for the project plan doc** per this file's own convention — `overlaps?`
+  used to be closed-range (an exactly-equal boundary counted as overlapping), so this
+  is a real change to a model validation rule, not just a new feature.
 - `ComponentCategorySetting`: user_id, category, default_ride_context (string, same
   3-value enum/validation as `ComponentAssignment#ride_context`, DB default `"both"`),
   trackable (boolean, DB default `true`), allows_multiple_assignments (boolean, DB
@@ -783,6 +792,59 @@ this bike" gets computed and how the batch logger itself works.
 
 **Flagged for the project plan doc** per this file's own convention: the new
 `service_sessions` table and `maintenance_events.service_session_id`.
+
+## One-step component swap
+
+The app's main use case (two waxed chains rotating on a Cervelo Soloist) used to
+take two separate actions to swap one chain for the other — "Remove" the current
+one, then "Install" the other in the now-empty slot — with the two timestamps
+landing slightly apart (Activity log's `MERGE_TOLERANCE` exists specifically to
+paper over that gap). This replaces both with one action, one exact timestamp.
+
+- **`POST /component_assignments/:id/swap`** (`{ component_id, swapped_at }`,
+  `swapped_at` defaulting to now) ends assignment `:id` at `swapped_at` and
+  creates a new assignment for `component_id` on the same bike and slot (same
+  `bike_id`, `category`, `ride_context`) starting at exactly that instant, in one
+  transaction — a valid, non-overlapping pair now that `ComponentAssignment#overlaps?`
+  is half-open (see the data model above). `app/services/component_assignments/swap.rb`
+  (`ComponentAssignments::Swap`) owns the transaction and every swap-specific
+  precondition — same category, not retired, not the same component, `swapped_at`
+  after the current assignment's own `started_at` and not in the future (a
+  5-minute `FUTURE_TOLERANCE`, same order of magnitude as
+  `ServiceSession::FUTURE_TOLERANCE`) — returned as `{ base: [...] }`, the same
+  shape this app's cross-user "not found" responses already use for non-field
+  errors. Whether the new component is already mounted in a conflicting way is
+  deliberately left to `ComponentAssignment`'s own overlap validations, surfaced
+  via the new assignment's own `.errors` when `.save` fails, rather than
+  re-implemented in the service. The controller scopes both records to
+  `current_user` (the existing assignment via the controller's own
+  `set_component_assignment`, the new component via `current_user.components.find_by`,
+  404ing like every other cross-user access in this controller) and parses
+  `swapped_at` before handing off.
+- **`SwapComponentModal`** (`frontend/src/components/forms/SwapComponentModal.tsx`)
+  is the one shared modal behind every "Swap…" entry point — a `Select` of
+  eligible same-category components (not retired, not the current one; each
+  option's caption shows total distance and its worst-status requirement's own
+  remaining/overdue text, via `useComponentsDetails` — a small `useQueries`-based
+  hook fetching each eligible candidate's own `GET /components/:id`, same
+  "fine for a handful, not for a many-row list" scale `Component#total_distance`'s
+  own note already describes) plus a `DateTimePicker` defaulting to now, through
+  `AppModal`. When exactly one other eligible component exists — the common
+  case, the other chain — it's preselected, so swapping is one tap to open plus
+  one tap on "Swap" to confirm. Entry points: the bike page's installed-components
+  table (`BikeDetail.tsx`'s `SlotRow`, a plain "Swap…" button next to "Remove")
+  and its mobile cards (`InstalledComponentsCardList`'s `FilledSlotCard`, inside
+  the "⋯" menu); `ComponentDetail.tsx`, one "Swap…" button per bike the component
+  is currently mounted on (plural in the rare indoor_only-shared-across-bikes
+  case); and the dashboard's `BikeCard`, where tapping a `MountedRow` itself opens
+  the modal directly — the one-tap-plus-confirm phone shortcut the feature's own
+  rationale calls for. "Remove" and "Install" are both untouched everywhere —
+  swap is an addition, not a replacement. On success, invalidates `setup`,
+  `serviceStatus` (which already covers `dashboard`), and `history` — the same
+  groups `useCreateComponentAssignment`/`useDeleteComponentAssignment` already use.
+  `ComponentCurrentBike`/`DashboardMountedComponent` both gained an `assignment_id`
+  field (the swap action's own target) — `ComponentCurrentBike`'s is optional, since
+  only `GET /components/:id` (not the Components list's own `current_bikes`) sets it.
 
 ## Strava integration
 
@@ -1932,15 +1994,17 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
 - **The install/removal merge rule**: a `setup_removed` and a `setup_installed`
   entry merge into one `replaced` entry when they're the same slot (`bike_id` +
   `category` + `ride_context`) and the install's `started_at` is within
-  `Activity::Feed::MERGE_TOLERANCE` (1 minute) of the removal's `ended_at` — **not**
-  exact equality, despite that being the first, more obvious rule to reach for:
-  `ComponentAssignment`'s own `no_overlapping_assignment_for_bike_slot` validation
-  (`overlaps?`) treats an exactly-equal boundary as still overlapping, so a real
-  swap can never actually be created with one — it always has a small real gap, and
-  an exact-match rule would never fire on real data. The tolerance is the same
-  small, clock-skew-sized allowance this codebase already uses elsewhere
-  (`ServiceSession::FUTURE_TOLERANCE`, `StravaCredential`'s refresh buffer), not a
-  new fuzzy-matching concept. Merging is a post-hydration, in-memory pass over one
+  `Activity::Feed::MERGE_TOLERANCE` (1 minute, a `<=` comparison) of the removal's
+  `ended_at`. The one-step swap endpoint (`ComponentAssignments::Swap`, see
+  "One-step component swap" below) always produces an exactly-equal boundary,
+  which this tolerance already covers without relying on it at all — it's the
+  older, hand-made two-action path (Remove, then Install separately) this
+  tolerance actually exists for: two separate requests can never land on the
+  exact same timestamp, so that real swap always has a small real gap. The
+  tolerance is the same small, clock-skew-sized allowance this codebase already
+  uses elsewhere (`ServiceSession::FUTURE_TOLERANCE`, `StravaCredential`'s
+  refresh buffer), not a new fuzzy-matching concept. Merging is a post-hydration,
+  in-memory pass over one
   page's entries (bounded by `per_page`) — a replace pair that straddles an exact
   page boundary displays as two separate entries instead of one, an accepted,
   cosmetic limitation. Component retirement deliberately never appears here — it
@@ -2221,15 +2285,16 @@ table cell per row, not two).
    it still scrolls horizontally), and every non-configurable table at
    least scrolls horizontally instead of overflowing the page -- see
    "Sortable, configurable tables" above for the full breakdown. Step 3
-   (forms/modals) is partly done: the breakpoint now matches the nav
-   shell's CSS exactly, iOS no longer zooms in on form fields, every form
-   modal goes full-screen on mobile via the shared `AppModal` with a
-   sticky header/footer, and date pickers open as a modal instead of a
-   clipped popover -- see "Layout and navigation" above. The one-step
-   component swap (the other half of step 3, a new feature rather than a
-   layout fix) remains, along with mobile quick actions and step 4
-   (splitting up the large page files). Deploy, webhooks, and charts also
-   remain.
+   of 4 is done: the mobile breakpoint now matches the nav shell's CSS
+   exactly, iOS no longer zooms in on form fields, every form modal goes
+   full-screen on mobile via the shared `AppModal` with a sticky header/
+   footer, date pickers open as a modal instead of a clipped popover (see
+   "Layout and navigation" above), known small touch targets were bumped
+   to 44px on mobile, and the one-step component swap shipped as this
+   step's one new feature (not just a layout fix) -- see "One-step
+   component swap" above. Step 4 (splitting up the large page files --
+   `BikeDetail.tsx`, `Activity.tsx`) remains. Deploy, webhooks, and charts
+   also remain.
 
 ## Conventions
 

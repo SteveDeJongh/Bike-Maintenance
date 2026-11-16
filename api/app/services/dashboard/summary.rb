@@ -102,6 +102,7 @@ module Dashboard
 
         {
           component_id: component.id,
+          assignment_id: assignment.id,
           label: component.label,
           category: component.category,
           ride_context: assignment.ride_context,
