@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
@@ -9,9 +9,12 @@ import { confirmDelete } from '../components/confirmDelete'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
+import DataCardList from '../components/datatable/DataCardList'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
+import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   categoryLabel,
@@ -30,6 +33,14 @@ const COMPONENT_LIST_COLUMN_OPTIONS = COMPONENT_LIST_COLUMNS.map((column) => ({
   key: column,
   label: COMPONENT_LIST_COLUMN_LABELS[column],
 }))
+
+// MobileSortControl needs a label for every sortable column, including the
+// pinned "label" column -- which COMPONENT_LIST_COLUMN_LABELS doesn't carry,
+// since it's not one of the toggleable columns.
+const COMPONENT_LIST_SORT_COLUMN_LABELS: Record<ComponentListSortColumn, string> = {
+  label: 'Label',
+  ...COMPONENT_LIST_COLUMN_LABELS,
+}
 
 const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceStatus) => ReactNode> = {
   category: (c) => categoryLabel(c.category),
@@ -157,6 +168,7 @@ function ComponentsTable({
     defaultSort: { column: 'label', direction: 'asc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
 
   const sortedComponents = useMemo(() => {
     const accessor = componentValue[sortColumn]
@@ -182,70 +194,102 @@ function ComponentsTable({
         </Alert>
       )}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Label"
-                  active={sortColumn === 'label'}
-                  direction={sortDirection}
-                  onClick={() => setSort('label')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={COMPONENT_LIST_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
-                    direction={sortDirection}
-                    onSort={() => setSort(column)}
-                  />
-                ))}
-                <Table.Th />
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={COMPONENT_LIST_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as ComponentListColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as ComponentListColumn, overKey as ComponentListColumn)
-                    }
-                  />
-                </Table.Th>
-              </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedComponents.map((component) => (
-            <Table.Tr key={component.id}>
-              <Table.Td>
-                <Anchor component={Link} to={`/components/${component.id}`}>
-                  {component.label}
-                </Anchor>
-              </Table.Td>
-              {orderedColumns.map((column) => (
-                <Table.Td key={column}>{componentRenderer[column](component)}</Table.Td>
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={COMPONENT_LIST_SORT_COLUMNS}
+            columnLabels={COMPONENT_LIST_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <DataCardList
+            rows={sortedComponents}
+            getKey={(component) => component.id}
+            renderTitle={(component) => (
+              <Anchor component={Link} to={`/components/${component.id}`} fw={500}>
+                {component.label}
+              </Anchor>
+            )}
+            orderedColumns={orderedColumns}
+            columnLabels={COMPONENT_LIST_COLUMN_LABELS}
+            columnRenderer={componentRenderer}
+            renderActions={(component) => (
+              <>
+                <Menu.Item onClick={() => onEdit(component)}>Edit</Menu.Item>
+                <Menu.Item color="red" onClick={() => onDelete(component)}>
+                  Delete
+                </Menu.Item>
+              </>
+            )}
+          />
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                  <Table.Tr>
+                    <SortableHeaderCell
+                      label="Label"
+                      active={sortColumn === 'label'}
+                      direction={sortDirection}
+                      onClick={() => setSort('label')}
+                    />
+                    {orderedColumns.map((column) => (
+                      <DraggableHeaderCell
+                        key={column}
+                        columnKey={column}
+                        label={COMPONENT_LIST_COLUMN_LABELS[column]}
+                        active={sortColumn === column}
+                        direction={sortDirection}
+                        onSort={() => setSort(column)}
+                      />
+                    ))}
+                    <Table.Th />
+                    <Table.Th>
+                      <ColumnPicker
+                        allColumns={COMPONENT_LIST_COLUMN_OPTIONS}
+                        orderedVisible={orderedColumns}
+                        onToggle={(key) => toggleColumn(key as ComponentListColumn)}
+                        onReorder={(activeKey, overKey) =>
+                          reorderColumn(activeKey as ComponentListColumn, overKey as ComponentListColumn)
+                        }
+                      />
+                    </Table.Th>
+                  </Table.Tr>
+                </SortableContext>
+              </DndContext>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedComponents.map((component) => (
+                <Table.Tr key={component.id}>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/components/${component.id}`}>
+                      {component.label}
+                    </Anchor>
+                  </Table.Td>
+                  {orderedColumns.map((column) => (
+                    <Table.Td key={column}>{componentRenderer[column](component)}</Table.Td>
+                  ))}
+                  <Table.Td>
+                    <Group justify="flex-end" gap="xs">
+                      <Button size="xs" variant="subtle" onClick={() => onEdit(component)}>
+                        Edit
+                      </Button>
+                      <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(component)}>
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td />
+                </Table.Tr>
               ))}
-              <Table.Td>
-                <Group justify="flex-end" gap="xs">
-                  <Button size="xs" variant="subtle" onClick={() => onEdit(component)}>
-                    Edit
-                  </Button>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(component)}>
-                    Delete
-                  </Button>
-                </Group>
-              </Table.Td>
-              <Table.Td />
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   )
 }
