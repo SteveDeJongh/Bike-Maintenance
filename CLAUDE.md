@@ -832,7 +832,7 @@ paper over that gap). This replaces both with one action, one exact timestamp.
   `AppModal`. When exactly one other eligible component exists — the common
   case, the other chain — it's preselected, so swapping is one tap to open plus
   one tap on "Swap" to confirm. Entry points: the bike page's installed-components
-  table (`BikeDetail.tsx`'s `SlotRow`, a plain "Swap…" button next to "Remove")
+  table (`components/bike/SlotRow.tsx`, a plain "Swap…" button next to "Remove")
   and its mobile cards (`InstalledComponentsCardList`'s `FilledSlotCard`, inside
   the "⋯" menu); `ComponentDetail.tsx`, one "Swap…" button per bike the component
   is currently mounted on (plural in the rare indoor_only-shared-across-bikes
@@ -1376,12 +1376,11 @@ A future page can adopt the same UX without rework:
   `bike_installed_components`'s card
   (`frontend/src/components/bike/InstalledComponentsCardList.tsx`) and
   `bike_history`'s (`.../ComponentHistoryCardList.tsx`) were pulled into their
-  own files next to `BikeDetail.tsx` rather than grown inline on that already
-  1,000+-line page (due for its own split in a later mobile step) —
+  own files next to `BikeDetail.tsx` rather than grown inline on that page —
   `InstalledComponentsCardList` in particular is deliberately *not* built on
   the shared `DataCardList`: a row there is one of two unrelated UI shapes (a
   real assignment, or an empty slot's own inline install form — see
-  `SlotRow`/`EmptySlotRow` in `BikeDetail.tsx`), which doesn't fit a single
+  `components/bike/SlotRow.tsx`/`EmptySlotRow.tsx`), which doesn't fit a single
   generic column-renderer component. `DataCardList` itself carries an
   optional `onRowClick` prop (used by `bike_history`'s card, which — like its
   desktop row — opens `AssignmentDetailModal` on tap, not only via its
