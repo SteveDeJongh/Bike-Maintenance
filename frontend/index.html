@@ -22,8 +22,29 @@
         } catch (e) {}
       })()
     </script>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- iOS has no native manifest support -- these are what actually make
+         "Add to Home Screen" launch standalone (no Safari chrome) with the
+         right name/icon. mobile-web-app-capable is the non-WebKit-prefixed
+         equivalent other engines have since adopted; both are kept since
+         iOS still only honors its own apple- prefixed one. "black" (not
+         "black-translucent") keeps the status bar opaque so it reserves its
+         own space instead of overlapping page content -- translucent would
+         need safe-area-inset-top handling, which is out of scope here (only
+         the bottom tab bar's home-indicator inset is handled this step). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Bike Maint" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <!-- Matches main.tsx's light body (Mantine's default white) and dark
+         body (theme.colors.dark[7]) exactly, so the OS chrome (and an
+         installed PWA's splash screen background_color, see
+         manifest.webmanifest) never mismatches the page underneath it. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
     <title>Bike Maintenance</title>
   </head>
   <body>

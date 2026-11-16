@@ -1324,6 +1324,155 @@ token/CSS variable (`var(--mantine-color-*)`, a named color like `"teal"` or
 `"red"`, or `"radar"`) so every surface stays correct across both color
 schemes without a per-component light/dark branch.
 
+## Layout and navigation
+
+The app works as one responsive web app on desktop and phone — no separate
+native client. `frontend/src/components/Layout.tsx` (the authenticated
+route tree's shell, rendered by `RequireAuth`) swaps between a desktop
+sidebar and a mobile bottom tab bar at Mantine's `sm` breakpoint (48em /
+768px) — the same cutoff `Activity.tsx`'s own pre-existing `isNarrow` check
+already used.
+
+- **`frontend/src/hooks/useIsMobile.ts`** is the one shared breakpoint
+  check for anything that needs real JS branching (not just CSS
+  visibility) — `useMediaQuery('(max-width: 768px)', false, {
+  getInitialValueInEffect: false })`. The `getInitialValueInEffect: false`
+  matters: Mantine's hook otherwise returns a default value on the first
+  render and only corrects itself one render later inside a `useEffect`,
+  which would flash the desktop layout on a phone for a frame — this app
+  is pure CSR (no SSR), so reading `window.matchMedia` synchronously on the
+  first render is always safe and skips that flash entirely. Reused as-is
+  by `SettingsLayout.tsx` (below) and by mobile steps 2/3 (a responsive
+  datatable kit; full-screen modals and quick actions) — not introduced
+  fresh each time a page needs to know the viewport width.
+- **Prefer Mantine's `hiddenFrom`/`visibleFrom` props, or a component's own
+  native per-breakpoint config, over `useIsMobile()`** wherever a plain CSS
+  show/hide is enough — pure CSS can never flash, since the browser
+  resolves it before paint, with no React render involved at all. `Layout`
+  itself needs no JS breakpoint check whatsoever: `AppShell`'s `navbar`
+  prop has a real per-breakpoint `collapsed: { mobile, desktop }` config
+  (hidden entirely below `sm`, no burger toggle, no React state), the
+  header's `UserMenu` is wrapped in `visibleFrom="sm"`, and the footer
+  (which has no equivalent per-breakpoint `collapsed` config of its own —
+  just a plain boolean) is instead given a **responsive height** object
+  (`{ base: <height>, sm: 0 }`) so it collapses to zero through the exact
+  same breakpoint CSS `navbar.breakpoint` uses. This split is deliberate,
+  not incidental: an earlier pass drove the footer's visibility from
+  `useIsMobile()` instead, and at exactly 768px wide that JS-resolved
+  boundary disagreed with `Navbar`'s own CSS-resolved one by about a
+  pixel — both the sidebar and the tab bar showed at once. Two different
+  visibility mechanisms for what's conceptually the same boundary can
+  disagree right at the boundary; one mechanism can't. (A 0-height footer
+  still needs an explicit `overflow: hidden` — a 0-height box doesn't clip
+  its children by default, so the tab labels' own intrinsic line-height
+  otherwise peeks out below the page on desktop.)
+- **`frontend/src/components/navDestinations.ts`** is the single config
+  array every nav surface reads from — `NAV_DESTINATIONS` (path, label,
+  a `@tabler/icons-react` icon, and an optional `tab: true` flag), in the
+  desktop sidebar's own display order. `TAB_DESTINATIONS` (built from a
+  separate `MOBILE_TAB_ORDER` path list — the tab bar's own order,
+  Home/Bikes/Activity/Components, isn't the same as the sidebar's) and
+  `MORE_DESTINATIONS` (everything without `tab: true`) are both derived
+  from the one array, never a second hand-maintained list. Adding a page
+  later means adding one entry here and deciding whether it's a tab or
+  goes in the mobile "More" sheet — the sidebar always shows all of them.
+  `isDestinationActive(destination, pathname)` is the one active-route
+  rule every surface uses: exact match for `/` (Home), prefix match for
+  everything else — so `/bikes/:id`/`/bikes/:id/setup` highlight Bikes,
+  `/components/:id` highlights Components, and `/settings/*` highlights
+  Settings, with no per-item overrides.
+- **Mobile's "More" sheet** (a bottom `Drawer`, opened by the tab bar's
+  fifth slot) lists `MORE_DESTINATIONS` plus two items that aren't nav
+  destinations at all — "Account settings" (a direct link to
+  `/settings/account`) and "Sign out" (an action, not a route) — both
+  moved out of the desktop-only `UserMenu`. The More tab itself shows
+  active whenever the current route matches any `MORE_DESTINATIONS` entry
+  (via the same `isDestinationActive`), and tapping any item inside the
+  sheet closes it.
+- **The iPhone home indicator**: `index.html`'s viewport meta carries
+  `viewport-fit=cover` (required before `env(safe-area-inset-*)` resolves
+  to anything on iOS at all — without it every inset reads as `0`). The
+  tab bar's own height is a `calc()` of a fixed content height plus
+  `env(safe-area-inset-bottom)`, which is what `AppShell` reads to reserve
+  the right amount of bottom padding under page content automatically —
+  the inset itself is applied as the footer's own `padding-bottom`, below
+  the fixed-height tab row, not stacked on top of it.
+- **`SettingsLayout.tsx`** (its own always-visible sub-nav, next to
+  `<Outlet/>`) is the one existing page `useIsMobile()` touches in this
+  step: below `sm` its fixed-width vertical sidebar would force the page
+  wider than the viewport, so it swaps for a horizontally scrollable row
+  above the content instead of overflowing. Tables and modals are
+  deliberately untouched here — a responsive datatable kit (scroll
+  containers, a card view on narrow screens) and full-screen modals/mobile
+  quick actions are their own, later steps.
+- Every route under `Layout` either is a top-level `NAV_DESTINATIONS`
+  entry, a settings sub-page reachable from `SettingsLayout`'s own
+  always-visible sub-nav, or already has a visible "Back to…" link
+  (`BikeDetail`, `ComponentDetail`, `BikeSetup`) — confirmed deliberately,
+  since an installed PWA has no browser back button to fall back on.
+
+## PWA
+
+Installable (`manifest.webmanifest`, home-screen icons, standalone
+display) so the app can be added to a phone's home screen and launch
+without browser chrome — no offline support or push notifications yet;
+both are deliberately deferred (no service worker in this app at all).
+
+- **`frontend/public/manifest.webmanifest`**: `name`/`short_name`,
+  `start_url`/`scope` both `/`, `display: "standalone"`. `background_color`
+  and `theme_color` are both the **dark-mode body color**
+  (`theme.colors.dark[7]`, `#0A0A0A` — see "Theming" above), not the icon
+  artwork's own `#0F3B3A` teal background, so an installed app's splash
+  screen matches the page underneath it rather than the icon's own frame.
+- **`frontend/public/icons/`**: `icon-192.png`/`icon-512.png` (full-bleed
+  standard icons, `purpose: "any"`), `icon-maskable-512.png` (the same
+  artwork shrunk to 80% on the same background — Android's masked-icon
+  shapes crop into the full-bleed canvas, so maskable art needs that
+  margin to avoid losing content at the edges, `purpose: "maskable"`),
+  `apple-touch-icon.png` (180×180, iOS's own icon, no manifest support
+  needed for it), `favicon-32.png` (the browser-tab icon, replacing Vite's
+  default `favicon.svg`, now deleted).
+- **`index.html`**: links the manifest and both icons; iOS has no native
+  manifest support at all, so the actual "launches standalone, no Safari
+  chrome, right name/icon" behavior on iOS comes entirely from
+  `apple-mobile-web-app-capable`/`apple-mobile-web-app-title`/
+  `apple-mobile-web-app-status-bar-style` metas (plus `mobile-web-app-capable`,
+  the non-prefixed equivalent other engines have since adopted — both are
+  kept since iOS still only honors its own prefixed one).
+  `apple-mobile-web-app-status-bar-style` is `"black"`, not
+  `"black-translucent"` — translucent would let page content draw under
+  the status bar, which needs `env(safe-area-inset-top)` handling this
+  step doesn't do (only the tab bar's bottom inset is handled — see
+  "Layout and navigation" above); opaque `"black"` keeps the status bar
+  reserving its own space instead. Two `theme-color` metas, one per
+  `prefers-color-scheme`, match `main.tsx`'s light (Mantine's default
+  white) and dark (`#0A0A0A`) body colors exactly, same reasoning as the
+  manifest's own `background_color`/`theme_color`.
+- **iOS standalone auth caveat — to test once deployed** (this can only
+  really be verified on the real deployed custom domain over HTTPS, not
+  locally): an installed (standalone) iOS PWA keeps its own cookie jar,
+  separate from Safari's. Expected behavior per sign-in path, to confirm
+  once there's a real deployment:
+  - **Email/password** (`/login`): works normally — it's a same-origin
+    form POST, never leaves the PWA's own webview, so the session cookie
+    lands exactly where it's set.
+  - **Strava/Google OAuth**: the redirect to the provider's own domain and
+    back may open in an in-app browser sheet (`SFSafariViewController`)
+    rather than staying inside the installed app's own webview, depending
+    on iOS version and how the link was activated — if so, the callback's
+    `Set-Cookie` may land in that sheet's own storage, not the PWA's,
+    leaving the PWA looking signed-out even though the browser sheet
+    itself shows a successful callback. Needs a real-device check; if this
+    bites, the fix is almost certainly on Strava/Google's end (can't
+    control how iOS chooses to present an external-domain redirect from
+    inside a standalone web app), not something this app's code can patch
+    around.
+  - **Email verification / password reset links**: these arrive in an
+    email client, so tapping one opens Safari (or whatever the system
+    default browser is), never the installed PWA directly, regardless of
+    platform — by design, not a bug to fix; the resulting session lives in
+    Safari's own storage, separate from the PWA's.
+
 ## Dashboard
 
 The app's landing page (`frontend/src/pages/Dashboard.tsx`, at `/`) answers "is my
@@ -1887,7 +2036,12 @@ table cell per row, not two).
    intervals were rewritten into the requirement/satisfier model (multiple
    services satisfying one requirement at different allowances, moving-time and
    calendar dimensions, ride-filtered counting) shipped here too — see "Service
-   intervals and maintenance alerts" above. Deploy, webhooks, and charts remain.
+   intervals and maintenance alerts" above. Mobile responsiveness is in
+   progress: step 1 of 4 (a responsive app shell -- desktop sidebar/mobile
+   tab bar, PWA install) is done, see "Layout and navigation" and "PWA"
+   above; a responsive datatable kit, full-screen modals/mobile quick
+   actions, and splitting up the large page files remain. Deploy, webhooks,
+   and charts also remain.
 
 ## Conventions
 
