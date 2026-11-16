@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
@@ -8,9 +8,12 @@ import { useDeleteMaintenanceEvent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
 import ColumnPicker from '../components/datatable/ColumnPicker'
+import DataCardList from '../components/datatable/DataCardList'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
+import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   DEFAULT_MAINTENANCE_EVENT_LIST_COLUMNS,
@@ -29,6 +32,14 @@ const MAINTENANCE_EVENT_LIST_COLUMN_OPTIONS = MAINTENANCE_EVENT_LIST_COLUMNS.map
   key: column,
   label: MAINTENANCE_EVENT_LIST_COLUMN_LABELS[column],
 }))
+
+// MobileSortControl needs a label for every sortable column, including the
+// pinned "component_label" column -- which MAINTENANCE_EVENT_LIST_COLUMN_LABELS
+// doesn't carry, since it's not one of the toggleable columns.
+const MAINTENANCE_EVENT_LIST_SORT_COLUMN_LABELS: Record<MaintenanceEventListSortColumn, string> = {
+  component_label: 'Component',
+  ...MAINTENANCE_EVENT_LIST_COLUMN_LABELS,
+}
 
 export default function MaintenanceEvents() {
   const { data, isPending, isError, error } = useMaintenanceEvents()
@@ -143,6 +154,7 @@ function MaintenanceEventsTable({
     defaultSort: { column: 'performed_at', direction: 'desc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
 
   function componentLabel(componentId: number) {
     return components.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
@@ -188,70 +200,105 @@ function MaintenanceEventsTable({
         </Alert>
       )}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Component"
-                  active={sortColumn === 'component_label'}
-                  direction={sortDirection}
-                  onClick={() => setSort('component_label')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={MAINTENANCE_EVENT_LIST_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
-                    direction={sortDirection}
-                    onSort={() => setSort(column)}
-                  />
-                ))}
-                <Table.Th />
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={MAINTENANCE_EVENT_LIST_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as MaintenanceEventListColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as MaintenanceEventListColumn, overKey as MaintenanceEventListColumn)
-                    }
-                  />
-                </Table.Th>
-              </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedEvents.map((event) => (
-            <Table.Tr key={event.id}>
-              <Table.Td>
-                <Anchor component={Link} to={`/components/${event.component_id}`}>
-                  {componentLabel(event.component_id)}
-                </Anchor>
-              </Table.Td>
-              {orderedColumns.map((column) => (
-                <Table.Td key={column}>{maintenanceEventRenderer[column](event)}</Table.Td>
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={MAINTENANCE_EVENT_LIST_SORT_COLUMNS}
+            columnLabels={MAINTENANCE_EVENT_LIST_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <DataCardList
+            rows={sortedEvents}
+            getKey={(event) => event.id}
+            renderTitle={(event) => (
+              <Anchor component={Link} to={`/components/${event.component_id}`} fw={500}>
+                {componentLabel(event.component_id)}
+              </Anchor>
+            )}
+            orderedColumns={orderedColumns}
+            columnLabels={MAINTENANCE_EVENT_LIST_COLUMN_LABELS}
+            columnRenderer={maintenanceEventRenderer}
+            renderActions={(event) => (
+              <>
+                <Menu.Item onClick={() => onEdit(event)}>Edit</Menu.Item>
+                <Menu.Item color="red" onClick={() => onDelete(event)}>
+                  Delete
+                </Menu.Item>
+              </>
+            )}
+          />
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                  <Table.Tr>
+                    <SortableHeaderCell
+                      label="Component"
+                      active={sortColumn === 'component_label'}
+                      direction={sortDirection}
+                      onClick={() => setSort('component_label')}
+                    />
+                    {orderedColumns.map((column) => (
+                      <DraggableHeaderCell
+                        key={column}
+                        columnKey={column}
+                        label={MAINTENANCE_EVENT_LIST_COLUMN_LABELS[column]}
+                        active={sortColumn === column}
+                        direction={sortDirection}
+                        onSort={() => setSort(column)}
+                      />
+                    ))}
+                    <Table.Th />
+                    <Table.Th>
+                      <ColumnPicker
+                        allColumns={MAINTENANCE_EVENT_LIST_COLUMN_OPTIONS}
+                        orderedVisible={orderedColumns}
+                        onToggle={(key) => toggleColumn(key as MaintenanceEventListColumn)}
+                        onReorder={(activeKey, overKey) =>
+                          reorderColumn(
+                            activeKey as MaintenanceEventListColumn,
+                            overKey as MaintenanceEventListColumn,
+                          )
+                        }
+                      />
+                    </Table.Th>
+                  </Table.Tr>
+                </SortableContext>
+              </DndContext>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedEvents.map((event) => (
+                <Table.Tr key={event.id}>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/components/${event.component_id}`}>
+                      {componentLabel(event.component_id)}
+                    </Anchor>
+                  </Table.Td>
+                  {orderedColumns.map((column) => (
+                    <Table.Td key={column}>{maintenanceEventRenderer[column](event)}</Table.Td>
+                  ))}
+                  <Table.Td>
+                    <Group justify="flex-end" gap="xs">
+                      <Button size="xs" variant="subtle" onClick={() => onEdit(event)}>
+                        Edit
+                      </Button>
+                      <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(event)}>
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td />
+                </Table.Tr>
               ))}
-              <Table.Td>
-                <Group justify="flex-end" gap="xs">
-                  <Button size="xs" variant="subtle" onClick={() => onEdit(event)}>
-                    Edit
-                  </Button>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(event)}>
-                    Delete
-                  </Button>
-                </Group>
-              </Table.Td>
-              <Table.Td />
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   )
 }
