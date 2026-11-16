@@ -18,32 +18,27 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { useDebouncedValue } from '@mantine/hooks'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
 import { IconArrowsExchange, IconBike, IconChevronDown, IconChevronRight, IconTool, type Icon } from '@tabler/icons-react'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
-import { useUpdateTableViewPreference } from '../api/mutations'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../components/ride/rideColumnRenderers'
 import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
 import ResyncRideButton from '../components/ride/ResyncRideButton'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
-import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from '../components/activity/dateRanges'
+import { useActivityFilters, type DatePreset, type SortMetric } from '../components/activity/useActivityFilters'
 import { activityItemIconMeta, initialPerformedAtForRide, nonRideNote } from '../components/activity/activityItemMeta'
 import {
   ACTIVITY_UI_KINDS,
   ACTIVITY_KIND_LABELS,
-  DEFAULT_ACTIVITY_KINDS,
   ACTIVITY_LOG_COLUMNS,
   ACTIVITY_LOG_COLUMN_LABELS,
-  DEFAULT_ACTIVITY_LOG_COLUMNS,
   type ActivityLogColumn,
 } from '../constants'
 import { formatDateTime } from '../utils/datetime'
@@ -59,14 +54,6 @@ import type {
   ActivityUiKind,
   TableViewPreferenceData,
 } from '../types/models'
-
-type Order = 'asc' | 'desc'
-type SortMetric = 'date' | 'distance'
-type DatePreset = 'this_week' | 'this_month' | 'this_year' | 'last_30_days' | 'custom'
-
-function isActivityUiKind(value: string): value is ActivityUiKind {
-  return (ACTIVITY_UI_KINDS as readonly string[]).includes(value)
-}
 
 // Gates the whole page on activity_log's TableViewPreference resolving
 // first, same two-component wrapper/Inner split as every other adopter of
@@ -124,17 +111,38 @@ const ACTIVITY_UI_KIND_ICON: Record<ActivityUiKind, Icon> = {
 }
 
 function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {
-  const [kinds, setKinds] = useState<ActivityUiKind[]>(() => {
-    const stored = initialData.kinds?.filter(isActivityUiKind)
-    return stored && stored.length > 0 ? stored : DEFAULT_ACTIVITY_KINDS
-  })
-  const [bikeId, setBikeId] = useState<number | undefined>(undefined)
-  const [componentId, setComponentId] = useState<number | undefined>(undefined)
-  const [datePreset, setDatePreset] = useState<DatePreset | null>(null)
-  const [customRange, setCustomRange] = useState<[string | null, string | null]>([null, null])
-  const [qInput, setQInput] = useState('')
-  const [q] = useDebouncedValue(qInput, 300)
-  const [sortMetric, setSortMetric] = useState<SortMetric>('date')
+  const {
+    kinds,
+    toggleKind,
+    bikeId,
+    setBikeId,
+    componentId,
+    setComponentId,
+    datePreset,
+    setDatePreset,
+    customRange,
+    setCustomRange,
+    qInput,
+    setQInput,
+    q,
+    sortMetric,
+    setSortMetric,
+    rideOnly,
+    order,
+    handleOrderChange,
+    orderedColumns,
+    toggleColumn,
+    reorderColumn,
+    onHeaderDragEnd,
+    saveError,
+    clearSaveError,
+    tz,
+    from,
+    to,
+    clearFilters,
+    hasActiveFilters,
+  } = useActivityFilters(initialData)
+
   const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
   const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
   const [batchServiceRide, setBatchServiceRide] = useState<ActivityRideItem | null>(null)
@@ -149,77 +157,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
     })
   }
 
-  const rideOnly = kinds.length === 1 && kinds[0] === 'ride'
-
-  // Sort-by-distance only makes sense with Rides as the sole selected kind
-  // (GET /activity's own 422 rule) -- adjusted during render (React's
-  // documented "resetting state when a prop changes" pattern) rather than
-  // an effect, same convention as the Rides tab's own filter-reset logic.
-  const [prevRideOnly, setPrevRideOnly] = useState(rideOnly)
-  if (prevRideOnly !== rideOnly) {
-    setPrevRideOnly(rideOnly)
-    if (!rideOnly && sortMetric === 'distance') setSortMetric('date')
-  }
-
-  const updatePreference = useUpdateTableViewPreference('activity_log')
-
-  const {
-    orderedColumns,
-    toggleColumn,
-    reorderColumn,
-    onHeaderDragEnd,
-    sortColumn,
-    sortDirection,
-    setSort,
-    saveError,
-    clearSaveError,
-  } = useTableViewPreferences<ActivityLogColumn, 'occurred_at'>({
-    tableKey: 'activity_log',
-    initialData,
-    allColumns: ACTIVITY_LOG_COLUMNS,
-    defaultColumns: DEFAULT_ACTIVITY_LOG_COLUMNS,
-    sortColumns: [ 'occurred_at' ] as const,
-    defaultSort: { column: 'occurred_at', direction: 'desc' },
-    extraData: () => ({ kinds }),
-  })
   const headerDragSensors = useColumnDragSensors()
-  const order: Order = sortDirection
-
-  function handleOrderChange(value: string) {
-    const desired: Order = value === 'newest' ? 'desc' : 'asc'
-    if (order !== desired) setSort('occurred_at')
-  }
-
-  // The kind chips aren't owned by useTableViewPreferences (that hook only
-  // manages columns/sort), but they're persisted in the same
-  // TableViewPreference row -- so every save here still has to include the
-  // current columns/sort, the same way useTableViewPreferences' own saves
-  // now include kinds via its extraData option.
-  function toggleKind(kind: ActivityUiKind) {
-    const next = kinds.includes(kind) ? kinds.filter((k) => k !== kind) : [ ...kinds, kind ]
-    if (next.length === 0) return // at least one kind must stay selected
-    setKinds(next)
-    updatePreference.mutate({ columns: orderedColumns, sort_column: sortColumn, sort_direction: sortDirection, kinds: next })
-  }
-
-  const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
-
-  const { from, to } = useMemo(() => {
-    switch (datePreset) {
-      case 'this_week':
-        return { from: startOfWeekIso(), to: todayIso() }
-      case 'this_month':
-        return { from: startOfMonthIso(), to: todayIso() }
-      case 'this_year':
-        return { from: startOfYearIso(), to: todayIso() }
-      case 'last_30_days':
-        return { from: daysAgoIso(30), to: todayIso() }
-      case 'custom':
-        return { from: customRange[0] ?? undefined, to: customRange[1] ?? undefined }
-      default:
-        return { from: undefined, to: undefined }
-    }
-  }, [ datePreset, customRange ])
 
   const { data: bikesList } = useBikes()
   const { data: componentsList } = useComponents()
@@ -241,16 +179,6 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
   const totalForLoadedKinds = meta ? kinds.reduce((sum, kind) => sum + meta.kind_counts[kind], 0) : 0
 
   const mergedColSpan = 1 + orderedColumns.length
-
-  function clearFilters() {
-    setBikeId(undefined)
-    setComponentId(undefined)
-    setDatePreset(null)
-    setCustomRange([ null, null ])
-    setQInput('')
-  }
-
-  const hasActiveFilters = Boolean(bikeId || componentId || datePreset || q)
 
   return (
     <Stack>
