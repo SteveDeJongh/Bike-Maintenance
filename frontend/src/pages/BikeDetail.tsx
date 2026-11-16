@@ -32,6 +32,8 @@ import {
   useDeleteComponentAssignment,
 } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
+import ComponentHistoryCardList from '../components/bike/ComponentHistoryCardList'
+import InstalledComponentsCardList from '../components/bike/InstalledComponentsCardList'
 import RideHistorySection from '../components/bike/RideHistorySection'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
@@ -42,8 +44,10 @@ import RideContextCheckboxes from '../components/RideContextCheckboxes'
 import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
+import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import { useAllCategories } from '../hooks/useAllCategories'
 import {
@@ -93,6 +97,22 @@ const HISTORY_COLUMN_OPTIONS = HISTORY_COLUMNS.map((column) => ({
   key: column,
   label: HISTORY_COLUMN_LABELS[column],
 }))
+
+// MobileSortControl needs a label for every sortable column, including the
+// pinned columns that INSTALLED_COMPONENT_COLUMN_LABELS/HISTORY_COLUMN_LABELS
+// don't carry, since neither is one of the toggleable columns.
+const INSTALLED_COMPONENT_SORT_COLUMN_LABELS: Record<InstalledComponentSortColumn, string> = {
+  category: 'Category',
+  ride_context: 'Ride Context',
+  component_label: 'Component',
+  ...INSTALLED_COMPONENT_COLUMN_LABELS,
+}
+
+const HISTORY_SORT_COLUMN_LABELS: Record<HistorySortColumn, string> = {
+  category: 'Category',
+  component_label: 'Component',
+  ...HISTORY_COLUMN_LABELS,
+}
 
 // Rendering only ever happens for occupied Installed-components rows (empty
 // slots render the install-flow controls instead), so this operates
@@ -474,6 +494,7 @@ function InstalledComponentsTableInner({
     defaultSort: { column: 'category', direction: 'asc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
 
   // One entry per real slot -- a "both" slot matches any active assignment
   // of its category; a split slot only matches one whose own ride_context
@@ -514,82 +535,108 @@ function InstalledComponentsTableInner({
         </Alert>
       )}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Category"
-                  active={sortColumn === 'category'}
-                  direction={sortDirection}
-                  onClick={() => setSort('category')}
-                />
-                <SortableHeaderCell
-                  label="Ride Context"
-                  active={sortColumn === 'ride_context'}
-                  direction={sortDirection}
-                  onClick={() => setSort('ride_context')}
-                />
-                <SortableHeaderCell
-                  label="Component"
-                  active={sortColumn === 'component_label'}
-                  direction={sortDirection}
-                  onClick={() => setSort('component_label')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={INSTALLED_COMPONENT_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
-                    direction={sortDirection}
-                    onSort={() => setSort(column)}
-                  />
-                ))}
-                <Table.Th>Action</Table.Th>
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={INSTALLED_COMPONENT_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as InstalledComponentColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as InstalledComponentColumn, overKey as InstalledComponentColumn)
-                    }
-                  />
-                </Table.Th>
-              </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedEntries.map(({ slot, assignment }) => {
-            const categoryAssignments = bike.component_assignments.filter(
-              (a) => a.component.category === slot.category,
-            )
-            const endedCount = categoryAssignments.filter((a) => a.ended_at !== null).length
-            const key = assignment ? `assignment-${assignment.id}` : `slot-${slot.id}`
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={INSTALLED_COMPONENT_SORT_COLUMNS}
+            columnLabels={INSTALLED_COMPONENT_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <InstalledComponentsCardList
+            bike={bike}
+            rows={sortedEntries}
+            components={components}
+            activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
+            onEndAssignment={onEndAssignment}
+            onRowClick={onRowClick}
+            orderedColumns={orderedColumns}
+            columnLabels={INSTALLED_COMPONENT_COLUMN_LABELS}
+            columnRenderer={installedComponentRenderer}
+          />
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                  <Table.Tr>
+                    <SortableHeaderCell
+                      label="Category"
+                      active={sortColumn === 'category'}
+                      direction={sortDirection}
+                      onClick={() => setSort('category')}
+                    />
+                    <SortableHeaderCell
+                      label="Ride Context"
+                      active={sortColumn === 'ride_context'}
+                      direction={sortDirection}
+                      onClick={() => setSort('ride_context')}
+                    />
+                    <SortableHeaderCell
+                      label="Component"
+                      active={sortColumn === 'component_label'}
+                      direction={sortDirection}
+                      onClick={() => setSort('component_label')}
+                    />
+                    {orderedColumns.map((column) => (
+                      <DraggableHeaderCell
+                        key={column}
+                        columnKey={column}
+                        label={INSTALLED_COMPONENT_COLUMN_LABELS[column]}
+                        active={sortColumn === column}
+                        direction={sortDirection}
+                        onSort={() => setSort(column)}
+                      />
+                    ))}
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>
+                      <ColumnPicker
+                        allColumns={INSTALLED_COMPONENT_COLUMN_OPTIONS}
+                        orderedVisible={orderedColumns}
+                        onToggle={(key) => toggleColumn(key as InstalledComponentColumn)}
+                        onReorder={(activeKey, overKey) =>
+                          reorderColumn(
+                            activeKey as InstalledComponentColumn,
+                            overKey as InstalledComponentColumn,
+                          )
+                        }
+                      />
+                    </Table.Th>
+                  </Table.Tr>
+                </SortableContext>
+              </DndContext>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedEntries.map(({ slot, assignment }) => {
+                const categoryAssignments = bike.component_assignments.filter(
+                  (a) => a.component.category === slot.category,
+                )
+                const endedCount = categoryAssignments.filter((a) => a.ended_at !== null).length
+                const key = assignment ? `assignment-${assignment.id}` : `slot-${slot.id}`
 
-            return (
-              <SlotRow
-                key={key}
-                bike={bike}
-                slot={slot}
-                assignment={assignment}
-                hasHistory={categoryAssignments.length > 0}
-                endedCount={endedCount}
-                components={components}
-                activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
-                onEndAssignment={onEndAssignment}
-                onRowClick={onRowClick}
-                orderedColumns={orderedColumns}
-              />
-            )
-          })}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+                return (
+                  <SlotRow
+                    key={key}
+                    bike={bike}
+                    slot={slot}
+                    assignment={assignment}
+                    hasHistory={categoryAssignments.length > 0}
+                    endedCount={endedCount}
+                    components={components}
+                    activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
+                    onEndAssignment={onEndAssignment}
+                    onRowClick={onRowClick}
+                    orderedColumns={orderedColumns}
+                  />
+                )
+              })}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   )
 }
@@ -897,6 +944,7 @@ function HistoryTableInner({
     defaultSort: { column: 'started_on', direction: 'desc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
   const deleteAssignment = useDeleteComponentAssignment()
 
   function handleDelete(assignment: ComponentAssignmentWithStats) {
@@ -932,86 +980,106 @@ function HistoryTableInner({
         </Alert>
       )}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table striped>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Category"
-                  active={sortColumn === 'category'}
-                  direction={sortDirection}
-                  onClick={() => setSort('category')}
-                />
-                <SortableHeaderCell
-                  label="Component"
-                  active={sortColumn === 'component_label'}
-                  direction={sortDirection}
-                  onClick={() => setSort('component_label')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={HISTORY_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
-                    direction={sortDirection}
-                    onSort={() => setSort(column)}
-                  />
-                ))}
-                <Table.Th>Action</Table.Th>
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={HISTORY_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as HistoryColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as HistoryColumn, overKey as HistoryColumn)
-                    }
-                  />
-                </Table.Th>
-              </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedAssignments.map((assignment) => (
-            <Table.Tr key={assignment.id} onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
-              <Table.Td>{categoryLabel(assignment.component.category)}</Table.Td>
-              <Table.Td>
-                <Anchor
-                  component={Link}
-                  to={`/components/${assignment.component_id}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {assignment.component.label}
-                </Anchor>
-              </Table.Td>
-              {orderedColumns.map((column) => (
-                <Table.Td key={column}>{historyRenderer[column](assignment)}</Table.Td>
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={HISTORY_SORT_COLUMNS}
+            columnLabels={HISTORY_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <ComponentHistoryCardList
+            rows={sortedAssignments}
+            orderedColumns={orderedColumns}
+            columnLabels={HISTORY_COLUMN_LABELS}
+            columnRenderer={historyRenderer}
+            onDelete={handleDelete}
+            onRowClick={onRowClick}
+          />
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped>
+            <Table.Thead>
+              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                  <Table.Tr>
+                    <SortableHeaderCell
+                      label="Category"
+                      active={sortColumn === 'category'}
+                      direction={sortDirection}
+                      onClick={() => setSort('category')}
+                    />
+                    <SortableHeaderCell
+                      label="Component"
+                      active={sortColumn === 'component_label'}
+                      direction={sortDirection}
+                      onClick={() => setSort('component_label')}
+                    />
+                    {orderedColumns.map((column) => (
+                      <DraggableHeaderCell
+                        key={column}
+                        columnKey={column}
+                        label={HISTORY_COLUMN_LABELS[column]}
+                        active={sortColumn === column}
+                        direction={sortDirection}
+                        onSort={() => setSort(column)}
+                      />
+                    ))}
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>
+                      <ColumnPicker
+                        allColumns={HISTORY_COLUMN_OPTIONS}
+                        orderedVisible={orderedColumns}
+                        onToggle={(key) => toggleColumn(key as HistoryColumn)}
+                        onReorder={(activeKey, overKey) =>
+                          reorderColumn(activeKey as HistoryColumn, overKey as HistoryColumn)
+                        }
+                      />
+                    </Table.Th>
+                  </Table.Tr>
+                </SortableContext>
+              </DndContext>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedAssignments.map((assignment) => (
+                <Table.Tr key={assignment.id} onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
+                  <Table.Td>{categoryLabel(assignment.component.category)}</Table.Td>
+                  <Table.Td>
+                    <Anchor
+                      component={Link}
+                      to={`/components/${assignment.component_id}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {assignment.component.label}
+                    </Anchor>
+                  </Table.Td>
+                  {orderedColumns.map((column) => (
+                    <Table.Td key={column}>{historyRenderer[column](assignment)}</Table.Td>
+                  ))}
+                  <Table.Td>
+                    <Group justify="flex-end">
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="red"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleDelete(assignment)
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td />
+                </Table.Tr>
               ))}
-              <Table.Td>
-                <Group justify="flex-end">
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleDelete(assignment)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </Group>
-              </Table.Td>
-              <Table.Td />
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   )
 }

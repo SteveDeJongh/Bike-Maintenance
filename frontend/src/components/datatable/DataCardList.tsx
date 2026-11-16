@@ -37,6 +37,13 @@ interface DataCardListProps<Row, Column extends string> {
   // behind a "⋯" ActionIcon in the card's top-right corner, not inline, so
   // a destructive action is never one accidental tap away.
   renderActions?: (row: Row) => ReactNode
+  // Makes the whole card clickable (e.g. BikeDetail's History table, whose
+  // desktop row opens an AssignmentDetailModal on click, not just via its
+  // pinned link) -- same convention as the desktop row: the caller's own
+  // renderTitle link must stopPropagation on its own click so it navigates
+  // instead of also triggering this; the "⋯" menu's own ActionIcon already
+  // does so here, since that trigger is this component's own.
+  onRowClick?: (row: Row) => void
 }
 
 export default function DataCardList<Row, Column extends string>({
@@ -48,6 +55,7 @@ export default function DataCardList<Row, Column extends string>({
   columnRenderer,
   renderBadges,
   renderActions,
+  onRowClick,
 }: DataCardListProps<Row, Column>) {
   return (
     <Stack gap="xs">
@@ -57,7 +65,13 @@ export default function DataCardList<Row, Column extends string>({
           .filter((pair) => !isEmptyCardValue(pair.value))
 
         return (
-          <Card key={getKey(row)} withBorder padding="sm">
+          <Card
+            key={getKey(row)}
+            withBorder
+            padding="sm"
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            style={onRowClick ? { cursor: 'pointer' } : undefined}
+          >
             <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
               <Group gap="xs" wrap="wrap" align="center">
                 {renderTitle(row)}
@@ -66,7 +80,13 @@ export default function DataCardList<Row, Column extends string>({
               {renderActions && (
                 <Menu position="bottom-end" withinPortal>
                   <Menu.Target>
-                    <ActionIcon variant="subtle" color="gray" aria-label="Row actions" size={44}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      aria-label="Row actions"
+                      size={44}
+                      onClick={onRowClick ? (event) => event.stopPropagation() : undefined}
+                    >
                       <IconDots size={18} />
                     </ActionIcon>
                   </Menu.Target>
