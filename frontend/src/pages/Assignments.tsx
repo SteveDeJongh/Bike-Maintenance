@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
@@ -8,9 +8,12 @@ import { useDeleteComponentAssignment } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import ComponentAssignmentFormModal from '../components/forms/ComponentAssignmentFormModal'
 import ColumnPicker from '../components/datatable/ColumnPicker'
+import DataCardList from '../components/datatable/DataCardList'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
+import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   ASSIGNMENT_LIST_COLUMN_LABELS,
@@ -28,6 +31,16 @@ const ASSIGNMENT_LIST_COLUMN_OPTIONS = ASSIGNMENT_LIST_COLUMNS.map((column) => (
   key: column,
   label: ASSIGNMENT_LIST_COLUMN_LABELS[column],
 }))
+
+// MobileSortControl needs a label for every sortable column, including the
+// two pinned "component_label"/"bike_name" columns -- which
+// ASSIGNMENT_LIST_COLUMN_LABELS doesn't carry, since neither is one of the
+// toggleable columns.
+const ASSIGNMENT_LIST_SORT_COLUMN_LABELS: Record<AssignmentListSortColumn, string> = {
+  component_label: 'Component',
+  bike_name: 'Bike',
+  ...ASSIGNMENT_LIST_COLUMN_LABELS,
+}
 
 export default function Assignments() {
   const { data, isPending, isError, error } = useComponentAssignments()
@@ -128,6 +141,7 @@ function AssignmentsTable({
     defaultSort: { column: 'started_at', direction: 'desc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
 
   function componentLabel(componentId: number) {
     return components.find((c) => c.id === componentId)?.label ?? `Component #${componentId}`
@@ -181,81 +195,118 @@ function AssignmentsTable({
         </Alert>
       )}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Component"
-                  active={sortColumn === 'component_label'}
-                  direction={sortDirection}
-                  onClick={() => setSort('component_label')}
-                />
-                <SortableHeaderCell
-                  label="Bike"
-                  active={sortColumn === 'bike_name'}
-                  direction={sortDirection}
-                  onClick={() => setSort('bike_name')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={ASSIGNMENT_LIST_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
-                    direction={sortDirection}
-                    onSort={() => setSort(column)}
-                  />
-                ))}
-                <Table.Th />
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={ASSIGNMENT_LIST_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as AssignmentListColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as AssignmentListColumn, overKey as AssignmentListColumn)
-                    }
-                  />
-                </Table.Th>
-              </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedAssignments.map((assignment) => (
-            <Table.Tr key={assignment.id}>
-              <Table.Td>
-                <Anchor component={Link} to={`/components/${assignment.component_id}`}>
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={ASSIGNMENT_LIST_SORT_COLUMNS}
+            columnLabels={ASSIGNMENT_LIST_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <DataCardList
+            rows={sortedAssignments}
+            getKey={(assignment) => assignment.id}
+            renderTitle={(assignment) => (
+              <Stack gap={0}>
+                <Anchor component={Link} to={`/components/${assignment.component_id}`} fw={500}>
                   {componentLabel(assignment.component_id)}
                 </Anchor>
-              </Table.Td>
-              <Table.Td>
-                <Anchor component={Link} to={`/bikes/${assignment.bike_id}`}>
+                <Anchor component={Link} to={`/bikes/${assignment.bike_id}`} size="sm" c="dimmed">
                   {bikeName(assignment.bike_id)}
                 </Anchor>
-              </Table.Td>
-              {orderedColumns.map((column) => (
-                <Table.Td key={column}>{assignmentRenderer[column](assignment)}</Table.Td>
+              </Stack>
+            )}
+            orderedColumns={orderedColumns}
+            columnLabels={ASSIGNMENT_LIST_COLUMN_LABELS}
+            columnRenderer={assignmentRenderer}
+            renderActions={(assignment) => (
+              <>
+                <Menu.Item onClick={() => onEdit(assignment)}>Edit</Menu.Item>
+                <Menu.Item color="red" onClick={() => onDelete(assignment)}>
+                  Delete
+                </Menu.Item>
+              </>
+            )}
+          />
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                  <Table.Tr>
+                    <SortableHeaderCell
+                      label="Component"
+                      active={sortColumn === 'component_label'}
+                      direction={sortDirection}
+                      onClick={() => setSort('component_label')}
+                    />
+                    <SortableHeaderCell
+                      label="Bike"
+                      active={sortColumn === 'bike_name'}
+                      direction={sortDirection}
+                      onClick={() => setSort('bike_name')}
+                    />
+                    {orderedColumns.map((column) => (
+                      <DraggableHeaderCell
+                        key={column}
+                        columnKey={column}
+                        label={ASSIGNMENT_LIST_COLUMN_LABELS[column]}
+                        active={sortColumn === column}
+                        direction={sortDirection}
+                        onSort={() => setSort(column)}
+                      />
+                    ))}
+                    <Table.Th />
+                    <Table.Th>
+                      <ColumnPicker
+                        allColumns={ASSIGNMENT_LIST_COLUMN_OPTIONS}
+                        orderedVisible={orderedColumns}
+                        onToggle={(key) => toggleColumn(key as AssignmentListColumn)}
+                        onReorder={(activeKey, overKey) =>
+                          reorderColumn(activeKey as AssignmentListColumn, overKey as AssignmentListColumn)
+                        }
+                      />
+                    </Table.Th>
+                  </Table.Tr>
+                </SortableContext>
+              </DndContext>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedAssignments.map((assignment) => (
+                <Table.Tr key={assignment.id}>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/components/${assignment.component_id}`}>
+                      {componentLabel(assignment.component_id)}
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <Anchor component={Link} to={`/bikes/${assignment.bike_id}`}>
+                      {bikeName(assignment.bike_id)}
+                    </Anchor>
+                  </Table.Td>
+                  {orderedColumns.map((column) => (
+                    <Table.Td key={column}>{assignmentRenderer[column](assignment)}</Table.Td>
+                  ))}
+                  <Table.Td>
+                    <Group justify="flex-end" gap="xs">
+                      <Button size="xs" variant="subtle" onClick={() => onEdit(assignment)}>
+                        Edit
+                      </Button>
+                      <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(assignment)}>
+                        Delete
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td />
+                </Table.Tr>
               ))}
-              <Table.Td>
-                <Group justify="flex-end" gap="xs">
-                  <Button size="xs" variant="subtle" onClick={() => onEdit(assignment)}>
-                    Edit
-                  </Button>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(assignment)}>
-                    Delete
-                  </Button>
-                </Group>
-              </Table.Td>
-              <Table.Td />
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </>
   )
 }
