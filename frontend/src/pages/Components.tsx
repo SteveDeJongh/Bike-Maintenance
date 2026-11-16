@@ -182,6 +182,7 @@ function ComponentsTable({
         </Alert>
       )}
 
+      <Table.ScrollContainer minWidth={700}>
       <Table striped highlightOnHover>
         <Table.Thead>
           <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
@@ -244,6 +245,7 @@ function ComponentsTable({
           ))}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
     </>
   )
 }

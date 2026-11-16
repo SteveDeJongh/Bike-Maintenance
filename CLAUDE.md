@@ -1263,6 +1263,49 @@ A future page can adopt the same UX without rework:
   previously link a column that becomes pinned (Maintenance Events' Component;
   Assignments' Component and Bike), the link gets added as part of adopting this —
   "pinned" is expected to mean "clickable" everywhere in the app.
+- **Card view (mobile step 2 of 4)**: below the shared `useIsMobile()` breakpoint
+  (see "Layout and navigation" below), a configurable table renders as cards
+  instead of a `<Table>` — column drag-to-reorder has no good touch equivalent
+  (the drag handle and touch-scroll gestures would fight each other), and a
+  desktop-width table just doesn't fit a phone screen regardless.
+  `frontend/src/components/datatable/DataCardList.tsx` renders one `Card` per
+  row: the table's own pinned column(s) as the tappable title (whatever link
+  target the desktop table already uses — "pinned" already means "clickable"
+  per the rule above, so the card title is never a new navigation target), an
+  optional badge row next to the title (e.g. Bikes' "Retired"), every visible
+  configurable column as a compact label/value pair in the user's saved
+  order (a pair is hidden outright when its value is empty/`null`/the table's
+  own `"—"` placeholder — a card has no column header to make an empty cell
+  self-explanatory the way a table row does), and the row's actions behind a
+  44px "⋯" `ActionIcon`/`Menu` in the corner, never inline, so a destructive
+  action is never one accidental tap away. Neither `ColumnPicker` nor any drag
+  handle renders in card view — column layout stays a desktop-only account
+  preference; a card simply reflects whatever's currently saved.
+  `frontend/src/components/datatable/MobileSortControl.tsx` is card view's
+  replacement for click-to-sort (no column headers to click): a compact
+  `Select` of the table's sortable columns plus a ▲/▼ direction toggle, same
+  glyphs the desktop header cells use. It requires
+  `useTableViewPreferences`'s `setSort` to take an optional explicit
+  `direction` argument — picking a new column keeps the current direction
+  instead of resetting it, and the toggle button keeps the current column —
+  but still saves through the exact same `PATCH` path as a desktop header
+  click, so a sort chosen on the phone is the one desktop sees next. A table
+  with no click-to-sort at all (`bike_rides`, `activity_log`) renders no
+  `MobileSortControl`, same as it has no sortable `DraggableHeaderCell`s on
+  desktop. `Bikes.tsx` is the reference implementation for both pieces, the
+  same role it already plays for the table/column-picker side — it reuses the
+  exact sorted array the desktop table already computes (including the
+  retired-sorts-last rule) rather than duplicating the sort logic for cards.
+  Card view's own breakpoint (`useIsMobile()`, JS, inclusive at ≤768px) is
+  allowed to disagree with the nav shell's breakpoint (CSS, inclusive at
+  ≥768px) at exactly 768px, briefly showing the desktop sidebar next to
+  cards — two independent layout decisions, not two renderings of the same
+  element, unlike the nav-shell bug "Layout and navigation" describes below.
+- **Tables adopting card view so far**: `bikes`. The rest of this mechanism's
+  adopters (`components`, `maintenance_events`, `assignments`,
+  `bike_installed_components`, `bike_history`, `strava_rides`) currently only
+  scroll horizontally on mobile (see below) — rolling card view out to them is
+  tracked as its own, later step.
 
 **To adopt this on a new or existing table**, define on the frontend (nothing to
 build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
@@ -1277,10 +1320,25 @@ column) keyed the same way `Bikes.tsx` does. Call `useTableViewPreferences` with
 those constants, then render pinned columns by hand and map the configurable ones
 through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
 header cell — `Bikes.tsx` is the reference implementation to copy the shape from.
-Don't add new per-row computed/aggregated columns to a list page without checking
-whether the underlying data is already batched for that scale (see
-`Component#total_distance`'s note above) — this mechanism makes columns easy to
-add, but doesn't change the cost of computing what's behind them.
+**A new adopter must render both views** — the desktop `<Table>` and, below
+`useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
+`<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
+not just the table; `Bikes.tsx` is the reference shape for both. Don't add new
+per-row computed/aggregated columns to a list page without checking whether the
+underlying data is already batched for that scale (see `Component#total_distance`'s
+note above) — this mechanism makes columns easy to add, but doesn't change the cost
+of computing what's behind them.
+
+**Non-configurable tables** (a plain `<Table>` with no `TableViewPreference` behind
+it — the Settings pages, `BikeSetup`, `ComponentServiceAndHistory`,
+`ServiceSessionViewModal`, the Strava page's gear tables) need the same phone-width
+consideration without any of this mechanism: wrap in Mantine's own
+`Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
+horizontally instead of overflowing the page. Skip the wrapper only for a table
+genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs)
+— `components/dashboard/RecentRidesTable.tsx` already had the equivalent via
+`ScrollArea`+`miw` before this mechanism existed, and was left as-is rather than
+converted.
 
 ## Theming
 
@@ -2039,9 +2097,13 @@ table cell per row, not two).
    intervals and maintenance alerts" above. Mobile responsiveness is in
    progress: step 1 of 4 (a responsive app shell -- desktop sidebar/mobile
    tab bar, PWA install) is done, see "Layout and navigation" and "PWA"
-   above; a responsive datatable kit, full-screen modals/mobile quick
-   actions, and splitting up the large page files remain. Deploy, webhooks,
-   and charts also remain.
+   above; step 2 of 4 (a responsive datatable kit) is partway done -- the
+   reusable card view/mobile sort control and every configurable table's
+   `Table.ScrollContainer` wrapper are in, see "Sortable, configurable
+   tables" above; rolling card view out past `bikes` to the rest of those
+   tables remains. Full-screen modals/mobile quick actions, and splitting
+   up the large page files, remain as later steps. Deploy, webhooks, and
+   charts also remain.
 
 ## Conventions
 

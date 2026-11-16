@@ -194,6 +194,7 @@ function CategoryTable({
 
   return (
     <Stack>
+      <Table.ScrollContainer minWidth={1500}>
       <Table>
         <Table.Thead>
           <Table.Tr>
@@ -295,6 +296,7 @@ function CategoryTable({
           </Table.Tr>
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
 
       {manageIntervalsCategory && (
         <CategoryServiceRequirementsModal

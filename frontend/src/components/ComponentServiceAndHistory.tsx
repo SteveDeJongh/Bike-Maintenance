@@ -70,27 +70,29 @@ export default function ComponentServiceAndHistory({ componentId }: { componentI
       {history.length === 0 && <Text c="dimmed">No maintenance events logged yet.</Text>}
 
       {history.length > 0 && (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Performed At</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Notes</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {history.map((event) => (
-              <HistoryRow
-                key={event.id}
-                event={event}
-                serviceTypeName={serviceTypes?.find((t) => t.id === event.service_type_id)?.name ?? ''}
-                sessionCount={event.service_session_id != null ? sessionCounts[event.service_session_id] : undefined}
-                highlighted={event.id === highlightedEventId}
-                onViewSession={setViewingSessionId}
-              />
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Table.ScrollContainer minWidth={500}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Performed At</Table.Th>
+                <Table.Th>Type</Table.Th>
+                <Table.Th>Notes</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {history.map((event) => (
+                <HistoryRow
+                  key={event.id}
+                  event={event}
+                  serviceTypeName={serviceTypes?.find((t) => t.id === event.service_type_id)?.name ?? ''}
+                  sessionCount={event.service_session_id != null ? sessionCounts[event.service_session_id] : undefined}
+                  highlighted={event.id === highlightedEventId}
+                  onViewSession={setViewingSessionId}
+                />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
 
       <MaintenanceEventFormModal

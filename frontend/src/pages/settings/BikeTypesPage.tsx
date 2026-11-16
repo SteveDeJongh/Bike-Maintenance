@@ -48,6 +48,7 @@ export default function BikeTypesPage() {
       )}
 
       {bikeTypes && (
+        <Table.ScrollContainer minWidth={650}>
         <Table>
           <Table.Tbody>
             {bikeTypes.map((bikeType) => (
@@ -85,6 +86,7 @@ export default function BikeTypesPage() {
             </Table.Tr>
           </Table.Tbody>
         </Table>
+        </Table.ScrollContainer>
       )}
 
       {createBikeType.isError && (

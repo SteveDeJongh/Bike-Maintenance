@@ -199,19 +199,21 @@ function MappedGearSection() {
       {bikes && bikes.length === 0 && <Text c="dimmed">No bikes are mapped to Strava gear yet.</Text>}
 
       {bikes && bikes.length > 0 && (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Strava gear</Table.Th>
-              <Table.Th>Bike</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {bikes.map((bike) => (
-              <MappedGearRow key={bike.bike_id} bike={bike} />
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Table.ScrollContainer minWidth={500}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Strava gear</Table.Th>
+                <Table.Th>Bike</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {bikes.map((bike) => (
+                <MappedGearRow key={bike.bike_id} bike={bike} />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
     </Stack>
   )
@@ -295,19 +297,21 @@ function UnmappedGearSection() {
       )}
 
       {gears && gears.length > 0 && (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Strava gear</Table.Th>
-              <Table.Th>Bike</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {gears.map((gear) => (
-              <UnmappedGearRow key={gear.gear_id} gear={gear} />
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Table.ScrollContainer minWidth={600}>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Strava gear</Table.Th>
+                <Table.Th>Bike</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {gears.map((gear) => (
+                <UnmappedGearRow key={gear.gear_id} gear={gear} />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
     </Stack>
   )
@@ -483,20 +487,22 @@ function IgnoredGearSection() {
             </Alert>
           )}
 
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Strava gear</Table.Th>
-                <Table.Th>Ignored</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {gears.map((gear) => (
-                <IgnoredGearRow key={gear.gear_id} gear={gear} />
-              ))}
-            </Table.Tbody>
-          </Table>
+          <Table.ScrollContainer minWidth={500}>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Strava gear</Table.Th>
+                  <Table.Th>Ignored</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {gears.map((gear) => (
+                  <IgnoredGearRow key={gear.gear_id} gear={gear} />
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </>
       )}
     </Stack>

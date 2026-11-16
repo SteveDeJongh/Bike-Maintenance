@@ -181,6 +181,7 @@ function AssignmentsTable({
         </Alert>
       )}
 
+      <Table.ScrollContainer minWidth={700}>
       <Table striped highlightOnHover>
         <Table.Thead>
           <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
@@ -254,6 +255,7 @@ function AssignmentsTable({
           ))}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
     </>
   )
 }

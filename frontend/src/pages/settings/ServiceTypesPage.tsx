@@ -34,6 +34,7 @@ export default function ServiceTypesPage() {
       )}
 
       {serviceTypes && (
+        <Table.ScrollContainer minWidth={420}>
         <Table>
           <Table.Tbody>
             {serviceTypes.map((type) => (
@@ -61,6 +62,7 @@ export default function ServiceTypesPage() {
             </Table.Tr>
           </Table.Tbody>
         </Table>
+        </Table.ScrollContainer>
       )}
 
       {createServiceType.isError && (

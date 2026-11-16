@@ -514,6 +514,7 @@ function InstalledComponentsTableInner({
         </Alert>
       )}
 
+      <Table.ScrollContainer minWidth={700}>
       <Table striped highlightOnHover>
         <Table.Thead>
           <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
@@ -588,6 +589,7 @@ function InstalledComponentsTableInner({
           })}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
     </>
   )
 }
@@ -930,6 +932,7 @@ function HistoryTableInner({
         </Alert>
       )}
 
+      <Table.ScrollContainer minWidth={700}>
       <Table striped>
         <Table.Thead>
           <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
@@ -1008,6 +1011,7 @@ function HistoryTableInner({
           ))}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
     </>
   )
 }

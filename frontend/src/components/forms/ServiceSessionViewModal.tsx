@@ -128,28 +128,30 @@ function ServiceSessionView({ sessionId, onClose }: { sessionId: number; onClose
 
           <Divider />
 
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Component</Table.Th>
-                <Table.Th>Service</Table.Th>
-                <Table.Th>Notes</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {session.events.map((event) => (
-                <Table.Tr key={event.id}>
-                  <Table.Td>
-                    <Anchor component={Link} to={`/components/${event.component_id}`}>
-                      {componentLabel(event.component_id)}
-                    </Anchor>
-                  </Table.Td>
-                  <Table.Td>{serviceTypeName(event.service_type_id)}</Table.Td>
-                  <Table.Td>{event.notes ?? ''}</Table.Td>
+          <Table.ScrollContainer minWidth={450}>
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Component</Table.Th>
+                  <Table.Th>Service</Table.Th>
+                  <Table.Th>Notes</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {session.events.map((event) => (
+                  <Table.Tr key={event.id}>
+                    <Table.Td>
+                      <Anchor component={Link} to={`/components/${event.component_id}`}>
+                        {componentLabel(event.component_id)}
+                      </Anchor>
+                    </Table.Td>
+                    <Table.Td>{serviceTypeName(event.service_type_id)}</Table.Td>
+                    <Table.Td>{event.notes ?? ''}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
 
           <Group justify="flex-end">
             <Button variant="subtle" color="red" onClick={handleDelete} loading={deleteSession.isPending}>

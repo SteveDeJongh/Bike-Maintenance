@@ -320,6 +320,7 @@ function SetupChecklist({
 
       {baseError && <Alert color="red">{baseError}</Alert>}
 
+      <Table.ScrollContainer minWidth={700}>
       <Table verticalSpacing="sm">
         <Table.Thead>
           <Table.Tr>
@@ -375,6 +376,7 @@ function SetupChecklist({
           })}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
 
       <Group justify="flex-end">
         <Button variant="default" onClick={() => navigate(`/bikes/${bike.id}`)}>
