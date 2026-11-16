@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Alert, Anchor, Badge, Button, Group, Loader, Select, Stack, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Loader, Select, Stack, Text, Title } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponentCategorySettings, useComponents } from '../api/queries'
 import { useCreateBikeComponentSlot } from '../api/mutations'
+import BikeHeader, { BikeStatsRow } from '../components/bike/BikeHeader'
 import HistoryTable from '../components/bike/HistorySection'
 import InstalledComponentsTable from '../components/bike/InstalledComponentsSection'
 import RideHistorySection from '../components/bike/RideHistorySection'
@@ -13,11 +14,6 @@ import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
-import { formatDate } from '../utils/datetime'
-import { formatDistance } from '../utils/distance'
-import { formatDuration } from '../utils/duration'
-import { formatElevation } from '../utils/elevation'
-import { formatPower } from '../utils/power'
 import type { ComponentAssignmentWithStats } from '../types/models'
 
 export default function BikeDetail() {
@@ -134,61 +130,11 @@ export default function BikeDetail() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Group gap="sm">
-            <Title order={2}>{bike.name}</Title>
-            {bike.retired_on && <Badge color="gray">Retired</Badge>}
-          </Group>
-          <Text c="dimmed">
-            {[bike.make, bike.model].filter(Boolean).join(' ') || 'Unknown make/model'}
-          </Text>
-        </div>
-        <Button variant="default" onClick={() => setBatchServiceOpened(true)}>
-          Log service
-        </Button>
-      </Group>
+      <BikeHeader bike={bike} onLogService={() => setBatchServiceOpened(true)} />
 
       <MaintenanceAlertBanners scope={{ bikeId: bike.id }} />
 
-      <Group gap="xl">
-        <div>
-          <Text size="sm" c="dimmed">
-            Total distance
-          </Text>
-          <Text fw={500}>{formatDistance(bike.total_distance)}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Total time
-          </Text>
-          <Text fw={500}>{formatDuration(bike.total_moving_time)}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            First ride
-          </Text>
-          <Text fw={500}>{bike.first_ride_on ? formatDate(bike.first_ride_on) : 'No rides yet'}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Total elevation
-          </Text>
-          <Text fw={500}>{formatElevation(bike.total_elevation_gain)}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Avg power
-          </Text>
-          <Text fw={500}>{formatPower(bike.average_power)}</Text>
-        </div>
-        <div>
-          <Text size="sm" c="dimmed">
-            Installed components
-          </Text>
-          <Text fw={500}>{bike.installed_components_count}</Text>
-        </div>
-      </Group>
+      <BikeStatsRow bike={bike} />
 
       <Title order={3}>Installed components</Title>
 
