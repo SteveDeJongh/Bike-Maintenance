@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Button, Group, Loader, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Card, Group, Loader, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { useBikeRides, useTableViewPreference } from '../../api/queries'
 import ColumnPicker from '../datatable/ColumnPicker'
 import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
@@ -57,6 +58,7 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
     defaultSort: { column: 'moved_at', direction: 'desc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
   const order = sortDirection
 
   const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useBikeRides(
@@ -127,59 +129,87 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
 
       {!isPending && rides.length > 0 && (
         <>
-          <Table.ScrollContainer minWidth={700}>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-                  <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-                    <Table.Tr>
-                      <Table.Th>Date</Table.Th>
-                      <Table.Th>Name</Table.Th>
-                      {orderedColumns.map((column) => (
-                        <DraggableHeaderCell
-                          key={column}
-                          columnKey={column}
-                          label={BIKE_RIDE_COLUMN_LABELS[column]}
-                          active={false}
-                          direction="asc"
-                          onSort={() => {}}
-                          sortable={false}
-                        />
-                      ))}
-                      <Table.Th />
-                      <Table.Th>
-                        <ColumnPicker
-                          allColumns={BIKE_RIDE_COLUMN_OPTIONS}
-                          orderedVisible={orderedColumns}
-                          onToggle={(key) => toggleColumn(key as BikeRideColumn)}
-                          onReorder={(activeKey, overKey) =>
-                            reorderColumn(activeKey as BikeRideColumn, overKey as BikeRideColumn)
-                          }
-                        />
-                      </Table.Th>
-                    </Table.Tr>
-                  </SortableContext>
-                </DndContext>
-              </Table.Thead>
-              <Table.Tbody>
-                {rides.map((ride) => (
-                  <Table.Tr key={ride.id}>
-                    <Table.Td>{formatDateTime(ride.moved_at)}</Table.Td>
-                    <Table.Td>
+          {isMobile ? (
+            <Stack gap="xs">
+              {rides.map((ride) => (
+                <Card key={ride.id} withBorder padding="sm">
+                  <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
+                    <Stack gap={0}>
                       <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
-                    </Table.Td>
+                      <Text size="xs" c="dimmed">
+                        {formatDateTime(ride.moved_at)}
+                      </Text>
+                    </Stack>
+                    <ResyncRideButton rideId={ride.id} />
+                  </Group>
+                  <Group gap="md" wrap="wrap" mt={6}>
                     {orderedColumns.map((column) => (
-                      <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>
+                      <Stack key={column} gap={0} miw={90}>
+                        <Text size="xs" c="dimmed">
+                          {BIKE_RIDE_COLUMN_LABELS[column]}
+                        </Text>
+                        <Text size="sm">{COLUMN_RENDERER[column](ride)}</Text>
+                      </Stack>
                     ))}
-                    <Table.Td>
-                      <ResyncRideButton rideId={ride.id} />
-                    </Table.Td>
-                    <Table.Td />
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
+                  </Group>
+                </Card>
+              ))}
+            </Stack>
+          ) : (
+            <Table.ScrollContainer minWidth={700}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+                    <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                      <Table.Tr>
+                        <Table.Th>Date</Table.Th>
+                        <Table.Th>Name</Table.Th>
+                        {orderedColumns.map((column) => (
+                          <DraggableHeaderCell
+                            key={column}
+                            columnKey={column}
+                            label={BIKE_RIDE_COLUMN_LABELS[column]}
+                            active={false}
+                            direction="asc"
+                            onSort={() => {}}
+                            sortable={false}
+                          />
+                        ))}
+                        <Table.Th />
+                        <Table.Th>
+                          <ColumnPicker
+                            allColumns={BIKE_RIDE_COLUMN_OPTIONS}
+                            orderedVisible={orderedColumns}
+                            onToggle={(key) => toggleColumn(key as BikeRideColumn)}
+                            onReorder={(activeKey, overKey) =>
+                              reorderColumn(activeKey as BikeRideColumn, overKey as BikeRideColumn)
+                            }
+                          />
+                        </Table.Th>
+                      </Table.Tr>
+                    </SortableContext>
+                  </DndContext>
+                </Table.Thead>
+                <Table.Tbody>
+                  {rides.map((ride) => (
+                    <Table.Tr key={ride.id}>
+                      <Table.Td>{formatDateTime(ride.moved_at)}</Table.Td>
+                      <Table.Td>
+                        <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
+                      </Table.Td>
+                      {orderedColumns.map((column) => (
+                        <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>
+                      ))}
+                      <Table.Td>
+                        <ResyncRideButton rideId={ride.id} />
+                      </Table.Td>
+                      <Table.Td />
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
 
           <Group justify="center">
             {hasNextPage && (
