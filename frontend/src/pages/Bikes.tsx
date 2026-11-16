@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Badge, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link, useNavigate } from 'react-router-dom'
@@ -8,9 +8,12 @@ import { useDeleteBike } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import BikeFormModal from '../components/forms/BikeFormModal'
 import ColumnPicker from '../components/datatable/ColumnPicker'
+import DataCardList from '../components/datatable/DataCardList'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
+import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   BIKE_LIST_COLUMNS,
@@ -73,6 +76,14 @@ const BIKE_LIST_COLUMN_OPTIONS = BIKE_LIST_COLUMNS.map((column) => ({
   key: column,
   label: BIKE_LIST_COLUMN_LABELS[column],
 }))
+
+// MobileSortControl needs a label for every sortable column, including the
+// pinned "name" column -- which BIKE_LIST_COLUMN_LABELS doesn't carry,
+// since it's not one of the toggleable columns.
+const BIKE_LIST_SORT_COLUMN_LABELS: Record<BikeListSortColumn, string> = {
+  name: 'Name',
+  ...BIKE_LIST_COLUMN_LABELS,
+}
 
 export default function Bikes() {
   const navigate = useNavigate()
@@ -167,6 +178,7 @@ function BikesTable({
     defaultSort: { column: 'name', direction: 'asc' },
   })
   const headerDragSensors = useColumnDragSensors()
+  const isMobile = useIsMobile()
 
   const { data: bikeTypes } = useBikeTypes()
   const bikeTypeNameById = useMemo(
@@ -207,70 +219,103 @@ function BikesTable({
         </Alert>
       )}
 
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-            <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-              <Table.Tr>
-                <SortableHeaderCell
-                  label="Name"
-                  active={sortColumn === 'name'}
-                  direction={sortDirection}
-                  onClick={() => setSort('name')}
-                />
-                {orderedColumns.map((column) => (
-                  <DraggableHeaderCell
-                    key={column}
-                    columnKey={column}
-                    label={BIKE_LIST_COLUMN_LABELS[column]}
-                    active={sortColumn === column}
+      {isMobile ? (
+        <Stack gap="sm">
+          <MobileSortControl
+            sortColumns={BIKE_LIST_SORT_COLUMNS}
+            columnLabels={BIKE_LIST_SORT_COLUMN_LABELS}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onChange={setSort}
+          />
+          <DataCardList
+            rows={sortedBikes}
+            getKey={(bike) => bike.id}
+            renderTitle={(bike) => (
+              <Anchor component={Link} to={`/bikes/${bike.id}`} fw={500}>
+                {bike.name}
+              </Anchor>
+            )}
+            orderedColumns={orderedColumns}
+            columnLabels={BIKE_LIST_COLUMN_LABELS}
+            columnRenderer={columnRenderer}
+            renderBadges={(bike) => bike.retired_on && <Badge color="gray">Retired</Badge>}
+            renderActions={(bike) => (
+              <>
+                <Menu.Item onClick={() => onEdit(bike)}>Edit</Menu.Item>
+                <Menu.Item color="red" onClick={() => onDelete(bike)}>
+                  Delete
+                </Menu.Item>
+              </>
+            )}
+          />
+        </Stack>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
+              <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                <Table.Tr>
+                  <SortableHeaderCell
+                    label="Name"
+                    active={sortColumn === 'name'}
                     direction={sortDirection}
-                    onSort={() => setSort(column)}
+                    onClick={() => setSort('name')}
                   />
+                  {orderedColumns.map((column) => (
+                    <DraggableHeaderCell
+                      key={column}
+                      columnKey={column}
+                      label={BIKE_LIST_COLUMN_LABELS[column]}
+                      active={sortColumn === column}
+                      direction={sortDirection}
+                      onSort={() => setSort(column)}
+                    />
+                  ))}
+                  <Table.Th />
+                  <Table.Th />
+                  <Table.Th>
+                    <ColumnPicker
+                      allColumns={BIKE_LIST_COLUMN_OPTIONS}
+                      orderedVisible={orderedColumns}
+                      onToggle={(key) => toggleColumn(key as BikeListColumn)}
+                      onReorder={(activeKey, overKey) =>
+                        reorderColumn(activeKey as BikeListColumn, overKey as BikeListColumn)
+                      }
+                    />
+                  </Table.Th>
+                </Table.Tr>
+              </SortableContext>
+            </DndContext>
+          </Table.Thead>
+          <Table.Tbody>
+            {sortedBikes.map((bike) => (
+              <Table.Tr key={bike.id}>
+                <Table.Td>
+                  <Anchor component={Link} to={`/bikes/${bike.id}`}>
+                    {bike.name}
+                  </Anchor>
+                </Table.Td>
+                {orderedColumns.map((column) => (
+                  <Table.Td key={column}>{columnRenderer[column](bike)}</Table.Td>
                 ))}
-                <Table.Th />
-                <Table.Th />
-                <Table.Th>
-                  <ColumnPicker
-                    allColumns={BIKE_LIST_COLUMN_OPTIONS}
-                    orderedVisible={orderedColumns}
-                    onToggle={(key) => toggleColumn(key as BikeListColumn)}
-                    onReorder={(activeKey, overKey) =>
-                      reorderColumn(activeKey as BikeListColumn, overKey as BikeListColumn)
-                    }
-                  />
-                </Table.Th>
+                <Table.Td>{bike.retired_on && <Badge color="gray">Retired</Badge>}</Table.Td>
+                <Table.Td>
+                  <Group justify="flex-end" gap="xs">
+                    <Button size="xs" variant="subtle" onClick={() => onEdit(bike)}>
+                      Edit
+                    </Button>
+                    <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(bike)}>
+                      Delete
+                    </Button>
+                  </Group>
+                </Table.Td>
+                <Table.Td />
               </Table.Tr>
-            </SortableContext>
-          </DndContext>
-        </Table.Thead>
-        <Table.Tbody>
-          {sortedBikes.map((bike) => (
-            <Table.Tr key={bike.id}>
-              <Table.Td>
-                <Anchor component={Link} to={`/bikes/${bike.id}`}>
-                  {bike.name}
-                </Anchor>
-              </Table.Td>
-              {orderedColumns.map((column) => (
-                <Table.Td key={column}>{columnRenderer[column](bike)}</Table.Td>
-              ))}
-              <Table.Td>{bike.retired_on && <Badge color="gray">Retired</Badge>}</Table.Td>
-              <Table.Td>
-                <Group justify="flex-end" gap="xs">
-                  <Button size="xs" variant="subtle" onClick={() => onEdit(bike)}>
-                    Edit
-                  </Button>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(bike)}>
-                    Delete
-                  </Button>
-                </Group>
-              </Table.Td>
-              <Table.Td />
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
     </>
   )
 }

@@ -88,8 +88,16 @@ export function useTableViewPreferences<Column extends string, SortColumn extend
     save({ columns: next, sortColumn, sortDirection })
   }
 
-  function setSort(column: SortColumn) {
-    const nextDirection: 'asc' | 'desc' = column === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc'
+  // With no explicit direction, clicking the same column again toggles it
+  // (the desktop header-click convention); clicking a different column
+  // always starts at ascending. An explicit direction (the mobile sort
+  // control's own asc/desc toggle, which must set direction without
+  // depending on whatever column was previously active) bypasses that
+  // toggle entirely -- either way it saves through the same path, so a
+  // sort chosen on the phone is the one desktop sees next.
+  function setSort(column: SortColumn, direction?: 'asc' | 'desc') {
+    const nextDirection: 'asc' | 'desc' =
+      direction ?? (column === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc')
     setSortColumn(column)
     setSortDirection(nextDirection)
     save({ columns: orderedColumns, sortColumn: column, sortDirection: nextDirection })

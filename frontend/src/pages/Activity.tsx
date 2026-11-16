@@ -18,7 +18,7 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks'
+import { useDebouncedValue } from '@mantine/hooks'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
@@ -36,6 +36,7 @@ import { useUpdateTableViewPreference } from '../api/mutations'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../components/ride/rideColumnRenderers'
 import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
@@ -202,7 +203,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
   const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
   const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
   const [batchServiceRide, setBatchServiceRide] = useState<ActivityRideItem | null>(null)
-  const isNarrow = useMediaQuery('(max-width: 768px)')
+  const isNarrow = useIsMobile()
 
   function toggleSessionExpanded(sessionId: number) {
     setExpandedSessionIds((prev) => {
