@@ -1296,11 +1296,11 @@ A future page can adopt the same UX without rework:
   same role it already plays for the table/column-picker side — it reuses the
   exact sorted array the desktop table already computes (including the
   retired-sorts-last rule) rather than duplicating the sort logic for cards.
-  Card view's own breakpoint (`useIsMobile()`, JS, inclusive at ≤768px) is
-  allowed to disagree with the nav shell's breakpoint (CSS, inclusive at
-  ≥768px) at exactly 768px, briefly showing the desktop sidebar next to
-  cards — two independent layout decisions, not two renderings of the same
-  element, unlike the nav-shell bug "Layout and navigation" describes below.
+  Card view's own breakpoint (`useIsMobile()`) and the nav shell's CSS
+  breakpoint (`sm`) land on the same side at exactly 768px wide — see
+  "Layout and navigation" below for why that boundary had to be made exact,
+  rather than relying on two independently-resolved breakpoints to agree by
+  coincidence.
 - **Tables with card view**: `bikes`, `components`, `maintenance_events`,
   `assignments`, `bike_installed_components`, `bike_history`, `bike_rides`
   (the last two on the Bike detail page; `bike_rides`'s own card has no
@@ -1426,16 +1426,47 @@ already used.
 
 - **`frontend/src/hooks/useIsMobile.ts`** is the one shared breakpoint
   check for anything that needs real JS branching (not just CSS
-  visibility) — `useMediaQuery('(max-width: 768px)', false, {
-  getInitialValueInEffect: false })`. The `getInitialValueInEffect: false`
-  matters: Mantine's hook otherwise returns a default value on the first
-  render and only corrects itself one render later inside a `useEffect`,
-  which would flash the desktop layout on a phone for a frame — this app
-  is pure CSR (no SSR), so reading `window.matchMedia` synchronously on the
-  first render is always safe and skips that flash entirely. Reused as-is
-  by `SettingsLayout.tsx` (below) and by mobile steps 2/3 (a responsive
-  datatable kit; full-screen modals and quick actions) — not introduced
-  fresh each time a page needs to know the viewport width.
+  visibility) — `useMediaQuery(MOBILE_BREAKPOINT_QUERY, false, {
+  getInitialValueInEffect: false })`. `MOBILE_BREAKPOINT_QUERY` is
+  `` `(max-width: ${em(767.98)})` ``, **not** a plain `(max-width: 768px)` —
+  Mantine's `sm` breakpoint (the nav shell's own CSS, `AppShell.Navbar`'s
+  `breakpoint="sm"` among others) resolves to `min-width: 48em`/768px
+  exactly, so a JS query that's inclusive of 768px would disagree with that
+  CSS at the exact boundary (CSS: desktop; JS: mobile, both true at once).
+  `em(767.98)` lands a hair under 48em instead, so the two can never both
+  match at the same width (mobile step 3 of 4's own fix — this was a real,
+  if narrow, gap before: a 768px-wide viewport got the desktop sidebar
+  *and* whatever `useIsMobile()`-driven mobile UI a page rendered, same
+  flavor of bug as the footer one described just below, just one level
+  up). `index.css`'s iOS-input-zoom fix (also mobile step 3) uses the same
+  `767.98px` value for its own media query, for the same reason — keep
+  both in sync if this breakpoint ever changes. The
+  `getInitialValueInEffect: false` option matters too: Mantine's hook
+  otherwise returns a default value on the first render and only corrects
+  itself one render later inside a `useEffect`, which would flash the
+  desktop layout on a phone for a frame — this app is pure CSR (no SSR), so
+  reading `window.matchMedia` synchronously on the first render is always
+  safe and skips that flash entirely. Reused as-is by `SettingsLayout.tsx`
+  (below) and by mobile steps 2/3 (a responsive datatable kit; full-screen
+  modals and quick actions) — not introduced fresh each time a page needs
+  to know the viewport width.
+- **iOS input zoom**: Safari zooms the whole page in when a tapped input's
+  font-size is under 16px, and Mantine's default `sm` inputs render at
+  14px. `index.css` bumps every editable field to 16px below the
+  `767.98px` breakpoint only (desktop keeps Mantine's own sizing) via three
+  classes confirmed empirically against this app's actual rendered markup,
+  not assumed from Mantine's docs: `.mantine-Input-input` (every field
+  built on the base `Input` component — `TextInput`, `NumberInput`,
+  `Select`, `Autocomplete`, `Textarea`, and every `@mantine/dates` input,
+  which all reuse the same component under the hood), `.mantine-
+  PillsInputField-field` (`MultiSelect`/`TagsInput`'s own typing field — a
+  different internal component, so it doesn't carry `Input-input`), and
+  `.mantine-PasswordInput-innerInput` (`PasswordInput` renders its field as
+  its own "innerInput" part rather than reusing `Input-input` either).
+  Checkbox/Radio inputs are excluded — nothing to type into, no zoom risk.
+  Deliberately not a disabled-zoom viewport meta (`user-scalable=no`/
+  `maximum-scale=1`) — that breaks pinch-zoom accessibility for everyone,
+  not just this one input-focus case.
 - **Prefer Mantine's `hiddenFrom`/`visibleFrom` props, or a component's own
   native per-breakpoint config, over `useIsMobile()`** wherever a plain CSS
   show/hide is enough — pure CSS can never flash, since the browser

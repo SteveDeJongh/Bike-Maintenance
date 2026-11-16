@@ -21,3 +21,31 @@ body {
 [data-mantine-color-scheme='dark'] .mantine-AppShell-header {
   background-color: var(--mantine-color-dark-6);
 }
+
+/* iOS Safari zooms the whole page in when a tapped input's font-size is
+   under 16px -- Mantine's default `sm` inputs render at 14px
+   (theme.fontSizes.sm). Rather than disable zoom in the viewport meta
+   (breaks pinch-zoom accessibility for everyone), this bumps every
+   editable field's own font-size to 16px, but only below the mobile
+   breakpoint -- desktop keeps Mantine's own sizing. `767.98px` must stay
+   in sync with useIsMobile's MOBILE_BREAKPOINT_QUERY (`em(767.98)`) --
+   both exist to land just under Mantine's `sm` (48em/768px) CSS
+   breakpoint so nothing disagrees at the boundary.
+   `mantine-Input-input` covers every field built on the base Input
+   component -- TextInput, NumberInput, Select, Autocomplete, Textarea,
+   and every @mantine/dates input (DateInput, DateTimePicker, etc, which
+   all reuse the same component under the hood); `PillsInputField-field`
+   is MultiSelect/TagsInput's own typing field (a different internal
+   component, so it doesn't carry the Input-input class); `PasswordInput`
+   renders its actual field as its own "innerInput" part instead of
+   reusing Input-input, so it needs listing separately. Checkbox/Radio
+   inputs are never a zoom risk (nothing to type into) and aren't
+   included. Confirmed empirically against this app's own rendered
+   markup -- not assumed from Mantine's docs alone. */
+@media (max-width: 767.98px) {
+  .mantine-Input-input,
+  .mantine-PillsInputField-field,
+  .mantine-PasswordInput-innerInput {
+    font-size: 16px;
+  }
+}
