@@ -1301,11 +1301,44 @@ A future page can adopt the same UX without rework:
   ≥768px) at exactly 768px, briefly showing the desktop sidebar next to
   cards — two independent layout decisions, not two renderings of the same
   element, unlike the nav-shell bug "Layout and navigation" describes below.
-- **Tables adopting card view so far**: `bikes`. The rest of this mechanism's
-  adopters (`components`, `maintenance_events`, `assignments`,
-  `bike_installed_components`, `bike_history`, `strava_rides`) currently only
-  scroll horizontally on mobile (see below) — rolling card view out to them is
-  tracked as its own, later step.
+- **Tables with card view**: `bikes`, `components`, `maintenance_events`,
+  `assignments`, `bike_installed_components`, `bike_history`, `bike_rides`
+  (the last two on the Bike detail page; `bike_rides`'s own card has no
+  `MobileSortControl`, matching its desktop table having no click-to-sort at
+  all — see "Ride history" below). `assignments`' card uses a two-line title
+  (Component, then Bike dimmed underneath, both independently tappable) for
+  its two pinned columns, same convention
+  `bike_installed_components`/`bike_history` use the other way around
+  (Category dimmed *above* Component) — a card's title slot always carries
+  every pinned column, just arranged to read naturally for that table.
+  `bike_installed_components`'s card
+  (`frontend/src/components/bike/InstalledComponentsCardList.tsx`) and
+  `bike_history`'s (`.../ComponentHistoryCardList.tsx`) were pulled into their
+  own files next to `BikeDetail.tsx` rather than grown inline on that already
+  1,000+-line page (due for its own split in a later mobile step) —
+  `InstalledComponentsCardList` in particular is deliberately *not* built on
+  the shared `DataCardList`: a row there is one of two unrelated UI shapes (a
+  real assignment, or an empty slot's own inline install form — see
+  `SlotRow`/`EmptySlotRow` in `BikeDetail.tsx`), which doesn't fit a single
+  generic column-renderer component. `DataCardList` itself carries an
+  optional `onRowClick` prop (used by `bike_history`'s card, which — like its
+  desktop row — opens `AssignmentDetailModal` on tap, not only via its
+  pinned link) as a small, generally useful addition, not a one-off.
+- **`strava_rides` (the Strava page's Rides tab) deliberately has no card
+  view** — it has per-row bulk-select checkboxes, a "select all"/"select all
+  matching" toolbar, and row actions that are several conditional buttons
+  (Resync/Ignore/Resolve gear/View on Strava), none of which `DataCardList`
+  supports; it still only scrolls horizontally on mobile (`Table.ScrollContainer`).
+  Giving it a real card view needs a deliberate design decision first (most
+  likely either a selection-aware extension of `DataCardList`, or its own
+  bespoke card component, same precedent as `NarrowActivityCard`/
+  `InstalledComponentsCardList`) — revisit if this is genuinely painful on a
+  phone in practice, rather than guessing at an interaction now.
+  `components/bike/RideHistorySection.tsx`'s own Resync button stays
+  directly on its card rather than moving into a "⋯" menu (unlike every
+  other adopter's actions) — it's the only action there, and
+  `ResyncRideButton`'s own loading/rate-limit-error UI doesn't fit cleanly
+  inside a `Menu.Item`.
 
 **To adopt this on a new or existing table**, define on the frontend (nothing to
 build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
@@ -2097,13 +2130,15 @@ table cell per row, not two).
    intervals and maintenance alerts" above. Mobile responsiveness is in
    progress: step 1 of 4 (a responsive app shell -- desktop sidebar/mobile
    tab bar, PWA install) is done, see "Layout and navigation" and "PWA"
-   above; step 2 of 4 (a responsive datatable kit) is partway done -- the
-   reusable card view/mobile sort control and every configurable table's
-   `Table.ScrollContainer` wrapper are in, see "Sortable, configurable
-   tables" above; rolling card view out past `bikes` to the rest of those
-   tables remains. Full-screen modals/mobile quick actions, and splitting
-   up the large page files, remain as later steps. Deploy, webhooks, and
-   charts also remain.
+   above. Step 2 of 4 (a responsive datatable kit) is done except for one
+   deliberately deferred table: every configurable table has card view on
+   mobile except the Strava page's Rides tab (bulk-select checkboxes and
+   multi-button row actions don't fit the shared card component as built;
+   it still scrolls horizontally), and every non-configurable table at
+   least scrolls horizontally instead of overflowing the page -- see
+   "Sortable, configurable tables" above for the full breakdown. Step 3
+   (full-screen modals/mobile quick actions) and step 4 (splitting up the
+   large page files) remain. Deploy, webhooks, and charts also remain.
 
 ## Conventions
 
