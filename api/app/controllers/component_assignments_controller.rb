@@ -1,5 +1,5 @@
 class ComponentAssignmentsController < ApplicationController
-  before_action :set_component_assignment, only: %i[ show update destroy ]
+  before_action :set_component_assignment, only: %i[ show update destroy swap ]
 
   # GET /component_assignments
   def index
@@ -42,6 +42,22 @@ class ComponentAssignmentsController < ApplicationController
   def destroy
     @component_assignment.destroy!
     head :no_content
+  end
+
+  # POST /component_assignments/1/swap
+  def swap
+    component = current_user.components.find_by(id: params[:component_id])
+    return render_bike_or_component_not_found unless component
+
+    swapped_at = params[:swapped_at].present? ? Time.zone.parse(params[:swapped_at].to_s) : Time.current
+
+    result = ComponentAssignments::Swap.call(assignment: @component_assignment, component: component, swapped_at: swapped_at)
+
+    if result.success?
+      render json: { assignment: result.new_assignment, ended_assignment: result.ended_assignment }, status: :created
+    else
+      render json: result.errors, status: :unprocessable_content
+    end
   end
 
   private

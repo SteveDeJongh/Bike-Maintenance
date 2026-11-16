@@ -88,4 +88,147 @@ RSpec.describe "ComponentAssignments", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "POST /component_assignments/:id/swap" do
+    it "ends the current assignment and installs the new component at exactly the swap time" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain", label: "Chain A")
+      chain_b = create(:component, user: current_user, category: "chain", label: "Chain B")
+      assignment = create(:component_assignment, bike: bike, component: chain_a,
+        started_at: Time.zone.local(2026, 1, 1, 8, 0), ended_at: nil, ride_context: "outdoor_only")
+      swapped_at = Time.zone.local(2026, 2, 1, 9, 0)
+
+      post "/component_assignments/#{assignment.id}/swap", params: {
+        component_id: chain_b.id, swapped_at: swapped_at.iso8601,
+      }
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["ended_assignment"]["id"]).to eq(assignment.id)
+      expect(Time.zone.parse(body["ended_assignment"]["ended_at"])).to eq(swapped_at)
+      expect(body["assignment"]["component_id"]).to eq(chain_b.id)
+      expect(body["assignment"]["bike_id"]).to eq(bike.id)
+      expect(body["assignment"]["ride_context"]).to eq("outdoor_only")
+      expect(Time.zone.parse(body["assignment"]["started_at"])).to eq(swapped_at)
+      expect(body["assignment"]["ended_at"]).to be_nil
+
+      assignment.reload
+      expect(assignment.ended_at).to eq(swapped_at)
+      new_assignment = ComponentAssignment.find(body["assignment"]["id"])
+      expect(new_assignment.component_id).to eq(chain_b.id)
+    end
+
+    it "defaults swapped_at to now when omitted" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain")
+      chain_b = create(:component, user: current_user, category: "chain")
+      assignment = create(:component_assignment, bike: bike, component: chain_a,
+        started_at: Time.zone.local(2026, 4, 1), ended_at: nil)
+
+      travel_to Time.zone.local(2026, 5, 1, 12, 0) do
+        post "/component_assignments/#{assignment.id}/swap", params: { component_id: chain_b.id }
+      end
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(Time.zone.parse(body["assignment"]["started_at"])).to eq(Time.zone.local(2026, 5, 1, 12, 0))
+    end
+
+    it "rejects a component of a different category" do
+      bike = create(:bike, user: current_user)
+      chain = create(:component, user: current_user, category: "chain")
+      cassette = create(:component, user: current_user, category: "cassette")
+      assignment = create(:component_assignment, bike: bike, component: chain, ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: { component_id: cassette.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].join).to include("not a chain")
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "rejects a retired component" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain")
+      chain_b = create(:component, user: current_user, category: "chain", retired_on: Date.new(2026, 1, 1))
+      assignment = create(:component_assignment, bike: bike, component: chain_a, ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: { component_id: chain_b.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].join).to include("retired")
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "404s for a component owned by another user" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain")
+      other_component = create(:component, category: "chain")
+      assignment = create(:component_assignment, bike: bike, component: chain_a, ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: { component_id: other_component.id }
+
+      expect(response).to have_http_status(:not_found)
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "rejects swapping a component for itself" do
+      bike = create(:bike, user: current_user)
+      chain = create(:component, user: current_user, category: "chain")
+      assignment = create(:component_assignment, bike: bike, component: chain, ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: { component_id: chain.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].join).to include("itself")
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "rejects a swapped_at before the current assignment's own start" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain")
+      chain_b = create(:component, user: current_user, category: "chain")
+      assignment = create(:component_assignment, bike: bike, component: chain_a,
+        started_at: Time.zone.local(2026, 2, 1), ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: {
+        component_id: chain_b.id, swapped_at: Time.zone.local(2026, 1, 1).iso8601,
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].join).to include("after this installation's own start")
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "rolls back ending the current assignment when creating the new one fails" do
+      bike = create(:bike, user: current_user)
+      chain_a = create(:component, user: current_user, category: "chain")
+      chain_b = create(:component, user: current_user, category: "chain")
+      # chain_b is already mounted on another bike with no end date, so
+      # installing it here too (not indoor_only/shared) fails
+      # ComponentAssignment's own no_overlapping_assignment_for_component
+      # validation -- exactly the "let the model validations decide"
+      # conflict case, not one of this service's own pre-checks.
+      create(:component_assignment, bike: create(:bike, user: current_user), component: chain_b, ended_at: nil)
+      assignment = create(:component_assignment, bike: bike, component: chain_a,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+
+      post "/component_assignments/#{assignment.id}/swap", params: {
+        component_id: chain_b.id, swapped_at: Time.zone.local(2026, 2, 1).iso8601,
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].join).to include("already assigned")
+      expect(assignment.reload.ended_at).to be_nil
+    end
+
+    it "404s for another user's assignment" do
+      other_assignment = create(:component_assignment, ended_at: nil)
+      component = create(:component, user: current_user, category: other_assignment.component.category)
+
+      post "/component_assignments/#{other_assignment.id}/swap", params: { component_id: component.id }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

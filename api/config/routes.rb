@@ -3,7 +3,9 @@ Rails.application.routes.draw do
 
   resources :service_types, except: %i[ new edit ]
   resources :maintenance_events, except: %i[ new edit ]
-  resources :component_assignments, except: %i[ new edit ]
+  resources :component_assignments, except: %i[ new edit ] do
+    member { post :swap }
+  end
   resources :components, except: %i[ new edit ]
   resources :bikes, except: %i[ new edit ] do
     member do

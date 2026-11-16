@@ -175,9 +175,12 @@ RSpec.describe Activity::Feed do
         bike = create(:bike, user: user)
         old_component = create(:component, user: user, category: "chain", label: "Chain A")
         new_component = create(:component, user: user, category: "chain", label: "Chain B")
-        # The real gap a swap must have: ComponentAssignment's own overlap
-        # validation rejects an exactly-equal boundary, so a genuine swap
-        # always has the new assignment start a little after the old one ends.
+        # The hand-made, two-action swap path (Remove, then Install
+        # separately) always has a small real gap -- two separate requests
+        # can never land on the exact same timestamp -- which is what this
+        # tolerance papers over. The one-step swap endpoint
+        # (ComponentAssignments::Swap) produces an exact boundary instead;
+        # see the spec just below this one.
         removed_at = Time.zone.local(2026, 2, 1, 9, 0)
         installed_at = removed_at + 10.seconds
 
@@ -196,6 +199,32 @@ RSpec.describe Activity::Feed do
         expect(merged[:component]).to eq(id: new_component.id, label: "Chain B")
         expect(merged[:replaced_component]).to eq(id: old_component.id, label: "Chain A")
         expect(merged[:summary]).to eq("Installed Chain B on #{bike.name}, replacing Chain A")
+      end
+
+      it "merges a one-step swap (ComponentAssignments::Swap), whose boundary is exact, into one replaced entry" do
+        user = create(:user)
+        bike = create(:bike, user: user)
+        old_component = create(:component, user: user, category: "chain", label: "Chain A")
+        new_component = create(:component, user: user, category: "chain", label: "Chain B")
+        swapped_at = Time.zone.local(2026, 2, 1, 9, 0)
+        assignment = create(:component_assignment, component: old_component, bike: bike,
+          started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+
+        swap_result = ComponentAssignments::Swap.call(assignment: assignment, component: new_component, swapped_at: swapped_at)
+        expect(swap_result).to be_success
+
+        result = described_class.call(user, kinds: %w[setup])
+
+        setup_items = result.items.select { |i| i[:kind] == "setup_change" }
+        # The old component's own initial install (back on 2026-01-01) is
+        # untouched by the merge -- same as the hand-made-swap spec above --
+        # only the swap's own removed/installed pair collapses into one
+        # "replaced" entry.
+        expect(setup_items.size).to eq(2)
+        merged = setup_items.find { |i| i[:action] == "replaced" }
+        expect(merged[:id]).to eq(swap_result.new_assignment.id)
+        expect(merged[:component]).to eq(id: new_component.id, label: "Chain B")
+        expect(merged[:replaced_component]).to eq(id: old_component.id, label: "Chain A")
       end
 
       it "does not merge when the gap exceeds the tolerance" do
