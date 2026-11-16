@@ -22,15 +22,7 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
-import {
-  IconArrowBarUp,
-  IconArrowsExchange,
-  IconBike,
-  IconChevronDown,
-  IconChevronRight,
-  IconTool,
-  type Icon,
-} from '@tabler/icons-react'
+import { IconArrowsExchange, IconBike, IconChevronDown, IconChevronRight, IconTool, type Icon } from '@tabler/icons-react'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import { useUpdateTableViewPreference } from '../api/mutations'
 import ColumnPicker from '../components/datatable/ColumnPicker'
@@ -43,6 +35,8 @@ import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
 import ResyncRideButton from '../components/ride/ResyncRideButton'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
+import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from '../components/activity/dateRanges'
+import { activityItemIconMeta, initialPerformedAtForRide, nonRideNote } from '../components/activity/activityItemMeta'
 import {
   ACTIVITY_UI_KINDS,
   ACTIVITY_KIND_LABELS,
@@ -72,39 +66,6 @@ type DatePreset = 'this_week' | 'this_month' | 'this_year' | 'last_30_days' | 'c
 
 function isActivityUiKind(value: string): value is ActivityUiKind {
   return (ACTIVITY_UI_KINDS as readonly string[]).includes(value)
-}
-
-function toIsoDate(date: Date): string {
-  return date.toLocaleDateString('en-CA') // YYYY-MM-DD in local time
-}
-
-function startOfWeekIso(): string {
-  const now = new Date()
-  const day = now.getDay() // 0 Sun .. 6 Sat
-  const mondayOffset = day === 0 ? 6 : day - 1
-  const start = new Date(now)
-  start.setDate(now.getDate() - mondayOffset)
-  return toIsoDate(start)
-}
-
-function startOfMonthIso(): string {
-  const now = new Date()
-  return toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1))
-}
-
-function startOfYearIso(): string {
-  const now = new Date()
-  return toIsoDate(new Date(now.getFullYear(), 0, 1))
-}
-
-function daysAgoIso(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return toIsoDate(d)
-}
-
-function todayIso(): string {
-  return toIsoDate(new Date())
 }
 
 // Gates the whole page on activity_log's TableViewPreference resolving
@@ -156,36 +117,10 @@ const ACTIVITY_COLUMN_RENDERER: Record<ActivityLogColumn, (ride: ActivityRideIte
   ...SHARED_RIDE_COLUMN_RENDERERS,
 }
 
-function activityItemIconMeta(item: ActivityItem): { Icon: Icon; label: string } {
-  switch (item.kind) {
-    case 'ride':
-      return { Icon: IconBike, label: 'Ride' }
-    case 'service_session':
-    case 'maintenance_event':
-      return { Icon: IconTool, label: 'Service' }
-    case 'setup_change':
-      return { Icon: item.action === 'removed' ? IconArrowBarUp : IconArrowsExchange, label: 'Setup change' }
-  }
-}
-
 const ACTIVITY_UI_KIND_ICON: Record<ActivityUiKind, Icon> = {
   ride: IconBike,
   service: IconTool,
   setup: IconArrowsExchange,
-}
-
-function nonRideNote(item: ActivityItem): string | null {
-  if (item.kind === 'maintenance_event') return item.note
-  if (item.kind === 'service_session') return item.notes
-  return null
-}
-
-// "Log service after this ride" prefills the session's performed_at at the
-// ride's end, not its start -- the maintenance happened after riding it.
-function initialPerformedAtForRide(ride: ActivityRideItem): string {
-  const movedAtMs = new Date(ride.moved_at).getTime()
-  const elapsedMs = (ride.elapsed_time ?? 0) * 1000
-  return new Date(movedAtMs + elapsedMs).toISOString()
 }
 
 function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {

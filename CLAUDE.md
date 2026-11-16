@@ -2315,3 +2315,21 @@ table cell per row, not two).
   `intervals`, …); pick every group whose server response the write can change, and
   when in doubt include it — over-invalidating only refetches mounted queries. A new
   query key must be added to a group in the same change.
+- **Frontend tests**: `frontend/` has a minimal Vitest setup (`npm run test`,
+  which runs `vitest run` once rather than watch mode) added in mobile step 4 of
+  4 for the pure helpers pulled out of `Activity.tsx` during that page's split
+  (`components/activity/dateRanges.ts`, `activityItemMeta.ts`). Configured via
+  `vite.config.ts`'s own `test` key (imported from `vitest/config`, not plain
+  `vite`, since only that typed version knows about `test` at all) rather than a
+  separate `vitest.config.ts` — one config file, not two. `environment: 'node'`
+  — no `jsdom`/React Testing Library yet, since nothing here renders a
+  component; add one only once a test actually needs to mount something. Test
+  files sit directly beside what they test (`dateRanges.test.ts` next to
+  `dateRanges.ts`), importing `describe`/`it`/`expect`/`vi` explicitly from
+  `'vitest'` rather than relying on injected globals, so no tsconfig change was
+  needed for the test runner itself (`dateRanges.test.ts`'s own use of
+  `process.env.TZ` is the one exception, via a scoped `/// <reference
+  types="node" />` rather than widening `tsconfig.app.json`'s own `types` list
+  app-wide). **New pure helpers extracted from a page or component get a test
+  alongside them** — this isn't meant to stay a one-off for Activity's own
+  helpers.
