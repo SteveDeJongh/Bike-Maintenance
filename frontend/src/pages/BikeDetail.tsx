@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   Alert,
@@ -42,7 +42,6 @@ import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import SwapComponentModal from '../components/forms/SwapComponentModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import RideContextCheckboxes from '../components/RideContextCheckboxes'
-import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
 import MobileSortControl from '../components/datatable/MobileSortControl'
@@ -62,15 +61,27 @@ import {
   INSTALLED_COMPONENT_COLUMNS,
   INSTALLED_COMPONENT_SORT_COLUMNS,
   RIDE_CONTEXT_LABELS,
-  SERVICE_STATUS_SEVERITY,
   type HistoryColumn,
   type HistorySortColumn,
   type InstalledComponentColumn,
   type InstalledComponentSortColumn,
 } from '../constants'
 import {
+  CREATE_NEW_COMPONENT,
+  INSTALLED_COMPONENT_COLUMN_OPTIONS,
+  INSTALLED_COMPONENT_SORT_COLUMN_LABELS,
+  installedComponentRenderer,
+  installedComponentValue,
+  type InstalledComponentRowEntry,
+} from '../components/bike/installedComponentColumns'
+import {
+  HISTORY_COLUMN_OPTIONS,
+  HISTORY_SORT_COLUMN_LABELS,
+  historyRenderer,
+  historyValue,
+} from '../components/bike/historyColumns'
+import {
   formatDate,
-  formatDateTime,
   isoUtcToDate,
   mantineLocalStringToIsoUtc,
   nowIsoUtc,
@@ -86,110 +97,6 @@ import type {
   ComponentAssignmentWithStats,
   TableViewPreferenceData,
 } from '../types/models'
-
-const CREATE_NEW_COMPONENT = '__create_new__'
-
-const INSTALLED_COMPONENT_COLUMN_OPTIONS = INSTALLED_COMPONENT_COLUMNS.map((column) => ({
-  key: column,
-  label: INSTALLED_COMPONENT_COLUMN_LABELS[column],
-}))
-
-const HISTORY_COLUMN_OPTIONS = HISTORY_COLUMNS.map((column) => ({
-  key: column,
-  label: HISTORY_COLUMN_LABELS[column],
-}))
-
-// MobileSortControl needs a label for every sortable column, including the
-// pinned columns that INSTALLED_COMPONENT_COLUMN_LABELS/HISTORY_COLUMN_LABELS
-// don't carry, since neither is one of the toggleable columns.
-const INSTALLED_COMPONENT_SORT_COLUMN_LABELS: Record<InstalledComponentSortColumn, string> = {
-  category: 'Category',
-  ride_context: 'Ride Context',
-  component_label: 'Component',
-  ...INSTALLED_COMPONENT_COLUMN_LABELS,
-}
-
-const HISTORY_SORT_COLUMN_LABELS: Record<HistorySortColumn, string> = {
-  category: 'Category',
-  component_label: 'Component',
-  ...HISTORY_COLUMN_LABELS,
-}
-
-// Rendering only ever happens for occupied Installed-components rows (empty
-// slots render the install-flow controls instead), so this operates
-// directly on a real assignment, same as History's renderer below.
-const installedComponentRenderer: Record<InstalledComponentColumn, (a: ComponentAssignmentWithStats) => ReactNode> = {
-  period_distance: (a) => formatDistance(a.distance_meters),
-  period_time: (a) => formatDuration(a.moving_time),
-  period_elevation: (a) => formatElevation(a.elevation_gain),
-  period_avg_power: (a) => formatPower(a.average_power),
-  component_total_distance: (a) => formatDistance(a.component.total_distance),
-  component_total_time: (a) => formatDuration(a.component.total_moving_time),
-  component_total_elevation: (a) => formatElevation(a.component.total_elevation_gain),
-  component_avg_power: (a) => formatPower(a.component.average_power),
-  service_status: (a) => <ServiceStatusBadge status={a.component.service_status} />,
-  installed_on: (a) => formatDate(a.started_at),
-}
-
-// One row in the Installed-components table, one per real BikeComponentSlot
-// -- either occupied (assignment set) or empty (unset, offers the slot's
-// own ride context -- fixed if the slot is split, a free choice if it's
-// "both").
-interface InstalledComponentRowEntry {
-  slot: BikeComponentSlot
-  assignment?: ComponentAssignmentWithStats
-}
-
-// Installed-components sorting has to account for empty (unoccupied) slots,
-// which have no assignment yet — null sorts last, same convention used
-// everywhere else in this app.
-const installedComponentValue: Record<
-  InstalledComponentSortColumn,
-  (data: InstalledComponentRowEntry) => string | number | null
-> = {
-  category: ({ slot }) => slot.category,
-  ride_context: ({ slot, assignment }) => assignment?.ride_context ?? (slot.ride_context !== 'both' ? slot.ride_context : null),
-  component_label: ({ assignment }) => assignment?.component.label ?? null,
-  period_distance: ({ assignment }) => assignment?.distance_meters ?? null,
-  period_time: ({ assignment }) => assignment?.moving_time ?? null,
-  period_elevation: ({ assignment }) => assignment?.elevation_gain ?? null,
-  period_avg_power: ({ assignment }) => assignment?.average_power ?? null,
-  component_total_distance: ({ assignment }) => assignment?.component.total_distance ?? null,
-  component_total_time: ({ assignment }) => assignment?.component.total_moving_time ?? null,
-  component_total_elevation: ({ assignment }) => assignment?.component.total_elevation_gain ?? null,
-  component_avg_power: ({ assignment }) => assignment?.component.average_power ?? null,
-  service_status: ({ assignment }) =>
-    assignment?.component.service_status ? SERVICE_STATUS_SEVERITY[assignment.component.service_status] : null,
-  installed_on: ({ assignment }) => assignment?.started_at ?? null,
-}
-
-const historyRenderer: Record<HistoryColumn, (a: ComponentAssignmentWithStats) => ReactNode> = {
-  period_distance: (a) => formatDistance(a.distance_meters),
-  period_time: (a) => formatDuration(a.moving_time),
-  period_elevation: (a) => formatElevation(a.elevation_gain),
-  period_avg_power: (a) => formatPower(a.average_power),
-  component_total_distance: (a) => formatDistance(a.component.total_distance),
-  component_total_time: (a) => formatDuration(a.component.total_moving_time),
-  component_total_elevation: (a) => formatElevation(a.component.total_elevation_gain),
-  component_avg_power: (a) => formatPower(a.component.average_power),
-  started_on: (a) => formatDateTime(a.started_at),
-  ended_on: (a) => formatDateTime(a.ended_at),
-}
-
-const historyValue: Record<HistorySortColumn, (a: ComponentAssignmentWithStats) => string | number | null> = {
-  category: (a) => a.component.category,
-  component_label: (a) => a.component.label,
-  period_distance: (a) => a.distance_meters,
-  period_time: (a) => a.moving_time,
-  period_elevation: (a) => a.elevation_gain,
-  period_avg_power: (a) => a.average_power,
-  component_total_distance: (a) => a.component.total_distance,
-  component_total_time: (a) => a.component.total_moving_time,
-  component_total_elevation: (a) => a.component.total_elevation_gain,
-  component_avg_power: (a) => a.component.average_power,
-  started_on: (a) => a.started_at,
-  ended_on: (a) => a.ended_at,
-}
 
 export default function BikeDetail() {
   const { id } = useParams<{ id: string }>()
