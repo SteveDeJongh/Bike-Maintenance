@@ -395,19 +395,19 @@ module Activity
     # Merges a removed+installed pair into one "replaced" entry when
     # they're the same slot (bike + category + ride_context) and the
     # install's started_at is within MERGE_TOLERANCE of the removal's
-    # ended_at. NOT exact equality: ComponentAssignment's own
-    # no_overlapping_assignment_for_bike_slot validation (overlaps? treats
-    # an equal boundary as still overlapping, since it only exempts
-    # started_at *strictly* greater than the prior ended_at) means a
-    # same-slot swap can never actually be created with an exactly equal
-    # boundary -- the real swap this feature exists to show always has a
-    # small real gap. A tolerance is therefore required for this to ever
-    # fire on real data; it's the same small, clock-skew-sized allowance
-    # this codebase already uses elsewhere (ServiceSession::FUTURE_TOLERANCE,
-    # StravaCredential's refresh buffer), not a loose fuzzy window. A
-    # post-hydration, in-memory pass over one page's entries (bounded by
-    # per_page) -- a replace pair that straddles an exact page boundary is
-    # an accepted, cosmetic limitation, not handled here.
+    # ended_at -- a `<=` comparison, so an exactly equal boundary (the one
+    # the one-step swap endpoint, ComponentAssignments::Swap, always
+    # produces) already merges correctly without relying on this
+    # tolerance at all. The tolerance still matters for the older,
+    # two-action path (Remove, then Install by hand): two separate
+    # requests can never land on the exact same timestamp, so that real
+    # swap always has a small real gap, and this is what papers over it --
+    # the same small, clock-skew-sized allowance this codebase already
+    # uses elsewhere (ServiceSession::FUTURE_TOLERANCE, StravaCredential's
+    # refresh buffer), not a loose fuzzy window. A post-hydration,
+    # in-memory pass over one page's entries (bounded by per_page) -- a
+    # replace pair that straddles an exact page boundary is an accepted,
+    # cosmetic limitation, not handled here.
     MERGE_TOLERANCE = 1.minute
 
     def merge_setup_changes!(items)

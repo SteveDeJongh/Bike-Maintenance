@@ -185,7 +185,25 @@ RSpec.describe ComponentAssignment, type: :model do
       expect(swap_in).to be_valid
     end
 
-    it "rejects a same-day chain swap when the incoming assignment starts at the exact instant the outgoing one ends" do
+    it "allows a same-day chain swap when the incoming assignment starts at the exact instant the outgoing one ends" do
+      # overlaps? is half-open ([started_at, ended_at)), matching
+      # attribution's own windowing -- the exact boundary a one-step swap
+      # (ComponentAssignments::Swap) always produces, where a ride at that
+      # exact instant is already credited to exactly one of the two
+      # assignments, never both, so there's nothing left to conflict over.
+      bike = create(:bike)
+      create(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain A", category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 8, 0), ended_at: Time.zone.local(2026, 3, 1, 9, 0))
+
+      swap_in = build(:component_assignment, bike: bike,
+        component: create(:component, label: "Chain B", category: "chain", user: bike.user),
+        started_at: Time.zone.local(2026, 3, 1, 9, 0), ended_at: nil)
+
+      expect(swap_in).to be_valid
+    end
+
+    it "rejects a same-day chain swap when the incoming assignment starts one second before the outgoing one ends" do
       bike = create(:bike)
       outgoing = create(:component_assignment, bike: bike,
         component: create(:component, label: "Chain A", category: "chain", user: bike.user),
@@ -193,7 +211,7 @@ RSpec.describe ComponentAssignment, type: :model do
 
       swap_in = build(:component_assignment, bike: bike,
         component: create(:component, label: "Chain B", category: "chain", user: bike.user),
-        started_at: Time.zone.local(2026, 3, 1, 9, 0), ended_at: nil)
+        started_at: Time.zone.local(2026, 3, 1, 8, 59, 59), ended_at: nil)
 
       expect(swap_in).not_to be_valid
       message = swap_in.errors[:base].first

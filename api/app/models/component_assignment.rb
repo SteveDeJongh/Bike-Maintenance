@@ -137,11 +137,18 @@ class ComponentAssignment < ApplicationRecord
       &.allows_multiple_assignments || false
   end
 
-  # Two [started_at, ended_at] ranges overlap unless one entirely precedes
-  # the other. A nil ended_at means the assignment is still ongoing.
+  # Two half-open [started_at, ended_at) ranges overlap unless one starts
+  # at or after the other ends -- matching attribution's own windowing
+  # (ComponentAssignment#activities_from, Component#total_distance's half-
+  # open window), so a swap's exact boundary (one assignment's ended_at
+  # equal to the next one's started_at) is never flagged as an overlap: a
+  # ride exactly on that boundary is already credited to exactly one of
+  # the two assignments, never both, so there's nothing for this
+  # validation to protect against at that exact instant. A nil ended_at
+  # means the assignment is still ongoing.
   def overlaps?(other)
-    return false if ended_at.present? && other.started_at > ended_at
-    return false if other.ended_at.present? && started_at > other.ended_at
+    return false if ended_at.present? && other.started_at >= ended_at
+    return false if other.ended_at.present? && started_at >= other.ended_at
 
     true
   end
