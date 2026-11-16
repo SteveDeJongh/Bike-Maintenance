@@ -1523,10 +1523,63 @@ already used.
   `<Outlet/>`) is the one existing page `useIsMobile()` touches in this
   step: below `sm` its fixed-width vertical sidebar would force the page
   wider than the viewport, so it swaps for a horizontally scrollable row
-  above the content instead of overflowing. Tables and modals are
-  deliberately untouched here — a responsive datatable kit (scroll
-  containers, a card view on narrow screens) and full-screen modals/mobile
-  quick actions are their own, later steps.
+  above the content instead of overflowing.
+- **`frontend/src/components/AppModal.tsx`** (mobile step 3 of 4) is the
+  one shared wrapper every form modal renders through — **new modals must
+  use this instead of Mantine's `Modal` directly.** On mobile it goes
+  `fullScreen` with a slide-up transition (every modal is easier to use
+  that way on a phone, and the `size="xl"` ones — `BatchServiceModal`,
+  `CategoryServiceRequirementsModal`, `AssignmentDetailModal` — are
+  cramped otherwise); desktop keeps each modal's own `size` exactly as
+  before. Mantine's own Modal header is already `position: sticky; top:
+  0` unconditionally, so close stays reachable above a long scroll with
+  no extra work. An optional `footer` prop (adopted by
+  `BatchServiceModal` and `MaintenanceEventFormModal`, the two modals
+  with one clear primary submit/cancel row) renders that row `position:
+  sticky; bottom: 0` — respecting `env(safe-area-inset-bottom)` — on
+  mobile, inline exactly as before on desktop.
+  `CategoryServiceRequirementsModal` has no such single row (it's a
+  management surface — a scrollable list of templates, each
+  independently editable — not one form), so it doesn't use `footer`;
+  its own two nested sub-forms (new template, apply-to-components) each
+  sticky their *own* action row the same way via a local
+  `StickyMobileActions` helper instead. `BatchServiceModal`/
+  `CategoryServiceRequirementsModal` additionally only mount `AppModal`
+  (and everything inside it) while actually open — unlike every other
+  modal, their content owns a live per-instance query
+  (`useServiceableComponents`, the templates list) not worth keeping
+  alive just to animate a close, so closing them is an instant unmount
+  with no exit transition; every other modal's `AppModal` stays mounted
+  through `opened` flipping to `false` so its close transition can play.
+- **Date pickers on mobile**: `frontend/src/components/
+  MobileDatePickerDefaults.tsx` (wraps `<App/>` in `main.tsx`, nested
+  inside the outer `MantineProvider`) sets `dropdownType="modal"` on
+  every `DatePickerInput`/`DateTimePicker` below the mobile breakpoint —
+  a popover-anchored dropdown clips or gets pushed off-screen inside an
+  `AppModal` that's gone `fullScreen`, since there's no sensible anchor
+  point left. It's a *nested* `MantineThemeProvider`, not a plain
+  `createTheme()` call like `main.tsx`'s own `DateTimePicker` format
+  defaults, specifically because it has to react to `useIsMobile()` —
+  Mantine's theme `components` defaultProps mechanism is otherwise a
+  static object, not responsive to viewport size. `DateInput` (9 usages)
+  is deliberately excluded — unlike `DatePickerInput`/`DateTimePicker`,
+  it doesn't extend `PickerInputBase` and has no `dropdownType` prop at
+  all in this Mantine version; swapping those 9 usages to
+  `DatePickerInput` just to gain modal mode would trade `DateInput`'s
+  direct-keyboard-entry typing for a click-to-open-calendar UX, a real
+  behavior change, not a drop-in — left as a plain popover on mobile
+  instead.
+- **Touch targets** (mobile step 3 of 4): any small tappable element in a
+  place a phone user actually taps gets a `MOBILE_TAP_TARGET_STYLE`
+  (`frontend/src/utils/touchTarget.ts`, `minHeight`/`minWidth: 44` via
+  `inline-flex` centering, so it grows the tappable box without changing
+  the element's own visual size) — gated behind `useIsMobile()` wherever
+  the same element also renders on desktop (the dashboard `BikeCard`'s
+  bike-name link and compact "Log service" button, `AttentionRow`'s "Log
+  service" button), or applied unconditionally in a component that only
+  ever renders on mobile in the first place
+  (`InstalledComponentsCardList`'s `EmptySlotCard` — "Install"/"Stop
+  tracking", the two row actions there that sit outside its "⋯" menu).
 - Every route under `Layout` either is a top-level `NAV_DESTINATIONS`
   entry, a settings sub-page reachable from `SettingsLayout`'s own
   always-visible sub-nav, or already has a visible "Back to…" link
@@ -2168,8 +2221,15 @@ table cell per row, not two).
    it still scrolls horizontally), and every non-configurable table at
    least scrolls horizontally instead of overflowing the page -- see
    "Sortable, configurable tables" above for the full breakdown. Step 3
-   (full-screen modals/mobile quick actions) and step 4 (splitting up the
-   large page files) remain. Deploy, webhooks, and charts also remain.
+   (forms/modals) is partly done: the breakpoint now matches the nav
+   shell's CSS exactly, iOS no longer zooms in on form fields, every form
+   modal goes full-screen on mobile via the shared `AppModal` with a
+   sticky header/footer, and date pickers open as a modal instead of a
+   clipped popover -- see "Layout and navigation" above. The one-step
+   component swap (the other half of step 3, a new feature rather than a
+   layout fix) remains, along with mobile quick actions and step 4
+   (splitting up the large page files). Deploy, webhooks, and charts also
+   remain.
 
 ## Conventions
 

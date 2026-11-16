@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, NumberInput, SegmentedControl, Select, Stack, Text } from '@mantine/core'
+import { Alert, Button, Group, NumberInput, SegmentedControl, Select, Stack, Text } from '@mantine/core'
+import AppModal from '../AppModal'
 import { useUpdateComponentServiceRequirement } from '../../api/mutations'
 import { formatApiError } from '../../api/errors'
 import { categoryLabel } from '../../constants'
@@ -36,7 +37,7 @@ export default function EditServiceIntervalModal({
   category,
 }: EditServiceIntervalModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`Edit ${requirement.requirement_name} override`}>
+    <AppModal opened={opened} onClose={onClose} title={`Edit ${requirement.requirement_name} override`}>
       {opened && (
         <EditServiceRequirementForm
           key={requirement.id}
@@ -46,7 +47,7 @@ export default function EditServiceIntervalModal({
           category={category}
         />
       )}
-    </Modal>
+    </AppModal>
   )
 }
 

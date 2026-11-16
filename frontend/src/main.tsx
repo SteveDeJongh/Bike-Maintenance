@@ -8,6 +8,7 @@ import '@mantine/core/styles.css'
 import '@mantine/dates/styles.css'
 import './index.css'
 import App from './App.tsx'
+import MobileDatePickerDefaults from './components/MobileDatePickerDefaults.tsx'
 import { queryClient } from './api/queryClient'
 
 // Applies to every DateTimePicker in the app in one place, rather than
@@ -78,7 +79,9 @@ createRoot(document.getElementById('root')!).render(
       <DatesProvider settings={{ firstDayOfWeek: 0 }}>
         <ModalsProvider>
           <QueryClientProvider client={queryClient}>
-            <App />
+            <MobileDatePickerDefaults>
+              <App />
+            </MobileDatePickerDefaults>
           </QueryClientProvider>
         </ModalsProvider>
       </DatesProvider>

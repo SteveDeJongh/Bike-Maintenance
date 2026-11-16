@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Group, Loader, Modal, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { Alert, Button, Checkbox, Group, Loader, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import AppModal from '../AppModal'
 import { useApplyCategoryServiceRequirement, useCreateCategoryServiceRequirement, useDeleteCategoryServiceRequirement, useUpdateCategoryServiceRequirement } from '../../api/mutations'
 import { useAllComponentServiceRequirements, useCategoryServiceRequirements, useComponents } from '../../api/queries'
 import { categoryLabel } from '../../constants'
 import { formatApiError } from '../../api/errors'
 import { confirmDelete } from '../confirmDelete'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 import {
   CALENDAR_UNIT_OPTIONS,
@@ -30,11 +32,47 @@ interface CategoryServiceRequirementsModalProps {
   category: string
 }
 
+// This modal has no single submit/cancel row of its own to give AppModal's
+// `footer` prop -- it's a management surface (a scrolling list of
+// templates, each independently editable/deletable) rather than one form,
+// so there's nothing to hoist. Its two inline sub-forms (NewTemplateForm,
+// ApplyToComponentsChecklist below) each sticky their *own* action row on
+// mobile instead -- see StickyMobileActions.
 export default function CategoryServiceRequirementsModal({ opened, onClose, category }: CategoryServiceRequirementsModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`${categoryLabel(category)} service requirements`} size="xl">
+    <AppModal opened={opened} onClose={onClose} title={`${categoryLabel(category)} service requirements`} size="xl">
       {opened && <CategoryServiceRequirementsEditor category={category} />}
-    </Modal>
+    </AppModal>
+  )
+}
+
+// Shared by this file's two sub-forms (NewTemplateForm,
+// ApplyToComponentsChecklist) -- each can sit below a long scroll (the
+// template list, the component checklist), so its own action row sticks
+// to the bottom of the screen on mobile, same mechanism AppModal's own
+// `footer` prop uses internally, just applied directly here since there's
+// no single modal-level footer for this editor (see the module comment
+// above).
+function StickyMobileActions({ children }: { children: ReactNode }) {
+  const isMobile = useIsMobile()
+  if (!isMobile) return <Group justify="flex-end">{children}</Group>
+
+  return (
+    <Group
+      justify="flex-end"
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        marginInline: 'calc(var(--mantine-spacing-sm) * -1)',
+        marginBottom: 'calc(var(--mantine-spacing-sm) * -1)',
+        padding: 'var(--mantine-spacing-sm)',
+        paddingBottom: 'calc(var(--mantine-spacing-sm) + env(safe-area-inset-bottom))',
+        background: 'var(--mantine-color-body)',
+        borderTop: '1px solid var(--mantine-color-default-border)',
+      }}
+    >
+      {children}
+    </Group>
   )
 }
 
@@ -372,14 +410,14 @@ function NewTemplateForm({
       {createServiceTypeError && <Alert color="red">{formatApiError(createServiceTypeError)}</Alert>}
       {createTemplate.isError && <Alert color="red">{formatApiError(createTemplate.error)}</Alert>}
 
-      <Group justify="flex-end">
+      <StickyMobileActions>
         <Button variant="default" onClick={onCancel}>
           Cancel
         </Button>
         <Button onClick={handleCreate} disabled={!canSubmit} loading={createTemplate.isPending || isCreatingServiceType}>
           Create
         </Button>
-      </Group>
+      </StickyMobileActions>
     </Stack>
   )
 }
@@ -436,14 +474,14 @@ function ApplyToComponentsChecklist({
         )
       })}
       {applyTemplate.isError && <Alert color="red">{formatApiError(applyTemplate.error)}</Alert>}
-      <Group justify="flex-end">
+      <StickyMobileActions>
         <Button variant="default" onClick={onDone}>
           Skip
         </Button>
         <Button onClick={handleApply} loading={applyTemplate.isPending} disabled={checked.size === 0}>
           Apply
         </Button>
-      </Group>
+      </StickyMobileActions>
     </Stack>
   )
 }

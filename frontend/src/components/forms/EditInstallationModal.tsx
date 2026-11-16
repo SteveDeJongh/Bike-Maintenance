@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Stack } from '@mantine/core'
+import { Alert, Button, Group, Stack } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -22,9 +23,9 @@ interface EditInstallationModalProps {
 
 export default function EditInstallationModal({ opened, onClose, assignment }: EditInstallationModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit installation">
+    <AppModal opened={opened} onClose={onClose} title="Edit installation">
       {opened && <EditInstallationForm key={assignment.id} onClose={onClose} assignment={assignment} />}
-    </Modal>
+    </AppModal>
   )
 }
 

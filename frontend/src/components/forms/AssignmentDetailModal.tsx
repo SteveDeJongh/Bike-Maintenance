@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Button, Divider, Group, Modal, Stack, Text } from '@mantine/core'
+import { Button, Divider, Group, Stack, Text } from '@mantine/core'
+import AppModal from '../AppModal'
 import ComponentIdentityStatus from '../ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
 import EditInstallationModal from './EditInstallationModal'
@@ -19,9 +20,9 @@ interface AssignmentDetailModalProps {
 
 export default function AssignmentDetailModal({ opened, onClose, assignment }: AssignmentDetailModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={assignment?.component.label ?? ''} size="xl">
+    <AppModal opened={opened} onClose={onClose} title={assignment?.component.label ?? ''} size="xl">
       {opened && assignment && <AssignmentDetailContent key={assignment.id} assignment={assignment} />}
-    </Modal>
+    </AppModal>
   )
 }
 

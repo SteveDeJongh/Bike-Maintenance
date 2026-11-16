@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Divider, Group, Loader, Modal, Stack, Table, Text, Textarea } from '@mantine/core'
+import { Alert, Anchor, Button, Divider, Group, Loader, Stack, Table, Text, Textarea } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { Link } from 'react-router-dom'
 import { useDeleteServiceSession, useUpdateServiceSession } from '../../api/mutations'
@@ -21,9 +22,9 @@ interface ServiceSessionViewModalProps {
 // event's own performed_at moves in step on the server (ServiceSession#sync_event_performed_at).
 export default function ServiceSessionViewModal({ opened, onClose, sessionId }: ServiceSessionViewModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Service session">
+    <AppModal opened={opened} onClose={onClose} title="Service session">
       {opened && <ServiceSessionView sessionId={sessionId} onClose={onClose} />}
-    </Modal>
+    </AppModal>
   )
 }
 

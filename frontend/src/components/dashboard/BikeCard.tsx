@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Button, Card, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { SERVICE_STATUS_COLORS } from '../../constants'
 import { formatDate } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { DashboardBike, DashboardDisplayMetric, DashboardMountedComponent } from '../../types/models'
 
 // since_service_type_name is specifically the setting event's own service
@@ -65,19 +67,31 @@ function MountedRow({ component }: { component: DashboardMountedComponent }) {
 
 export default function BikeCard({ bike }: { bike: DashboardBike }) {
   const [batchServiceOpened, setBatchServiceOpened] = useState(false)
+  const isMobile = useIsMobile()
 
   return (
     <Card withBorder padding="lg" radius="md" style={{ flex: '1 1 320px' }}>
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Text component={Link} to={`/bikes/${bike.id}`} fw={600} size="lg">
+          <Text
+            component={Link}
+            to={`/bikes/${bike.id}`}
+            fw={600}
+            size="lg"
+            style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
+          >
             {bike.name}
           </Text>
           <Stack gap={2} align="flex-end">
             <Text size="sm" c="dimmed">
               {bike.last_ride_on ? `Last ride ${formatDate(bike.last_ride_on)}` : 'No rides yet'}
             </Text>
-            <Button size="compact-xs" variant="subtle" onClick={() => setBatchServiceOpened(true)}>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => setBatchServiceOpened(true)}
+              style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
+            >
               Log service
             </Button>
           </Stack>

@@ -10,6 +10,7 @@ import ComponentFormModal from '../forms/ComponentFormModal'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { categoryLabel, RIDE_CONTEXT_LABELS, type InstalledComponentColumn } from '../../constants'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { BikeComponentSlot, BikeDetail as BikeDetailData, Component, ComponentAssignmentWithStats } from '../../types/models'
 
 const CREATE_NEW_COMPONENT = '__create_new__'
@@ -254,6 +255,7 @@ function EmptySlotCard({
             setBaseErrors([])
             deleteSlot.mutate(slot.id, { onError: (error) => setBaseErrors(parseApiError(error).baseErrors) })
           }}
+          style={MOBILE_TAP_TARGET_STYLE}
         >
           Stop tracking
         </Button>
@@ -285,6 +287,7 @@ function EmptySlotCard({
           disabled={!componentId}
           loading={createAssignment.isPending}
           onClick={() => componentId && assign(Number(componentId))}
+          style={MOBILE_TAP_TARGET_STYLE}
         >
           Install
         </Button>

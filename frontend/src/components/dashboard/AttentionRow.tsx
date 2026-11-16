@@ -3,12 +3,15 @@ import { Badge, Button, Group, Progress, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import ServiceStatusBadge from '../ServiceStatusBadge'
 import MaintenanceEventFormModal from '../forms/MaintenanceEventFormModal'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { SERVICE_STATUS_COLORS } from '../../constants'
 import { formatRemaining } from '../../utils/serviceInterval'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { DashboardAttentionItem } from '../../types/models'
 
 export default function AttentionRow({ item }: { item: DashboardAttentionItem }) {
   const [logOpened, setLogOpened] = useState(false)
+  const isMobile = useIsMobile()
   const primarySatisfier = [...item.satisfiers].sort((a, b) => a.position - b.position)[0]
 
   return (
@@ -40,7 +43,7 @@ export default function AttentionRow({ item }: { item: DashboardAttentionItem })
       <Progress value={Math.min(Math.max(item.fraction_used, 0), 1) * 100} color={SERVICE_STATUS_COLORS[item.status]} />
 
       <Group justify="flex-end">
-        <Button size="xs" onClick={() => setLogOpened(true)}>
+        <Button size="xs" onClick={() => setLogOpened(true)} style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}>
           Log service
         </Button>
       </Group>

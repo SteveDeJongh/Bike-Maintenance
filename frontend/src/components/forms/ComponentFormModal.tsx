@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Select, Stack, Textarea, TextInput } from '@mantine/core'
+import { Alert, Button, Group, Select, Stack, Textarea, TextInput } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateInput } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -78,7 +79,7 @@ export default function ComponentFormModal({
   onCreateSuccess,
 }: ComponentFormModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={component ? 'Edit Component' : 'New Component'}>
+    <AppModal opened={opened} onClose={onClose} title={component ? 'Edit Component' : 'New Component'}>
       {opened && (
         <ComponentForm
           key={component?.id ?? 'new'}
@@ -88,7 +89,7 @@ export default function ComponentFormModal({
           onCreateSuccess={onCreateSuccess}
         />
       )}
-    </Modal>
+    </AppModal>
   )
 }
 

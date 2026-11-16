@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Select, Stack, Text } from '@mantine/core'
+import { Alert, Button, Group, Select, Stack, Text } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -65,7 +66,7 @@ export default function ComponentAssignmentFormModal({
   excludeComponentIds,
 }: ComponentAssignmentFormModalProps) {
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={onClose}
       title={assignment ? 'Edit Assignment' : 'Install Component'}
@@ -79,7 +80,7 @@ export default function ComponentAssignmentFormModal({
           excludeComponentIds={excludeComponentIds}
         />
       )}
-    </Modal>
+    </AppModal>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { Alert, Button, Group, Modal, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import { Alert, Button, Group, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
+import AppModal from '../AppModal'
 import { useCreateComponentServiceRequirement } from '../../api/mutations'
 import { formatApiError } from '../../api/errors'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
@@ -32,9 +33,9 @@ export default function AddCustomServiceIntervalModal({
   componentId,
 }: AddCustomServiceIntervalModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Add custom service requirement">
+    <AppModal opened={opened} onClose={onClose} title="Add custom service requirement">
       {opened && <AddCustomServiceRequirementForm key={componentId} onClose={onClose} componentId={componentId} />}
-    </Modal>
+    </AppModal>
   )
 }
 

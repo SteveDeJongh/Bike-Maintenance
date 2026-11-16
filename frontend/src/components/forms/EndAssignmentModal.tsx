@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Stack } from '@mantine/core'
+import { Alert, Button, Group, Stack } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -25,11 +26,11 @@ export default function EndAssignmentModal({
   componentLabel,
 }: EndAssignmentModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`Remove ${componentLabel}`}>
+    <AppModal opened={opened} onClose={onClose} title={`Remove ${componentLabel}`}>
       {opened && assignment && (
         <EndAssignmentForm key={assignment.id} onClose={onClose} assignment={assignment} />
       )}
-    </Modal>
+    </AppModal>
   )
 }
 

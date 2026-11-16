@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Alert, Button, Group, Modal, Select, Stack, Textarea } from '@mantine/core'
+import { useId, useState } from 'react'
+import { Alert, Button, Group, Select, Stack, Textarea } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -69,35 +70,42 @@ export default function MaintenanceEventFormModal({
   defaultServiceTypeId,
 }: MaintenanceEventFormModalProps) {
   return (
-    <Modal
+    <MaintenanceEventForm
+      key={event?.id ?? 'new'}
       opened={opened}
       onClose={onClose}
-      title={event ? 'Edit Maintenance Event' : 'New Maintenance Event'}
-    >
-      {opened && (
-        <MaintenanceEventForm
-          key={event?.id ?? 'new'}
-          onClose={onClose}
-          event={event}
-          defaultComponentId={defaultComponentId}
-          defaultServiceTypeId={defaultServiceTypeId}
-        />
-      )}
-    </Modal>
+      event={event}
+      defaultComponentId={defaultComponentId}
+      defaultServiceTypeId={defaultServiceTypeId}
+    />
   )
 }
 
+// Owns the AppModal itself, not just the form inside it -- unlike every
+// other form modal, this one needs its submit/cancel row as AppModal's
+// `footer` prop (for the sticky-on-mobile treatment), and that footer's
+// own disabled/loading state depends on this component's own form/
+// mutation state, which the previous split (a non-keyed outer Modal
+// wrapper around a keyed inner form) had no way to reach. Keying this
+// whole component by event identity (same as the old inner form did)
+// still forces a clean remount of all of it -- including AppModal --
+// whenever the edit target changes; in practice `opened` already cycles
+// through false whenever that happens, so AppModal's close transition is
+// unaffected.
 function MaintenanceEventForm({
+  opened,
   onClose,
   event,
   defaultComponentId,
   defaultServiceTypeId,
 }: {
+  opened: boolean
   onClose: () => void
   event?: MaintenanceEvent
   defaultComponentId?: number
   defaultServiceTypeId?: number
 }) {
+  const formId = useId()
   const isEdit = Boolean(event)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
 
@@ -149,58 +157,69 @@ function MaintenanceEventForm({
   }))
 
   return (
-    <form onSubmit={form.onSubmit(handleSubmit)}>
-      <Stack>
-        {baseErrors.length > 0 && (
-          <Alert color="red">
-            {baseErrors.map((message) => (
-              <div key={message}>{message}</div>
-            ))}
-          </Alert>
-        )}
+    <AppModal
+      opened={opened}
+      onClose={onClose}
+      title={isEdit ? 'Edit Maintenance Event' : 'New Maintenance Event'}
+      footer={
+        opened && (
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" form={formId} loading={mutation.isPending || isCreatingServiceType}>
+              {isEdit ? 'Save' : 'Create'}
+            </Button>
+          </Group>
+        )
+      }
+    >
+      {opened && (
+        <form id={formId} onSubmit={form.onSubmit(handleSubmit)}>
+          <Stack>
+            {baseErrors.length > 0 && (
+              <Alert color="red">
+                {baseErrors.map((message) => (
+                  <div key={message}>{message}</div>
+                ))}
+              </Alert>
+            )}
 
-        <Select
-          label="Component"
-          required
-          data={componentOptions}
-          {...form.getInputProps('component_id')}
-        />
-        <ServiceTypeSelect
-          value={form.values.service_type_id}
-          onChange={handleServiceTypeChange}
-          newTypeName={form.values.service_type_new_name}
-          onNewTypeNameChange={(value) => form.setFieldValue('service_type_new_name', value)}
-          error={typeof form.errors.service_type_id === 'string' ? form.errors.service_type_id : undefined}
-          newTypeNameError={
-            typeof form.errors.service_type_new_name === 'string' ? form.errors.service_type_new_name : undefined
-          }
-        />
-        <DateTimePicker
-          label="Performed at"
-          required
-          value={isoUtcToDate(form.values.performed_at)}
-          onChange={(value) =>
-            form.setFieldValue('performed_at', mantineLocalStringToIsoUtc(value))
-          }
-          error={form.errors.performed_at}
-          disabled={event?.service_session_id != null}
-          description={
-            event?.service_session_id != null
-              ? "Part of a service session — edit the date from the session marker on this component's history instead."
-              : undefined
-          }
-        />
-        <Textarea label="Notes" {...form.getInputProps('notes')} />
-
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={mutation.isPending || isCreatingServiceType}>
-            {isEdit ? 'Save' : 'Create'}
-          </Button>
-        </Group>
-      </Stack>
-    </form>
+            <Select
+              label="Component"
+              required
+              data={componentOptions}
+              {...form.getInputProps('component_id')}
+            />
+            <ServiceTypeSelect
+              value={form.values.service_type_id}
+              onChange={handleServiceTypeChange}
+              newTypeName={form.values.service_type_new_name}
+              onNewTypeNameChange={(value) => form.setFieldValue('service_type_new_name', value)}
+              error={typeof form.errors.service_type_id === 'string' ? form.errors.service_type_id : undefined}
+              newTypeNameError={
+                typeof form.errors.service_type_new_name === 'string' ? form.errors.service_type_new_name : undefined
+              }
+            />
+            <DateTimePicker
+              label="Performed at"
+              required
+              value={isoUtcToDate(form.values.performed_at)}
+              onChange={(value) =>
+                form.setFieldValue('performed_at', mantineLocalStringToIsoUtc(value))
+              }
+              error={form.errors.performed_at}
+              disabled={event?.service_session_id != null}
+              description={
+                event?.service_session_id != null
+                  ? "Part of a service session — edit the date from the session marker on this component's history instead."
+                  : undefined
+              }
+            />
+            <Textarea label="Notes" {...form.getInputProps('notes')} />
+          </Stack>
+        </form>
+      )}
+    </AppModal>
   )
 }

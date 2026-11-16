@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
-import { Alert, Anchor, Button, Checkbox, Group, Loader, Modal, Select, Stack, Text, Textarea, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Checkbox, Group, Loader, Select, Stack, Text, Textarea, Title } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../../api/client'
@@ -31,11 +32,20 @@ interface BatchServiceModalProps {
   initialPerformedAt?: string
 }
 
+// Unlike every other form modal, this one's form state includes a live
+// per-bike/per-date query (useServiceableComponents below) -- keeping
+// AppModal mounted through a close transition (the pattern
+// MaintenanceEventFormModal uses, whose own form has no comparable
+// per-instance query to keep alive) would mean that query stays active
+// for as long as the fade/slide-out animation runs, for no benefit. So
+// this modal only mounts AppModal -- and everything inside it -- while
+// actually open: a real tradeoff (no close-transition animation, just an
+// instant unmount; the open transition is unaffected), accepted because
+// keeping an expensive query alive purely to animate a close isn't worth
+// it. Same reasoning applies to CategoryServiceRequirementsModal.
 export default function BatchServiceModal({ opened, onClose, bikeId, initialPerformedAt }: BatchServiceModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Log service" size="xl">
-      {opened && <BatchServiceForm onClose={onClose} bikeId={bikeId} initialPerformedAt={initialPerformedAt} />}
-    </Modal>
+    opened && <BatchServiceForm onClose={onClose} bikeId={bikeId} initialPerformedAt={initialPerformedAt} />
   )
 }
 
@@ -254,6 +264,27 @@ function BatchServiceForm({
   }
 
   return (
+    <AppModal
+      opened
+      onClose={onClose}
+      title="Log service"
+      size="xl"
+      footer={
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            loading={createSession.isPending}
+            disabled={selectedCount === 0}
+            title={selectedCount === 0 ? 'Select at least one service' : undefined}
+          >
+            Log {selectedCount} {selectedCount === 1 ? 'service' : 'services'}
+          </Button>
+        </Group>
+      }
+    >
     <Stack>
       <DateTimePicker
         label="Performed at"
@@ -359,20 +390,8 @@ function BatchServiceForm({
         </>
       )}
 
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          loading={createSession.isPending}
-          disabled={selectedCount === 0}
-          title={selectedCount === 0 ? 'Select at least one service' : undefined}
-        >
-          Log {selectedCount} {selectedCount === 1 ? 'service' : 'services'}
-        </Button>
-      </Group>
     </Stack>
+    </AppModal>
   )
 }
 

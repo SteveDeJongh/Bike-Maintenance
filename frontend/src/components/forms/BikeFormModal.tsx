@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Group, Modal, Select, Stack, TextInput } from '@mantine/core'
+import { Alert, Button, Group, Select, Stack, TextInput } from '@mantine/core'
+import AppModal from '../AppModal'
 import { DateInput } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
@@ -75,7 +76,7 @@ export default function BikeFormModal({
   onCreateSuccess,
 }: BikeFormModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={bike ? 'Edit Bike' : 'New Bike'}>
+    <AppModal opened={opened} onClose={onClose} title={bike ? 'Edit Bike' : 'New Bike'}>
       {opened && (
         <BikeForm
           key={bike?.id ?? 'new'}
@@ -85,7 +86,7 @@ export default function BikeFormModal({
           onCreateSuccess={onCreateSuccess}
         />
       )}
-    </Modal>
+    </AppModal>
   )
 }
 
