@@ -1,20 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Alert, Anchor, Button, Card, Group, Loader, Stack, Text, Title, Tooltip } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Alert, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import { useIsMobile } from '../hooks/useIsMobile'
-import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
 import ActivityFilters from '../components/activity/ActivityFilters'
-import ActivityTable, { RideRowActions } from '../components/activity/ActivityTable'
-import { activityItemIconMeta, initialPerformedAtForRide, nonRideNote } from '../components/activity/activityItemMeta'
-import { formatDateTime } from '../utils/datetime'
+import ActivityTable from '../components/activity/ActivityTable'
+import NarrowActivityCard from '../components/activity/NarrowActivityCard'
+import EmptyState from '../components/activity/EmptyState'
+import { initialPerformedAtForRide } from '../components/activity/activityItemMeta'
 import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
 import { formatElevation } from '../utils/elevation'
-import type { ActivityItem, ActivityRideItem, TableViewPreferenceData } from '../types/models'
+import type { ActivityRideItem, TableViewPreferenceData } from '../types/models'
 
 // Gates the whole page on activity_log's TableViewPreference resolving
 // first, same two-component wrapper/Inner split as every other adopter of
@@ -207,106 +206,5 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
         <ServiceSessionViewModal opened onClose={() => setViewingSessionId(null)} sessionId={viewingSessionId} />
       )}
     </Stack>
-  )
-}
-
-// Narrow-screen alternative to the table: ride rows become a compact card
-// (date/name/bike/distance/moving time); non-ride rows stay single lines,
-// since they're already compact -- same split the plan calls for.
-function NarrowActivityCard({
-  item,
-  onViewSession,
-  onLogService,
-}: {
-  item: ActivityItem
-  onViewSession: (sessionId: number) => void
-  onLogService: (ride: ActivityRideItem) => void
-}) {
-  const { Icon, label } = activityItemIconMeta(item)
-
-  if (item.kind === 'ride') {
-    return (
-      <Card withBorder padding="sm">
-        <Group justify="space-between" wrap="nowrap" mb={4}>
-          <Group gap={6} wrap="nowrap">
-            <Tooltip label={label}>
-              <Icon size={14} />
-            </Tooltip>
-            <Text size="xs" c="dimmed">
-              {formatDateTime(item.occurred_at)}
-            </Text>
-          </Group>
-          <RideRowActions ride={item} onLogService={onLogService} />
-        </Group>
-        <ViewOnStravaLink stravaId={item.strava_id} name={item.name} />
-        <Group gap="xs" mt={4}>
-          <Text size="sm">{item.bike ? item.bike.name : 'No bike'}</Text>
-          <Text size="sm" c="dimmed">
-            {formatDistance(item.distance_meters)}
-          </Text>
-          {item.moving_time != null && (
-            <Text size="sm" c="dimmed">
-              {formatDuration(item.moving_time)}
-            </Text>
-          )}
-        </Group>
-      </Card>
-    )
-  }
-
-  const note = nonRideNote(item)
-
-  return (
-    <Card withBorder padding="sm" bg="var(--mantine-color-gray-light)">
-      <Group gap="xs" wrap="nowrap">
-        <Tooltip label={label}>
-          <Icon size={14} />
-        </Tooltip>
-        <Text size="xs" c="dimmed">
-          {formatDateTime(item.occurred_at)}
-        </Text>
-        {item.kind === 'service_session' ? (
-          <Anchor component="button" type="button" onClick={() => onViewSession(item.id)} size="sm" c="dimmed">
-            {item.summary}
-          </Anchor>
-        ) : item.kind === 'maintenance_event' ? (
-          <Anchor component={Link} to={`/components/${item.component_id}?event=${item.id}`} size="sm" c="dimmed">
-            {item.summary}
-          </Anchor>
-        ) : (
-          <Anchor component={Link} to={`/components/${item.component.id}`} size="sm" c="dimmed">
-            {item.summary}
-          </Anchor>
-        )}
-      </Group>
-      {note && (
-        <Text size="xs" c="dimmed" mt={2}>
-          {note}
-        </Text>
-      )}
-    </Card>
-  )
-}
-
-function EmptyState({ hasActiveFilters, onClearFilters }: { hasActiveFilters: boolean; onClearFilters: () => void }) {
-  if (hasActiveFilters) {
-    return (
-      <Group gap="xs">
-        <Text c="dimmed">Nothing matches these filters.</Text>
-        <Anchor component="button" type="button" size="sm" onClick={onClearFilters}>
-          Clear filters
-        </Anchor>
-      </Group>
-    )
-  }
-
-  return (
-    <Text c="dimmed">
-      No activity yet.{' '}
-      <Anchor component={Link} to="/strava">
-        Connect or sync Strava
-      </Anchor>{' '}
-      to pull in your rides.
-    </Text>
   )
 }
