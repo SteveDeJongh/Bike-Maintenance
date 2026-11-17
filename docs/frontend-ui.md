@@ -1,0 +1,431 @@
+# Frontend UI patterns: tables, theming, layout, PWA
+
+> Reference material split out of CLAUDE.md. A quoted cross-reference such as "see \"Strava integration\"" names a `##` section heading; CLAUDE.md's "Further docs" list says which docs/ file holds each heading.
+
+## Sortable, configurable tables
+
+Built from reusable pieces, not a one-off for any single page — in production use
+on nine tables: the Bikes list, the Bike detail page's Installed components,
+History, and Ride history tables, the Strava page's Rides tab, the Activity log,
+and the Components/Maintenance Events/Assignments lists (each its own `table_key`:
+`bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
+`strava_rides`, `activity_log`, `components`, `maintenance_events`, `assignments`).
+A future page can adopt the same UX without rework:
+- `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
+  column order/visibility and sort state, backed by `TableViewPreference` via
+  `useTableViewPreference`/`useUpdateTableViewPreference` (`api/queries.ts`/
+  `api/mutations.ts`). Takes a `tableKey` plus the page's own column/sort constants
+  (e.g. `BIKE_LIST_COLUMNS`) — it doesn't know about Bikes specifically. Returns
+  `orderedColumns`, `toggleColumn`, `reorderColumn`, `onHeaderDragEnd` (a ready-made
+  dnd-kit `DragEndEvent` handler — wire it straight into a `<DndContext>`, no need to
+  hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
+  `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
+  the preferences query's data **once**, on mount — the calling page must not render
+  the component that calls this hook until that query has resolved (`Bikes.tsx` gates
+  on `preferencePending` before rendering `BikesTable`). If a page ever needs to swap
+  `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
+  force a remount via `key={tableKey}` rather than relying on the hook to notice the
+  change. An optional `extraData` getter lets a page keep one more piece of state in
+  the same `TableViewPreference` row alongside columns/sort, spread into every save
+  the hook makes so toggling a column never silently drops it (a `PATCH` replaces the
+  whole `data` value, no deep merge) — the Activity log's persisted kind-chip
+  selection is the only user of this so far; every other adopter omits it.
+- `frontend/src/components/datatable/ColumnPicker.tsx` — the "+" icon/popover column
+  picker (rendered as the last `<Table.Th>` in the header row, not floated above the
+  table), with a draggable "Visible" section and a static "Available" section.
+  `frontend/src/components/datatable/DraggableHeaderCell.tsx` — the configurable
+  columns' header cell: also draggable, directly in the live table, via the same
+  `@dnd-kit/core`/`@dnd-kit/sortable`/`@dnd-kit/utilities` machinery. Both the popover
+  and the live headers can reorder columns; they write through the same hook state, so
+  either one stays in sync with the other. Dragging and click-to-sort never conflict
+  on the same header cell because each `DraggableHeaderCell` has a **separate drag
+  handle glyph** next to its clickable sort label — drag listeners only attach to the
+  handle (see `useColumnDragHandle`), not the whole cell, which is the standard dnd-kit
+  pattern for combining drag with another click behavior on the same element.
+  `columns` in `TableViewPreference#data` is one ordered array: presence means
+  visible, position means display order (no separate unordered "visible" list).
+  `DraggableHeaderCell`'s `sortable` prop (default `true`) renders the label as
+  plain, non-clickable text when `false` — for a table like `bike_rides` whose
+  configurable columns are drag-to-reorder only, never click-to-sort (see "Ride
+  history" below).
+- `frontend/src/components/datatable/useColumnDragHandle.ts` /
+  `useColumnDragSensors.ts` — small shared pieces behind both drag surfaces (the
+  popover rows and the live headers): a `useSortable` wrapper returning ref/style/
+  handle props, and the `PointerSensor` activation-distance setup (so a plain click
+  doesn't register as a drag attempt).
+- `frontend/src/components/datatable/SortableHeaderCell.tsx` — a `<Table.Th>` wrapper
+  for the ▲/▼ click-to-sort indicator, used for pinned (non-draggable) columns like
+  Bikes' Name.
+- A page still writes its own `<Table>` body — pinned/special-cased columns stay
+  hand-coded around the generic, hook-driven columns, rather than the reusable
+  pieces trying to support every possible column type generically. A pinned
+  column is specifically one with a real navigation target (consistently true
+  across every adopter so far: Bikes' Name, Components' Label, the Bike detail
+  tables' Category+Component, Maintenance Events' Component, Assignments'
+  Component+Bike) — not just "the most important field." A row can have more than
+  one pinned column when its identity genuinely needs more than one coordinate
+  (Category+Component; Component+Bike) rather than one. If a column that becomes pinned isn't linked yet, add the link as part of adopting this —
+  "pinned" is expected to mean "clickable" everywhere in the app.
+- **Card view**: below the shared `useIsMobile()` breakpoint
+  (see "Layout and navigation" below), a configurable table renders as cards
+  instead of a `<Table>` — column drag-to-reorder has no good touch equivalent
+  (the drag handle and touch-scroll gestures would fight each other), and a
+  desktop-width table just doesn't fit a phone screen regardless.
+  `frontend/src/components/datatable/DataCardList.tsx` renders one `Card` per
+  row: the table's own pinned column(s) as the tappable title (whatever link
+  target the desktop table already uses — "pinned" already means "clickable"
+  per the rule above, so the card title is never a new navigation target), an
+  optional badge row next to the title (e.g. Bikes' "Retired"), every visible
+  configurable column as a compact label/value pair in the user's saved
+  order (a pair is hidden outright when its value is empty/`null`/the table's
+  own `"—"` placeholder — a card has no column header to make an empty cell
+  self-explanatory the way a table row does), and the row's actions behind a
+  44px "⋯" `ActionIcon`/`Menu` in the corner, never inline, so a destructive
+  action is never one accidental tap away. Neither `ColumnPicker` nor any drag
+  handle renders in card view — column layout stays a desktop-only account
+  preference; a card simply reflects whatever's currently saved.
+  `frontend/src/components/datatable/MobileSortControl.tsx` is card view's
+  replacement for click-to-sort (no column headers to click): a compact
+  `Select` of the table's sortable columns plus a ▲/▼ direction toggle, same
+  glyphs the desktop header cells use. It requires
+  `useTableViewPreferences`'s `setSort` to take an optional explicit
+  `direction` argument — picking a new column keeps the current direction
+  instead of resetting it, and the toggle button keeps the current column —
+  but still saves through the exact same `PATCH` path as a desktop header
+  click, so a sort chosen on the phone is the one desktop sees next. A table
+  with no click-to-sort at all (`bike_rides`, `activity_log`) renders no
+  `MobileSortControl`, same as it has no sortable `DraggableHeaderCell`s on
+  desktop. `Bikes.tsx` is the reference implementation for both pieces, the
+  same role it already plays for the table/column-picker side — it reuses the
+  exact sorted array the desktop table already computes (including the
+  retired-sorts-last rule) rather than duplicating the sort logic for cards.
+  Card view's own breakpoint (`useIsMobile()`) and the nav shell's CSS
+  breakpoint (`sm`) land on the same side at exactly 768px wide — see
+  "Layout and navigation" below for why that boundary had to be made exact,
+  rather than relying on two independently-resolved breakpoints to agree by
+  coincidence.
+- **Tables with card view**: `bikes`, `components`, `maintenance_events`,
+  `assignments`, `bike_installed_components`, `bike_history`, `bike_rides`
+  (the last two on the Bike detail page; `bike_rides`'s own card has no
+  `MobileSortControl`, matching its desktop table having no click-to-sort at
+  all — see "Ride history" below). `assignments`' card uses a two-line title
+  (Component, then Bike dimmed underneath, both independently tappable) for
+  its two pinned columns, same convention
+  `bike_installed_components`/`bike_history` use the other way around
+  (Category dimmed *above* Component) — a card's title slot always carries
+  every pinned column, just arranged to read naturally for that table.
+  `bike_installed_components`'s card
+  (`frontend/src/components/bike/InstalledComponentsCardList.tsx`) and
+  `bike_history`'s (`.../ComponentHistoryCardList.tsx`) were pulled into their
+  own files next to `BikeDetail.tsx` rather than grown inline on that page —
+  `InstalledComponentsCardList` in particular is deliberately *not* built on
+  the shared `DataCardList`: a row there is one of two unrelated UI shapes (a
+  real assignment, or an empty slot's own inline install form — see
+  `components/bike/SlotRow.tsx`/`EmptySlotRow.tsx`), which doesn't fit a single
+  generic column-renderer component. `DataCardList` itself carries an
+  optional `onRowClick` prop (used by `bike_history`'s card, which — like its
+  desktop row — opens `AssignmentDetailModal` on tap, not only via its
+  pinned link) as a small, generally useful addition, not a one-off.
+- **`strava_rides` (the Strava page's Rides tab) deliberately has no card
+  view** — it has per-row bulk-select checkboxes, a "select all"/"select all
+  matching" toolbar, and row actions that are several conditional buttons
+  (Resync/Ignore/Resolve gear/View on Strava), none of which `DataCardList`
+  supports; it still only scrolls horizontally on mobile (`Table.ScrollContainer`).
+  Giving it a real card view needs a deliberate design decision first (most
+  likely either a selection-aware extension of `DataCardList`, or its own
+  bespoke card component, same precedent as `NarrowActivityCard`/
+  `InstalledComponentsCardList`) — revisit if this is genuinely painful on a
+  phone in practice, rather than guessing at an interaction now.
+  `components/bike/RideHistorySection.tsx`'s own Resync button stays
+  directly on its card rather than moving into a "⋯" menu (unlike every
+  other adopter's actions) — it's the only action there, and
+  `ResyncRideButton`'s own loading/rate-limit-error UI doesn't fit cleanly
+  inside a `Menu.Item`.
+
+**To adopt this on a new or existing table**, define on the frontend (nothing to
+build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
+already generic): a `tableKey` string unique to that table; a column-keys constant +
+display-label map + default-visible subset (mirroring `BIKE_LIST_COLUMNS`/
+`BIKE_LIST_COLUMN_LABELS`/`DEFAULT_BIKE_LIST_COLUMNS` in `constants.ts`); a
+sort-keys constant if any pinned column should be sortable too (mirroring
+`BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
+`columnValue` map (comparable value per sortable column, `null` for "not
+applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
+column) keyed the same way `Bikes.tsx` does. Call `useTableViewPreferences` with
+those constants, then render pinned columns by hand and map the configurable ones
+through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
+header cell — `Bikes.tsx` is the reference implementation to copy the shape from.
+**A new adopter must render both views** — the desktop `<Table>` and, below
+`useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
+`<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
+not just the table; `Bikes.tsx` is the reference shape for both. Don't add new
+per-row computed/aggregated columns to a list page without checking whether the
+underlying data is already batched for that scale (see `Component#total_distance`'s
+note above) — this mechanism makes columns easy to add, but doesn't change the cost
+of computing what's behind them.
+
+**Non-configurable tables** (a plain `<Table>` with no `TableViewPreference` behind
+it — the Settings pages, `BikeSetup`, `ComponentServiceAndHistory`,
+`ServiceSessionViewModal`, the Strava page's gear tables) need the same phone-width
+consideration without any of this mechanism: wrap in Mantine's own
+`Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
+horizontally instead of overflowing the page. Skip the wrapper only for a table
+genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs)
+— `components/dashboard/RecentRidesTable.tsx` uses the equivalent `ScrollArea`+`miw` instead.
+
+## Theming
+
+Light/dark/system appearance lives entirely in the frontend, built on
+Mantine's color-scheme support — nothing on the backend:
+- `frontend/src/main.tsx` — `theme.colors.dark` (near-black body + layered
+  grey surfaces) and `theme.colors.radar` (the phosphor-green accent,
+  `primaryColor: 'radar'`, scheme-aware `primaryShade`, `autoContrast: true`),
+  plus `defaultColorScheme="auto"` and `colorSchemeManager` on
+  `MantineProvider`.
+- `frontend/src/index.css` — a few `[data-mantine-color-scheme='dark']`
+  rules that lift Paper/Modal/AppShell-header one shade above the near-black
+  body (they default to the same `--mantine-color-body` var as the page).
+  Table rows and Popover/Menu dropdowns already layer correctly from the
+  `dark` palette alone, via Mantine's own CSS — no extra rules needed there.
+- `frontend/index.html` — a small inline script setting
+  `data-mantine-color-scheme` on `<html>` before React mounts, to avoid a
+  flash of the wrong theme on load (there's no SSR to render Mantine's
+  `ColorSchemeScript` component server-side, so it's hand-written instead,
+  reading the same localStorage key `localStorageColorSchemeManager` uses).
+- `frontend/src/pages/settings/AppearancePage.tsx` — the user-facing control
+  (a `SegmentedControl` calling `useMantineColorScheme().setColorScheme`).
+
+The accent is a custom 10-shade "radar" green used as `primaryColor` in both
+modes (a deep, readable-on-white shade in light mode; a bright phosphor-green
+shade in dark mode). `SERVICE_STATUS_COLORS` in `constants.ts` deliberately
+uses `teal`, not `green`, for "ok," so a service-status badge never reads as
+the same color as the accent.
+
+The choice is persisted with Mantine's `localStorageColorSchemeManager`
+(plain browser localStorage), not a backend preference in the style of
+`TableViewPreference`. `TableViewPreference` exists because column layout is
+account-level state a user expects to follow them to any device they log in
+on; appearance is a per-browser display preference, and — unlike a column
+layout — it has to be resolved *before* React even mounts to avoid a flash of
+the wrong theme, which a server round trip can't satisfy without SSR. Plain
+localStorage is simpler and sufficient here.
+
+Never hardcode a color (hex or otherwise) in a component. Use a Mantine theme
+token/CSS variable (`var(--mantine-color-*)`, a named color like `"teal"` or
+`"red"`, or `"radar"`) so every surface stays correct across both color
+schemes without a per-component light/dark branch.
+
+## Layout and navigation
+
+The app works as one responsive web app on desktop and phone — no separate
+native client. `frontend/src/components/Layout.tsx` (the authenticated
+route tree's shell, rendered by `RequireAuth`) swaps between a desktop
+sidebar and a mobile bottom tab bar at Mantine's `sm` breakpoint (48em /
+768px) .
+
+- **`frontend/src/hooks/useIsMobile.ts`** is the one shared breakpoint
+  check for anything that needs real JS branching (not just CSS
+  visibility) — `useMediaQuery(MOBILE_BREAKPOINT_QUERY, false, {
+  getInitialValueInEffect: false })`. `MOBILE_BREAKPOINT_QUERY` is
+  `` `(max-width: ${em(767.98)})` ``, **not** a plain `(max-width: 768px)` —
+  Mantine's `sm` breakpoint (the nav shell's own CSS, `AppShell.Navbar`'s
+  `breakpoint="sm"` among others) resolves to `min-width: 48em`/768px
+  exactly, so a JS query that's inclusive of 768px would disagree with that
+  CSS at the exact boundary (CSS: desktop; JS: mobile, both true at once).
+  `em(767.98)` lands a hair under 48em instead, so the two can never both
+  match at the same width . `index.css`'s iOS-input-zoom fix uses the same
+  `767.98px` value for its own media query, for the same reason — keep
+  both in sync if this breakpoint ever changes. The
+  `getInitialValueInEffect: false` option matters too: Mantine's hook
+  otherwise returns a default value on the first render and only corrects
+  itself one render later inside a `useEffect`, which would flash the
+  desktop layout on a phone for a frame — this app is pure CSR (no SSR), so
+  reading `window.matchMedia` synchronously on the first render is always
+  safe and skips that flash entirely. Anything that needs the viewport width in JS reuses this — never a fresh media query.
+- **iOS input zoom**: Safari zooms the whole page in when a tapped input's
+  font-size is under 16px, and Mantine's default `sm` inputs render at
+  14px. `index.css` bumps every editable field to 16px below the
+  `767.98px` breakpoint only (desktop keeps Mantine's own sizing) via three
+  classes confirmed empirically against this app's actual rendered markup,
+  not assumed from Mantine's docs: `.mantine-Input-input` (every field
+  built on the base `Input` component — `TextInput`, `NumberInput`,
+  `Select`, `Autocomplete`, `Textarea`, and every `@mantine/dates` input,
+  which all reuse the same component under the hood), `.mantine-
+  PillsInputField-field` (`MultiSelect`/`TagsInput`'s own typing field — a
+  different internal component, so it doesn't carry `Input-input`), and
+  `.mantine-PasswordInput-innerInput` (`PasswordInput` renders its field as
+  its own "innerInput" part rather than reusing `Input-input` either).
+  Checkbox/Radio inputs are excluded — nothing to type into, no zoom risk.
+  Deliberately not a disabled-zoom viewport meta (`user-scalable=no`/
+  `maximum-scale=1`) — that breaks pinch-zoom accessibility for everyone,
+  not just this one input-focus case.
+- **Prefer Mantine's `hiddenFrom`/`visibleFrom` props, or a component's own
+  native per-breakpoint config, over `useIsMobile()`** wherever a plain CSS
+  show/hide is enough — pure CSS can never flash, since the browser
+  resolves it before paint, with no React render involved at all. `Layout`
+  itself needs no JS breakpoint check whatsoever: `AppShell`'s `navbar`
+  prop has a real per-breakpoint `collapsed: { mobile, desktop }` config
+  (hidden entirely below `sm`, no burger toggle, no React state), the
+  header's `UserMenu` is wrapped in `visibleFrom="sm"`, and the footer
+  (which has no equivalent per-breakpoint `collapsed` config of its own —
+  just a plain boolean) is instead given a **responsive height** object
+  (`{ base: <height>, sm: 0 }`) so it collapses to zero through the exact
+  same breakpoint CSS `navbar.breakpoint` uses. Never drive a shell piece's visibility from `useIsMobile()`: two different visibility mechanisms for the same boundary can disagree right at it (at exactly 768px both the sidebar and the tab bar would show); one mechanism can't. (A 0-height footer
+  still needs an explicit `overflow: hidden` — a 0-height box doesn't clip
+  its children by default, so the tab labels' own intrinsic line-height
+  otherwise peeks out below the page on desktop.)
+- **`frontend/src/components/navDestinations.ts`** is the single config
+  array every nav surface reads from — `NAV_DESTINATIONS` (path, label,
+  a `@tabler/icons-react` icon, and an optional `tab: true` flag), in the
+  desktop sidebar's own display order. `TAB_DESTINATIONS` (built from a
+  separate `MOBILE_TAB_ORDER` path list — the tab bar's own order,
+  Home/Bikes/Activity/Components, isn't the same as the sidebar's) and
+  `MORE_DESTINATIONS` (everything without `tab: true`) are both derived
+  from the one array, never a second hand-maintained list. Adding a page
+  later means adding one entry here and deciding whether it's a tab or
+  goes in the mobile "More" sheet — the sidebar always shows all of them.
+  `isDestinationActive(destination, pathname)` is the one active-route
+  rule every surface uses: exact match for `/` (Home), prefix match for
+  everything else — so `/bikes/:id`/`/bikes/:id/setup` highlight Bikes,
+  `/components/:id` highlights Components, and `/settings/*` highlights
+  Settings, with no per-item overrides.
+- **Mobile's "More" sheet** (a bottom `Drawer`, opened by the tab bar's
+  fifth slot) lists `MORE_DESTINATIONS` plus two items that aren't nav
+  destinations at all — "Account settings" (a direct link to
+  `/settings/account`) and "Sign out" (an action, not a route) . The More tab itself shows
+  active whenever the current route matches any `MORE_DESTINATIONS` entry
+  (via the same `isDestinationActive`), and tapping any item inside the
+  sheet closes it.
+- **The iPhone home indicator**: `index.html`'s viewport meta carries
+  `viewport-fit=cover` (required before `env(safe-area-inset-*)` resolves
+  to anything on iOS at all — without it every inset reads as `0`). The
+  tab bar's own height is a `calc()` of a fixed content height plus
+  `env(safe-area-inset-bottom)`, which is what `AppShell` reads to reserve
+  the right amount of bottom padding under page content automatically —
+  the inset itself is applied as the footer's own `padding-bottom`, below
+  the fixed-height tab row, not stacked on top of it.
+- **`SettingsLayout.tsx`** (its own always-visible sub-nav, next to
+  `<Outlet/>`) uses `useIsMobile()`: below `sm` its fixed-width vertical sidebar would force the page
+  wider than the viewport, so it swaps for a horizontally scrollable row
+  above the content instead of overflowing.
+- **`frontend/src/components/AppModal.tsx`** is the one shared wrapper every form modal renders through — **new modals must
+  use this instead of Mantine's `Modal` directly.** On mobile it goes
+  `fullScreen` with a slide-up transition (every modal is easier to use
+  that way on a phone, and the `size="xl"` ones — `BatchServiceModal`,
+  `CategoryServiceRequirementsModal`, `AssignmentDetailModal` — are
+  cramped otherwise); desktop keeps each modal's own `size` exactly as
+  before. Mantine's own Modal header is already `position: sticky; top:
+  0` unconditionally, so close stays reachable above a long scroll with
+  no extra work. An optional `footer` prop (adopted by
+  `BatchServiceModal` and `MaintenanceEventFormModal`, the two modals
+  with one clear primary submit/cancel row) renders that row `position:
+  sticky; bottom: 0` — respecting `env(safe-area-inset-bottom)` — on
+  mobile, inline exactly as before on desktop.
+  `CategoryServiceRequirementsModal` has no such single row (it's a
+  management surface — a scrollable list of templates, each
+  independently editable — not one form), so it doesn't use `footer`;
+  its own two nested sub-forms (new template, apply-to-components) each
+  sticky their *own* action row the same way via a local
+  `StickyMobileActions` helper instead. `BatchServiceModal`/
+  `CategoryServiceRequirementsModal` additionally only mount `AppModal`
+  (and everything inside it) while actually open — unlike every other
+  modal, their content owns a live per-instance query
+  (`useServiceableComponents`, the templates list) not worth keeping
+  alive just to animate a close, so closing them is an instant unmount
+  with no exit transition; every other modal's `AppModal` stays mounted
+  through `opened` flipping to `false` so its close transition can play.
+- **Date pickers on mobile**: `frontend/src/components/
+  MobileDatePickerDefaults.tsx` (wraps `<App/>` in `main.tsx`, nested
+  inside the outer `MantineProvider`) sets `dropdownType="modal"` on
+  every `DatePickerInput`/`DateTimePicker` below the mobile breakpoint —
+  a popover-anchored dropdown clips or gets pushed off-screen inside an
+  `AppModal` that's gone `fullScreen`, since there's no sensible anchor
+  point left. It's a *nested* `MantineThemeProvider`, not a plain
+  `createTheme()` call like `main.tsx`'s own `DateTimePicker` format
+  defaults, specifically because it has to react to `useIsMobile()` —
+  Mantine's theme `components` defaultProps mechanism is otherwise a
+  static object, not responsive to viewport size. `DateInput` (9 usages)
+  is deliberately excluded — unlike `DatePickerInput`/`DateTimePicker`,
+  it doesn't extend `PickerInputBase` and has no `dropdownType` prop at
+  all in this Mantine version; swapping those 9 usages to
+  `DatePickerInput` just to gain modal mode would trade `DateInput`'s
+  direct-keyboard-entry typing for a click-to-open-calendar UX, a real
+  behavior change, not a drop-in — left as a plain popover on mobile
+  instead.
+- **Touch targets**: any small tappable element in a
+  place a phone user actually taps gets a `MOBILE_TAP_TARGET_STYLE`
+  (`frontend/src/utils/touchTarget.ts`, `minHeight`/`minWidth: 44` via
+  `inline-flex` centering, so it grows the tappable box without changing
+  the element's own visual size) — gated behind `useIsMobile()` wherever
+  the same element also renders on desktop (the dashboard `BikeCard`'s
+  bike-name link and compact "Log service" button, `AttentionRow`'s "Log
+  service" button), or applied unconditionally in a component that only
+  ever renders on mobile in the first place
+  (`InstalledComponentsCardList`'s `EmptySlotCard` — "Install"/"Stop
+  tracking", the two row actions there that sit outside its "⋯" menu).
+- Every route under `Layout` either is a top-level `NAV_DESTINATIONS`
+  entry, a settings sub-page reachable from `SettingsLayout`'s own
+  always-visible sub-nav, or already has a visible "Back to…" link
+  (`BikeDetail`, `ComponentDetail`, `BikeSetup`) — confirmed deliberately,
+  since an installed PWA has no browser back button to fall back on.
+
+## PWA
+
+Installable (`manifest.webmanifest`, home-screen icons, standalone
+display) so the app can be added to a phone's home screen and launch
+without browser chrome — no offline support or push notifications yet;
+both are deliberately deferred (no service worker in this app at all).
+
+- **`frontend/public/manifest.webmanifest`**: `name`/`short_name`,
+  `start_url`/`scope` both `/`, `display: "standalone"`. `background_color`
+  and `theme_color` are both the **dark-mode body color**
+  (`theme.colors.dark[7]`, `#0A0A0A` — see "Theming" above), not the icon
+  artwork's own `#0F3B3A` teal background, so an installed app's splash
+  screen matches the page underneath it rather than the icon's own frame.
+- **`frontend/public/icons/`**: `icon-192.png`/`icon-512.png` (full-bleed
+  standard icons, `purpose: "any"`), `icon-maskable-512.png` (the same
+  artwork shrunk to 80% on the same background — Android's masked-icon
+  shapes crop into the full-bleed canvas, so maskable art needs that
+  margin to avoid losing content at the edges, `purpose: "maskable"`),
+  `apple-touch-icon.png` (180×180, iOS's own icon, no manifest support
+  needed for it), `favicon-32.png` (the browser-tab icon).
+- **`index.html`**: links the manifest and both icons; iOS has no native
+  manifest support at all, so the actual "launches standalone, no Safari
+  chrome, right name/icon" behavior on iOS comes entirely from
+  `apple-mobile-web-app-capable`/`apple-mobile-web-app-title`/
+  `apple-mobile-web-app-status-bar-style` metas (plus `mobile-web-app-capable`,
+  the non-prefixed equivalent other engines have since adopted — both are
+  kept since iOS still only honors its own prefixed one).
+  `apple-mobile-web-app-status-bar-style` is `"black"`, not
+  `"black-translucent"` — translucent would let page content draw under
+  the status bar, which needs `env(safe-area-inset-top)` handling the app doesn't do (only the tab bar's bottom inset is handled — see
+  "Layout and navigation" above); opaque `"black"` keeps the status bar
+  reserving its own space instead. Two `theme-color` metas, one per
+  `prefers-color-scheme`, match `main.tsx`'s light (Mantine's default
+  white) and dark (`#0A0A0A`) body colors exactly, same reasoning as the
+  manifest's own `background_color`/`theme_color`.
+- **iOS standalone auth caveat — to test once deployed** (this can only
+  really be verified on the real deployed custom domain over HTTPS, not
+  locally): an installed (standalone) iOS PWA keeps its own cookie jar,
+  separate from Safari's. Expected behavior per sign-in path, to confirm
+  once there's a real deployment:
+  - **Email/password** (`/login`): works normally — it's a same-origin
+    form POST, never leaves the PWA's own webview, so the session cookie
+    lands exactly where it's set.
+  - **Strava/Google OAuth**: the redirect to the provider's own domain and
+    back may open in an in-app browser sheet (`SFSafariViewController`)
+    rather than staying inside the installed app's own webview, depending
+    on iOS version and how the link was activated — if so, the callback's
+    `Set-Cookie` may land in that sheet's own storage, not the PWA's,
+    leaving the PWA looking signed-out even though the browser sheet
+    itself shows a successful callback. Needs a real-device check; if this
+    bites, the fix is almost certainly on Strava/Google's end (can't
+    control how iOS chooses to present an external-domain redirect from
+    inside a standalone web app), not something this app's code can patch
+    around.
+  - **Email verification / password reset links**: these arrive in an
+    email client, so tapping one opens Safari (or whatever the system
+    default browser is), never the installed PWA directly, regardless of
+    platform — by design, not a bug to fix; the resulting session lives in
+    Safari's own storage, separate from the PWA's.
+
