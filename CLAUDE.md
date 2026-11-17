@@ -2045,7 +2045,15 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   convention, since five new indexes are a data-model change.
 - **Frontend**: `pages/Activity.tsx` (`/activity`, nav item "Activity"), gated on
   `activity_log`'s `TableViewPreference` resolving first, same two-component
-  wrapper/Inner split as every other adopter. Kind chips (Rides/Service/Setup
+  wrapper/Inner split as every other adopter. Split (mobile step 4 of 4) into
+  `components/activity/useActivityFilters.ts` (all filter state and derived query
+  params, including the kind-chip persistence below and the rideOnly/sort-metric
+  reset), `ActivityFilters.tsx` (the chips/filter-bar UI), `ActivityTable.tsx` (the
+  desktop table, plus `ActivityRow`/`NonRideCellContent`/exported `RideRowActions`),
+  `NarrowActivityCard.tsx`, and `EmptyState.tsx` — `pages/Activity.tsx` itself is
+  just the page shell (preference-query gating, wiring the hook to
+  `useActivityFeed`, expanded-session/modal state, choosing table vs. cards).
+  Kind chips (Rides/Service/Setup
   changes, at least one always selected) persist in that *same*
   `TableViewPreference` row as this table's own column/sort prefs, via
   `useTableViewPreferences`' new `extraData` option (see "Sortable, configurable
@@ -2079,7 +2087,7 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   "View on Strava", and `ResyncRideButton` reused as-is. Deliberately no "change
   bike" action — a tooltip on the Actions header explains why (fix it on Strava,
   then Re-sync). Below 768px width the table swaps for a card list
-  (`NarrowActivityCard`) — ride cards keep date/name/bike/distance/moving time and
+  (`components/activity/NarrowActivityCard.tsx`) — ride cards keep date/name/bike/distance/moving time and
   the same row actions; non-ride cards stay single lines, already compact enough.
   Invalidation: `['activity']` is in the `history` invalidation group (see "Cache
   invalidation" under Conventions), used by every mutation whose data this feed reads —
@@ -2291,9 +2299,16 @@ table cell per row, not two).
    "Layout and navigation" above), known small touch targets were bumped
    to 44px on mobile, and the one-step component swap shipped as this
    step's one new feature (not just a layout fix) -- see "One-step
-   component swap" above. Step 4 (splitting up the large page files --
-   `BikeDetail.tsx`, `Activity.tsx`) remains. Deploy, webhooks, and charts
-   also remain.
+   component swap" above. Step 4 of 4 is done: `BikeDetail.tsx` and
+   `Activity.tsx` were each split into a page shell plus several
+   `components/bike/`/`components/activity/` files (tables, rows, forms,
+   headers, filter bars, hooks), and `frontend/` gained a minimal Vitest
+   setup for the pure helpers pulled out of `Activity.tsx` along the way --
+   see "Sortable, configurable tables", "Activity log", and the "Frontend
+   tests" bullet under Conventions below. This completes mobile
+   responsiveness steps 1-4; the one still-deferred piece from step 2, the
+   Strava page's Rides tab having no card view, remains as noted there.
+   Deploy, webhooks, and charts also remain.
 
 ## Conventions
 
