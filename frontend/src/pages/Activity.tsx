@@ -8,20 +8,16 @@ import {
   Card,
   Group,
   Loader,
-  SegmentedControl,
-  Select,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core'
-import { DatePickerInput } from '@mantine/dates'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
-import { IconArrowsExchange, IconBike, IconChevronDown, IconChevronRight, IconTool, type Icon } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
@@ -32,15 +28,10 @@ import ViewOnStravaLink from '../components/ride/ViewOnStravaLink'
 import ResyncRideButton from '../components/ride/ResyncRideButton'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
-import { useActivityFilters, type DatePreset, type SortMetric } from '../components/activity/useActivityFilters'
+import { useActivityFilters } from '../components/activity/useActivityFilters'
+import ActivityFilters from '../components/activity/ActivityFilters'
 import { activityItemIconMeta, initialPerformedAtForRide, nonRideNote } from '../components/activity/activityItemMeta'
-import {
-  ACTIVITY_UI_KINDS,
-  ACTIVITY_KIND_LABELS,
-  ACTIVITY_LOG_COLUMNS,
-  ACTIVITY_LOG_COLUMN_LABELS,
-  type ActivityLogColumn,
-} from '../constants'
+import { ACTIVITY_LOG_COLUMNS, ACTIVITY_LOG_COLUMN_LABELS, type ActivityLogColumn } from '../constants'
 import { formatDateTime } from '../utils/datetime'
 import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
@@ -51,7 +42,6 @@ import type {
   ActivityRideItem,
   ActivityServiceSessionItem,
   ActivitySetupChangeItem,
-  ActivityUiKind,
   TableViewPreferenceData,
 } from '../types/models'
 
@@ -102,12 +92,6 @@ const ACTIVITY_COLUMN_RENDERER: Record<ActivityLogColumn, (ride: ActivityRideIte
     )
   },
   ...SHARED_RIDE_COLUMN_RENDERERS,
-}
-
-const ACTIVITY_UI_KIND_ICON: Record<ActivityUiKind, Icon> = {
-  ride: IconBike,
-  service: IconTool,
-  setup: IconArrowsExchange,
 }
 
 function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {
@@ -193,103 +177,30 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
         )}
       </div>
 
-      <Group gap="xs">
-        {ACTIVITY_UI_KINDS.map((kind) => {
-          const Icon = ACTIVITY_UI_KIND_ICON[kind]
-          return (
-            <Button
-              key={kind}
-              size="xs"
-              variant={kinds.includes(kind) ? 'filled' : 'default'}
-              leftSection={<Icon size={14} />}
-              onClick={() => toggleKind(kind)}
-            >
-              {ACTIVITY_KIND_LABELS[kind]} · {meta?.kind_counts[kind] ?? 0}
-            </Button>
-          )
-        })}
-      </Group>
-
-      <Group justify="space-between" wrap="wrap">
-        <Group wrap="wrap">
-          <Select
-            placeholder="All bikes"
-            clearable
-            data={(bikesList ?? []).map((bike) => ({ value: String(bike.id), label: bike.name }))}
-            value={bikeId ? String(bikeId) : null}
-            onChange={(value) => setBikeId(value ? Number(value) : undefined)}
-            w={160}
-          />
-          <Select
-            placeholder="Any component"
-            clearable
-            data={(componentsList ?? []).map((component) => ({ value: String(component.id), label: component.label }))}
-            value={componentId ? String(componentId) : null}
-            onChange={(value) => setComponentId(value ? Number(value) : undefined)}
-            w={180}
-          />
-          <Select
-            placeholder="All time"
-            clearable
-            data={[
-              { value: 'this_week', label: 'This week' },
-              { value: 'this_month', label: 'This month' },
-              { value: 'this_year', label: 'This year' },
-              { value: 'last_30_days', label: 'Last 30 days' },
-              { value: 'custom', label: 'Custom' },
-            ]}
-            value={datePreset}
-            onChange={(value) => setDatePreset(value as DatePreset | null)}
-            w={150}
-          />
-          {datePreset === 'custom' && (
-            <DatePickerInput
-              type="range"
-              placeholder="Pick a date range"
-              value={customRange}
-              onChange={setCustomRange}
-              clearable
-              w={240}
-            />
-          )}
-          <TextInput
-            placeholder="Search ride name"
-            value={qInput}
-            onChange={(event) => setQInput(event.currentTarget.value)}
-            w={200}
-          />
-          {hasActiveFilters && (
-            <Button variant="subtle" size="xs" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          )}
-        </Group>
-
-        <Group>
-          <SegmentedControl
-            value={order === 'desc' ? 'newest' : 'oldest'}
-            onChange={handleOrderChange}
-            data={[
-              { label: 'Newest first', value: 'newest' },
-              { label: 'Oldest first', value: 'oldest' },
-            ]}
-          />
-          {rideOnly ? (
-            <SegmentedControl
-              value={sortMetric}
-              onChange={(value) => setSortMetric(value as SortMetric)}
-              data={[
-                { label: 'Date', value: 'date' },
-                { label: 'Distance', value: 'distance' },
-              ]}
-            />
-          ) : (
-            <Text size="xs" c="dimmed">
-              Sort by distance is available with only Rides shown.
-            </Text>
-          )}
-        </Group>
-      </Group>
+      <ActivityFilters
+        kinds={kinds}
+        toggleKind={toggleKind}
+        kindCounts={meta?.kind_counts}
+        bikesList={bikesList}
+        componentsList={componentsList}
+        bikeId={bikeId}
+        setBikeId={setBikeId}
+        componentId={componentId}
+        setComponentId={setComponentId}
+        datePreset={datePreset}
+        setDatePreset={setDatePreset}
+        customRange={customRange}
+        setCustomRange={setCustomRange}
+        qInput={qInput}
+        setQInput={setQInput}
+        hasActiveFilters={hasActiveFilters}
+        clearFilters={clearFilters}
+        order={order}
+        handleOrderChange={handleOrderChange}
+        rideOnly={rideOnly}
+        sortMetric={sortMetric}
+        setSortMetric={setSortMetric}
+      />
 
       {saveError && (
         <Alert color="red" withCloseButton onClose={clearSaveError}>
