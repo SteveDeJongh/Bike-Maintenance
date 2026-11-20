@@ -388,6 +388,13 @@ export interface MaintenanceAlert {
 export interface ServiceType {
   id: number
   name: string
+  // Component categories this type is tagged for. Empty = universal (every
+  // category). Tags only filter pickers -- they never restrict what can be
+  // logged.
+  categories: string[]
+  // Distinct requirements (templates + custom rows) this type satisfies.
+  requirement_count: number
+  event_count: number
 }
 
 export interface MaintenanceEvent {

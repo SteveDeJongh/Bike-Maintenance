@@ -9,7 +9,7 @@ import {
 import type { SatisfierOwner } from '../../api/mutations'
 import { formatApiError } from '../../api/errors'
 import { confirmDelete } from '../confirmDelete'
-import ServiceTypeSelect from '../ServiceTypeSelect'
+import ServiceTypePicker from '../ServiceTypePicker'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 import { CALENDAR_UNIT_OPTIONS, kmToMeters, hoursToSeconds, metersToKm, secondsToHours } from './serviceRequirementHelpers'
 import type { ActiveDimensions, DraftSatisfier } from './serviceRequirementHelpers'
@@ -27,10 +27,14 @@ export function SatisfiersEditor({
   owner,
   satisfiers,
   activeDimensions,
+  category,
 }: {
   owner: SatisfierOwner
   satisfiers: ServiceRequirementSatisfier[]
   activeDimensions: ActiveDimensions
+  // The requirement's category (a template's own, or a custom row's
+  // component's) -- the picker's filter, and the tag a new type gets.
+  category: string
 }) {
   const reorder = useReorderServiceRequirementSatisfiers(owner)
   const createSatisfier = useCreateServiceRequirementSatisfier(owner)
@@ -51,7 +55,7 @@ export function SatisfiersEditor({
 
   async function handleAdd() {
     if (!addingTypeId) return
-    const serviceTypeId = await resolveServiceTypeId(addingTypeId, addingTypeName).catch(() => null)
+    const serviceTypeId = await resolveServiceTypeId(addingTypeId, addingTypeName, category).catch(() => null)
     if (serviceTypeId === null) return
 
     createSatisfier.mutate(
@@ -84,8 +88,9 @@ export function SatisfiersEditor({
       ))}
       <Group align="flex-end" wrap="wrap" gap="xs">
         <div style={{ minWidth: 200 }}>
-          <ServiceTypeSelect
+          <ServiceTypePicker
             label="Add satisfier"
+            category={category}
             value={addingTypeId}
             onChange={setAddingTypeId}
             newTypeName={addingTypeName}
@@ -222,12 +227,14 @@ function SatisfierRow({
 export function DraftSatisfierRow({
   draft,
   activeDimensions,
+  category,
   canRemove,
   onChange,
   onRemove,
 }: {
   draft: DraftSatisfier
   activeDimensions: ActiveDimensions
+  category: string
   canRemove: boolean
   onChange: (changes: Partial<DraftSatisfier>) => void
   onRemove: () => void
@@ -235,8 +242,9 @@ export function DraftSatisfierRow({
   return (
     <Group align="flex-end" wrap="wrap" gap="xs">
       <div style={{ minWidth: 200 }}>
-        <ServiceTypeSelect
+        <ServiceTypePicker
           value={draft.typeId}
+          category={category}
           onChange={(v) => onChange({ typeId: v })}
           newTypeName={draft.typeName}
           onNewTypeNameChange={(v) => onChange({ typeName: v })}

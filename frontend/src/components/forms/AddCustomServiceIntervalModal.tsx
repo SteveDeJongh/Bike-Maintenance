@@ -21,6 +21,9 @@ interface AddCustomServiceIntervalModalProps {
   opened: boolean
   onClose: () => void
   componentId: number
+  // The component's category -- filters the satisfier pickers and tags any
+  // type created inline.
+  category: string
 }
 
 // A custom (unlinked) requirement, created with its satisfiers inline in
@@ -31,15 +34,24 @@ export default function AddCustomServiceIntervalModal({
   opened,
   onClose,
   componentId,
+  category,
 }: AddCustomServiceIntervalModalProps) {
   return (
     <AppModal opened={opened} onClose={onClose} title="Add custom service requirement">
-      {opened && <AddCustomServiceRequirementForm key={componentId} onClose={onClose} componentId={componentId} />}
+      {opened && <AddCustomServiceRequirementForm key={componentId} onClose={onClose} componentId={componentId} category={category} />}
     </AppModal>
   )
 }
 
-function AddCustomServiceRequirementForm({ onClose, componentId }: { onClose: () => void; componentId: number }) {
+function AddCustomServiceRequirementForm({
+  onClose,
+  componentId,
+  category,
+}: {
+  onClose: () => void
+  componentId: number
+  category: string
+}) {
   const createRequirement = useCreateComponentServiceRequirement()
   const { resolveServiceTypeId, isCreatingServiceType, createServiceTypeError } = useServiceTypeIdResolver()
   const nextDraftKey = useRef(1)
@@ -73,7 +85,9 @@ function AddCustomServiceRequirementForm({ onClose, componentId }: { onClose: ()
   async function handleSubmit() {
     if (!canSubmit) return
 
-    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, resolveServiceTypeId)
+    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, (id, typeName) =>
+      resolveServiceTypeId(id, typeName, category),
+    )
     if (resolvedSatisfiers === null) return
 
     createRequirement.mutate(
@@ -144,6 +158,7 @@ function AddCustomServiceRequirementForm({ onClose, componentId }: { onClose: ()
           key={draft.key}
           draft={draft}
           activeDimensions={activeDimensions}
+          category={category}
           canRemove={draftSatisfiers.length > 1}
           onChange={(changes) => updateDraft(draft.key, changes)}
           onRemove={() => removeDraftRow(draft.key)}

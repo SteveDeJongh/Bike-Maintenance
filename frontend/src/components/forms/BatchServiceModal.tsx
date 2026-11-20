@@ -10,7 +10,7 @@ import { formatApiError } from '../../api/errors'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 import { SERVICE_STATUS_SEVERITY } from '../../constants'
 import ServiceStatusBadge from '../ServiceStatusBadge'
-import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
+import ServiceTypePicker, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { ServiceableComponent, ServiceStatus } from '../../types/models'
 
@@ -186,6 +186,11 @@ function BatchServiceForm({
 
   const eligibleComponents = data ? [...data.mounted, ...data.off_bike] : []
   const componentOptions = eligibleComponents.map((c) => ({ value: String(c.id), label: c.label }))
+  // An "Add other…" row's picker filters by its own chosen component's
+  // category (and a type created there is tagged with it).
+  function categoryOfComponent(componentId: string): string | null {
+    return eligibleComponents.find((c) => String(c.id) === componentId)?.category ?? null
+  }
   const validAddOtherRows = addOtherRows.filter((row) => row.componentId && row.serviceTypeId)
   const selectedCount = checkedKeys.size + validAddOtherRows.length
   const empty = !isPending && !isError && eligibleComponents.length === 0
@@ -219,7 +224,7 @@ function BatchServiceForm({
     for (const row of validAddOtherRows) {
       let serviceTypeId: number
       try {
-        serviceTypeId = await resolveServiceTypeId(row.serviceTypeId, row.serviceTypeNewName)
+        serviceTypeId = await resolveServiceTypeId(row.serviceTypeId, row.serviceTypeNewName, categoryOfComponent(row.componentId))
       } catch (err) {
         setBaseError(formatApiError(err) || 'Could not create the new service type.')
         return
@@ -378,6 +383,7 @@ function BatchServiceForm({
                 key={row.key}
                 row={row}
                 componentOptions={componentOptions}
+                category={categoryOfComponent(row.componentId)}
                 error={rowErrors[row.key]}
                 onChange={(changes) => updateAddOtherRow(row.key, changes)}
                 onRemove={() => removeAddOtherRow(row.key)}
@@ -487,12 +493,14 @@ function ServiceTypeRowView({
 function AddOtherRowInput({
   row,
   componentOptions,
+  category,
   error,
   onChange,
   onRemove,
 }: {
   row: AddOtherRow
   componentOptions: { value: string; label: string }[]
+  category: string | null
   error: string | undefined
   onChange: (changes: Partial<AddOtherRow>) => void
   onRemove: () => void
@@ -508,8 +516,9 @@ function AddOtherRowInput({
           style={{ flex: '1 1 200px' }}
         />
         <div style={{ flex: '1 1 200px' }}>
-          <ServiceTypeSelect
+          <ServiceTypePicker
             value={row.serviceTypeId}
+            category={category}
             onChange={(value) => onChange({ serviceTypeId: value })}
             newTypeName={row.serviceTypeNewName}
             onNewTypeNameChange={(value) => onChange({ serviceTypeNewName: value })}

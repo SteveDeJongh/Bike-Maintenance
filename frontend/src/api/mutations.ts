@@ -145,7 +145,9 @@ export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 // single-event create/update path.
 export type MaintenanceEventPayload = Omit<MaintenanceEvent, 'id' | 'service_session_id'>
 export type BikeComponentSlotPayload = Omit<BikeComponentSlot, 'id'>
-export type ServiceTypePayload = Omit<ServiceType, 'id'>
+// categories replaces the full tag set ([] = universal); omit it to leave
+// the tags unchanged (e.g. a plain rename).
+export type ServiceTypePayload = { name?: string; categories?: string[] }
 export type NotificationSettingPayload = Omit<NotificationSetting, 'id'>
 
 // Bike

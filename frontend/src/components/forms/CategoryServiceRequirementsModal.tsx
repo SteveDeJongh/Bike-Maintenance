@@ -171,6 +171,7 @@ function TemplateCard({ template, onApplyReady }: { template: CategoryServiceReq
           <RequirementFieldsEditor template={template} />
           <SatisfiersEditor
             owner={{ type: 'category', id: template.id }}
+            category={template.category}
             satisfiers={template.satisfiers}
             activeDimensions={activeDimensionsOf(template)}
           />
@@ -326,7 +327,9 @@ function NewTemplateForm({
   async function handleCreate() {
     if (!canSubmit) return
 
-    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, resolveServiceTypeId)
+    const resolvedSatisfiers = await resolveDraftSatisfiers(draftSatisfiers, (id, typeName) =>
+      resolveServiceTypeId(id, typeName, category),
+    )
     if (resolvedSatisfiers === null) return
 
     createTemplate.mutate(
@@ -398,6 +401,7 @@ function NewTemplateForm({
           key={draft.key}
           draft={draft}
           activeDimensions={activeDimensions}
+          category={category}
           canRemove={draftSatisfiers.length > 1}
           onChange={(changes) => updateDraft(draft.key, changes)}
           onRemove={() => removeDraftRow(draft.key)}

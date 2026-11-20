@@ -12,7 +12,7 @@ import {
 import { useComponents } from '../../api/queries'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import type { Component, MaintenanceEvent } from '../../types/models'
-import ServiceTypeSelect, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
+import ServiceTypePicker, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 
 interface MaintenanceEventFormValues {
@@ -135,7 +135,7 @@ function MaintenanceEventForm({
 
     let resolvedServiceTypeId: number
     try {
-      resolvedServiceTypeId = await resolveServiceTypeId(values.service_type_id, values.service_type_new_name)
+      resolvedServiceTypeId = await resolveServiceTypeId(values.service_type_id, values.service_type_new_name, selectedCategory)
     } catch (error) {
       setBaseErrors(applyApiErrors(form, error))
       return
@@ -150,6 +150,10 @@ function MaintenanceEventForm({
   function handleServiceTypeChange(value: string) {
     form.setFieldValue('service_type_id', value)
   }
+
+  // The picker's category context: whichever component is picked right now
+  // (none picked yet = no filter).
+  const selectedCategory = components?.find((component) => String(component.id) === form.values.component_id)?.category ?? null
 
   const componentOptions = (components ?? []).map((component: Component) => ({
     value: String(component.id),
@@ -191,8 +195,9 @@ function MaintenanceEventForm({
               data={componentOptions}
               {...form.getInputProps('component_id')}
             />
-            <ServiceTypeSelect
+            <ServiceTypePicker
               value={form.values.service_type_id}
+              category={selectedCategory}
               onChange={handleServiceTypeChange}
               newTypeName={form.values.service_type_new_name}
               onNewTypeNameChange={(value) => form.setFieldValue('service_type_new_name', value)}

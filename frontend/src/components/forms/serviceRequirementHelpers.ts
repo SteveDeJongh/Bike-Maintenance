@@ -1,6 +1,6 @@
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
-import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypeSelect'
+import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
 import type { SatisfierInput } from '../../api/mutations'
 import type { CalendarUnit, RideFilter } from '../../types/models'
 

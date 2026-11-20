@@ -172,6 +172,7 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
         opened={customModalOpened}
         onClose={() => setCustomModalOpened(false)}
         componentId={component.id}
+        category={component.category}
       />
 
       <MaintenanceEventFormModal
@@ -392,7 +393,7 @@ function ServiceRequirementRow({
       {!isLinked && editingCustom && (
         <Table.Tr>
           <Table.Td colSpan={6}>
-            <CustomRequirementEditor requirement={requirement} componentId={componentId} />
+            <CustomRequirementEditor requirement={requirement} componentId={componentId} category={category} />
           </Table.Td>
         </Table.Tr>
       )}
@@ -419,9 +420,11 @@ function ServiceRequirementRow({
 function CustomRequirementEditor({
   requirement,
   componentId,
+  category,
 }: {
   requirement: ComponentServiceRequirementWithStatus
   componentId: number
+  category: string
 }) {
   const updateRequirement = useUpdateComponentServiceRequirement(requirement.id)
   // requirement.satisfiers (from GET /components/:id) is already resolved
@@ -527,6 +530,7 @@ function CustomRequirementEditor({
 
       <SatisfiersEditor
         owner={{ type: 'component', id: requirement.id }}
+        category={category}
         satisfiers={rawSatisfiers}
         activeDimensions={activeDimensionsOf(requirement)}
       />
