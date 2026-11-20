@@ -119,6 +119,9 @@ Domain and backend:
   — but only when the type is tagged and not for that category, since tagging a
   universal type would narrow it. Creating from Settings starts universal. Nothing
   ever removes a tag automatically.
+- **Local-time boundaries come from Ruby's zone data**, passed to SQL as UTC
+  instants (`width_bucket` for per-day grouping) — never `AT TIME ZONE <name>`, since
+  Postgres's tz database can disagree with Ruby's (`docs/dashboard.md`, `stats`).
 - Category is free text, validated on the frontend only. Categories can't be
   renamed; if a rename is ever added, it must update `component_category_settings`
   and `service_type_categories` in the same transaction. `ride_context` is a real
@@ -220,8 +223,8 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/frontend-ui.md` — **Sortable, configurable tables**, **Theming**, **Layout and
   navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
   config, `AppModal`, mobile date pickers, the manifest and icons.
-- `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary`, the sync strip,
-  `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
+- `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
+  header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
 - `docs/rides-and-activity.md` — **Ride history**, **Activity log**. Bike ride
   pagination and odometer, `Activity::Feed`'s keyset/offset branches, the install/removal
   merge rule, the `/activity` page.

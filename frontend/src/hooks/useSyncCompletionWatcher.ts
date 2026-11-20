@@ -10,7 +10,7 @@ const POLL_INTERVAL_MS = 2_000
 // POST /strava/sync only enqueues StravaSyncJob: completion used to be
 // noticed only by the page that pressed the button, and that page's polling
 // died the moment the user navigated away -- leaving e.g. the Dashboard's
-// sync strip stale until a reload.
+// sync status stale until a reload.
 //
 // Polls GET /strava/status every 2s while it reports sync_in_progress (any
 // kind, from any page, tab, device, or the scheduler), and not at all

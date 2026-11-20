@@ -530,7 +530,7 @@ export interface DashboardSyncSection {
   connected: boolean
   last_synced_at: string | null
   rides_total: number
-  // From the credential, so the sync strip's failure item survives a
+  // From the credential, so the header's failure state survives a
   // reload -- useStravaSyncRunner's own `failure` is live-poll-only and
   // resets on mount. No last_sync_failed_kind here: the strip shows one
   // generic failure line regardless of full vs incremental.

@@ -23,9 +23,9 @@ distance/status computation happens here that doesn't already live elsewhere:
   endpoint) is the other caller of the same scope — this count and the Rides tab's
   own "Needs attention" count never disagree. Also carries `last_sync_failed_at`/
   `last_sync_error`/`last_sync_retry_at`, straight from the credential (no
-  `last_sync_failed_kind` — the sync strip shows one generic failure line
+  `last_sync_failed_kind` — the header shows one generic failure chip
   regardless of full vs incremental, leaving that detail to the Strava page's own
-  status) — this is what lets the sync strip's failure item survive a page reload
+  status) — this is what lets the header's failure state survive a page reload
   instead of only ever reflecting `useStravaSyncRunner`'s in-memory, poll-only
   failure (see "Frontend" below).
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
@@ -67,6 +67,31 @@ distance/status computation happens here that doesn't already live elsewhere:
   scopes for one already-loaded record). `gear_id` rides alongside a `null` bike
   specifically so the frontend can offer "Link Strava gear" only for the
   fixable-via-gear-mapping case, same distinction as `sync.unattributed.with_gear`.
+- **`stats`** — riding totals for the summary tiles, all in the viewer's `tz`:
+  `today` (local date), `week` (the Monday-start week containing today: `start_date`,
+  `distance_meters`, `moving_time_seconds`, `elevation_gain_meters`, `ride_count`, and
+  `daily` — always seven `{date, distance_meters}`, Mon–Sun, zero-filled), `month`
+  (same totals for the calendar month) and `year_to_date` (`distance_meters` for
+  Jan 1 → now, `last_year_to_date_distance_meters` for Jan 1 → the same local date
+  and time last year, and `last_year_total_distance_meters`). "Same moment last
+  year" is ActiveSupport's `now - 1.year`, which clamps a Feb 29 today to Feb 28.
+  **Which rides count:** every synced ride (`user.strava_activities.not_ignored`) —
+  including rides with no bike, rides on ignored ("don't track") gear, and indoor
+  rides — since these are riding totals, not wear; only rides individually ignored
+  via `ignored_at` are excluded. The sync only stores `Ride`/`VirtualRide`
+  (`StravaSyncJob::SYNCED_TYPES`), so no runs or other sports leak in.
+  **Two queries, whatever the windows:** one row of `SUM(...) FILTER (WHERE moved_at
+  >= ? AND moved_at < ?)` aggregates for every window (each column aliased — unaliased
+  they'd all be `coalesce`, and ActiveRecord would cast every one with the first
+  column's bigint type, truncating the float elevation sums), and one `GROUP BY
+  width_bucket(moved_at, ARRAY[<eight local midnights>])` for `daily`. Every boundary
+  is computed in Ruby in the zone (DST-aware) and passed as UTC. The days are
+  deliberately **not** grouped with `moved_at AT TIME ZONE <name>`: Postgres ships its
+  own tz database, which can disagree with Ruby's (on the dev machine, Postgres 14
+  still has America/Vancouver at UTC-8 while the system zoneinfo Ruby reads has BC's
+  permanent UTC-7), and the days must line up exactly with the week boundary. With
+  `width_bucket` the raw `tz` param never reaches SQL at all. `bikes[].
+  distance_this_month` is computed separately and unchanged.
 
 **`Maintenance::RideContextSql.predicate(assignment_alias:, activity_alias:)`**
 (`app/services/maintenance/ride_context_sql.rb`) is the one shared SQL fragment
@@ -84,7 +109,8 @@ timezone-aware calculation (nothing else in the app has ever needed one —
 `Intl.DateTimeFormat().resolvedOptions().timeZone`; the backend does
 `(ActiveSupport::TimeZone[tz] if tz.present?) || Time.zone` to compute the current
 calendar month's boundary (for `distance_this_month`) in the viewer's zone, then
-converts to UTC for the actual query range. Nothing is persisted — if more of the
+converts to UTC for the actual query range. `stats` (above) is its second user:
+every week/month/year boundary there is computed the same way. Nothing is persisted — if more of the
 app ever needs a real per-user timezone, that's a `User#time_zone` column, a
 genuine data-model change deliberately not made speculatively here.
 
@@ -92,42 +118,70 @@ genuine data-model change deliberately not made speculatively here.
 `useStravaSyncRunner({ full: false })` for its "Sync now" button — see
 `useStravaSyncRunner` below for what that hook actually does (polling goes through `GET /strava/status`, shared with the Strava page). `components/dashboard/`:
 
-- **`SyncStrip`** is the single place Strava-related issues surface on the
-  dashboard — one `Paper withBorder`, never a stack of full-width `Alert`
-  boxes. Row 1 (always shown): a badge summarizing the worst current state,
-  the connection/last-synced/ride-total line, and "Sync now" (or "Connect
-  Strava" when `!sync.connected`, reusing the exact same strip shape rather
-  than a separate disconnected-state component). Badge priority, highest
-  first: a sync in progress (`syncing` or `stillRunning`) → gray "Syncing…";
-  else a failure (`resolveFailure`, below) → red "Sync failed"; else any
-  ride/gear issue → orange "Needs attention"; else teal "Connected". Row 2
-  (only rendered when there's at least one item): a `Divider`, then a tight
-  one-line-per-issue list, each with a small colored dot, one sentence, and
-  its own action `Anchor` — sync failure (`syncFailureMessage`, "Reconnect
-  Strava" for `auth_failed` only), still running (no action), unmapped gear
-  ("Link gear" → `/strava?tab=gear`), no-bike-on-Strava rides ("Review rides"
-  → `/strava?tab=rides`) — in that order, and any combination can appear at
-  once (e.g. a failure *and* an unmapped-gear item). The detailed "map it,
-  track it as retired, or don't track it" guidance lives where the user actually acts on it: a one-line hint above the
-  Gear tab's Unmapped gear table, and one appended to the Rides tab's own
-  hint text on its "Needs attention" view (see "Strava integration" below)
-  — the dashboard only ever surfaces that something needs attention and
-  links to where to fix it.
-  **`resolveFailure(sync, liveFailure)`** prefers `useStravaSyncRunner`'s own
-  in-memory `failure` (richer: it's from the exact run this page triggered),
-  but falls back to the credential's own `last_sync_failed_at`/
-  `last_sync_error`/`last_sync_retry_at` (`sync` section above) whenever
-  `last_sync_failed_at` is present and not already older than
-  `last_synced_at` — this is what lets the failure item survive a page
-  reload. No separate "clear" step: once a later sync succeeds,
-  `last_synced_at` moves past `last_sync_failed_at` and the function starts
-  returning `null` again on its own.
+- **`DashboardHeader`** (it replaced the full-width `SyncStrip` and carries
+  everything it did) is the single place Strava-related issues surface on the
+  dashboard. Left: the title "Home" and a dimmed date line, "Friday, Nov 20 · week
+  47" (`formatHeaderDate`/`isoWeekNumber` in `utils/datetime.ts` — ISO weeks). Right,
+  in a group that wraps on narrow screens:
+  - a **status pill** (a rounded `Paper`), highest priority first: a sync in
+    progress (`syncing` or `stillRunning`) → gray "Syncing…" (so "still running"
+    needs no chip of its own); else a failure (`resolveFailure`, below) → red "Sync
+    failed"; else a primary-colour check and "Strava synced {relative time}". Its
+    tooltip shows the absolute last-synced time and the ride total. The old strip's
+    orange "Needs attention" badge state is gone — the chips carry it.
+  - **issue chips**, only when they apply, in this order, each a link where there's
+    an action: sync failure (red, `syncFailureMessage` text; a link to
+    "Reconnect Strava" for `auth_failed` only), unmapped gear (orange, "N unmapped
+    gear · Link gear" → `/strava?tab=gear`; shown when `unmapped_gear_count` or
+    `with_gear.count` is non-zero, falling back to counting the rides when the gear
+    count is 0), and rides with no bike on Strava (orange, "N rides not counted ·
+    Review" → `/strava?tab=rides`, `without_gear.count`).
+  - **Sync now**, from the page's `useStravaSyncRunner({ full: false })`.
+  - Not connected: all of the above is replaced by a single "Connect Strava" button.
+
+  The detailed "map it, track it as retired, or don't track it" guidance lives
+  where the user actually acts on it: a one-line hint above the Gear tab's Unmapped
+  gear table, and one appended to the Rides tab's own hint text on its "Needs
+  attention" view (see "Strava integration") — the header only surfaces that
+  something needs attention and links to where to fix it.
+  **`resolveFailure(sync, liveFailure)`** (`utils/syncFailure.ts`) prefers
+  `useStravaSyncRunner`'s own in-memory `failure` (richer: it's from the exact run
+  this page triggered), but falls back to the credential's own
+  `last_sync_failed_at`/`last_sync_error`/`last_sync_retry_at` (`sync` section
+  above) whenever `last_sync_failed_at` is present and not already older than
+  `last_synced_at` — this is what lets the failure survive a page reload. No
+  separate "clear" step: once a later sync succeeds, `last_synced_at` moves past
+  `last_sync_failed_at` and the function starts returning `null` again on its own.
+- **`SummaryTiles`** — four `StatTile`s (uppercase dimmed label, large value, dimmed
+  secondary line) in a `repeat(auto-fit, minmax(260px, 1fr))` grid, all from
+  `stats` plus `attention`:
+  - **This week**: distance; moving time · elevation gain; `WeekBars`, seven plain
+    divs (no chart library) scaled to the week's biggest day. Days after
+    `stats.today` (the server's local date, so they can't disagree with its day
+    grouping) are a flat neutral stub; a past day with no riding is a flat
+    primary-light stub.
+  - **{Month name}**: distance; moving time · elevation gain · ride count.
+  - **Year to date**: distance and `formatPercentChange` vs last year to date
+    (`utils/stats.ts`; primary colour when up, dimmed when down, hidden when last
+    year had nothing); `YearProgressBar`, this year against last year's full total
+    with a tick at last year's same-date total (hidden with no last-year total);
+    "Last year by today: N km".
+  - **Next service** (`NextServiceTile`): `attention[0]`, so the same
+    due-before-warning order as Needs attention. The value is
+    `formatDrivingRemaining(item)` (`utils/serviceInterval.ts`) — only the driving
+    dimension, "8 km left" / "120 km over" / "1.5 hrs left" / "3 days left", never a
+    pace-based estimate — coloured by `SERVICE_STATUS_COLORS`, which also colours the
+    tile's border. Then "{component label} · {requirement name}" (a link to the
+    component), and "Log service", which opens `MaintenanceEventFormModal` with the
+    same prefill as `AttentionRow` (`primarySatisfier`, shared by both), so the save
+    and its invalidation are identical. No attention items: a check and "All caught
+    up".
 - `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by bike,
   "Not mounted" last; each row reads `"{component label} — {requirement name}"`
   plus a `(from {setting_event's service type})` clause once a real service has
   been logged; "Log service" reuses `MaintenanceEventFormModal` as-is, pre-filled
-  with the item's **position-1 satisfier** — `[...item.satisfiers].sort((a, b) =>
-  a.position - b.position)[0]`, same default-satisfier convention as
+  with the item's **position-1 satisfier** — `primarySatisfier(item.satisfiers)`
+  (`utils/serviceInterval.ts`), same default-satisfier convention as
   `ComponentDetail`'s own split button), `RecentRidesTable` (its "No bike" rows
   link to `/strava?tab=rides`; its "Link Strava gear" link, shown only when
   `gear_id` is present, to `/strava?tab=gear`; a trailing "Actions" column holds
@@ -146,7 +200,7 @@ is the **only** place a completed Strava sync invalidates ride data. It's mounte
 once, in `Layout.tsx`, which wraps every authenticated route. `POST /strava/sync` only
 enqueues `StravaSyncJob`, and completion used to be detected only by the page that
 pressed the button — whose polling died the moment the user navigated away
-mid-sync, leaving e.g. the Dashboard's sync strip stale until a reload. The
+mid-sync, leaving e.g. the Dashboard's sync status stale until a reload. The
 watcher polls `GET /strava/status` every 2s while it reports `sync_in_progress`
 (any kind, started from any page, tab, device, or the scheduler — see "Strava
 integration") and not at all otherwise, keeps the last-seen `last_synced_at`/

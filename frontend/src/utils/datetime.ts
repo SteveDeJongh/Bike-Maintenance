@@ -33,7 +33,7 @@ export function formatDate(value: string | null): string {
   return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
-// Coarse, manual-sync-cadence relative time for the dashboard's sync strip
+// Coarse, manual-sync-cadence relative time for the Home header's sync pill
 // (e.g. "5 minutes ago") -- not meant for anything finer-grained than that.
 export function formatRelativeTime(value: string | null): string {
   if (!value) return 'never'
