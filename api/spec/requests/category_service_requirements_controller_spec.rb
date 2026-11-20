@@ -151,4 +151,22 @@ RSpec.describe "CategoryServiceRequirements", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "automatic category tagging" do
+    let(:degrease) do
+      create(:service_type, user: current_user, name: "Degrease").tap do |type|
+        create(:service_type_category, service_type: type, category: "cassette")
+      end
+    end
+
+    it "tags satisfiers created inline with a new template" do
+      post "/category_service_requirements", params: {
+        category_service_requirement: { category: "chain", name: "Chain clean", distance_meters: 500_000 },
+        satisfiers: [ { service_type_id: degrease.id } ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+  end
 end

@@ -127,4 +127,52 @@ RSpec.describe "ServiceRequirementSatisfiers", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  describe "automatic category tagging" do
+    let(:degrease) do
+      create(:service_type, user: current_user, name: "Degrease").tap do |type|
+        create(:service_type_category, service_type: type, category: "cassette")
+      end
+    end
+
+    it "tags the type when it's added as a satisfier in a category it isn't tagged for" do
+      requirement = create(:category_service_requirement, user: current_user, category: "chain")
+
+      post "/category_service_requirements/#{requirement.id}/satisfiers", params: { service_type_id: degrease.id }
+
+      expect(response).to have_http_status(:created)
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+
+    it "tags the type when an existing satisfier is switched to it" do
+      requirement = create(:category_service_requirement, user: current_user, category: "chain")
+
+      patch "/service_requirement_satisfiers/#{requirement.satisfiers.first.id}", params: { service_type_id: degrease.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+
+    it "uses the component's category for a custom requirement, and leaves universal types alone" do
+      component = create(:component, user: current_user, category: "chainring")
+      requirement = create(:component_service_requirement, component: component)
+      universal = create(:service_type, user: current_user, name: "Torque check")
+
+      post "/component_service_requirements/#{requirement.id}/satisfiers", params: { service_type_id: degrease.id }
+      post "/component_service_requirements/#{requirement.id}/satisfiers", params: { service_type_id: universal.id }
+
+      expect(degrease.reload.categories).to eq(%w[cassette chainring])
+      expect(universal.reload).to be_universal
+    end
+
+    it "never removes a tag when the satisfier is removed" do
+      requirement = create(:category_service_requirement, user: current_user, category: "chain")
+      post "/category_service_requirements/#{requirement.id}/satisfiers", params: { service_type_id: degrease.id }
+
+      delete "/service_requirement_satisfiers/#{JSON.parse(response.body)["id"]}"
+
+      expect(response).to have_http_status(:no_content)
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+  end
 end

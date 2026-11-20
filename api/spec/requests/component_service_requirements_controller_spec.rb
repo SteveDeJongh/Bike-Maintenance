@@ -159,4 +159,24 @@ RSpec.describe "ComponentServiceRequirements", type: :request do
       expect(component.component_service_requirements.where(category_service_requirement: template2).count).to eq(1)
     end
   end
+
+  describe "automatic category tagging" do
+    let(:degrease) do
+      create(:service_type, user: current_user, name: "Degrease").tap do |type|
+        create(:service_type_category, service_type: type, category: "cassette")
+      end
+    end
+
+    it "tags satisfiers created inline with a new custom requirement, using the component's category" do
+      component = create(:component, user: current_user, category: "chainring")
+
+      post "/component_service_requirements", params: {
+        component_service_requirement: { component_id: component.id, name: "Ring clean", distance_meters: 100_000 },
+        satisfiers: [ { service_type_id: degrease.id } ],
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(degrease.reload.categories).to eq(%w[cassette chainring])
+    end
+  end
 end
