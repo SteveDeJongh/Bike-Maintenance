@@ -225,7 +225,7 @@
   `useStravaSyncRunner({ full: true })` instance the Strava page header already
   owns — `Strava.tsx` passes it down to `RidesTab` as a `fullSync` prop (the
   same lift-state-as-props pattern `Dashboard.tsx` already uses for
-  `SyncStrip`) rather than the tab running a second independent poller for the
+  `DashboardHeader`) rather than the tab running a second independent poller for the
   same action.
 - **Strava rate limits**: Strava's defaults are 100 read requests per 15
   minutes / 1,000 per day, and 200/2,000 overall; a request rejected for the

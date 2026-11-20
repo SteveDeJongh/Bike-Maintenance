@@ -50,7 +50,7 @@ type FullSyncControls = ReturnType<typeof useStravaSyncRunner>
 // this system (e.g. RideHistorySection) -- useTableViewPreferences' useState
 // initializers only seed from it once, on mount. fullSync is the Strava
 // page header's own useStravaSyncRunner({ full: true }) instance, lifted
-// down as a prop (same pattern Dashboard.tsx uses for SyncStrip) rather
+// down as a prop (same pattern Dashboard.tsx uses for DashboardHeader) rather
 // than this tab owning a second independent poller for the same action.
 export default function RidesTab({ fullSync }: { fullSync: FullSyncControls }) {
   const { data: preferenceData, isPending } = useTableViewPreference('strava_rides')

@@ -1,7 +1,7 @@
 import { Alert, Flex, Loader, Stack } from '@mantine/core'
 import { useDashboard } from '../api/queries'
 import { useStravaSyncRunner } from '../hooks/useStravaSyncRunner'
-import SyncStrip from '../components/dashboard/SyncStrip'
+import DashboardHeader from '../components/dashboard/DashboardHeader'
 import BikeCards from '../components/dashboard/BikeCards'
 import NeedsAttention from '../components/dashboard/NeedsAttention'
 import RecentRidesTable from '../components/dashboard/RecentRidesTable'
@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   return (
     <Stack gap="xl">
-      <SyncStrip sync={data.sync} onSync={sync} syncing={syncing} failure={failure} stillRunning={stillRunning} />
+      <DashboardHeader sync={data.sync} onSync={sync} syncing={syncing} failure={failure} stillRunning={stillRunning} />
       <Flex gap="xl" wrap="wrap">
         <BikeCards bikes={data.bikes} />
         <NeedsAttention attention={data.attention} />

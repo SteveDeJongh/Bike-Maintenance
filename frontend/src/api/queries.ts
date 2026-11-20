@@ -277,9 +277,8 @@ export function useMaintenanceAlerts(scope: MaintenanceAlertScope) {
 
 // tz is the viewer's IANA zone name (Dashboard.tsx sends
 // Intl.DateTimeFormat().resolvedOptions().timeZone) -- only used server-side
-// to compute the current-month boundary for distance_this_month, nothing is
-// stored. refetchInterval lets SyncStrip poll for a completed sync without a
-// second query -- see Dashboard.tsx's post-"Sync now" polling.
+// to compute calendar boundaries (distance_this_month and the stats
+// section's week/month/year windows), nothing is stored.
 export function useDashboard(tz: string, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['dashboard', tz],

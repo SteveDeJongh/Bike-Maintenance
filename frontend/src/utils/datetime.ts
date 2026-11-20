@@ -50,3 +50,19 @@ export function formatRelativeTime(value: string | null): string {
   const diffDays = Math.round(diffHours / 24)
   return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
 }
+
+// ISO-8601 week number (weeks start Monday; week 1 holds the year's first
+// Thursday), from the date's local calendar day.
+export function isoWeekNumber(date: Date): number {
+  const day = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const weekday = day.getUTCDay() || 7 // Mon=1..Sun=7
+  day.setUTCDate(day.getUTCDate() + 4 - weekday) // this week's Thursday
+  const yearStart = Date.UTC(day.getUTCFullYear(), 0, 1)
+  return Math.ceil(((day.getTime() - yearStart) / 86_400_000 + 1) / 7)
+}
+
+// The Home header's date line, e.g. "Friday, Nov 20 · week 47".
+export function formatHeaderDate(date: Date, locale?: string): string {
+  const day = date.toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
+  return `${day} · week ${isoWeekNumber(date)}`
+}
