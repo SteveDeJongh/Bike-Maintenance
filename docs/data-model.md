@@ -160,14 +160,42 @@
   the Settings page is re-added if a component using it is saved again. See "Brand/
   model autocomplete" below.
 - `ServiceType`: user_id, name — unique per `(user_id, lower(name))`. A user-defined
-  kind of maintenance (wax, sealant top-up, brake bleed, ...), — per this file's own rule,
-  something that now drives real computation (service requirements) gets a real
+  kind of maintenance (wax, sealant top-up, brake bleed, ...) — per this file's own
+  rule, something that drives real computation (service requirements) gets a real
   model, not free text like `category`. Renaming is safe everywhere (every
   reference is by id); deleting a type still in use by any `MaintenanceEvent` or
   `ServiceRequirementSatisfier` is blocked (`restrict_with_error`). Managed on the
-  Settings page, and every service-type picker in the app can also create one
-  inline. `Users::Provision` seeds `wax`/`clean`/`replace`/`inspect` for every new
-  user . Belongs to its owning
+  Settings page (`ServiceTypeEditModal`), and every service-type picker in the app
+  can also create one inline. `Users::Provision` seeds `wax`/`clean`/`replace`/
+  `inspect` for every new user, untagged.
+  **Category tags** (`ServiceTypeCategory` below): `#categories` (sorted strings),
+  `.applicable_to(category)` (tagged for it, or untagged), `#applicable_to?`,
+  `#replace_categories!(list)` (set-replace in one transaction, stripping blanks and
+  dupes; `[]` = universal), and `#tag_for!(category)` — the automatic-tagging
+  primitive, which only adds a tag when the type is tagged but **not** for this
+  category: an untagged type already applies everywhere, and tagging it would
+  narrow it. Nothing ever removes a tag automatically. `GET /service_types` returns
+  `categories`, `requirement_count` (satisfier rows — unique per owner+type, so
+  distinct templates + custom requirements; linked rows inherit and aren't
+  counted) and `event_count`, from three batched queries total;
+  `POST`/`PATCH` accept `categories: [...]` (on `PATCH`, an omitted key leaves the
+  tags alone). Inline creates from a picker that knows its category send
+  `categories: [category]`.
+- `ServiceTypeCategory`: service_type_id (FK, `ON DELETE CASCADE`, plus
+  `dependent: :delete_all`), category — unique per `(service_type_id, category)`.
+  `category` follows `Component#category`'s own rules exactly: free text,
+  presence-only, no normalisation. **Filter, don't forbid**: tags only decide what
+  a picker suggests first — nothing validates an event, requirement, or satisfier
+  against them, so existing records stay valid whatever their type's tags.
+  Categories can't be renamed today; a future rename must update these rows in
+  the same transaction as `component_category_settings`. Auto-tagged by
+  `ServiceRequirementSatisfier`'s `after_save` (when `service_type_id` changed —
+  every satisfier path: nested create/update, and templates/custom requirements
+  created with satisfiers inline), using the owner template's category or a custom
+  row's component's category. Backfilled by
+  `20261120200001_backfill_service_type_categories` (satisfier categories first,
+  falling back to the categories of components the type has events on;
+  inspect/clean/replace, case-insensitively, stay universal). Belongs to its owning
   user *directly* (`MaintenanceEvent` and `ServiceRequirementSatisfier` both
   validate that any `service_type_id` they reference shares their own owner — see
   "Authentication" below for why this needed a fix).

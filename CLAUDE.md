@@ -72,7 +72,8 @@ Full fields, validations, and rules: `docs/data-model.md`.
   bike over `[started_at, ended_at)`, with a `ride_context` of `both`/`outdoor_only`/`indoor_only`).
 - `ComponentCategorySetting` — per-user, per-category defaults (default ride_context,
   trackable, `allows_multiple_assignments`, notification overrides, `common_brands`).
-- Maintenance: `ServiceType` (user-defined), `MaintenanceEvent`, `ServiceSession` (a batch
+- Maintenance: `ServiceType` (user-defined, optionally tagged with categories via
+  `ServiceTypeCategory` — untagged = universal), `MaintenanceEvent`, `ServiceSession` (a batch
   of events on one bike), `CategoryServiceRequirement` (template) →
   `ComponentServiceRequirement` (what applies to one component, linked or custom) →
   `ServiceRequirementSatisfier` (which service types clear it, and how far each buys).
@@ -107,7 +108,20 @@ Domain and backend:
 - **The API returns raw values** — meters, seconds, ISO dates — never pre-formatted
   sentences (the Activity log's server-built `summary` is the one deliberate exception).
   The UI always displays km via `formatDistance` (and `formatDuration`, `formatSpeed`, ...).
-- Category is free text, validated on the frontend only. `ride_context` is a real
+- **Service-type tags filter, they never forbid.** A picker with a category shows
+  types tagged for it plus universal (untagged) ones first, with every other type
+  behind "Show all types"; nothing rejects a type on an untagged category, and
+  existing events/requirements/satisfiers stay valid whatever their tags. Every
+  service-type choice goes through `ServiceTypePicker`, passing the category it
+  knows. Automatic tagging: a type created inline from a picker with a category is
+  tagged with it; adding or switching a satisfier tags its type with the
+  requirement's category (`ServiceType#tag_for!` via the satisfier's `after_save`)
+  — but only when the type is tagged and not for that category, since tagging a
+  universal type would narrow it. Creating from Settings starts universal. Nothing
+  ever removes a tag automatically.
+- Category is free text, validated on the frontend only. Categories can't be
+  renamed; if a rename is ever added, it must update `component_category_settings`
+  and `service_type_categories` in the same transaction. `ride_context` is a real
   backend-validated enum because it drives computation. Anything that drives computation
   gets a real model/enum, not free text.
 - Every query is scoped through `current_user`; cross-user access 404s. Models that

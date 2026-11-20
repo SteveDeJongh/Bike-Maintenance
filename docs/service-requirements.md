@@ -147,7 +147,7 @@ ride-filtered counting.
   each independently clearable, ≥1 required; a `SegmentedControl` for
   `ride_filter` with a dimmed "Calendar time keeps counting on indoor rides" note
   next to the calendar field whenever the filter isn't "all"; an ordered
-  "Satisfied by" list — `SatisfiersEditor`/`SatisfierRow`, a service-type picker
+  "Satisfied by" list — `SatisfiersEditor`/`SatisfierRow`, a `ServiceTypePicker`
   with inline create plus per-dimension allowance override inputs only shown for a
   dimension the requirement actually has, each with a "same as requirement"
   placeholder when unset, reorder via up/down `ActionIcon`s wired straight to
@@ -213,6 +213,31 @@ a scheduler is deployed, a dismissed alert stays hidden only until the user next
 presses "Sync now". Calendar-based requirements keep advancing regardless of sync
 (calendar position is a plain date calculation), but a dismissal only lifts on a
 completed sync or on escalation to a worse status.
+
+**Service-type pickers** (`components/ServiceTypePicker.tsx`, the one picker
+everywhere a service type is chosen) take an optional `category`. With one, types
+tagged for it come first, then universal types — each alphabetical with a muted
+label (the category, or "any") — and everything else sits behind "Show all types
+(N hidden)" below a divider, labelled with its own tags; the selected value always
+stays visible even when it's filtered out (an old event's type). Ordering lives in
+`utils/serviceTypePicker.ts`'s `partitionServiceTypes`. Inline create reads "Create
+new type (tagged <category>)", and `useServiceTypeIdResolver`'s
+`resolveServiceTypeId(id, name, category)` sends `categories: [category]`. Category
+context per site: `MaintenanceEventFormModal` — the form's currently selected
+component; `BatchServiceModal`'s "Add other…" rows — each row's own chosen
+component; `SatisfiersEditor`/`DraftSatisfierRow` — a template's own category
+(Settings) or a custom requirement's component category (`ServiceIntervalsSection`,
+`AddCustomServiceIntervalModal`). The "Log service" split button lists a
+requirement's satisfiers, not a general picker, and is unaffected.
+**Settings → Service types** lists each type with its tag pills
+(`ServiceTypeTagPills`, a dashed "All categories" pill when untagged) and opens
+`ServiceTypeEditModal` (an `AppModal`) to edit or create: inline name validation,
+`CategoryTagInput` (chips plus a portalled, flip-aware Mantine `Combobox` over
+`useAllCategories()` — no "create category" option), the "Pickers show this type
+on …" helper line, a usage box, and Delete only while unused. `['service_types']`
+is in both the `history` and `intervals` invalidation groups, so event counts,
+requirement counts, and auto-tags refresh after any event, session, requirement,
+or satisfier change.
 
 ## Batch service logging
 
@@ -290,7 +315,7 @@ this bike" gets computed and how the batch logger itself works.
   satisfier — deduped by `(component, service type)` key, so two due requirements
   on the same component that share a satisfier only ever add one row. "Add
   other…" rows (a component picker from the same eligible list plus
-  `ServiceTypeSelect`/`useServiceTypeIdResolver`, the exact pieces
+  `ServiceTypePicker`/`useServiceTypeIdResolver`, the exact pieces
   `MaintenanceEventFormModal` already uses) are unchanged — they were always
   service-type-first, with no requirement concept to group by. Rows show no remaining-distance text (a row can clear several requirements with different remaining amounts, and the "clears X (status)" list already says what matters) — `ComponentDetail`'s own rows do. Takes an optional
   `initialPerformedAt` prop — unused by `BikeDetail`'s header "Log service"
