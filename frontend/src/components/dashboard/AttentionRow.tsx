@@ -5,14 +5,13 @@ import ServiceStatusBadge from '../ServiceStatusBadge'
 import MaintenanceEventFormModal from '../forms/MaintenanceEventFormModal'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { SERVICE_STATUS_COLORS } from '../../constants'
-import { formatRemaining } from '../../utils/serviceInterval'
+import { formatRemaining, primarySatisfier } from '../../utils/serviceInterval'
 import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { DashboardAttentionItem } from '../../types/models'
 
 export default function AttentionRow({ item }: { item: DashboardAttentionItem }) {
   const [logOpened, setLogOpened] = useState(false)
   const isMobile = useIsMobile()
-  const primarySatisfier = [...item.satisfiers].sort((a, b) => a.position - b.position)[0]
 
   return (
     <Stack gap={4} p="xs" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
@@ -52,7 +51,7 @@ export default function AttentionRow({ item }: { item: DashboardAttentionItem })
         opened={logOpened}
         onClose={() => setLogOpened(false)}
         defaultComponentId={item.component_id}
-        defaultServiceTypeId={primarySatisfier?.service_type_id}
+        defaultServiceTypeId={primarySatisfier(item.satisfiers)?.service_type_id}
       />
     </Stack>
   )
