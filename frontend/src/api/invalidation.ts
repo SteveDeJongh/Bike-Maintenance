@@ -20,16 +20,19 @@ export const INVALIDATION_GROUPS = {
   // Changes whenever rides, events, assignments, or intervals change.
   serviceStatus: [['components'], ['bikes'], ['serviceable_components'], ['maintenance_alerts'], ['dashboard']],
   // Logged history: the activity feed, the maintenance event list, and
-  // service session detail views.
-  history: [['activity'], ['maintenance_events'], ['service_sessions']],
+  // service session detail views -- plus service types, whose event_count
+  // (Settings -> Service types) changes with every logged event.
+  history: [['activity'], ['maintenance_events'], ['service_sessions'], ['service_types']],
   // Which component is on which bike, and when.
   setup: [['component_assignments']],
   // Strava gear lists and status (unmapped/mapped/ignored gear, sync status).
   gear: [['strava']],
   // Ride lists -- the Strava Rides tab and each bike's Ride history.
   rides: [['strava_rides'], ['bike_rides']],
-  // Category templates and per-component service requirement config.
-  intervals: [['category_service_requirements'], ['component_service_requirements']],
+  // Category templates and per-component service requirement config --
+  // plus service types: adding/switching a satisfier can auto-tag its type
+  // with the requirement's category, and changes requirement_count.
+  intervals: [['category_service_requirements'], ['component_service_requirements'], ['service_types']],
   // Per-category settings, including brands remembered from component saves
   // (Component#remember_brand).
   categorySettings: [['component_category_settings']],

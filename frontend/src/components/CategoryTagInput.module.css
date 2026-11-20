@@ -1,0 +1,32 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 10px;
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* ~11px icon in a ~16px circular hit area */
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: inherit;
+}
+
+.remove:hover {
+  background: var(--mantine-primary-color-light-hover);
+}
+
+.remove:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
