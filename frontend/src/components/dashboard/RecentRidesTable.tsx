@@ -1,5 +1,6 @@
 import { Anchor, Badge, Group, ScrollArea, Stack, Table, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
+import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import type { DashboardRecentRide } from '../../types/models'
@@ -28,7 +29,7 @@ export default function RecentRidesTable({ summary, rides }: RecentRidesTablePro
         <Text c="dimmed">No rides in the last 14 days.</Text>
       ) : (
         <ScrollArea>
-          <Table miw={700}>
+          <Table miw={800}>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Date</Table.Th>
@@ -36,6 +37,7 @@ export default function RecentRidesTable({ summary, rides }: RecentRidesTablePro
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Bike</Table.Th>
                 <Table.Th>Counted toward</Table.Th>
+                <Table.Th>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -95,6 +97,9 @@ function RecentRideRow({ ride }: { ride: DashboardRecentRide }) {
             )}
           </Group>
         )}
+      </Table.Td>
+      <Table.Td>
+        <LogServiceAfterRideButton bikeId={ride.bike?.id ?? null} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
       </Table.Td>
     </Table.Tr>
   )

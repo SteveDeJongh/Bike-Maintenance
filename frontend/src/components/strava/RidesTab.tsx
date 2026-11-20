@@ -28,6 +28,7 @@ import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
 import ResyncRideButton from '../ride/ResyncRideButton'
+import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
 import {
   STRAVA_RIDE_COLUMNS,
   STRAVA_RIDE_COLUMN_LABELS,
@@ -527,7 +528,14 @@ function RowActions({ ride }: { ride: StravaRide }) {
     )
   }
 
-  return <ResyncRideButton rideId={ride.id} />
+  // Attributed: the only branch with a bike, so the only one offering
+  // "Log service after this ride".
+  return (
+    <Group gap={4} wrap="nowrap" align="flex-start">
+      <LogServiceAfterRideButton bikeId={ride.bike?.id ?? null} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
+      <ResyncRideButton rideId={ride.id} />
+    </Group>
+  )
 }
 
 function EmptyState({ status }: { status: Status }) {

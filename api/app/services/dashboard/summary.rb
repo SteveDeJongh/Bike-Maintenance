@@ -249,6 +249,9 @@ module Dashboard
         moved_at: ride.moved_at,
         name: ride.name,
         distance_meters: ride.distance_meters,
+        # Lets "Log service after this ride" prefill the session at the
+        # ride's end; nil (Strava omitted it) falls back to moved_at.
+        elapsed_time: ride.elapsed_time,
         bike: bike && { id: bike.id, name: bike.name },
         # Present alongside a nil bike specifically for the "fixable via gear
         # mapping" case (same distinction as sync.unattributed.with_gear) --

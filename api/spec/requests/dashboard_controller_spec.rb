@@ -402,6 +402,18 @@ RSpec.describe "Dashboard", type: :request do
         expect(JSON.parse(response.body)["recent_rides"]["rides"].first["gear_id"]).to eq("g1")
       end
 
+      it "includes elapsed_time so a ride can prefill Log service at its end, preserving null" do
+        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user),
+          moved_at: 1.day.ago, elapsed_time: 3_600)
+        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user),
+          moved_at: 2.days.ago, elapsed_time: nil)
+
+        get "/dashboard"
+
+        rides = JSON.parse(response.body)["recent_rides"]["rides"]
+        expect(rides.map { |r| r.fetch("elapsed_time") }).to eq([3_600, nil])
+      end
+
       it "lists which components a ride counts toward" do
         bike = create(:bike, user: current_user)
         component = create(:component, user: current_user, category: "chain", label: "Chain A")

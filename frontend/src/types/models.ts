@@ -625,6 +625,9 @@ export interface DashboardAttentionItem {
 export interface DashboardRecentRide {
   id: number
   moved_at: string
+  // Seconds; null when Strava omitted it. Used to prefill "Log service after
+  // this ride" at the ride's end.
+  elapsed_time: number | null
   name: string
   distance_meters: number
   bike: { id: number; name: string } | null

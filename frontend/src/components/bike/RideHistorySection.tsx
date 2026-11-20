@@ -12,6 +12,7 @@ import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
 import ResyncRideButton from '../ride/ResyncRideButton'
+import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
 import { BIKE_RIDE_COLUMNS, BIKE_RIDE_COLUMN_LABELS, DEFAULT_BIKE_RIDE_COLUMNS, type BikeRideColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -140,7 +141,10 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                         {formatDateTime(ride.moved_at)}
                       </Text>
                     </Stack>
-                    <ResyncRideButton rideId={ride.id} />
+                    <Group gap={4} wrap="nowrap" align="flex-start">
+                      <LogServiceAfterRideButton bikeId={bike.id} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
+                      <ResyncRideButton rideId={ride.id} />
+                    </Group>
                   </Group>
                   <Group gap="md" wrap="wrap" mt={6}>
                     {orderedColumns.map((column) => (
@@ -201,7 +205,10 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                         <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>
                       ))}
                       <Table.Td>
-                        <ResyncRideButton rideId={ride.id} />
+                        <Group gap={4} wrap="nowrap" align="flex-start">
+                          <LogServiceAfterRideButton bikeId={bike.id} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
+                          <ResyncRideButton rideId={ride.id} />
+                        </Group>
                       </Table.Td>
                       <Table.Td />
                     </Table.Tr>
