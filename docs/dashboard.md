@@ -56,6 +56,8 @@ distance/status computation happens here that doesn't already live elsewhere:
   of its own to pre-fill with otherwise) and `setting_event`.
 - **`recent_rides`** — every activity in a rolling 14-day window (not
   calendar-day-sensitive, so no `tz` needed) plus `summary: {count, distance_meters}`.
+  Each ride carries `elapsed_time` (seconds, null when Strava omitted it) so
+  "Log service after this ride" can prefill the session at the ride's end.
   Each ride's `counted_toward` (which components its mileage counts toward) comes
   from `Maintenance::CountedTowardQuery.call(user, since:)`
   (`app/services/maintenance/counted_toward_query.rb`) — one batched SQL query
@@ -128,7 +130,9 @@ genuine data-model change deliberately not made speculatively here.
   a.position - b.position)[0]`, same default-satisfier convention as
   `ComponentDetail`'s own split button), `RecentRidesTable` (its "No bike" rows
   link to `/strava?tab=rides`; its "Link Strava gear" link, shown only when
-  `gear_id` is present, to `/strava?tab=gear`). `RecentRidesTable` is a plain
+  `gear_id` is present, to `/strava?tab=gear`; a trailing "Actions" column holds
+  the shared `LogServiceAfterRideButton` — see "Ride history" — left empty for a
+  ride with no bike). `RecentRidesTable` is a plain
   Mantine `Table` in a horizontal-scroll wrapper, **not** the
   sortable/configurable-table system above — that mechanism exists for a
   `TableViewPreference` row's worth of persisted column choices/ordering, which

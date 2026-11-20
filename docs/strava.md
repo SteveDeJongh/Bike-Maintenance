@@ -162,7 +162,8 @@
   gear-ignored row — there's nothing on the ride itself to un-set), or "Resolve gear"
   (an `unmapped_gear` row, linking to `?tab=gear&gear=<id>` — the Gear tab's matching
   Unmapped gear row scrolls to and briefly highlights itself on mount when that param
-  is present). `POST /strava/rides/ignore` (by `activity_ids` or `all_matching: true`
+  is present). An attributed row (in practice, the `all` view) gets the shared
+  "Log service after this ride" action beside Re-sync instead — see "Ride history". `POST /strava/rides/ignore` (by `activity_ids` or `all_matching: true`
   — the latter always resolves against `needs_attention_for` server-side) and `POST
   /strava/rides/unignore` both silently skip ineligible ids rather than erroring,
   matching the gear-ignore flow's "no confirm modal, fully reversible" philosophy. The

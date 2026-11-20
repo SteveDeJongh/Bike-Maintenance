@@ -294,9 +294,9 @@ this bike" gets computed and how the batch logger itself works.
   `MaintenanceEventFormModal` already uses) are unchanged — they were always
   service-type-first, with no requirement concept to group by. Rows show no remaining-distance text (a row can clear several requirements with different remaining amounts, and the "clears X (status)" list already says what matters) — `ComponentDetail`'s own rows do. Takes an optional
   `initialPerformedAt` prop — unused by `BikeDetail`'s header "Log service"
-  button and the Dashboard `BikeCard`'s own "Log service" action, but used by
-  the Activity log's "Log service after this ride" row action (see "Activity
-  log" below), which passes a ride's `moved_at + elapsed_time`. Mutations
+  button and the Dashboard `BikeCard`'s own "Log service" action, but used by the shared "Log service after this ride" per-ride action
+  (`LogServiceAfterRideButton`, on every ride list — see "Ride history"), which
+  passes a ride's `moved_at + elapsed_time`. Mutations
   (`useCreateServiceSession`/`useUpdateServiceSession`/`useDeleteServiceSession`)
   invalidate the `history` and `serviceStatus` groups, same as single-event
   "Log service" (see "Cache invalidation" under Conventions)

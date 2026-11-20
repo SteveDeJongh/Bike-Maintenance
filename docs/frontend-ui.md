@@ -136,9 +136,9 @@ A future page can adopt the same UX without rework:
   bespoke card component, same precedent as `NarrowActivityCard`/
   `InstalledComponentsCardList`) — revisit if this is genuinely painful on a
   phone in practice, rather than guessing at an interaction now.
-  `components/bike/RideHistorySection.tsx`'s own Resync button stays
-  directly on its card rather than moving into a "⋯" menu (unlike every
-  other adopter's actions) — it's the only action there, and
+  `components/bike/RideHistorySection.tsx`'s own Resync and "Log service" buttons
+  stay directly on its card rather than moving into a "⋯" menu (unlike every
+  other adopter's actions) — they're the only two actions there, and
   `ResyncRideButton`'s own loading/rate-limit-error UI doesn't fit cleanly
   inside a `Menu.Item`.
 

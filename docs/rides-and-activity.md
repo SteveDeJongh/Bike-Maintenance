@@ -35,6 +35,20 @@ clicking a column header — the point of this view is the sequence, and
 client-side column sorting would only reorder the current page, which would
 mislead against a server-paginated list. A page does this by never including its configurable columns in `sortColumns`, and by passing `sortable={false}` to `DraggableHeaderCell` so those columns don't visually invite clicks they can't act on.
 
+**"Log service after this ride" is a shared per-ride action on every ride list** —
+Ride history (table rows and mobile cards), the Activity log (table and
+`NarrowActivityCard`), the Strava page's Rides tab, and the Dashboard's Recent
+rides — always beside Re-sync where Re-sync appears.
+`components/ride/LogServiceAfterRideButton.tsx` (`bikeId`, `movedAt`,
+`elapsedTime`) opens `BatchServiceModal` for that bike with `initialPerformedAt`
+set to the ride's end (`utils/rideTiming.ts`'s `initialPerformedAtForRide`: `moved_at
++ elapsed_time`, or `moved_at` when `elapsed_time` is null). It owns its own modal
+state — no page wires one up — and mounts the modal only while open, so a closed
+button costs one `useState` even across a full page of rows. It renders nothing
+when `bikeId` is null, which is what hides it on every unattributed or ignored
+ride. No new invalidation: `BatchServiceModal`'s own mutation already invalidates
+`history` and `serviceStatus` (which covers `['dashboard']` and `['bikes']`).
+
 Frontend: `components/bike/RideHistorySection.tsx`, mounted on `BikeDetail.tsx`
 directly after Component History, at the same heading level. Adopts the
 configurable-table system (`table_key: "bike_rides"`) the same way as `Bikes.tsx`;
@@ -189,10 +203,9 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   (`ComponentServiceAndHistory` reads that param and scrolls to/highlights the
   matching history row, the same `?gear=<id>` convention `Strava.tsx` already used
   for "Resolve gear"); `setup_change` links to the installed component, with a
-  second small link to the replaced one when the row is a merged entry. Ride row
-  actions: "Log service after this ride" (only when the ride has a bike — opens
-  `BatchServiceModal` with that bike and `moved_at + elapsed_time` as `initialPerformedAt`),
-  "View on Strava", and `ResyncRideButton` reused as-is. Deliberately no "change
+  second small link to the replaced one when the row is a merged entry. Ride row actions: "Log service after this ride" (the shared
+  `LogServiceAfterRideButton`, see "Ride history" above), "View on Strava", and
+  `ResyncRideButton` reused as-is. Deliberately no "change
   bike" action — a tooltip on the Actions header explains why (fix it on Strava,
   then Re-sync). Below 768px width the table swaps for a card list
   (`components/activity/NarrowActivityCard.tsx`) — ride cards keep date/name/bike/distance/moving time and
