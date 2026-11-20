@@ -81,10 +81,21 @@
   matching Strava, not a gap.** `full_sync_started_at` is set by the controller right
   before enqueuing and cleared by the job in an `ensure`, so a crashed job still releases
   the lock (the staleness fallback above covers the case where even the `ensure` never
-  ran, e.g. a killed worker process). `GET /strava/status` exposes
-  `last_full_sync_at`/`full_sync_available_at`/`full_sync_request_estimate` (data
-  model above) and `max_bulk_resync` (below) alongside the existing incremental
-  fields, plus the four failure columns described below.
+  ran, e.g. a killed worker process). `GET /strava/status` exposes `last_full_sync_at`/`full_sync_available_at`/`full_sync_request_estimate` (data model above) and `max_bulk_resync` (below) alongside the existing incremental fields, plus the four failure columns described below, and `sync_in_progress`.
+
+  **`sync_in_progress`** (`StravaCredential#sync_in_progress?`) is true while either
+  kind of sync is running: `sync_started_at` (incremental) or `full_sync_started_at`
+  set within `RUNNING_TIMEOUT`, which also self-heals a flag a killed worker never
+  cleared. `sync_started_at` is a **signal, not a lock** — no 429, overlapping
+  incremental runs stay allowed. Both columns are set by `StravaController#sync`
+  right before enqueueing (so the very next status read sees it) *and* re-stamped by
+  `StravaSyncJob#perform` at the start of every run (so `strava:sync_all` or a
+  future scheduler reports too), and cleared in the job's `ensure` on success and
+  failure alike. It's what the frontend's always-mounted
+  `useSyncCompletionWatcher` (see "Dashboard") polls on. Known gap, accepted for a
+  signal-only flag: two overlapping incremental runs share one column, so the first
+  to finish clears it and the watcher stops polling early — the second's completion
+  is then picked up on the next window focus.
 
   **Failed syncs are recorded, not silent**: `StravaSyncJob#perform` wraps each
   run (incremental and full both) in a `rescue StandardError => e;

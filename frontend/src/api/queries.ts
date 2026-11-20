@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueries, useQuery, type Query, type QueryKey } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   ActivityFeedResponse,
@@ -148,7 +148,9 @@ export function useMaintenanceEvents() {
 // refetchInterval lets a sync-polling caller (useStravaSyncRunner) watch
 // this without a second query, same convention as useDashboard's own
 // options param below.
-export function useStravaStatus(options?: { refetchInterval?: number | false }) {
+export function useStravaStatus(options?: {
+  refetchInterval?: number | false | ((query: Query<StravaStatus, Error, StravaStatus, QueryKey>) => number | false)
+}) {
   return useQuery({
     queryKey: ['strava', 'status'],
     queryFn: () => apiGet<StravaStatus>('/strava/status'),

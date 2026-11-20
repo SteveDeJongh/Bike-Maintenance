@@ -139,6 +139,15 @@ Auth and CORS:
   (`Auth::ResolveIdentity` is the one place that decides).
 
 Frontend:
+- **Strava sync completion is detected in one place**: `useSyncCompletionWatcher`,
+  mounted once in `Layout.tsx`, polls `GET /strava/status` while `sync_in_progress`
+  (`strava_credentials.sync_started_at`/`full_sync_started_at`, cleared in the job's
+  `ensure`, self-healing after `RUNNING_TIMEOUT`) and invalidates `RIDE_DATA_GROUPS`
+  when a sync timestamp changes. Page-scoped polling dies on navigation, so never
+  add completion invalidation to `useStravaSyncRunner` or a page — and don't give a
+  second `['strava', 'status']` observer its own `refetchInterval` (TanStack only
+  dedupes in-flight fetches, so two timers mean two requests per tick). See
+  `docs/dashboard.md`.
 - **Never hardcode a color.** Use Mantine tokens/CSS variables, named colors, or `"radar"`
   (the primary accent). "ok" status is `teal`, never `green`, so it's never confused with the accent.
 - **New modals use `AppModal`**, never Mantine's `Modal` directly (it goes full-screen on mobile).

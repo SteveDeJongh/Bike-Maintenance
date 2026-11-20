@@ -445,7 +445,11 @@ export function useSyncStrava() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload?: { full?: boolean }) => apiPost<void>('/strava/sync', payload ?? {}),
-    onSuccess: () => invalidate(queryClient, ...RIDE_DATA_GROUPS),
+    // Only enqueued -- nothing ride-related has changed yet. Refetching
+    // /strava/status (in the gear group) is what lets useSyncCompletionWatcher
+    // see sync_in_progress and start polling; IT invalidates the ride data
+    // once the job actually completes.
+    onSuccess: () => invalidate(queryClient, 'gear'),
   })
 }
 

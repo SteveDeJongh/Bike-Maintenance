@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useStravaStatus } from '../api/queries'
 import { useSyncStrava } from '../api/mutations'
-import { invalidate, RIDE_DATA_GROUPS } from '../api/invalidation'
 import type { SyncFailureCode } from '../types/models'
 
-const POLL_INTERVAL_MS = 2_000
 const POLL_CAP_MS = 30_000
 const FULL_POLL_CAP_MS = 3 * 60_000
 
@@ -14,34 +11,30 @@ export interface SyncFailure {
   retryAt: string | null
 }
 
-// Fully self-contained: owns its own polling state and its own
-// useStravaStatus poll (React Query dedupes this against any other
-// useStravaStatus call on the same page -- it's not a second request).
-// Deliberately doesn't ride on the caller's own query (e.g. Dashboard's
-// useDashboard) the way the original Dashboard-only implementation did --
-// that would mean this hook's "what changed" signal depends on data the
-// caller fetched, which is awkward to order against the caller also
-// needing this hook's `polling` for ITS OWN refetchInterval. Decoupling
-// costs Dashboard a few seconds of bike-cards-not-live-updating-yet during
-// the poll window -- the final ['dashboard'] invalidation on completion
-// still gives the up-to-date view.
+// Per-button state for one "Sync now"/"Refresh all rides" control: the
+// pending state, a matching failure message, and the "still running" hint.
+// It does NOT invalidate anything on completion and does NOT poll on its
+// own: useSyncCompletionWatcher (mounted once, in Layout) is the single
+// place a completed sync refreshes ride data, and its 2s poll of
+// ['strava', 'status'] -- switched on by sync_in_progress -- is what feeds
+// this hook's reads of the same query. Page-scoped polling used to die the
+// moment the user navigated away mid-sync; the watcher doesn't.
 export function useStravaSyncRunner({ full = false }: { full?: boolean } = {}) {
-  const queryClient = useQueryClient()
   const [polling, setPolling] = useState(false)
   const [failure, setFailure] = useState<SyncFailure | null>(null)
   const [stillRunning, setStillRunning] = useState(false)
   const preSyncRef = useRef<string | null>(null)
   const preFailureRef = useRef<string | null>(null)
-  const startedAtRef = useRef<number | null>(null)
   const syncMutation = useSyncStrava()
   const pollCapMs = full ? FULL_POLL_CAP_MS : POLL_CAP_MS
 
-  const { data: status } = useStravaStatus({ refetchInterval: polling ? POLL_INTERVAL_MS : false })
+  // No refetchInterval of its own: the watcher's poll (switched on by
+  // sync_in_progress) is what updates this query while a sync runs.
+  const { data: status } = useStravaStatus()
   const watchedTimestamp = full ? status?.last_full_sync_at : status?.last_synced_at
 
   useEffect(() => {
     if (!polling || watchedTimestamp === undefined) return
-    if (startedAtRef.current == null) startedAtRef.current = Date.now()
 
     const changed = watchedTimestamp !== preSyncRef.current
     // last_sync_failed_kind matters because an incremental and a full sync
@@ -52,28 +45,32 @@ export function useStravaSyncRunner({ full = false }: { full?: boolean } = {}) {
     const failed = status?.last_sync_failed_at != null
       && status.last_sync_failed_at !== preFailureRef.current
       && status.last_sync_failed_kind === (full ? 'full' : 'incremental')
-    const timedOut = Date.now() - startedAtRef.current > pollCapMs
 
-    if (changed || failed || timedOut) {
+    // A success needs nothing else here: the watcher invalidates ride data.
+    if (changed) {
       setPolling(false)
-      startedAtRef.current = null
-      if (changed) {
-        // Nothing was deleted/changed by a failed run, so ride queries are
-        // only ever invalidated on an actual success.
-        // Every ride-derived query -- see RIDE_DATA_GROUPS.
-        invalidate(queryClient, ...RIDE_DATA_GROUPS)
-      } else if (failed) {
-        setFailure({ code: status!.last_sync_error!, retryAt: status!.last_sync_retry_at })
-      } else if (timedOut) {
-        setStillRunning(true)
-      }
+    } else if (failed) {
+      setPolling(false)
+      setFailure({ code: status!.last_sync_error!, retryAt: status!.last_sync_retry_at })
     }
-  }, [watchedTimestamp, status, polling, pollCapMs, full, queryClient])
+  }, [watchedTimestamp, status, polling, full])
+
+  // The cap is a plain timer, not a check inside the effect above: that
+  // effect only runs when a poll lands, and polling stops on its own once
+  // sync_in_progress clears -- so a cap checked there could never fire for
+  // a run whose flag was cleared early (e.g. by an overlapping run).
+  useEffect(() => {
+    if (!polling) return
+    const timer = setTimeout(() => {
+      setPolling(false)
+      setStillRunning(true)
+    }, pollCapMs)
+    return () => clearTimeout(timer)
+  }, [polling, pollCapMs])
 
   function sync() {
     preSyncRef.current = watchedTimestamp ?? null
     preFailureRef.current = status?.last_sync_failed_at ?? null
-    startedAtRef.current = null
     setFailure(null)
     setStillRunning(false)
     syncMutation.mutate({ full }, { onSuccess: () => setPolling(true) })

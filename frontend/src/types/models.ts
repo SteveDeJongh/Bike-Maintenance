@@ -480,6 +480,9 @@ export interface StravaStatus {
   last_sync_error: SyncFailureCode | null
   last_sync_failed_kind: 'full' | 'incremental' | null
   last_sync_retry_at: string | null
+  // Either kind of sync started and not yet finished (within the backend's
+  // RUNNING_TIMEOUT). useSyncCompletionWatcher polls while this is true.
+  sync_in_progress: boolean
 }
 
 interface StravaGearRow {

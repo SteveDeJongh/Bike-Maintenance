@@ -5,6 +5,7 @@ import { IconDots, IconLogout, IconUser } from '@tabler/icons-react'
 import EmailVerificationBanner from './EmailVerificationBanner'
 import { useCurrentUser } from '../api/queries'
 import { useLogout } from '../api/mutations'
+import { useSyncCompletionWatcher } from '../hooks/useSyncCompletionWatcher'
 import type { NavIcon } from './navDestinations'
 import { MORE_DESTINATIONS, NAV_DESTINATIONS, TAB_DESTINATIONS, isDestinationActive } from './navDestinations'
 
@@ -27,6 +28,9 @@ export default function Layout() {
   const location = useLocation()
   const [moreOpened, setMoreOpened] = useState(false)
   const moreActive = MORE_DESTINATIONS.some((d) => isDestinationActive(d, location.pathname))
+  // Mounted here, not on any one page, so a Strava sync's completion is
+  // noticed (and ride data refreshed) whichever page the user is on.
+  useSyncCompletionWatcher()
 
   return (
     <AppShell

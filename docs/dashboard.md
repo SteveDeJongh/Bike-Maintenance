@@ -141,26 +141,46 @@ genuine data-model change deliberately not made speculatively here.
   `utils/serviceInterval.ts` so `AttentionRow` and `ComponentDetail`'s own rows
   share the exact same wording rather than re-deriving it.
 
+**`useSyncCompletionWatcher()`** (`frontend/src/hooks/useSyncCompletionWatcher.ts`)
+is the **only** place a completed Strava sync invalidates ride data. It's mounted
+once, in `Layout.tsx`, which wraps every authenticated route. `POST /strava/sync` only
+enqueues `StravaSyncJob`, and completion used to be detected only by the page that
+pressed the button — whose polling died the moment the user navigated away
+mid-sync, leaving e.g. the Dashboard's sync strip stale until a reload. The
+watcher polls `GET /strava/status` every 2s while it reports `sync_in_progress`
+(any kind, started from any page, tab, device, or the scheduler — see "Strava
+integration") and not at all otherwise, keeps the last-seen `last_synced_at`/
+`last_full_sync_at` in a ref (seeded on the first load without invalidating),
+and calls `invalidate(queryClient, ...RIDE_DATA_GROUPS)` (`api/invalidation.ts` —
+every ride-derived query) whenever either changes; it does nothing while Strava
+isn't connected. A sync started elsewhere while nothing is polling is still
+caught on the next window focus (TanStack's default `refetchOnWindowFocus`), and a
+reload mid-sync resumes polling because the first status read already says
+`sync_in_progress`. Never on a failure — nothing changed. `useSyncStrava`'s own
+`onSuccess` only invalidates the `gear` group (`['strava']`): refetching the status
+right after the enqueue is what switches the watcher's polling on.
+
 **`useStravaSyncRunner({ full })`** (`frontend/src/hooks/useStravaSyncRunner.ts`)
-is the one piece shared by both sync triggers on both pages (Dashboard's "Sync
-now"; the Strava page's "Sync now" *and* "Refresh all rides," each its own
-instance). `POST /strava/sync` only enqueues `StravaSyncJob`, so after a click
-it polls `GET /strava/status` every 2s (capped at 30s for an incremental sync,
-3 minutes for `full: true`) watching `last_synced_at`/`last_full_sync_at`
-(whichever matches `full`) for a change, *and* `last_sync_failed_at` for a
-change whose `last_sync_failed_kind` matches `full ? "full" : "incremental"`
-(the kind check matters because the two aren't mutually exclusive — only the
-full path is lock-guarded, so an incremental and a full run can be in flight at
-once). The hook returns `{ sync, syncing, status, error, failure,
-stillRunning }`. A changed timestamp is the only case that invalidates
-`RIDE_DATA_GROUPS` (`api/invalidation.ts` — every ride-derived query; the same
-set `useResyncRide`/`useResyncRides` and the gear/ride decision mutations use) — never on
-`failure`, since nothing was deleted/changed by a run that didn't complete. A
-matching failure instead sets `failure: { code, retryAt }`, rendered via the
-shared `syncFailureMessage` (`utils/strava.ts`) —
+is per-button state only, shared by both sync triggers on both pages (Dashboard's
+"Sync now"; the Strava page's "Sync now" *and* "Refresh all rides," each its own
+instance): the pending state, a matching failure message, and the still-running
+hint. It neither invalidates nor polls on its own — it reads the same
+`['strava', 'status']` query **without** a `refetchInterval`, because TanStack gives
+each observer its own interval timer and only dedupes fetches already in flight,
+so two pollers on one key would mean two requests per tick. While pending, it
+watches `last_synced_at`/`last_full_sync_at` (whichever matches `full`) for a
+change, *and* `last_sync_failed_at` for a change whose `last_sync_failed_kind`
+matches `full ? "full" : "incremental"` (the kind check matters because the two
+aren't mutually exclusive — only the full path is lock-guarded, so an incremental
+and a full run can be in flight at once). The hook returns `{ sync, syncing,
+status, error, failure, stillRunning }`. A matching failure sets `failure: { code,
+retryAt }`, rendered via the shared `syncFailureMessage` (`utils/strava.ts`) —
 `rate_limited` names the retry time, `auth_failed` pairs with a "Connect to
-Strava" action, `strava_unavailable`/`unknown` are plain copy. If the poll cap
-is reached with neither a success nor a matching failure, `stillRunning:
-true` instead — a neutral "still running in the background" message rather
-than just going quiet.
+Strava" action, `strava_unavailable`/`unknown` are plain copy. The poll cap (30s
+incremental, 3 minutes for `full: true`) is a plain timer, not a check that only
+runs when a poll lands — polling stops by itself once `sync_in_progress` clears, so
+a cap checked on each poll could never fire for a run whose flag cleared early.
+Reaching it with neither a success nor a matching failure sets `stillRunning:
+true` — a neutral "still running in the background" message; the watcher still
+refreshes everything whenever the job does finish.
 

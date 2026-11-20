@@ -372,7 +372,10 @@
   completed *full* refresh — see "Strava integration" below) and
   `full_sync_started_at` (nullable datetime, a short-lived lock set right before
   enqueuing a full refresh and cleared in the job's `ensure`, so a crashed job still
-  releases it). `#full_sync_available_at`/`#full_sync_available?` resolve both a
+  releases it), and `sync_started_at` (nullable datetime, its incremental
+  counterpart — a signal only, never a lock; see "Strava integration").
+  `#sync_in_progress?` is either one set within `RUNNING_TIMEOUT`, backing
+  `GET /strava/status`'s `sync_in_progress`. `#full_sync_available_at`/`#full_sync_available?` resolve both a
   15-minute post-completion cooldown (`FULL_SYNC_COOLDOWN`) and a 10-minute
   running-lock staleness fallback (`RUNNING_TIMEOUT`, in case the `ensure` never
   fires) into a single "available again at" timestamp or `nil`.
