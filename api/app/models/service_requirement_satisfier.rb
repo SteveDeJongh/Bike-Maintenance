@@ -16,6 +16,12 @@ class ServiceRequirementSatisfier < ApplicationRecord
   validate :service_type_has_same_owner
   validate :allowances_match_owner_thresholds
   before_destroy :ensure_not_last_satisfier
+  # Automatic tagging: a type used to satisfy a requirement in a category it
+  # isn't tagged for gets that tag (ServiceType#tag_for! -- universal types
+  # are left alone, and no tag is ever removed). On the model so every path
+  # is covered: nested satisfier create/update, and templates/custom
+  # requirements created with their satisfiers inline.
+  after_save :tag_service_type_for_owner_category, if: :saved_change_to_service_type_id?
 
   private
 
@@ -56,6 +62,14 @@ class ServiceRequirementSatisfier < ApplicationRecord
     if (allowance_calendar_amount.present? || allowance_calendar_unit.present?) && owner.calendar_amount.blank?
       errors.add(:allowance_calendar_amount, "can't be set -- the requirement has no calendar threshold")
     end
+  end
+
+  def owner_category
+    owner.is_a?(CategoryServiceRequirement) ? owner.category : owner.component.category
+  end
+
+  def tag_service_type_for_owner_category
+    service_type.tag_for!(owner_category)
   end
 
   def ensure_not_last_satisfier

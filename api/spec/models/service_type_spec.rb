@@ -54,4 +54,85 @@ RSpec.describe ServiceType, type: :model do
       expect(ServiceType.exists?(service_type.id)).to be true
     end
   end
+
+  describe "category tags" do
+    let(:user) { create(:user) }
+
+    def tagged(name, *categories)
+      create(:service_type, user: user, name: name).tap do |type|
+        categories.each { |category| create(:service_type_category, service_type: type, category: category) }
+      end
+    end
+
+    describe ".applicable_to" do
+      it "returns types tagged for the category plus untagged (universal) types, excluding types tagged only elsewhere" do
+        hot_wax = tagged("Hot wax", "chain")
+        multi = tagged("Degrease", "cassette", "chain")
+        fork_service = tagged("Fork 200 h", "front_suspension")
+        universal = create(:service_type, user: user, name: "Torque check")
+
+        result = user.service_types.applicable_to("chain")
+
+        expect(result).to include(hot_wax, multi, universal)
+        expect(result).not_to include(fork_service)
+      end
+    end
+
+    describe "#applicable_to?" do
+      it "is true for a universal type and for a matching tag, false otherwise" do
+        expect(create(:service_type, user: user).applicable_to?("chain")).to be(true)
+        expect(tagged("Hot wax", "chain").applicable_to?("chain")).to be(true)
+        expect(tagged("Fork 200 h", "front_suspension").applicable_to?("chain")).to be(false)
+      end
+    end
+
+    it "deletes its tags along with the type" do
+      type = tagged("Hot wax", "chain", "cassette")
+
+      expect { type.destroy! }.to change(ServiceTypeCategory, :count).by(-2)
+    end
+
+    describe "#replace_categories!" do
+      it "replaces the full set, stripping blanks and duplicates" do
+        type = tagged("Hot wax", "chain", "cassette")
+
+        type.replace_categories!([" chain ", "chainring", "", "chainring"])
+
+        expect(type.reload.categories).to eq(%w[chain chainring])
+      end
+
+      it "makes the type universal with an empty list" do
+        type = tagged("Hot wax", "chain")
+
+        type.replace_categories!([])
+
+        expect(type.reload).to be_universal
+      end
+    end
+
+    describe "#tag_for!" do
+      it "adds the tag when the type is tagged, but not for this category" do
+        type = tagged("Degrease", "cassette")
+
+        type.tag_for!("chain")
+
+        expect(type.reload.categories).to eq(%w[cassette chain])
+      end
+
+      it "leaves a universal type universal -- it already applies everywhere" do
+        type = create(:service_type, user: user)
+
+        type.tag_for!("chain")
+
+        expect(type.reload).to be_universal
+      end
+
+      it "is a no-op when the tag is already there, and never removes tags" do
+        type = tagged("Hot wax", "chain", "cassette")
+
+        expect { type.tag_for!("chain") }.not_to change(ServiceTypeCategory, :count)
+        expect(type.reload.categories).to eq(%w[cassette chain])
+      end
+    end
+  end
 end

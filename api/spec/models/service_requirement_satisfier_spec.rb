@@ -143,4 +143,51 @@ RSpec.describe ServiceRequirementSatisfier, type: :model do
       expect(ServiceRequirementSatisfier.exists?(satisfier_id)).to be false
     end
   end
+
+  describe "automatic category tagging" do
+    let(:user) { create(:user) }
+    let(:degrease) do
+      create(:service_type, user: user, name: "Degrease").tap do |type|
+        create(:service_type_category, service_type: type, category: "cassette")
+      end
+    end
+
+    it "tags a type added as a satisfier on a template in a category it isn't tagged for" do
+      create(:category_service_requirement, user: user, category: "chain", service_type: degrease)
+
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+
+    it "tags a type added as a satisfier on a custom component requirement, using the component's category" do
+      component = create(:component, user: user, category: "chainring")
+      create(:component_service_requirement, component: component, service_type: degrease)
+
+      expect(degrease.reload.categories).to eq(%w[cassette chainring])
+    end
+
+    it "tags when an existing satisfier is switched to the type" do
+      template = create(:category_service_requirement, user: user, category: "chain")
+      satisfier = template.satisfiers.first
+
+      satisfier.update!(service_type: degrease)
+
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+
+    it "leaves a universal type untagged" do
+      universal = create(:service_type, user: user, name: "Torque check")
+
+      create(:category_service_requirement, user: user, category: "front_suspension", service_type: universal)
+
+      expect(universal.reload).to be_universal
+    end
+
+    it "never removes a tag when the satisfier goes away" do
+      template = create(:category_service_requirement, user: user, category: "chain", service_type: degrease)
+
+      template.destroy!
+
+      expect(degrease.reload.categories).to eq(%w[cassette chain])
+    end
+  end
 end

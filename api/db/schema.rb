@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_13_224822) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_20_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -185,6 +185,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_13_224822) do
     t.index ["user_id"], name: "index_service_sessions_on_user_id"
   end
 
+  create_table "service_type_categories", force: :cascade do |t|
+    t.bigint "service_type_id", null: false
+    t.string "category", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_type_id", "category"], name: "index_service_type_categories_on_service_type_id_and_category", unique: true
+  end
+
   create_table "service_types", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "name", null: false
@@ -317,6 +325,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_13_224822) do
   add_foreign_key "service_requirement_satisfiers", "service_types"
   add_foreign_key "service_sessions", "bikes"
   add_foreign_key "service_sessions", "users"
+  add_foreign_key "service_type_categories", "service_types", on_delete: :cascade
   add_foreign_key "service_types", "users"
   add_foreign_key "strava_activities", "bikes"
   add_foreign_key "strava_activities", "users"
