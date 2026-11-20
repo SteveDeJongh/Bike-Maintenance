@@ -6,7 +6,7 @@ import { activityItemIconMeta, nonRideNote } from './activityItemMeta'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
-import type { ActivityItem, ActivityRideItem } from '../../types/models'
+import type { ActivityItem } from '../../types/models'
 
 // Narrow-screen alternative to the table: ride rows become a compact card
 // (date/name/bike/distance/moving time); non-ride rows stay single lines,
@@ -14,11 +14,9 @@ import type { ActivityItem, ActivityRideItem } from '../../types/models'
 export default function NarrowActivityCard({
   item,
   onViewSession,
-  onLogService,
 }: {
   item: ActivityItem
   onViewSession: (sessionId: number) => void
-  onLogService: (ride: ActivityRideItem) => void
 }) {
   const { Icon, label } = activityItemIconMeta(item)
 
@@ -34,7 +32,7 @@ export default function NarrowActivityCard({
               {formatDateTime(item.occurred_at)}
             </Text>
           </Group>
-          <RideRowActions ride={item} onLogService={onLogService} />
+          <RideRowActions ride={item} />
         </Group>
         <ViewOnStravaLink stravaId={item.strava_id} name={item.name} />
         <Group gap="xs" mt={4}>

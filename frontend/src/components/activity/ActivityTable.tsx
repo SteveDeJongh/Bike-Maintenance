@@ -10,6 +10,7 @@ import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
 import ViewOnStravaLink from '../ride/ViewOnStravaLink'
 import ResyncRideButton from '../ride/ResyncRideButton'
+import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
 import { activityItemIconMeta, nonRideNote } from './activityItemMeta'
 import { ACTIVITY_LOG_COLUMNS, ACTIVITY_LOG_COLUMN_LABELS, type ActivityLogColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
@@ -71,7 +72,6 @@ export default function ActivityTable({
   expandedSessionIds,
   onToggleSessionExpanded,
   onViewSession,
-  onLogService,
 }: {
   orderedColumns: ActivityLogColumn[]
   toggleColumn: (column: ActivityLogColumn) => void
@@ -81,7 +81,6 @@ export default function ActivityTable({
   expandedSessionIds: Set<number>
   onToggleSessionExpanded: (sessionId: number) => void
   onViewSession: (sessionId: number) => void
-  onLogService: (ride: ActivityRideItem) => void
 }) {
   const headerDragSensors = useColumnDragSensors()
   const mergedColSpan = 1 + orderedColumns.length
@@ -138,7 +137,6 @@ export default function ActivityTable({
               expanded={item.kind === 'service_session' && expandedSessionIds.has(item.id)}
               onToggleExpand={() => item.kind === 'service_session' && onToggleSessionExpanded(item.id)}
               onViewSession={onViewSession}
-              onLogService={onLogService}
             />
           ))}
         </Table.Tbody>
@@ -154,10 +152,9 @@ interface ActivityRowProps {
   expanded: boolean
   onToggleExpand: () => void
   onViewSession: (sessionId: number) => void
-  onLogService: (ride: ActivityRideItem) => void
 }
 
-function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleExpand, onViewSession, onLogService }: ActivityRowProps) {
+function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleExpand, onViewSession }: ActivityRowProps) {
   const { Icon, label } = activityItemIconMeta(item)
 
   if (item.kind === 'ride') {
@@ -176,7 +173,7 @@ function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleEx
           <Table.Td key={column}>{ACTIVITY_COLUMN_RENDERER[column](item)}</Table.Td>
         ))}
         <Table.Td>
-          <RideRowActions ride={item} onLogService={onLogService} />
+          <RideRowActions ride={item} />
         </Table.Td>
         <Table.Td />
       </Table.Tr>
@@ -297,19 +294,15 @@ function NonRideCellContent({
   )
 }
 
-// "Log service after this ride" only when the ride has a bike -- no bike,
-// no session to log against. "Re-sync" reuses ResyncRideButton as-is,
+// "Log service after this ride" (LogServiceAfterRideButton, which renders
+// nothing for a ride with no bike -- no session to log against). "Re-sync" reuses ResyncRideButton as-is,
 // including its own 429/retry-at handling. Deliberately no "change bike"
 // action -- attribution comes from Strava's own gear mapping, not anything
 // editable here.
-export function RideRowActions({ ride, onLogService }: { ride: ActivityRideItem; onLogService: (ride: ActivityRideItem) => void }) {
+export function RideRowActions({ ride }: { ride: ActivityRideItem }) {
   return (
     <Group gap={4} wrap="nowrap">
-      {ride.bike && (
-        <Button size="xs" variant="subtle" onClick={() => onLogService(ride)}>
-          Log service
-        </Button>
-      )}
+      <LogServiceAfterRideButton bikeId={ride.bike?.id ?? null} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
       <Button
         size="xs"
         variant="default"

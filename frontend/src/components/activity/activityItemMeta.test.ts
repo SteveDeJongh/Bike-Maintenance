@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { IconArrowBarUp, IconArrowsExchange, IconBike, IconTool } from '@tabler/icons-react'
-import { activityItemIconMeta, initialPerformedAtForRide, nonRideNote } from './activityItemMeta'
-import type { ActivityItem, ActivityRideItem } from '../../types/models'
+import { activityItemIconMeta, nonRideNote } from './activityItemMeta'
+import type { ActivityItem } from '../../types/models'
 
-// Minimal fixtures: these three helpers only ever branch on kind/action/
-// note/notes/moved_at/elapsed_time, so a cast through unknown (rather than
+// Minimal fixtures: these two helpers only ever branch on kind/action/
+// note/notes, so a cast through unknown (rather than
 // a fully realistic ActivityItem) keeps each test focused on just the
 // field(s) that matter to it.
 function item(partial: Record<string, unknown>): ActivityItem {
@@ -61,18 +61,3 @@ describe('nonRideNote', () => {
   })
 })
 
-describe('initialPerformedAtForRide', () => {
-  function ride(partial: Record<string, unknown>): ActivityRideItem {
-    return partial as unknown as ActivityRideItem
-  }
-
-  it("adds the ride's elapsed time to its start", () => {
-    const result = initialPerformedAtForRide(ride({ moved_at: '2026-03-01T08:00:00.000Z', elapsed_time: 3600 }))
-    expect(result).toBe('2026-03-01T09:00:00.000Z')
-  })
-
-  it('falls back to the start time when elapsed_time is null', () => {
-    const result = initialPerformedAtForRide(ride({ moved_at: '2026-03-01T08:00:00.000Z', elapsed_time: null }))
-    expect(result).toBe('2026-03-01T08:00:00.000Z')
-  })
-})

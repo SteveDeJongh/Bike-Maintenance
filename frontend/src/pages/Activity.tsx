@@ -2,18 +2,16 @@ import { useMemo, useState } from 'react'
 import { Alert, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import { useIsMobile } from '../hooks/useIsMobile'
-import BatchServiceModal from '../components/forms/BatchServiceModal'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
 import ActivityFilters from '../components/activity/ActivityFilters'
 import ActivityTable from '../components/activity/ActivityTable'
 import NarrowActivityCard from '../components/activity/NarrowActivityCard'
 import EmptyState from '../components/activity/EmptyState'
-import { initialPerformedAtForRide } from '../components/activity/activityItemMeta'
 import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
 import { formatElevation } from '../utils/elevation'
-import type { ActivityRideItem, TableViewPreferenceData } from '../types/models'
+import type { TableViewPreferenceData } from '../types/models'
 
 // Gates the whole page on activity_log's TableViewPreference resolving
 // first, same two-component wrapper/Inner split as every other adopter of
@@ -62,7 +60,6 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
 
   const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
   const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
-  const [batchServiceRide, setBatchServiceRide] = useState<ActivityRideItem | null>(null)
   const isNarrow = useIsMobile()
 
   function toggleSessionExpanded(sessionId: number) {
@@ -156,7 +153,6 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
               key={`${item.kind}-${item.id}-${index}`}
               item={item}
               onViewSession={setViewingSessionId}
-              onLogService={setBatchServiceRide}
             />
           ))}
         </Stack>
@@ -172,7 +168,6 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
           expandedSessionIds={expandedSessionIds}
           onToggleSessionExpanded={toggleSessionExpanded}
           onViewSession={setViewingSessionId}
-          onLogService={setBatchServiceRide}
         />
       )}
 
@@ -191,15 +186,6 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
             </Text>
           )}
         </>
-      )}
-
-      {batchServiceRide?.bike && (
-        <BatchServiceModal
-          opened
-          onClose={() => setBatchServiceRide(null)}
-          bikeId={batchServiceRide.bike.id}
-          initialPerformedAt={initialPerformedAtForRide(batchServiceRide)}
-        />
       )}
 
       {viewingSessionId !== null && (
