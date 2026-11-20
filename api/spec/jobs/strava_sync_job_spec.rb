@@ -361,6 +361,51 @@ RSpec.describe StravaSyncJob, type: :job do
     end
   end
 
+  describe "sync_started_at (the incremental in-progress signal)" do
+    it "is set while an incremental sync runs and cleared when it completes" do
+      credential.update!(sync_started_at: 1.minute.ago)
+      allow(client).to receive(:fetch_activities) do
+        expect(credential.reload.sync_started_at).to be_present # still flagged mid-run
+        []
+      end
+
+      StravaSyncJob.perform_now(user.id)
+
+      expect(credential.reload.sync_started_at).to be_nil
+    end
+
+    it "is cleared even when the job raises" do
+      credential.update!(sync_started_at: 1.minute.ago)
+      allow(client).to receive(:fetch_activities).and_raise(Strava::Client::Error, "boom")
+
+      expect { StravaSyncJob.perform_now(user.id) }.to raise_error(Strava::Client::Error)
+
+      expect(credential.reload.sync_started_at).to be_nil
+    end
+
+    it "is stamped by the job itself for a run that didn't come through the controller (e.g. strava:sync_all)" do
+      seen = nil
+      allow(client).to receive(:fetch_activities) do
+        seen = credential.reload.sync_started_at
+        []
+      end
+
+      StravaSyncJob.perform_now(user.id)
+
+      expect(seen).to be_present
+      expect(credential.reload.sync_started_at).to be_nil
+    end
+
+    it "leaves sync_started_at alone on a full refresh" do
+      credential.update!(sync_started_at: 1.minute.ago)
+      allow(client).to receive(:fetch_activities).and_return([])
+
+      StravaSyncJob.perform_now(user.id, full_resync: true)
+
+      expect(credential.reload.sync_started_at).to be_present
+    end
+  end
+
   describe "failure recording" do
     def fail_paging_with(error)
       allow(client).to receive(:fetch_activities)

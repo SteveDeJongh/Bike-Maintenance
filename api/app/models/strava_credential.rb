@@ -48,6 +48,15 @@ class StravaCredential < ApplicationRecord
     full_sync_available_at.nil?
   end
 
+  # GET /strava/status's sync_in_progress: either kind of sync started
+  # within RUNNING_TIMEOUT and not yet cleared by the job's ensure. The same
+  # timeout self-heals a flag a killed worker never cleared. A signal only --
+  # unlike full_sync_started_at, sync_started_at gates nothing, since
+  # overlapping incremental runs are harmless.
+  def sync_in_progress?
+    [sync_started_at, full_sync_started_at].any? { |started_at| started_at.present? && started_at > RUNNING_TIMEOUT.ago }
+  end
+
   # Roughly how many Strava API calls a full refresh would cost right now:
   # ceil(rides / 100) paginated listing calls, + 1 empty final page, +
   # Strava::GearSync's 1 fetch_athlete call, + 1 fetch_gear call per

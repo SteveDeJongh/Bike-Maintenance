@@ -78,6 +78,10 @@ class StravaController < ApplicationController
       last_sync_error: credential&.last_sync_error,
       last_sync_failed_kind: credential&.last_sync_failed_kind,
       last_sync_retry_at: credential&.last_sync_retry_at,
+      # Either kind of sync still running -- what the frontend's always-mounted
+      # useSyncCompletionWatcher polls on, so completion is noticed whichever
+      # page the user is on.
+      sync_in_progress: credential&.sync_in_progress? || false,
     }
   end
 
@@ -98,6 +102,9 @@ class StravaController < ApplicationController
 
       StravaSyncJob.perform_later(current_user.id, full_resync: true)
     else
+      # A signal, not a lock -- set before enqueueing so the very next status
+      # read already reports sync_in_progress. The job clears it in an ensure.
+      current_user.strava_credential&.update!(sync_started_at: Time.current)
       StravaSyncJob.perform_later(current_user.id)
     end
 

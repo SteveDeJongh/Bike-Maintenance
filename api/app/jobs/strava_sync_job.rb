@@ -32,22 +32,19 @@ class StravaSyncJob < ApplicationJob
     credential = user.strava_credential
     return if credential.nil?
 
-    if full_resync
-      begin
-        run_sync(user, credential, full_resync: true)
-      rescue StandardError => e
-        record_failure(credential, e, kind: "full")
-        raise
-      ensure
-        credential.update_column(:full_sync_started_at, nil)
-      end
-    else
-      begin
-        run_sync(user, credential, full_resync: false)
-      rescue StandardError => e
-        record_failure(credential, e, kind: "incremental")
-        raise
-      end
+    # *_started_at is (re)stamped here as well as by the controller, so a run
+    # that didn't come through POST /strava/sync (strava:sync_all, a future
+    # scheduler) still reports sync_in_progress; the ensure always clears it.
+    started_column = full_resync ? :full_sync_started_at : :sync_started_at
+    credential.update_column(started_column, Time.current)
+
+    begin
+      run_sync(user, credential, full_resync: full_resync)
+    rescue StandardError => e
+      record_failure(credential, e, kind: full_resync ? "full" : "incremental")
+      raise
+    ensure
+      credential.update_column(started_column, nil)
     end
   end
 

@@ -15,6 +15,7 @@ RSpec.describe "Strava", type: :request do
         "full_sync_request_estimate" => nil, "max_bulk_resync" => 25,
         "last_sync_failed_at" => nil, "last_sync_error" => nil,
         "last_sync_failed_kind" => nil, "last_sync_retry_at" => nil,
+        "sync_in_progress" => false,
       )
     end
 
@@ -122,6 +123,71 @@ RSpec.describe "Strava", type: :request do
           .to have_enqueued_job(StravaSyncJob).with(current_user.id, full_resync: true)
         expect(response).to have_http_status(:accepted)
       end
+    end
+  end
+
+  describe "sync_in_progress" do
+    let!(:credential) { create(:strava_credential, user: current_user, expires_at: 1.hour.from_now) }
+    let(:client) { instance_double(Strava::Client) }
+
+    def sync_in_progress
+      get "/strava/status"
+      JSON.parse(response.body).fetch("sync_in_progress")
+    end
+
+    before do
+      allow(Strava::Client).to receive(:new).and_return(client)
+      allow(client).to receive(:fetch_athlete).and_return({})
+      allow(client).to receive(:fetch_gear).and_return({})
+    end
+
+    it "is false when nothing is running" do
+      expect(sync_in_progress).to be(false)
+    end
+
+    it "is true after an incremental POST /strava/sync, and false once the job has run" do
+      allow(client).to receive(:fetch_activities).and_return([])
+
+      post "/strava/sync"
+      expect(credential.reload.sync_started_at).to be_present
+      expect(sync_in_progress).to be(true)
+
+      perform_enqueued_jobs
+      expect(sync_in_progress).to be(false)
+    end
+
+    it "is true after a full POST /strava/sync, and false once the job has run" do
+      allow(client).to receive(:fetch_activities).and_return([])
+
+      post "/strava/sync", params: { full: true }
+      expect(sync_in_progress).to be(true)
+
+      perform_enqueued_jobs
+      expect(sync_in_progress).to be(false)
+    end
+
+    it "is false after the job raises, for both kinds" do
+      allow(client).to receive(:fetch_activities).and_raise(Strava::Client::Error, "boom")
+
+      post "/strava/sync"
+      expect { perform_enqueued_jobs }.to raise_error(Strava::Client::Error)
+      expect(sync_in_progress).to be(false)
+
+      post "/strava/sync", params: { full: true }
+      expect { perform_enqueued_jobs }.to raise_error(Strava::Client::Error)
+      expect(sync_in_progress).to be(false)
+    end
+
+    it "reads a sync_started_at older than RUNNING_TIMEOUT as not running (a killed worker never cleared it)" do
+      credential.update!(sync_started_at: (StravaCredential::RUNNING_TIMEOUT + 1.minute).ago)
+
+      expect(sync_in_progress).to be(false)
+    end
+
+    it "reads a recent full_sync_started_at as running" do
+      credential.update!(full_sync_started_at: 1.minute.ago)
+
+      expect(sync_in_progress).to be(true)
     end
   end
 
