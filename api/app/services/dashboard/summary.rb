@@ -23,6 +23,7 @@ module Dashboard
         bikes: bikes_section,
         attention: attention_section,
         recent_rides: recent_rides_section,
+        stats: stats_section,
       }
     end
 
@@ -227,6 +228,94 @@ module Dashboard
       return nil unless event
 
       { id: event.id, service_type_name: event.service_type.name, performed_at: event.performed_at }
+    end
+
+    # Riding totals for the summary tiles, in the viewer's tz. Every synced
+    # ride counts -- no bike, ignored gear and indoor included, since these
+    # are riding totals, not wear -- except rides individually ignored via
+    # ignored_at. Two queries, whatever the windows: one row of FILTERed
+    # aggregates for every total, and one GROUP BY local day for the week's
+    # bars. Boundaries are computed here in the zone and passed as UTC.
+    def stats_section
+      now = Time.current.in_time_zone(zone)
+      week_start = now.beginning_of_week(:monday)
+      week_end = week_start + 7.days
+      month_start = now.beginning_of_month
+      month_end = month_start.next_month
+      year_start = now.beginning_of_year
+      last_year_start = year_start - 1.year
+      # ActiveSupport clamps Feb 29 to Feb 28 at the same local time.
+      last_year_now = now - 1.year
+
+      scope = user.strava_activities.not_ignored
+      aggregates = [
+        *window_totals(week_start, week_end),
+        *window_totals(month_start, month_end),
+        window_aggregate("SUM(distance_meters)", year_start, now),
+        window_aggregate("SUM(distance_meters)", last_year_start, last_year_now),
+        window_aggregate("SUM(distance_meters)", last_year_start, year_start),
+      ]
+      # Each column needs its own alias: unaliased they're all "coalesce",
+      # and ActiveRecord would cast every one with the first column's type
+      # (bigint), truncating the float elevation sums.
+      totals = scope.where(moved_at: last_year_start.utc...[ week_end, month_end, now ].max.utc)
+        .pick(*aggregates.each_with_index.map { |sql, index| Arel.sql("#{sql} AS stat_#{index}") })
+      week_totals = totals[0, 4]
+      month_totals = totals[4, 4]
+      ytd, last_ytd, last_year_total = totals[8, 3]
+
+      {
+        today: now.to_date.iso8601,
+        week: totals_payload(week_totals).merge(start_date: week_start.to_date.iso8601, daily: daily_distances(scope, week_start, week_end)),
+        month: totals_payload(month_totals).merge(start_date: month_start.to_date.iso8601),
+        year_to_date: {
+          distance_meters: ytd.to_i,
+          last_year_to_date_distance_meters: last_ytd.to_i,
+          last_year_total_distance_meters: last_year_total.to_i,
+        },
+      }
+    end
+
+    def window_totals(from, to)
+      [
+        window_aggregate("SUM(distance_meters)", from, to),
+        window_aggregate("SUM(COALESCE(moving_time, 0))", from, to),
+        window_aggregate("SUM(COALESCE(total_elevation_gain, 0))", from, to),
+        window_aggregate("COUNT(*)", from, to),
+      ]
+    end
+
+    # Half-open [from, to), like every other window in the app.
+    def window_aggregate(aggregate, from, to)
+      ActiveRecord::Base.sanitize_sql_array(
+        [ "COALESCE(#{aggregate} FILTER (WHERE moved_at >= ? AND moved_at < ?), 0)", from.utc, to.utc ],
+      )
+    end
+
+    def totals_payload((distance, moving_time, elevation, count))
+      {
+        distance_meters: distance.to_i,
+        moving_time_seconds: moving_time.to_i,
+        elevation_gain_meters: elevation.to_f.round(1),
+        ride_count: count.to_i,
+      }
+    end
+
+    # Seven {date, distance_meters}, Mon..Sun, zero-filled, grouped in SQL.
+    # The day boundaries (local midnights, DST-aware) come from Ruby's zone
+    # data and are bucketed with width_bucket, rather than grouping by
+    # `moved_at AT TIME ZONE <name>`: Postgres ships its own tz database,
+    # which can disagree with Ruby's (America/Vancouver's 2026 switch to
+    # permanent UTC-7 is in one and not the other), and these days have to
+    # line up exactly with the week boundary computed above.
+    def daily_distances(scope, week_start, week_end)
+      day_starts = (0..7).map { |offset| (week_start + offset.days).utc }
+      bucket = ActiveRecord::Base.sanitize_sql_array([ "width_bucket(moved_at, ARRAY[?]::timestamp[])", day_starts ])
+      by_bucket = scope.where(moved_at: week_start.utc...week_end.utc).group(Arel.sql(bucket)).sum(:distance_meters)
+
+      (0..6).map do |offset|
+        { date: (week_start.to_date + offset).iso8601, distance_meters: by_bucket[offset + 1].to_i }
+      end
     end
 
     def recent_rides_section

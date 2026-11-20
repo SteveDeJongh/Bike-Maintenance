@@ -657,6 +657,30 @@ export interface DashboardSummary {
     summary: { count: number; distance_meters: number }
     rides: DashboardRecentRide[]
   }
+  stats: DashboardStats
+}
+
+// Riding totals for the summary tiles, in the viewer's tz (every synced ride
+// except individually ignored ones). Dates are local 'YYYY-MM-DD'.
+export interface DashboardStatsTotals {
+  start_date: string
+  distance_meters: number
+  moving_time_seconds: number
+  elevation_gain_meters: number
+  ride_count: number
+}
+
+export interface DashboardStats {
+  today: string
+  // Monday-start; daily is always seven entries, Mon..Sun, zero-filled.
+  week: DashboardStatsTotals & { daily: { date: string; distance_meters: number }[] }
+  month: DashboardStatsTotals
+  year_to_date: {
+    distance_meters: number
+    // Jan 1 last year to the same local date and time (Feb 29 -> Feb 28).
+    last_year_to_date_distance_meters: number
+    last_year_total_distance_meters: number
+  }
 }
 
 // One row of GET /bikes/:id/rides -- the Ride history table. Every

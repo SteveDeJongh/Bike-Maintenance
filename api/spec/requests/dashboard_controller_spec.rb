@@ -427,6 +427,117 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
 
+    describe "stats" do
+      let(:vancouver) { ActiveSupport::TimeZone["America/Vancouver"] }
+      let(:bike) { create(:bike, user: current_user) }
+
+      def ride_at(local, distance: 1_000, **attrs)
+        create(:strava_activity, user: current_user, bike: bike, moved_at: vancouver.parse(local), distance_meters: distance, **attrs)
+      end
+
+      def stats(tz: "America/Vancouver")
+        get "/dashboard", params: { tz: tz }
+        JSON.parse(response.body)["stats"]
+      end
+
+      # Friday 2026-11-20, midday in Vancouver. Local times are parsed with
+      # Ruby's zone data, the same source the boundaries use.
+      before { travel_to(Time.utc(2026, 11, 20, 20, 0)) }
+      after { travel_back }
+
+      it "starts the week on Monday in the viewer's tz and zero-fills every day" do
+        ride_at("2026-11-15 23:30", distance: 9_000) # Sunday night: last week
+        ride_at("2026-11-16 00:01", distance: 2_000, moving_time: 600, total_elevation_gain: 50.5)
+        ride_at("2026-11-19 10:00", distance: 3_000, moving_time: 900, total_elevation_gain: 20)
+
+        week = stats["week"]
+        expect(week["start_date"]).to eq("2026-11-16")
+        expect(week.slice("distance_meters", "moving_time_seconds", "elevation_gain_meters", "ride_count"))
+          .to eq("distance_meters" => 5_000, "moving_time_seconds" => 1_500, "elevation_gain_meters" => 70.5, "ride_count" => 2)
+        expect(week["daily"]).to eq([
+          { "date" => "2026-11-16", "distance_meters" => 2_000 },
+          { "date" => "2026-11-17", "distance_meters" => 0 },
+          { "date" => "2026-11-18", "distance_meters" => 0 },
+          { "date" => "2026-11-19", "distance_meters" => 3_000 },
+          { "date" => "2026-11-20", "distance_meters" => 0 },
+          { "date" => "2026-11-21", "distance_meters" => 0 },
+          { "date" => "2026-11-22", "distance_meters" => 0 },
+        ])
+        expect(stats["today"]).to eq("2026-11-20")
+      end
+
+      it "groups rides either side of local midnight by local day, not UTC day" do
+        ride_at("2026-11-17 23:59", distance: 1_000) # already the 18th in UTC
+        ride_at("2026-11-18 00:01", distance: 4_000)
+
+        daily = stats["week"]["daily"].to_h { |day| [ day["date"], day["distance_meters"] ] }
+        expect(daily["2026-11-17"]).to eq(1_000)
+        expect(daily["2026-11-18"]).to eq(4_000)
+      end
+
+      it "uses the local calendar month" do
+        ride_at("2026-10-31 23:30", distance: 7_000) # already November in UTC
+        ride_at("2026-11-01 00:30", distance: 2_000)
+
+        month = stats["month"]
+        expect(month["start_date"]).to eq("2026-11-01")
+        expect(month["distance_meters"]).to eq(2_000)
+        expect(month["ride_count"]).to eq(1)
+      end
+
+      it "compares year to date with last year to the same moment, and last year's total" do
+        ride_at("2026-01-01 00:10", distance: 10_000)
+        ride_at("2025-12-31 23:50", distance: 1_000) # last year, after today's date
+        ride_at("2025-11-20 11:00", distance: 3_000) # last year, before noon on the same date
+        ride_at("2025-11-20 13:00", distance: 5_000) # last year, after it
+        ride_at("2024-12-31 23:00", distance: 99_000) # two years ago
+
+        ytd = stats["year_to_date"]
+        expect(ytd).to eq(
+          "distance_meters" => 10_000,
+          "last_year_to_date_distance_meters" => 3_000,
+          "last_year_total_distance_meters" => 9_000,
+        )
+      end
+
+      it "clamps a Feb 29 today to Feb 28 last year" do
+        travel_back
+        travel_to(vancouver.parse("2028-02-29 12:00"))
+        ride_at("2027-02-28 11:00", distance: 2_000)
+        ride_at("2027-02-28 13:00", distance: 4_000)
+        ride_at("2027-03-01 09:00", distance: 8_000)
+
+        ytd = stats["year_to_date"]
+        expect(ytd["last_year_to_date_distance_meters"]).to eq(2_000)
+        expect(ytd["last_year_total_distance_meters"]).to eq(14_000)
+      end
+
+      it "counts rides with no bike but excludes individually ignored rides" do
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, moved_at: vancouver.parse("2026-11-18 09:00"), distance_meters: 3_000)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, moved_at: vancouver.parse("2026-11-18 10:00"),
+          distance_meters: 50_000, ignored_at: Time.current)
+
+        body = stats
+        expect(body["week"]["distance_meters"]).to eq(3_000)
+        expect(body["month"]["distance_meters"]).to eq(3_000)
+        expect(body["year_to_date"]["distance_meters"]).to eq(3_000)
+      end
+
+      it "falls back to UTC for an unknown tz" do
+        ride_at("2026-11-15 20:00", distance: 1_000) # Sunday in Vancouver, Monday 04:00 UTC
+
+        body = stats(tz: "Not/AZone")
+        expect(body["week"]["daily"].first).to eq("date" => "2026-11-16", "distance_meters" => 1_000)
+      end
+
+      it "never counts another user's rides" do
+        other_bike = create(:bike)
+        create(:strava_activity, user: other_bike.user, bike: other_bike, moved_at: vancouver.parse("2026-11-18 09:00"))
+
+        expect(stats["week"]["ride_count"]).to eq(0)
+      end
+    end
+
     describe "cross-account isolation" do
       it "never includes another user's bikes, components, or attention items" do
         other_bike = create(:bike)
