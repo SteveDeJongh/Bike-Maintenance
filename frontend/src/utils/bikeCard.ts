@@ -87,3 +87,19 @@ export function rotationGroups(
 
   return { groups, unpaired }
 }
+
+// Most urgent first: most due components, then most warning components,
+// then the most recent ride (bikes never ridden last), then name.
+export function sortBikesByUrgency<T extends { name: string; last_ride_on: string | null; mounted: Pick<DashboardMountedComponent, 'service_status'>[] }>(
+  bikes: T[],
+): T[] {
+  const keyed = bikes.map((bike) => ({ bike, counts: bikeStatusCounts(bike.mounted), ridden: bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity }))
+  keyed.sort(
+    (a, b) =>
+      b.counts.due - a.counts.due ||
+      b.counts.warning - a.counts.warning ||
+      (b.ridden === a.ridden ? 0 : b.ridden > a.ridden ? 1 : -1) ||
+      a.bike.name.localeCompare(b.bike.name),
+  )
+  return keyed.map(({ bike }) => bike)
+}

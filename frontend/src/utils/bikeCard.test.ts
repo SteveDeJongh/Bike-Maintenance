@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bikeStatusCounts, rotationGroups, sortByWear, wearMetricLabel } from './bikeCard'
+import { bikeStatusCounts, rotationGroups, sortBikesByUrgency, sortByWear, wearMetricLabel } from './bikeCard'
 import type { DashboardMountedComponent, DashboardOffBikeComponent } from '../types/models'
 
 const metric = { requirement_name: null, distance_meters: null, moving_time_seconds: null, days: null, since_service_type_name: null }
@@ -100,5 +100,26 @@ describe('rotationGroups', () => {
 
   it('has nothing to pair with no off-bike components', () => {
     expect(rotationGroups([mounted(1, 'chain')], [])).toEqual({ groups: [], unpaired: [] })
+  })
+})
+
+describe('sortBikesByUrgency', () => {
+  const bike = (name: string, statuses: ('due' | 'warning' | 'ok')[], lastRide: string | null) => ({
+    name,
+    last_ride_on: lastRide,
+    mounted: statuses.map((status) => ({ service_status: status })),
+  })
+
+  it('orders by due count, then warning count, then most recent ride, then name', () => {
+    const sorted = sortBikesByUrgency([
+      bike('Never ridden', [], null),
+      bike('Recent', ['ok'], '2026-11-19T10:00:00Z'),
+      bike('Two warnings', ['warning', 'warning'], '2026-01-01T10:00:00Z'),
+      bike('One due', ['due', 'ok'], '2025-06-01T10:00:00Z'),
+      bike('One warning', ['warning'], '2026-11-19T10:00:00Z'),
+      bike('Older', ['ok'], '2026-10-01T10:00:00Z'),
+      bike('Also recent', [], '2026-11-19T10:00:00Z'),
+    ])
+    expect(sorted.map((b) => b.name)).toEqual(['One due', 'Two warnings', 'One warning', 'Also recent', 'Recent', 'Older', 'Never ridden'])
   })
 })
