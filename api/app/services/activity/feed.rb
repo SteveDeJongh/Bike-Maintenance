@@ -52,8 +52,11 @@ module Activity
     end
 
     def initialize(user, kinds: nil, bike_id: nil, from: nil, to: nil, tz: nil, q: nil, component_id: nil,
-      order: "desc", sort: "date", cursor: nil, page: 1, per_page: nil)
+      order: "desc", sort: "date", cursor: nil, page: 1, per_page: nil, include_meta: true)
       @user = user
+      # The dashboard's Recent service only wants entries -- skipping meta
+      # saves the ride-totals and per-kind count queries it would discard.
+      @include_meta = include_meta
       @kind_groups = Array(kinds).select { |k| KIND_GROUPS.key?(k) }
       @kind_groups = ["ride"] if @kind_groups.empty?
       @bike_id = bike_id.presence
@@ -96,7 +99,7 @@ module Activity
       items = hydrate(rows)
       merge_setup_changes!(items)
 
-      Result.new(items: items, meta: build_meta, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil)
+      Result.new(items: items, meta: @include_meta ? build_meta : nil, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil)
     end
 
     def fetch_page_rows
@@ -154,7 +157,7 @@ module Activity
 
       Result.new(
         items: items,
-        meta: build_meta,
+        meta: @include_meta ? build_meta : nil,
         next_cursor: page * per_page < total_count ? (page + 1).to_s : nil,
       )
     end

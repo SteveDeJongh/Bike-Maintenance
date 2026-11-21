@@ -363,67 +363,114 @@ RSpec.describe "Dashboard", type: :request do
     end
 
     describe "recent_rides" do
-      it "includes rides from the last 14 days, with the summary count/distance and the bike it's attributed to" do
-        travel_to Time.zone.local(2026, 11, 4, 12, 0) do
-          bike = create(:bike, user: current_user, name: "Soloist")
-          in_window = create(:strava_activity, user: current_user, bike: bike,
-            moved_at: 5.days.ago, distance_meters: 20_000, name: "Morning ride")
-          create(:strava_activity, user: current_user, bike: bike, moved_at: 20.days.ago, distance_meters: 99_000)
-
-          get "/dashboard"
-
-          recent_rides = JSON.parse(response.body)["recent_rides"]
-          expect(recent_rides["summary"]).to eq("count" => 1, "distance_meters" => 20_000)
-          ride = recent_rides["rides"].first
-          expect(ride["id"]).to eq(in_window.id)
-          expect(ride["name"]).to eq("Morning ride")
-          expect(ride["distance_meters"]).to eq(20_000)
-          expect(ride["bike"]).to eq("id" => bike.id, "name" => "Soloist")
-          expect(ride["indoor"]).to be false
-        end
-      end
-
-      it "reports bike: null for an unattributed ride and indoor: true for a VirtualRide" do
-        create(:strava_activity, user: current_user, bike: nil, gear_id: nil,
-          moved_at: 1.day.ago, activity_type: "VirtualRide", trainer: false)
+      it "lists the five newest rides, newest first, whatever their age" do
+        bike = create(:bike, user: current_user, name: "Soloist")
+        rides = (1..6).map { |n| create(:strava_activity, user: current_user, bike: bike, moved_at: (n * 10).days.ago) }
 
         get "/dashboard"
 
-        ride = JSON.parse(response.body)["recent_rides"]["rides"].first
-        expect(ride["bike"]).to be_nil
-        expect(ride["indoor"]).to be true
+        recent_rides = JSON.parse(response.body)["recent_rides"]
+        expect(recent_rides.map { |r| r["id"] }).to eq(rides.first(5).map(&:id))
       end
 
-      it "includes gear_id so an unattributed-but-has-gear ride can offer a gear-mapping link" do
-        create(:strava_activity, user: current_user, bike: nil, gear_id: "g1", moved_at: 1.day.ago)
-
-        get "/dashboard"
-
-        expect(JSON.parse(response.body)["recent_rides"]["rides"].first["gear_id"]).to eq("g1")
-      end
-
-      it "includes elapsed_time so a ride can prefill Log service at its end, preserving null" do
-        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user),
-          moved_at: 1.day.ago, elapsed_time: 3_600)
-        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user),
-          moved_at: 2.days.ago, elapsed_time: nil)
-
-        get "/dashboard"
-
-        rides = JSON.parse(response.body)["recent_rides"]["rides"]
-        expect(rides.map { |r| r.fetch("elapsed_time") }).to eq([3_600, nil])
-      end
-
-      it "lists which components a ride counts toward" do
-        bike = create(:bike, user: current_user)
+      it "carries the ride's fields, and no counted_toward" do
+        bike = create(:bike, user: current_user, name: "Soloist")
         component = create(:component, user: current_user, category: "chain", label: "Chain A")
         create(:component_assignment, component: component, bike: bike, started_at: 10.days.ago, ended_at: nil)
-        create(:strava_activity, user: current_user, bike: bike, moved_at: 5.days.ago, distance_meters: 1_000)
+        ride = create(:strava_activity, user: current_user, bike: bike, moved_at: 5.days.ago, name: "Gravel loop",
+          activity_type: "GravelRide", distance_meters: 20_000, moving_time: 3_000, elapsed_time: 3_600)
 
         get "/dashboard"
 
-        ride = JSON.parse(response.body)["recent_rides"]["rides"].first
-        expect(ride["counted_toward"]).to eq([ { "component_id" => component.id, "label" => "Chain A" } ])
+        payload = JSON.parse(response.body)["recent_rides"].first
+        expect(payload).to eq(
+          "id" => ride.id, "moved_at" => ride.moved_at.as_json, "name" => "Gravel loop", "activity_type" => "GravelRide",
+          "distance_meters" => 20_000, "moving_time" => 3_000, "elapsed_time" => 3_600,
+          "bike" => { "id" => bike.id, "name" => "Soloist" }, "gear_id" => ride.gear_id, "indoor" => false,
+        )
+      end
+
+      it "reports no-bike rides, keeping gear_id when Strava had gear and null when it didn't" do
+        create(:strava_activity, user: current_user, bike: nil, gear_id: "g1", moved_at: 1.day.ago)
+        create(:strava_activity, user: current_user, bike: nil, gear_id: nil, moved_at: 2.days.ago,
+          activity_type: "VirtualRide", trainer: false)
+
+        get "/dashboard"
+
+        with_gear, without_gear = JSON.parse(response.body)["recent_rides"]
+        expect(with_gear).to include("bike" => nil, "gear_id" => "g1")
+        expect(without_gear).to include("bike" => nil, "gear_id" => nil, "indoor" => true)
+      end
+
+      it "preserves a null elapsed_time" do
+        create(:strava_activity, user: current_user, bike: create(:bike, user: current_user), moved_at: 1.day.ago, elapsed_time: nil)
+
+        get "/dashboard"
+
+        expect(JSON.parse(response.body)["recent_rides"].first.fetch("elapsed_time")).to be_nil
+      end
+    end
+
+    describe "recent_service" do
+      let(:bike) { create(:bike, user: current_user, name: "Soloist") }
+      let(:wax) { current_user.service_types.find_by!(name: "wax") }
+
+      def component(label, category: "chain")
+        create(:component, user: current_user, category: category, label: label)
+      end
+
+      def recent_service
+        get "/dashboard"
+        JSON.parse(response.body)["recent_service"]
+      end
+
+      it "lists the five newest service entries, sessions and session-less events alike, newest first" do
+        chain = component("Chain A")
+        events = (1..6).map { |n| create(:maintenance_event, component: chain, service_type: wax, performed_at: n.days.ago) }
+        session = create(:service_session, bike: bike, performed_at: 36.hours.ago)
+        create(:maintenance_event, component: chain, service_type: wax, service_session: session, performed_at: 36.hours.ago)
+
+        entries = recent_service
+        expect(entries.map { |e| [ e["kind"], e["id"] ] }).to eq([
+          [ "maintenance_event", events[0].id ],
+          [ "service_session", session.id ],
+          [ "maintenance_event", events[1].id ],
+          [ "maintenance_event", events[2].id ],
+          [ "maintenance_event", events[3].id ],
+        ])
+        expect(entries.first["summary"]).to eq("Chain A · wax")
+      end
+
+      it "shows a multi-component session as one entry, summarised like the activity log" do
+        session = create(:service_session, bike: bike, performed_at: 1.day.ago)
+        create(:maintenance_event, component: component("Chain A"), service_type: wax, service_session: session, performed_at: 1.day.ago)
+        create(:maintenance_event, component: component("Chain B"), service_type: wax, service_session: session, performed_at: 1.day.ago)
+
+        entries = recent_service
+        expect(entries.size).to eq(1)
+        expect(entries.first).to include("kind" => "service_session", "item_count" => 2, "summary" => "Service · 2 items on Soloist")
+        expect(entries.first["items"].map { |i| i["label"] }).to contain_exactly("Chain A", "Chain B")
+      end
+
+      it "includes a swap as one replaced entry, but not a plain install" do
+        chain_a = component("Chain A")
+        chain_b = component("Chain B")
+        swap_at = 2.days.ago
+        create(:component_assignment, component: chain_b, bike: bike, started_at: 30.days.ago, ended_at: swap_at)
+        create(:component_assignment, component: chain_a, bike: bike, started_at: swap_at, ended_at: nil)
+        create(:component_assignment, component: component("Saddle", category: "saddle"), bike: bike, started_at: 1.day.ago, ended_at: nil)
+
+        entries = recent_service
+        expect(entries.size).to eq(1)
+        expect(entries.first).to include("kind" => "setup_change", "action" => "replaced",
+          "summary" => "Installed Chain A on Soloist, replacing Chain B")
+      end
+
+      it "never includes another user's service" do
+        other_component = create(:component, category: "chain")
+        create(:maintenance_event, component: other_component, performed_at: 1.day.ago)
+
+        expect(recent_service).to eq([])
       end
     end
 
@@ -678,7 +725,7 @@ RSpec.describe "Dashboard", type: :request do
 
         get "/dashboard"
 
-        expect(JSON.parse(response.body)["recent_rides"]["rides"]).to eq([])
+        expect(JSON.parse(response.body)["recent_rides"]).to eq([])
       end
     end
   end

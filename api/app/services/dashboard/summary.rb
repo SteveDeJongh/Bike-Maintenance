@@ -13,9 +13,11 @@ module Dashboard
       @zone = (tz.present? && ActiveSupport::TimeZone[tz]) || Time.zone
     end
 
-    # A plain rolling 14-day window, not calendar-day sensitive, so (unlike
-    # distance_this_month) it doesn't need the viewer's tz at all.
-    RECENT_RIDES_WINDOW = 14.days
+    # Rows in Recent rides and Recent service.
+    RECENT_LIMIT = 5
+    # Feed rows fetched for Recent service before plain installs/removals
+    # are filtered out.
+    FEED_HEADROOM = 50
 
     # Up next's ok rows: the nearest-to-due fine requirements on mounted parts.
     UPCOMING_LIMIT = 5
@@ -27,6 +29,7 @@ module Dashboard
         attention: attention_section,
         upcoming: upcoming_section,
         recent_rides: recent_rides_section,
+        recent_service: recent_service_section,
         stats: stats_section,
       }
     end
@@ -373,39 +376,47 @@ module Dashboard
       end
     end
 
+    # The last few rides, newest first -- not a date window.
     def recent_rides_section
-      since = RECENT_RIDES_WINDOW.ago
-      rides = user.strava_activities.where(moved_at: since..).order(moved_at: :desc).to_a
-      counted_toward = Maintenance::CountedTowardQuery.call(user, since: since)
+      rides = user.strava_activities.order(moved_at: :desc, id: :desc).limit(RECENT_LIMIT).to_a
       bikes_by_id = user.bikes.index_by(&:id)
-
-      {
-        summary: { count: rides.size, distance_meters: rides.sum(&:distance_meters) },
-        rides: rides.map { |ride| recent_ride_payload(ride, counted_toward[ride.id], bikes_by_id) },
-      }
+      rides.map { |ride| recent_ride_payload(ride, bikes_by_id) }
     end
 
-    def recent_ride_payload(ride, counted_toward, bikes_by_id)
+    def recent_ride_payload(ride, bikes_by_id)
       bike = ride.bike_id && bikes_by_id[ride.bike_id]
 
       {
         id: ride.id,
         moved_at: ride.moved_at,
         name: ride.name,
+        activity_type: ride.activity_type,
         distance_meters: ride.distance_meters,
+        moving_time: ride.moving_time,
         # Lets "Log service after this ride" prefill the session at the
         # ride's end; nil (Strava omitted it) falls back to moved_at.
         elapsed_time: ride.elapsed_time,
         bike: bike && { id: bike.id, name: bike.name },
         # Present alongside a nil bike specifically for the "fixable via gear
         # mapping" case (same distinction as sync.unattributed.with_gear) --
-        # lets the frontend offer "Link Strava gear" only when there's
-        # actually a gear id to map, not for a ride Strava itself had no
-        # bike set on.
+        # lets the frontend offer "Link gear" only when there's actually a
+        # gear id to map, not for a ride Strava itself had no bike set on.
         gear_id: ride.gear_id,
         indoor: ride.indoor?,
-        counted_toward: (counted_toward || []).map { |c| { component_id: c[:component_id], label: c[:label] } },
       }
+    end
+
+    # The last few service entries, straight from Activity::Feed so the
+    # entry shape and its server-built summary wording are the activity
+    # log's own: service sessions, session-less events, and swaps (the
+    # feed's merged "replaced" setup entries). Plain installs/removals are
+    # setup, not service, so they're filtered out after the fetch -- the
+    # feed has no swaps-only kind, since it merges pairs in memory -- with
+    # a page of FEED_HEADROOM rows to filter from.
+    def recent_service_section
+      Activity::Feed.call(user, kinds: %w[service setup], per_page: FEED_HEADROOM, include_meta: false).items
+        .select { |item| item[:kind] != "setup_change" || item[:action] == "replaced" }
+        .first(RECENT_LIMIT)
     end
   end
 end

@@ -297,4 +297,16 @@ RSpec.describe Activity::Feed do
       expect(result.items.map { |i| i[:id] }).to eq([ big.id, medium.id, small.id ])
     end
   end
+
+  describe "include_meta: false" do
+    it "returns the entries with no meta" do
+      user = create(:user)
+      ride = create(:strava_activity, user: user, bike: create(:bike, user: user), moved_at: 1.day.ago)
+
+      result = described_class.call(user, include_meta: false)
+
+      expect(result.items.map { |item| item[:id] }).to eq([ ride.id ])
+      expect(result.meta).to be_nil
+    end
+  end
 end
