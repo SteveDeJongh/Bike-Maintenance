@@ -11,7 +11,7 @@ import type { DashboardRequirementItem } from '../../types/models'
 
 // One requirement: what's left on its driving dimension (never a projected
 // date), a thin bar on the same dimension, and where the part is. "Log
-// service" is the same modal and prefill AttentionRow used.
+// service" opens MaintenanceEventFormModal with the position-1 satisfier.
 export default function UpNextRow({ item }: { item: DashboardRequirementItem }) {
   const [logOpened, setLogOpened] = useState(false)
   const isMobile = useIsMobile()

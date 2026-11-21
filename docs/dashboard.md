@@ -43,6 +43,24 @@ distance/status computation happens here that doesn't already live elsewhere:
   draw their per-component status from
   `Maintenance::RequirementStatus.worst_result_by_component` (returns the full winning `Result`; `worst_status_by_component` is a one-line wrapper over it) and
   their bike-grouping from `Component.current_bikes_by_component` .
+  Each `mounted`/`off_bike` entry also carries the card's wear fields, straight from
+  that worst `Result` (all `null` with no enabled requirement): `fraction_used`,
+  `driving_dimension`, `distance_remaining_meters`, `moving_time_remaining_seconds`,
+  `days_remaining`. "Worst" is worst status, then — new for the wear bar — highest
+  `fraction_used` among requirements sharing that status, so the bar and the
+  `display_metric` both show the *driving* requirement (status-only callers like the
+  Components table can't change). **`total_distance_meters`** (lifetime, via
+  `Component#total_distance`) is set only for components in a **rotation pair** — an
+  off-bike component plus every mounted one of the same category on that bike — and
+  `null` otherwise; it runs one query per assignment per paired component, fine for
+  the handful on a card and an open batching question if more of the page needs it.
+  A component with no requirement already has its lifetime total in
+  `display_metric.distance_meters`. **`last_ride_activity_type`** — the latest ride's
+  Strava sport type, from one `DISTINCT ON (bike_id)` query for every bike.
+- **One status computation per request.** `Summary#results` memoizes
+  `Maintenance::RequirementStatus.for_user(user)`; `attention`, `upcoming` and the
+  bikes' `worst_result_by_component(user, results:)` all derive from it (the
+  dashboard used to compute every status twice).
 - **`attention`** — every enabled, non-ok, non-retired requirement
   (`Maintenance::RequirementStatus.for_user`), deliberately broader than the alert
   banners' `Result#banner_eligible?`: a dismissed or notifications-off item, or one
@@ -53,7 +71,13 @@ distance/status computation happens here that doesn't already live elsewhere:
   requirement's resolved `satisfiers` (needed so the frontend's "Log service"
   button on this item can default to the position-1 satisfier, same convention as
   `ComponentDetail`'s own split button — the item has no single `service_type_id`
-  of its own to pre-fill with otherwise) and `setting_event`.
+  of its own to pre-fill with otherwise) and `setting_event`. Other code and specs
+  rely on these semantics; a spec pins its exact key set.
+- **`upcoming`** — the same item shape for the nearest **ok** requirements on
+  non-retired, **currently mounted** components (checked against the
+  `current_bikes_by_component` hash already loaded, not per-result `mounted?`
+  queries), ordered by `fraction_used` descending, capped at `UPCOMING_LIMIT` (5).
+  Up next shows these after the attention items.
 - **`recent_rides`** — every activity in a rolling 14-day window (not
   calendar-day-sensitive, so no `tz` needed) plus `summary: {count, distance_meters}`.
   Each ride carries `elapsed_time` (seconds, null when Strava omitted it) so
@@ -167,22 +191,68 @@ genuine data-model change deliberately not made speculatively here.
     with a tick at last year's same-date total (hidden with no last-year total);
     "Last year by today: N km".
   - **Next service** (`NextServiceTile`): `attention[0]`, so the same
-    due-before-warning order as Needs attention. The value is
+    due-before-warning order as Up next. The value is
     `formatDrivingRemaining(item)` (`utils/serviceInterval.ts`) — only the driving
     dimension, "8 km left" / "120 km over" / "1.5 hrs left" / "3 days left", never a
     pace-based estimate — coloured by `SERVICE_STATUS_COLORS`, which also colours the
     tile's border. Then "{component label} · {requirement name}" (a link to the
     component), and "Log service", which opens `MaintenanceEventFormModal` with the
-    same prefill as `AttentionRow` (`primarySatisfier`, shared by both), so the save
+    same prefill as `UpNextRow` (`primarySatisfier`, shared by both), so the save
     and its invalidation are identical. No attention items: a check and "All caught
     up".
-- `BikeCards`/`BikeCard`, `NeedsAttention`/`AttentionRow` (grouped by bike,
-  "Not mounted" last; each row reads `"{component label} — {requirement name}"`
-  plus a `(from {setting_event's service type})` clause once a real service has
-  been logged; "Log service" reuses `MaintenanceEventFormModal` as-is, pre-filled
-  with the item's **position-1 satisfier** — `primarySatisfier(item.satisfiers)`
-  (`utils/serviceInterval.ts`), same default-satisfier convention as
-  `ComponentDetail`'s own split button), `RecentRidesTable` (its "No bike" rows
+- **`UpNext`/`UpNextRow`** (replaced Needs attention) — a self-contained `Paper`
+  with no width assumptions, so it works full width now or as a ~340px column
+  later. Header "Up next" with "N due" (red) / "N soon" (yellow, the app's warning
+  colour) badges counted from `attention`. Rows: `upNextItems(attention, upcoming)`
+  (`utils/upNext.ts`) — every attention item (never cut off), then ok rows until
+  five in total. Each row: the component label (a link) · requirement name; on the
+  right, coloured by status, `formatDrivingRemaining` (driving dimension only, no
+  time estimates — projecting dates from recent riding was considered and rejected,
+  since it misleads when habits or bike choice change); a thin `Progress` on
+  `min(fraction_used, 1)` in `SERVICE_STATUS_COLORS` (teal for ok); a dimmed line
+  with the bike name or "Not mounted" and `formatUsedOfTotal` ("192 / 200 km", where
+  the total is used + remaining — the real due span, which a satisfier's own
+  allowance can make differ from the nominal interval); grey "Dismissed until next
+  sync" / "Notifications off" badges on alerting rows only; and "Log service" —
+  `MaintenanceEventFormModal` as-is, pre-filled with the item's **position-1
+  satisfier** (`primarySatisfier(item.satisfiers)`, `utils/serviceInterval.ts`, same
+  default-satisfier convention as `ComponentDetail`'s own split button). Footer "All
+  service intervals →" links to `/components` (there's no all-intervals page yet).
+  With neither list populated: "No service intervals set up yet" linking to
+  Settings → Component categories (a user whose only requirements are on unmounted
+  ok components also lands here — no count field distinguishes them).
+- **`BikeCard`** — header: the name (link) and "Last ride Nov 16 · Gravel Ride"
+  (`formatSportType`, `utils/strava.ts`), with a chip from the mounted components'
+  `service_status`es (`bikeStatusCounts`): "N due" / "N soon", or teal "All OK".
+  Total / This month / Rides between dividers. **Component wear**: one grid (label |
+  bar | metric, rows as `display: contents` so every bar lines up), sorted by
+  `fraction_used` descending (`sortByWear`; no-requirement components last). The bar
+  is `min(fraction_used, 1)` in the status colour; the metric is
+  `wearMetricLabel` — `formatDrivingRemaining`, red when due, with " · {requirement
+  name}" appended unless the name already contains the category label (so a
+  chain's "Wax" reads "8 km left · wax" but "Chain replacement" adds nothing); with
+  no requirement, an empty track and "{lifetime} total". Tapping a row still opens
+  `SwapComponentModal`. **Rotation strip** (`rotationGroups`, `utils/bikeCard.ts`):
+  for each category where the bike has both an off-bike component (the existing
+  `off_bike` rule) and a mounted one — chains are the usual case, nothing is
+  chain-specific — "{Category} rotation" with "Off: {label} · {display metric}", a
+  split bar of each side's `total_distance_meters` (mounted in the primary colour,
+  off-bike in `--mantine-primary-color-9`), and per-component labels. An off-bike
+  component with no mounted partner keeps the plain "Off the bike: …" line. Footer:
+  an outline "Log service" (`BatchServiceModal`), pinned to the bottom.
+- **`BikeCards`** — "Bikes" with "N bikes · sorted by most urgent" and "Manage
+  bikes →". `sortBikesByUrgency`: most due components, then most warning, then most
+  recent ride (never-ridden last), then name — frontend-only, no API order. Desktop:
+  a flex track with `overflow-x: auto` and `scroll-snap-type: x mandatory`, cards
+  `flex: 0 0 420px` with `scroll-snap-align: start` (a single bike stays 420px),
+  sharing one height (stretch). `useHorizontalOverflow(ref, resetKey)`
+  (`hooks/`) tracks overflow and position with a `ResizeObserver` plus a scroll
+  listener: round arrow buttons ("Scroll bikes left/right") scroll one card plus
+  the gap, smoothly, disable at their end and hide when nothing overflows; a
+  right-edge gradient to `--mantine-color-body` (`pointer-events: none`) shows
+  while there's more to the right. Phone (`useIsMobile`): cards stacked full-width,
+  no arrows or fade.
+- `RecentRidesTable` (its "No bike" rows
   link to `/strava?tab=rides`; its "Link Strava gear" link, shown only when
   `gear_id` is present, to `/strava?tab=gear`; a trailing "Actions" column holds
   the shared `LogServiceAfterRideButton` — see "Ride history" — left empty for a
@@ -192,8 +262,9 @@ genuine data-model change deliberately not made speculatively here.
   `TableViewPreference` row's worth of persisted column choices/ordering, which
   this fixed, non-configurable 14-day feed has no use for. `formatRemaining` (the
   "N km left"/"N km overdue" wording, with an optional third, moving-time argument — see "Service intervals and maintenance alerts" above) lives in
-  `utils/serviceInterval.ts` so `AttentionRow` and `ComponentDetail`'s own rows
-  share the exact same wording rather than re-deriving it.
+  `utils/serviceInterval.ts` so `ComponentDetail`'s own rows share one wording;
+  the dashboard's Up next and cards use `formatDrivingRemaining` instead (driving
+  dimension only, "over" rather than "overdue").
 
 **`useSyncCompletionWatcher()`** (`frontend/src/hooks/useSyncCompletionWatcher.ts`)
 is the **only** place a completed Strava sync invalidates ride data. It's mounted

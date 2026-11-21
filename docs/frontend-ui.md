@@ -358,7 +358,7 @@ sidebar and a mobile bottom tab bar at Mantine's `sm` breakpoint (48em /
   `inline-flex` centering, so it grows the tappable box without changing
   the element's own visual size) — gated behind `useIsMobile()` wherever
   the same element also renders on desktop (the dashboard `BikeCard`'s
-  bike-name link and compact "Log service" button, `AttentionRow`'s "Log
+  bike-name link and "Log service" button, `UpNextRow`'s "Log
   service" button), or applied unconditionally in a component that only
   ever renders on mobile in the first place
   (`InstalledComponentsCardList`'s `EmptySlotCard` — "Install"/"Stop

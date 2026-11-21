@@ -10,7 +10,7 @@ import type { DashboardAttentionItem } from '../../types/models'
 
 // The first attention item (attention[] already arrives due-before-warning,
 // then by fraction used). "Log service" opens the same modal with the same
-// prefill as AttentionRow's button, so the save and its invalidation are
+// prefill as Up next's rows, so the save and its invalidation are
 // identical.
 export default function NextServiceTile({ attention }: { attention: DashboardAttentionItem[] }) {
   const [logOpened, setLogOpened] = useState(false)

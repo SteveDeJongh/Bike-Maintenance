@@ -77,8 +77,9 @@ ride-filtered counting.
   to the component's own user and filters the result down to that one component's
   requirements afterward. `.worst_status_by_component(user)`/
   `.worst_result_by_component(user)` reduce `.for_user`'s results to one
-  status/`Result` per component (due > warning > ok) for the `service_status` table
-  column and the Dashboard's own per-component display. A component with no
+  status/`Result` per component (due > warning > ok, ties broken by the higher
+  `fraction_used`) for the `service_status` table column and the Dashboard's own
+  per-component display; `results:` takes an already-loaded `.for_user` list. A component with no
   enabled requirement has no entry — rendered as a dash, not an `ok` badge.
 - `strava_activities.moving_time` is nullable with no backfill for rows synced
   before it was added (`20261015223545_add_analytics_fields_to_strava_activities`)
@@ -129,7 +130,7 @@ ride-filtered counting.
   (`{ bikeId } | { componentId }`, `types/models.ts`'
   `MaintenanceAlertScope`) and renders on `BikeDetail`/`ComponentDetail` only, just
   below the page title — not in `Layout.tsx`, which doesn't render it at all. The
-  Dashboard's "Needs attention" panel (see "Dashboard" below) is the app-wide
+  Dashboard's "Up next" panel (see "Dashboard" below) is the app-wide
   overview; these two banners are the equivalent, scoped detail. A red "due" list
   and a collapsed-by-default yellow "warning" count, each item linking to its
   component with a "dismiss until next sync" control, each banner with its own
