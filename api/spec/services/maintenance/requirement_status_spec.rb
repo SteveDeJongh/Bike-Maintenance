@@ -407,4 +407,30 @@ RSpec.describe Maintenance::RequirementStatus do
       end
     end
   end
+
+  describe ".worst_result_by_component" do
+    it "breaks a status tie on fraction_used, whatever the load order" do
+      component, bike = build_component
+      inspect_type = create(:service_type, user: component.user, name: "Tie inspect")
+      wax_type = create(:service_type, user: component.user, name: "Tie wax")
+      create(:component_service_requirement, component: component, name: "Inspect", distance_meters: 1_000_000, service_type: inspect_type)
+      wax = create(:component_service_requirement, component: component, name: "Wax", distance_meters: 100_000, service_type: wax_type)
+      create(:strava_activity, user: component.user, bike: bike, moved_at: Time.utc(2026, 1, 5), distance_meters: 10_000)
+
+      results = described_class.for_user(component.user)
+      [ results, results.reverse ].each do |ordered|
+        worst = described_class.worst_result_by_component(component.user, results: ordered)
+        expect(worst[component.id].component_service_requirement).to eq(wax)
+      end
+    end
+
+    it "still prefers a worse status over a higher fraction" do
+      component, bike = build_component
+      type = create(:service_type, user: component.user, name: "Tie due")
+      due = create(:component_service_requirement, component: component, name: "Due", distance_meters: 5_000, service_type: type)
+      create(:strava_activity, user: component.user, bike: bike, moved_at: Time.utc(2026, 1, 5), distance_meters: 10_000)
+
+      expect(described_class.worst_result_by_component(component.user)[component.id].component_service_requirement).to eq(due)
+    end
+  end
 end

@@ -121,15 +121,23 @@ module Maintenance
     SEVERITY = { "ok" => 0, "warning" => 1, "due" => 2 }.freeze
 
     # One Result per component -- whichever of its enabled requirements is
-    # furthest along. A component with no enabled requirement has no entry
-    # in the returned hash.
-    def self.worst_result_by_component(user)
-      for_user(user).each_with_object({}) do |result, hash|
+    # furthest along: worst status first, then highest fraction_used among
+    # requirements sharing that status (the "driving" requirement, e.g. for
+    # a wear bar). A component with no enabled requirement has no entry in
+    # the returned hash. Pass `results:` (a for_user list already loaded)
+    # to avoid computing every status a second time.
+    def self.worst_result_by_component(user, results: nil)
+      (results || for_user(user)).each_with_object({}) do |result, hash|
         component_id = result.component_service_requirement.component_id
         current = hash[component_id]
-        hash[component_id] = result if current.nil? || SEVERITY[result.status] > SEVERITY[current.status]
+        hash[component_id] = result if current.nil? || worse?(result, current)
       end
     end
+
+    def self.worse?(result, other)
+      ([ SEVERITY[result.status], result.fraction_used ] <=> [ SEVERITY[other.status], other.fraction_used ]) == 1
+    end
+    private_class_method :worse?
 
     # The status-only projection of the above -- for table columns
     # (Components list, Bike detail's Installed components) that show a

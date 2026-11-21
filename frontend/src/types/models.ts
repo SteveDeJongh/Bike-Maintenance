@@ -564,7 +564,7 @@ export interface DashboardDisplayMetric {
   since_service_type_name: string | null
 }
 
-export interface DashboardMountedComponent {
+export type DashboardMountedComponent = {
   component_id: number
   // The active assignment this mounted row represents -- needed by the
   // one-step swap action (POST /component_assignments/:id/swap), which
@@ -575,13 +575,25 @@ export interface DashboardMountedComponent {
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'
   service_status: ServiceStatus | null
   display_metric: DashboardDisplayMetric
-}
+} & DashboardWearFields
 
-export interface DashboardOffBikeComponent {
+export type DashboardOffBikeComponent = {
   component_id: number
   label: string
   category: string
   display_metric: DashboardDisplayMetric
+} & DashboardWearFields
+
+// The driving requirement's progress (all null with no enabled
+// requirement), plus lifetime distance -- set only for components in a
+// same-category rotation pair on the bike, null otherwise.
+export interface DashboardWearFields {
+  fraction_used: number | null
+  driving_dimension: RequirementDimension | null
+  distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
+  days_remaining: number | null
+  total_distance_meters: number | null
 }
 
 export interface DashboardBike {
@@ -590,6 +602,8 @@ export interface DashboardBike {
   total_distance: number
   ride_count: number
   last_ride_on: string | null
+  // Strava sport type of the latest ride, e.g. "GravelRide" (formatSportType).
+  last_ride_activity_type: string | null
   distance_this_month: number
   mounted: DashboardMountedComponent[]
   off_bike: DashboardOffBikeComponent[]
@@ -599,7 +613,9 @@ export interface DashboardBike {
 // non-retired requirement, including ones a banner would hide (dismissed,
 // notifications off, not currently mounted). Those three are flags here
 // instead of exclusions, so the dashboard can label rather than hide them.
-export interface DashboardAttentionItem {
+// One requirement's status, the shape shared by attention (warning/due)
+// and upcoming (ok rows on mounted components, nearest to due first).
+export interface DashboardRequirementItem {
   component_id: number
   component_label: string
   requirement_id: number
@@ -608,7 +624,7 @@ export interface DashboardAttentionItem {
   // shape as everywhere else -- position 1 is "Log service"'s default
   // service type, same convention as ComponentDetail's own split button.
   satisfiers: ServiceRequirementSatisfier[]
-  status: 'warning' | 'due'
+  status: ServiceStatus
   driving_dimension: RequirementDimension
   distance_used_meters: number | null
   effective_distance_meters: number | null
@@ -632,6 +648,8 @@ export interface DashboardAttentionItem {
   bike: { id: number; name: string } | null
 }
 
+export type DashboardAttentionItem = DashboardRequirementItem & { status: 'warning' | 'due' }
+
 export interface DashboardRecentRide {
   id: number
   moved_at: string
@@ -653,6 +671,7 @@ export interface DashboardSummary {
   sync: DashboardSyncSection
   bikes: DashboardBike[]
   attention: DashboardAttentionItem[]
+  upcoming: DashboardRequirementItem[]
   recent_rides: {
     summary: { count: number; distance_meters: number }
     rides: DashboardRecentRide[]

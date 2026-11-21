@@ -427,6 +427,122 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
 
+    describe "upcoming" do
+      let(:bike) { create(:bike, user: current_user) }
+
+      # 10 km ridden on `bike` since Jan 1, so a requirement's fraction is
+      # 10_000 / interval.
+      before { create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 10_000) }
+
+      def component_with_interval(interval, category:, mounted: true)
+        component = create(:component, user: current_user, category: category, label: "#{category} part")
+        create(:component_service_requirement, component: component, service_type: current_user.service_types.find_by!(name: "inspect"),
+          distance_interval_meters: interval)
+        create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1),
+          ended_at: mounted ? nil : Time.zone.local(2026, 2, 1))
+        component
+      end
+
+      it "lists ok requirements on mounted components, nearest to due first, capped at five" do
+        expected = [ 20_000, 25_000, 50_000, 100_000, 200_000 ].each_with_index.map do |interval, index|
+          component_with_interval(interval, category: "part_#{index}")
+        end
+        component_with_interval(1_000_000, category: "part_far") # sixth: cut by the cap
+        due = component_with_interval(5_000, category: "part_due")
+        component_with_interval(30_000, category: "part_unmounted", mounted: false)
+        component_with_interval(30_000, category: "part_retired").update!(retired_on: Date.current)
+
+        get "/dashboard"
+
+        body = JSON.parse(response.body)
+        upcoming = body["upcoming"]
+        expect(upcoming.map { |item| item["component_id"] }).to eq(expected.map(&:id))
+        expect(upcoming.map { |item| item["status"] }.uniq).to eq([ "ok" ])
+        expect(upcoming.first["fraction_used"]).to eq(0.5)
+        expect(upcoming.first["bike"]).to eq("id" => bike.id, "name" => bike.name)
+        expect(body["attention"].map { |item| item["component_id"] }).to eq([ due.id ])
+      end
+
+      it "uses the attention item shape, and leaves attention's own keys unchanged" do
+        component_with_interval(20_000, category: "chain")
+        component_with_interval(5_000, category: "saddle")
+
+        get "/dashboard"
+
+        body = JSON.parse(response.body)
+        attention_keys = %w[
+          component_id component_label requirement_id requirement_name satisfiers status driving_dimension
+          distance_used_meters effective_distance_meters moving_time_used_seconds effective_moving_time_seconds
+          days_used effective_calendar_amount effective_calendar_unit distance_remaining_meters
+          moving_time_remaining_seconds days_remaining fraction_used setting_event dismissed notifications_off mounted bike
+        ]
+        expect(body["attention"].first.keys).to eq(attention_keys)
+        expect(body["upcoming"].first.keys).to eq(attention_keys)
+      end
+    end
+
+    describe "bikes: wear and rotation fields" do
+      let!(:bike) { create(:bike, user: current_user) }
+      let(:inspect_type) { current_user.service_types.find_by!(name: "inspect") }
+
+      def bike_payload
+        get "/dashboard"
+        JSON.parse(response.body)["bikes"].find { |b| b["id"] == bike.id }
+      end
+
+      def mount(component, from: Time.zone.local(2026, 1, 1), to: nil)
+        create(:component_assignment, component: component, bike: bike, started_at: from, ended_at: to)
+        component
+      end
+
+      it "reports the driving requirement's progress, including when overdue" do
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 10_000)
+        overdue = mount(create(:component, user: current_user, category: "chain", label: "Chain A"))
+        create(:component_service_requirement, component: overdue, service_type: inspect_type, distance_interval_meters: 4_000)
+        plain = mount(create(:component, user: current_user, category: "saddle", label: "Saddle"))
+
+        mounted = bike_payload["mounted"].index_by { |m| m["component_id"] }
+        expect(mounted[overdue.id].slice("service_status", "fraction_used", "driving_dimension", "distance_remaining_meters",
+          "moving_time_remaining_seconds", "days_remaining", "total_distance_meters")).to eq(
+          "service_status" => "due", "fraction_used" => 2.5, "driving_dimension" => "distance",
+          "distance_remaining_meters" => -6_000, "moving_time_remaining_seconds" => nil, "days_remaining" => nil,
+          "total_distance_meters" => nil,
+        )
+        expect(mounted[plain.id].slice("fraction_used", "driving_dimension", "distance_remaining_meters", "total_distance_meters"))
+          .to eq("fraction_used" => nil, "driving_dimension" => nil, "distance_remaining_meters" => nil, "total_distance_meters" => nil)
+        expect(mounted[plain.id]["display_metric"]["distance_meters"]).to eq(10_000)
+      end
+
+      it "gives lifetime distance to both sides of a same-category rotation, and to nothing else" do
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2025, 12, 10), distance_meters: 3_000)
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 10_000)
+        chain_a = mount(create(:component, user: current_user, category: "chain", label: "Chain A"))
+        chain_b = mount(create(:component, user: current_user, category: "chain", label: "Chain B"),
+          from: Time.zone.local(2025, 12, 1), to: Time.zone.local(2026, 1, 1))
+        lone_saddle = mount(create(:component, user: current_user, category: "saddle", label: "Old saddle"),
+          from: Time.zone.local(2025, 12, 1), to: Time.zone.local(2026, 1, 1))
+
+        payload = bike_payload
+        mounted = payload["mounted"].index_by { |m| m["component_id"] }
+        off_bike = payload["off_bike"].index_by { |c| c["component_id"] }
+        expect(mounted[chain_a.id]["total_distance_meters"]).to eq(10_000)
+        expect(off_bike[chain_b.id]["total_distance_meters"]).to eq(3_000)
+        expect(off_bike[lone_saddle.id]["total_distance_meters"]).to be_nil
+        expect(off_bike[chain_b.id]).to include("fraction_used" => nil, "driving_dimension" => nil)
+      end
+
+      it "reports the latest ride's sport type" do
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), activity_type: "Ride")
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 9), activity_type: "GravelRide")
+
+        expect(bike_payload["last_ride_activity_type"]).to eq("GravelRide")
+      end
+
+      it "reports a null sport type with no rides" do
+        expect(bike_payload["last_ride_activity_type"]).to be_nil
+      end
+    end
+
     describe "stats" do
       let(:vancouver) { ActiveSupport::TimeZone["America/Vancouver"] }
       let(:bike) { create(:bike, user: current_user) }

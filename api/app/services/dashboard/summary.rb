@@ -17,11 +17,15 @@ module Dashboard
     # distance_this_month) it doesn't need the viewer's tz at all.
     RECENT_RIDES_WINDOW = 14.days
 
+    # Up next's ok rows: the nearest-to-due fine requirements on mounted parts.
+    UPCOMING_LIMIT = 5
+
     def call
       {
         sync: sync_section,
         bikes: bikes_section,
         attention: attention_section,
+        upcoming: upcoming_section,
         recent_rides: recent_rides_section,
         stats: stats_section,
       }
@@ -33,6 +37,16 @@ module Dashboard
 
     def credential
       @credential ||= user.strava_credential
+    end
+
+    # Every enabled requirement's status, computed once per request --
+    # attention, upcoming and the bike cards all derive from this one list.
+    def results
+      @results ||= Maintenance::RequirementStatus.for_user(user)
+    end
+
+    def bikes_by_component
+      @bikes_by_component ||= Component.current_bikes_by_component(user)
     end
 
     def sync_section
@@ -75,50 +89,82 @@ module Dashboard
       distances = user.strava_activities.group(:bike_id).sum(:distance_meters)
       ride_counts = user.strava_activities.group(:bike_id).count
       last_rides = user.strava_activities.group(:bike_id).maximum(:moved_at)
+      # The latest ride's sport type per bike, one query for every bike.
+      last_ride_types = user.strava_activities.where.not(bike_id: nil)
+        .select("DISTINCT ON (bike_id) bike_id, activity_type").order(:bike_id, moved_at: :desc, id: :desc)
+        .to_h { |activity| [ activity.bike_id, activity.activity_type ] }
       month_start = Time.current.in_time_zone(zone).beginning_of_month.utc
       this_month_distances = user.strava_activities.where(moved_at: month_start..)
         .group(:bike_id).sum(:distance_meters)
 
-      worst_results = Maintenance::RequirementStatus.worst_result_by_component(user)
+      worst_results = Maintenance::RequirementStatus.worst_result_by_component(user, results: results)
       off_bike_by_bike = off_bike_components_by_bike
 
       user.bikes.where(retired_on: nil).map do |bike|
+        assignments = bike.component_assignments.where(ended_at: nil).includes(:component).to_a
+        off_bike = off_bike_by_bike[bike.id] || []
+        paired_ids = rotation_component_ids(assignments.map(&:component), off_bike)
+
         {
           id: bike.id,
           name: bike.name,
           total_distance: distances[bike.id] || 0,
           ride_count: ride_counts[bike.id] || 0,
           last_ride_on: last_rides[bike.id],
+          last_ride_activity_type: last_ride_types[bike.id],
           distance_this_month: this_month_distances[bike.id] || 0,
-          mounted: mounted_payload(bike, worst_results),
-          off_bike: (off_bike_by_bike[bike.id] || []).map { |c| off_bike_payload(c, worst_results[c.id]) },
+          mounted: assignments.map { |assignment| mounted_payload(assignment, worst_results, paired_ids) },
+          off_bike: off_bike.map { |c| off_bike_payload(c, worst_results[c.id], paired_ids) },
         }
       end
     end
 
-    def mounted_payload(bike, worst_results)
-      bike.component_assignments.where(ended_at: nil).includes(:component).map do |assignment|
-        component = assignment.component
-        result = worst_results[component.id]
-
-        {
-          component_id: component.id,
-          assignment_id: assignment.id,
-          label: component.label,
-          category: component.category,
-          ride_context: assignment.ride_context,
-          service_status: result&.status,
-          display_metric: display_metric(component, result),
-        }
-      end
+    # Components in a rotation pair on this bike: every off-bike component
+    # whose category also has a mounted component, plus those mounted
+    # partners. Only these get total_distance_meters -- the card's rotation
+    # strip is the one place lifetime distance is needed for both sides.
+    def rotation_component_ids(mounted_components, off_bike)
+      paired_categories = mounted_components.map(&:category) & off_bike.map(&:category)
+      (mounted_components + off_bike).select { |c| paired_categories.include?(c.category) }.map(&:id).to_set
     end
 
-    def off_bike_payload(component, result)
+    def mounted_payload(assignment, worst_results, paired_ids)
+      component = assignment.component
+      result = worst_results[component.id]
+
+      {
+        component_id: component.id,
+        assignment_id: assignment.id,
+        label: component.label,
+        category: component.category,
+        ride_context: assignment.ride_context,
+        service_status: result&.status,
+        display_metric: display_metric(component, result),
+      }.merge(wear_fields(component, result, paired_ids))
+    end
+
+    def off_bike_payload(component, result, paired_ids)
       {
         component_id: component.id,
         label: component.label,
         category: component.category,
         display_metric: display_metric(component, result),
+      }.merge(wear_fields(component, result, paired_ids))
+    end
+
+    # The driving requirement's progress for the card's wear bar (all nil
+    # with no enabled requirement), plus lifetime distance for components in
+    # a rotation pair. Component#total_distance runs one query per
+    # assignment -- fine for the few paired components on a card, and an
+    # open batching question if more of the page ever needs it.
+    def wear_fields(component, result, paired_ids)
+      {
+        fraction_used: result&.fraction_used,
+        driving_dimension: result&.driving_dimension,
+        distance_remaining_meters: result&.distance_remaining_meters,
+        moving_time_remaining_seconds: result&.moving_time_remaining_seconds,
+        days_remaining: result&.days_remaining,
+        total_distance_meters: paired_ids.include?(component.id) ? component.total_distance : nil,
       }
     end
 
@@ -173,12 +219,21 @@ module Dashboard
     # dismissal. Those three are included here as flags instead, so the UI
     # can label (not hide) a dismissed or notifications-off item.
     def attention_section
-      bikes_by_component = Component.current_bikes_by_component(user)
-
-      items = Maintenance::RequirementStatus.for_user(user).reject { |result| result.status == "ok" || result.retired? }
+      items = results.reject { |result| result.status == "ok" || result.retired? }
         .map { |result| attention_item(result, bikes_by_component) }
 
       items.sort_by { |item| [ -Maintenance::RequirementStatus::SEVERITY.fetch(item[:status]), -item[:fraction_used] ] }
+    end
+
+    # Up next's follow-on rows: ok requirements on non-retired, currently
+    # mounted components, nearest to due first, same item shape as
+    # attention. "Mounted" comes from the bikes_by_component hash already
+    # loaded, not a per-result query.
+    def upcoming_section
+      results.select { |result| result.status == "ok" && !result.retired? && bikes_by_component.key?(result.component_service_requirement.component_id) }
+        .sort_by { |result| -result.fraction_used }
+        .first(UPCOMING_LIMIT)
+        .map { |result| attention_item(result, bikes_by_component) }
     end
 
     def attention_item(result, bikes_by_component)
