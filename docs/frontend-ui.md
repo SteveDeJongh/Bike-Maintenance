@@ -170,8 +170,7 @@ it — the Settings pages, `BikeSetup`, `ComponentServiceAndHistory`,
 consideration without any of this mechanism: wrap in Mantine's own
 `Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
 horizontally instead of overflowing the page. Skip the wrapper only for a table
-genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs)
-— `components/dashboard/RecentRidesTable.tsx` uses the equivalent `ScrollArea`+`miw` instead.
+genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs).
 
 ## Theming
 

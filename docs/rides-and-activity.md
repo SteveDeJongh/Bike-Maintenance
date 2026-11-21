@@ -20,9 +20,8 @@ total/count, distinct from any one row's odometer value. A composite index on
 `strava_activities (bike_id, moved_at, id)` backs the window function and
 pagination's shared ordering. `Maintenance::RideContextSql`'s `outdoor_predicate`/`indoor_predicate` (which its `predicate` composes) ensure this filter and `StravaActivity.outdoor`/
 `.indoor` stay one rule, not a third hand-rolled copy; `Maintenance::CountedTowardQuery`
-takes optional `bike:`/`activity_ids:` params alongside `since:`,
-so a page of rides is covered by one query rather than one per ride (the
-Dashboard's own `since:`-only call is unchanged). Each ride's base fields come
+takes the page's exact `activity_ids:`, so a page of rides is covered by one query
+rather than one per ride. Each ride's base fields come
 from `Strava::RideSerialization.base_json` (`app/services/strava/ride_serialization.rb`)
 — the one shared serializer behind this endpoint and the Strava page's
 `GET /strava/rides` (see "Strava integration" above), merged with this

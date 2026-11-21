@@ -78,19 +78,34 @@ distance/status computation happens here that doesn't already live elsewhere:
   `current_bikes_by_component` hash already loaded, not per-result `mounted?`
   queries), ordered by `fraction_used` descending, capped at `UPCOMING_LIMIT` (5).
   Up next shows these after the attention items.
-- **`recent_rides`** — every activity in a rolling 14-day window (not
-  calendar-day-sensitive, so no `tz` needed) plus `summary: {count, distance_meters}`.
-  Each ride carries `elapsed_time` (seconds, null when Strava omitted it) so
-  "Log service after this ride" can prefill the session at the ride's end.
-  Each ride's `counted_toward` (which components its mileage counts toward) comes
-  from `Maintenance::CountedTowardQuery.call(user, since:)`
-  (`app/services/maintenance/counted_toward_query.rb`) — one batched SQL query
-  (`strava_activities` ⨝ `component_assignments` ⨝ `components` on `bike_id` + the
-  assignment window + ride_context) for the whole window at once, the same
-  batching precedent as `Maintenance::BatchedPositionQuery`. `indoor` comes from `StravaActivity#indoor?` (mirrors the `.indoor`/`.outdoor`
-  scopes for one already-loaded record). `gear_id` rides alongside a `null` bike
-  specifically so the frontend can offer "Link Strava gear" only for the
-  fixable-via-gear-mapping case, same distinction as `sync.unattributed.with_gear`.
+- **`recent_rides`** — a plain array of the user's `RECENT_LIMIT` (5) newest
+  activities, newest first, whatever their age (no date window, no summary; ignored
+  rides included, as before). Each: `id`, `moved_at`, `name`, `activity_type`
+  (Strava's `sport_type`), `distance_meters`, `moving_time`, `elapsed_time` (seconds,
+  null when Strava omitted it, so "Log service after this ride" can prefill the
+  session at the ride's end), `bike`, `gear_id`, `indoor` (`StravaActivity#indoor?`).
+  `gear_id` rides alongside a `null` bike specifically so the frontend can offer
+  "Link gear" only for the fixable-via-gear-mapping case, same distinction as
+  `sync.unattributed.with_gear`. **No `counted_toward` any more** — the old 14-day
+  table showed which components each ride counted toward; the Home panel doesn't,
+  and nothing else on the page read it. `Maintenance::CountedTowardQuery` itself
+  stays (`Activity::Feed`, `BikesController#rides`, `StravaController#rides` use it),
+  now taking `activity_ids:` only — its `since:` option existed only for this
+  section and `bike:` had no caller, so both went; its split indoor/outdoor parity
+  spec now goes through `activity_ids:`.
+- **`recent_service`** — the 5 newest service entries, built from `Activity::Feed`
+  (`kinds: %w[service setup]`, `include_meta: false` — a Feed option added for this,
+  default `true`, that skips the ride-totals and per-kind count queries), in the
+  feed's **own entry shape** with its server-built `summary` (the activity log's
+  wording: "Service · 2 items on Soloist" for a session — one entry however many
+  components it serviced — "Chain A · Wax" for a session-less event, "Installed
+  Chain A on Soloist, replacing Chain B" for a swap). Kept: `service_session`,
+  `maintenance_event`, and `setup_change` entries whose `action` is `replaced` (the
+  feed's merged removal+install pair — swaps are already feed entries). Plain
+  installs/removals are setup, not service, and are filtered out after the fetch,
+  since the feed merges pairs in memory and has no swaps-only kind; it fetches
+  `FEED_HEADROOM` (50) rows to filter from, so more than 45 plain installs/removals
+  newer than the fifth service entry would show fewer than five rows — accepted.
 - **`stats`** — riding totals for the summary tiles, all in the viewer's `tz`:
   `today` (local date), `week` (the Monday-start week containing today: `start_date`,
   `distance_meters`, `moving_time_seconds`, `elevation_gain_meters`, `ride_count`, and
@@ -252,15 +267,28 @@ genuine data-model change deliberately not made speculatively here.
   right-edge gradient to `--mantine-color-body` (`pointer-events: none`) shows
   while there's more to the right. Phone (`useIsMobile`): cards stacked full-width,
   no arrows or fade.
-- `RecentRidesTable` (its "No bike" rows
-  link to `/strava?tab=rides`; its "Link Strava gear" link, shown only when
-  `gear_id` is present, to `/strava?tab=gear`; a trailing "Actions" column holds
-  the shared `LogServiceAfterRideButton` — see "Ride history" — left empty for a
-  ride with no bike). `RecentRidesTable` is a plain
-  Mantine `Table` in a horizontal-scroll wrapper, **not** the
-  sortable/configurable-table system above — that mechanism exists for a
-  `TableViewPreference` row's worth of persisted column choices/ordering, which
-  this fixed, non-configurable 14-day feed has no use for. `formatRemaining` (the
+- **`RecentRides`** and **`RecentService`** — two panels side by side at the
+  bottom (`flex: 3 1 520px` and `2 1 340px` in a wrapping `Flex`, so they stack on
+  narrow screens); they replaced the full-width 14-day `RecentRidesTable`, and with
+  it the old "plain table, deliberately not the configurable-table system" note —
+  neither panel is a table. **Recent rides**: "Ride history →" (to `/activity` —
+  there's no cross-bike ride-history route, and the Activity page's kind filter is a
+  saved preference, not a URL param); one grid row per ride (`display: contents`
+  rows so columns line up): "Nov 16" | name over "{sport} · {bike}"
+  (`rideSportLabel` → `formatSportType`, `utils/recentActivity.ts`/`utils/strava.ts`)
+  | moving time | distance | `LogServiceAfterRideButton` (see "Ride history"; renders
+  nothing for a ride with no bike). A no-bike ride gets the orange-light tint and an
+  orange "No bike" linking to `/strava?tab=rides`, plus "Link gear" →
+  `/strava?tab=gear` only when `gear_id` is present. Empty: "No rides yet."
+  **Recent service**: "Activity log →" (`/activity`); each row a primary dot, the
+  entry's own `summary` (never recomposed), and a dimmed "Nov 14 · {bike}" — "(off
+  bike)" when the entry has no bike, which for a session-less event means the
+  component wasn't mounted when it was serviced (the feed resolves an event's bike
+  at `performed_at`). A session's summary already names its bike, so that row shows
+  it twice — the price of not inventing a second wording. Click targets match the
+  activity log's: an event → `/components/:id?event=:id`, a session →
+  `ServiceSessionViewModal`, a swap → the installed component. Empty: "No service
+  logged yet." `formatRemaining` (the
   "N km left"/"N km overdue" wording, with an optional third, moving-time argument — see "Service intervals and maintenance alerts" above) lives in
   `utils/serviceInterval.ts` so `ComponentDetail`'s own rows share one wording;
   the dashboard's Up next and cards use `formatDrivingRemaining` instead (driving
