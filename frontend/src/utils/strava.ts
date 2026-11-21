@@ -16,3 +16,11 @@ export function syncFailureMessage(code: SyncFailureCode, retryAt: string | null
       return 'Sync failed.'
   }
 }
+
+// Strava's CamelCase sport_type for display: "GravelRide" -> "Gravel Ride",
+// "MountainBikeRide" -> "Mountain Bike Ride", "EBikeRide" -> "E-Bike Ride".
+export function formatSportType(sportType: string): string {
+  return sportType
+    .replace(/^E(?=[A-Z][a-z])/, 'E-')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+}

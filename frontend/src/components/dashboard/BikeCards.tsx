@@ -18,7 +18,7 @@ export default function BikeCards({ bikes }: { bikes: DashboardBike[] }) {
       ) : (
         <Flex gap="md" wrap="wrap">
           {bikes.map((bike) => (
-            <BikeCard key={bike.id} bike={bike} />
+            <BikeCard key={bike.id} bike={bike} style={{ flex: '1 1 320px' }} />
           ))}
         </Flex>
       )}

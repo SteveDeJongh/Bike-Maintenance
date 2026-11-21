@@ -1,33 +1,22 @@
-import { useState } from 'react'
-import { Button, Card, Group, Stack, Text } from '@mantine/core'
+import { useState, type CSSProperties } from 'react'
+import { Badge, Box, Button, Card, Divider, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
 import SwapComponentModal from '../forms/SwapComponentModal'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { SERVICE_STATUS_COLORS } from '../../constants'
-import { formatDate } from '../../utils/datetime'
+import { categoryLabel, SERVICE_STATUS_COLORS } from '../../constants'
+import {
+  bikeStatusCounts,
+  formatDisplayMetric,
+  rotationGroups,
+  sortByWear,
+  wearMetricLabel,
+  type RotationGroup,
+} from '../../utils/bikeCard'
 import { formatDistance } from '../../utils/distance'
-import { formatDuration } from '../../utils/duration'
+import { formatSportType } from '../../utils/strava'
 import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
-import type { DashboardBike, DashboardDisplayMetric, DashboardMountedComponent } from '../../types/models'
-
-// since_service_type_name is specifically the setting event's own service
-// type (the thing that reset this clock) -- not always the same string as
-// the requirement's own name, now that a requirement can have more than
-// one satisfier (e.g. "Chain lube" cleared by a drip wax).
-function formatDisplayMetric(metric: DashboardDisplayMetric): string {
-  const since = metric.since_service_type_name
-  if (metric.distance_meters != null) {
-    return since ? `${formatDistance(metric.distance_meters)} since ${since}` : formatDistance(metric.distance_meters)
-  }
-  if (metric.moving_time_seconds != null) {
-    return since ? `${formatDuration(metric.moving_time_seconds)} since ${since}` : formatDuration(metric.moving_time_seconds)
-  }
-  if (metric.days != null) {
-    return since ? `${metric.days}d since ${since}` : `${metric.days}d`
-  }
-  return '—'
-}
+import type { DashboardBike, DashboardMountedComponent } from '../../types/models'
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -42,39 +31,63 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-// Tapping the row is the phone shortcut for a swap -- it opens
-// SwapComponentModal directly (preselecting the other component when
-// there's exactly one eligible), so the whole flow is a tap to open plus
-// a tap on the modal's own "Swap" button to confirm, nothing more.
-function MountedRow({ component }: { component: DashboardMountedComponent }) {
+function StatusChip({ bike }: { bike: DashboardBike }) {
+  const { due, warning } = bikeStatusCounts(bike.mounted)
+  if (due === 0 && warning === 0) {
+    return (
+      <Badge color={SERVICE_STATUS_COLORS.ok} variant="light">
+        All OK
+      </Badge>
+    )
+  }
+  return (
+    <Group gap={4} wrap="nowrap">
+      {due > 0 && (
+        <Badge color={SERVICE_STATUS_COLORS.due} variant="light">
+          {due} due
+        </Badge>
+      )}
+      {warning > 0 && (
+        <Badge color={SERVICE_STATUS_COLORS.warning} variant="light">
+          {warning} soon
+        </Badge>
+      )}
+    </Group>
+  )
+}
+
+const clickable: CSSProperties = { cursor: 'pointer' }
+
+// One wear row, laid out as three cells of the parent grid (display:
+// contents) so every row's bar lines up. Tapping it is the phone shortcut
+// for a swap -- it opens SwapComponentModal directly (preselecting the
+// other component when there's exactly one eligible), so the whole flow is
+// a tap to open plus the modal's own "Swap" to confirm.
+function WearRow({ component }: { component: DashboardMountedComponent }) {
   const [swapOpened, setSwapOpened] = useState(false)
-  const dotColor = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
+  const hasRequirement = component.fraction_used != null && component.service_status != null
+  const color = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
+  const over = component.service_status === 'due'
 
   return (
     <>
-      <Group
-        justify="space-between"
-        wrap="nowrap"
-        gap="xs"
-        onClick={() => setSwapOpened(true)}
-        style={{ cursor: 'pointer' }}
-      >
-        <Group gap={6} wrap="nowrap">
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              flexShrink: 0,
-              borderRadius: '50%',
-              backgroundColor: `var(--mantine-color-${dotColor}-6)`,
-            }}
-          />
-          <Text size="sm">{component.label}</Text>
-        </Group>
-        <Text size="sm" c={component.service_status === 'due' ? 'red' : 'dimmed'}>
-          {formatDisplayMetric(component.display_metric)}
+      <Box style={{ display: 'contents' }} onClick={() => setSwapOpened(true)}>
+        <Text size="sm" truncate style={clickable}>
+          {component.label}
         </Text>
-      </Group>
+        <Box h={6} style={{ ...clickable, borderRadius: 3, background: 'var(--mantine-color-default-border)', overflow: 'hidden' }}>
+          {hasRequirement && (
+            <Box
+              h="100%"
+              w={`${Math.min(Math.max(component.fraction_used ?? 0, 0), 1) * 100}%`}
+              style={{ background: `var(--mantine-color-${color}-6)` }}
+            />
+          )}
+        </Box>
+        <Text size="sm" ta="right" c={over ? 'red' : 'dimmed'} style={{ ...clickable, whiteSpace: 'nowrap' }}>
+          {wearMetricLabel(component)}
+        </Text>
+      </Box>
       <SwapComponentModal
         opened={swapOpened}
         onClose={() => setSwapOpened(false)}
@@ -86,62 +99,141 @@ function MountedRow({ component }: { component: DashboardMountedComponent }) {
   )
 }
 
-export default function BikeCard({ bike }: { bike: DashboardBike }) {
-  const [batchServiceOpened, setBatchServiceOpened] = useState(false)
-  const isMobile = useIsMobile()
+// Lifetime distance of each component in a same-category rotation, side
+// by side: mounted in the primary colour, off-bike in a darker shade.
+function RotationStrip({ group }: { group: RotationGroup }) {
+  const segments = [
+    ...group.mounted.map((component) => ({ ...component, onBike: true })),
+    ...group.offBike.map((component) => ({ ...component, onBike: false })),
+  ]
+  const total = segments.reduce((sum, segment) => sum + (segment.total_distance_meters ?? 0), 0)
 
   return (
-    <Card withBorder padding="lg" radius="md" style={{ flex: '1 1 320px' }}>
-      <Stack gap="sm">
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Text
-            component={Link}
-            to={`/bikes/${bike.id}`}
-            fw={600}
-            size="lg"
-            style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
-          >
-            {bike.name}
+    <Stack gap={4}>
+      <Group justify="space-between" wrap="nowrap" gap="xs">
+        <Text size="xs" c="dimmed">
+          {categoryLabel(group.category)} rotation
+        </Text>
+        <Text size="xs" c="dimmed" ta="right">
+          Off: {group.offBike.map((component) => `${component.label} · ${formatDisplayMetric(component.display_metric)}`).join(', ')}
+        </Text>
+      </Group>
+      <Group gap={2} wrap="nowrap" h={6}>
+        {segments.map((segment) => (
+          <Box
+            key={segment.component_id}
+            h="100%"
+            style={{
+              // An all-zero rotation still draws, as equal parts.
+              flex: total > 0 ? `${segment.total_distance_meters ?? 0} 1 0` : '1 1 0',
+              minWidth: 2,
+              borderRadius: 3,
+              background: segment.onBike ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-primary-color-9)',
+            }}
+          />
+        ))}
+      </Group>
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        {segments.map((segment) => (
+          <Text key={segment.component_id} size="xs" c="dimmed">
+            {segment.label} · {formatDistance(segment.total_distance_meters ?? 0)}
           </Text>
-          <Stack gap={2} align="flex-end">
-            <Text size="sm" c="dimmed">
-              {bike.last_ride_on ? `Last ride ${formatDate(bike.last_ride_on)}` : 'No rides yet'}
-            </Text>
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={() => setBatchServiceOpened(true)}
+        ))}
+      </Group>
+    </Stack>
+  )
+}
+
+function lastRideLine(bike: DashboardBike): string {
+  if (!bike.last_ride_on) return 'No rides yet'
+  const date = new Date(bike.last_ride_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return bike.last_ride_activity_type ? `Last ride ${date} · ${formatSportType(bike.last_ride_activity_type)}` : `Last ride ${date}`
+}
+
+export default function BikeCard({ bike, style }: { bike: DashboardBike; style?: CSSProperties }) {
+  const [batchServiceOpened, setBatchServiceOpened] = useState(false)
+  const isMobile = useIsMobile()
+  const { groups, unpaired } = rotationGroups(bike.mounted, bike.off_bike)
+  const wearRows = sortByWear(bike.mounted)
+
+  return (
+    <Card withBorder padding="lg" radius="md" style={style}>
+      <Stack gap="sm" style={{ flex: 1 }}>
+        <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+          <Stack gap={0} style={{ minWidth: 0 }}>
+            <Text
+              component={Link}
+              to={`/bikes/${bike.id}`}
+              fw={600}
+              size="lg"
+              truncate
               style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
             >
-              Log service
-            </Button>
+              {bike.name}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {lastRideLine(bike)}
+            </Text>
           </Stack>
+          <StatusChip bike={bike} />
         </Group>
 
-        <Group gap="lg">
-          <Stat label="Total" value={formatDistance(bike.total_distance)} />
-          <Stat label="This month" value={formatDistance(bike.distance_this_month)} />
-          <Stat label="Rides" value={String(bike.ride_count)} />
-        </Group>
+        <Stack gap="xs">
+          <Divider />
+          <Group gap="lg">
+            <Stat label="Total" value={formatDistance(bike.total_distance)} />
+            <Stat label="This month" value={formatDistance(bike.distance_this_month)} />
+            <Stat label="Rides" value={String(bike.ride_count)} />
+          </Group>
+          <Divider />
+        </Stack>
 
-        <Stack gap={4}>
+        <Stack gap={6}>
           <Text size="sm" fw={500}>
-            Mounted now
+            Component wear
           </Text>
-          {bike.mounted.length === 0 ? (
+          {wearRows.length === 0 ? (
             <Text size="sm" c="dimmed">
               Nothing tracked as mounted.
             </Text>
           ) : (
-            bike.mounted.map((component) => <MountedRow key={component.component_id} component={component} />)
+            <Box
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.2fr) minmax(48px, 1fr) auto',
+                alignItems: 'center',
+                columnGap: 'var(--mantine-spacing-sm)',
+                rowGap: 6,
+              }}
+            >
+              {wearRows.map((component) => (
+                <WearRow key={component.component_id} component={component} />
+              ))}
+            </Box>
           )}
         </Stack>
 
-        {bike.off_bike.length > 0 && (
+        {groups.map((group) => (
+          <RotationStrip key={group.category} group={group} />
+        ))}
+
+        {unpaired.length > 0 && (
           <Text size="xs" c="dimmed">
-            Off the bike: {bike.off_bike.map((c) => `${c.label} (${formatDisplayMetric(c.display_metric)})`).join(', ')}
+            Off the bike: {unpaired.map((c) => `${c.label} (${formatDisplayMetric(c.display_metric)})`).join(', ')}
           </Text>
         )}
+
+        {/* Pinned to the bottom so cards sharing a row's height line up. */}
+        <Box mt="auto" pt="xs">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setBatchServiceOpened(true)}
+            style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
+          >
+            Log service
+          </Button>
+        </Box>
       </Stack>
 
       <BatchServiceModal opened={batchServiceOpened} onClose={() => setBatchServiceOpened(false)} bikeId={bike.id} />
