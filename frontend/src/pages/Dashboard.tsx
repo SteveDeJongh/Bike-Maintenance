@@ -1,11 +1,12 @@
-import { Alert, Loader, Stack } from '@mantine/core'
+import { Alert, Flex, Loader, Stack } from '@mantine/core'
 import { useDashboard } from '../api/queries'
 import { useStravaSyncRunner } from '../hooks/useStravaSyncRunner'
 import DashboardHeader from '../components/dashboard/DashboardHeader'
 import SummaryTiles from '../components/dashboard/SummaryTiles'
 import BikeCards from '../components/dashboard/BikeCards'
 import UpNext from '../components/dashboard/UpNext'
-import RecentRidesTable from '../components/dashboard/RecentRidesTable'
+import RecentRides from '../components/dashboard/RecentRides'
+import RecentService from '../components/dashboard/RecentService'
 
 export default function Dashboard() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -28,7 +29,10 @@ export default function Dashboard() {
       <SummaryTiles stats={data.stats} attention={data.attention} />
       <UpNext attention={data.attention} upcoming={data.upcoming} />
       <BikeCards bikes={data.bikes} />
-      <RecentRidesTable summary={data.recent_rides.summary} rides={data.recent_rides.rides} />
+      <Flex gap="xl" wrap="wrap" align="flex-start">
+        <RecentRides rides={data.recent_rides} />
+        <RecentService items={data.recent_service} />
+      </Flex>
     </Stack>
   )
 }

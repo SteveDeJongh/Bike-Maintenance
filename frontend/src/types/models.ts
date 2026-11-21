@@ -657,14 +657,17 @@ export interface DashboardRecentRide {
   // this ride" at the ride's end.
   elapsed_time: number | null
   name: string
+  // Strava's sport_type, e.g. "GravelRide" (formatSportType).
+  activity_type: string | null
   distance_meters: number
+  // Seconds; null for rows synced before the column existed.
+  moving_time: number | null
   bike: { id: number; name: string } | null
   // Present alongside a null bike only when the ride is fixable via gear
   // mapping (same distinction as sync.unattributed.with_gear) -- null here
   // means Strava itself had no bike set, not just an unmapped one.
   gear_id: string | null
   indoor: boolean
-  counted_toward: { component_id: number; label: string }[]
 }
 
 export interface DashboardSummary {
@@ -672,10 +675,12 @@ export interface DashboardSummary {
   bikes: DashboardBike[]
   attention: DashboardAttentionItem[]
   upcoming: DashboardRequirementItem[]
-  recent_rides: {
-    summary: { count: number; distance_meters: number }
-    rides: DashboardRecentRide[]
-  }
+  // The five newest rides, newest first.
+  recent_rides: DashboardRecentRide[]
+  // The five newest service entries from Activity::Feed, in its own entry
+  // shape: sessions, session-less events, and swaps (merged "replaced"
+  // setup changes) -- never plain installs/removals.
+  recent_service: (ActivityServiceSessionItem | ActivityMaintenanceEventItem | ActivitySetupChangeItem)[]
   stats: DashboardStats
 }
 
