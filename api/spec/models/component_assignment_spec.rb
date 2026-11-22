@@ -443,4 +443,41 @@ RSpec.describe ComponentAssignment, type: :model do
       end
     end
   end
+  describe ".last_ended_by_component" do
+    let(:user) { create(:user) }
+    let(:bike_a) { create(:bike, user: user, name: "A") }
+    let(:bike_b) { create(:bike, user: user, name: "B") }
+
+    it "returns each component's most recently ended assignment, ignoring active ones" do
+      chain = create(:component, user: user, category: "chain")
+      create(:component_assignment, component: chain, bike: bike_a, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, component: chain, bike: bike_b, started_at: Time.zone.local(2026, 2, 1), ended_at: Time.zone.local(2026, 3, 1))
+      create(:component_assignment, component: chain, bike: bike_a, started_at: Time.zone.local(2026, 3, 1), ended_at: nil)
+
+      result = described_class.last_ended_by_component(user)
+
+      expect(result[chain.id]).to eq(bike_id: bike_b.id, bike_name: "B", ended_at: Time.zone.local(2026, 3, 1))
+    end
+
+    it "only counts assignments ended at or before `at`" do
+      chain = create(:component, user: user, category: "chain")
+      create(:component_assignment, component: chain, bike: bike_a, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, component: chain, bike: bike_b, started_at: Time.zone.local(2026, 2, 1), ended_at: Time.zone.local(2026, 3, 1))
+
+      result = described_class.last_ended_by_component(user, at: Time.zone.local(2026, 2, 15))
+
+      expect(result[chain.id][:bike_id]).to eq(bike_a.id)
+    end
+
+    it "never includes another user's components, and narrows to component_ids" do
+      mine = create(:component, user: user, category: "chain")
+      other = create(:component, user: user, category: "saddle")
+      create(:component_assignment, component: mine, bike: bike_a, ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, component: other, bike: bike_a, ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, ended_at: Time.zone.local(2026, 2, 1)) # another user's
+
+      expect(described_class.last_ended_by_component(user).keys).to contain_exactly(mine.id, other.id)
+      expect(described_class.last_ended_by_component(user, component_ids: [ mine.id ]).keys).to eq([ mine.id ])
+    end
+  end
 end

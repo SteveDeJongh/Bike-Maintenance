@@ -9,6 +9,22 @@ class ComponentAssignment < ApplicationRecord
   validate :no_overlapping_assignment_for_bike_slot
   validate :component_and_bike_have_same_owner
 
+  # { component_id => { bike_id:, bike_name:, ended_at: } } -- each of the
+  # user's components' most recently ended assignment, ended at or before
+  # `at`, in one DISTINCT ON query. Shared by GET /components' last_bike and
+  # Bikes::ServiceableComponents.off_bike_components_by_bike, so "which bike
+  # was this last on" has one definition. Ties on ended_at break on the
+  # higher id. Pass component_ids: to narrow it (e.g. one component's show).
+  def self.last_ended_by_component(user, at: Time.current, component_ids: nil)
+    scope = joins(:component, :bike).where(components: { user_id: user.id }).where(ended_at: ..at)
+    scope = scope.where(component_id: component_ids) if component_ids
+    scope
+      .select("DISTINCT ON (component_assignments.component_id) component_assignments.component_id, " \
+              "component_assignments.bike_id, bikes.name AS bike_name, component_assignments.ended_at")
+      .order("component_assignments.component_id, component_assignments.ended_at DESC, component_assignments.id DESC")
+      .to_h { |row| [ row.component_id, { bike_id: row.bike_id, bike_name: row.bike_name, ended_at: row.ended_at } ] }
+  end
+
   # Activities on this assignment's bike from range_start onward, clipped to
   # ended_at if this assignment has already ended, and to only outdoor or only
   # indoor rides if ride_context restricts it (see StravaActivity#indoor/

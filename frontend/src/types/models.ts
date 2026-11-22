@@ -140,6 +140,15 @@ export interface ComponentCurrentBike {
   assignment_id?: number
 }
 
+// The bike of a component's most recently ended assignment -- set only
+// when the component isn't currently mounted anywhere (retired included),
+// null when mounted or never installed.
+export interface ComponentLastBike {
+  id: number
+  name: string
+  removed_at: string
+}
+
 // GET /components adds these read-only fields on top of Component's own
 // columns -- kept separate from Component itself (rather than folded in
 // directly) so ComponentPayload (Omit<Component, 'id'>, used by
@@ -151,12 +160,14 @@ export interface ComponentWithServiceStatus extends Component {
   // not a per-row query.
   service_status: ServiceStatus | null
   current_bikes: ComponentCurrentBike[]
+  last_bike: ComponentLastBike | null
 }
 
 export interface ComponentDetail extends Component {
   total_distance: number
   service_requirements: ComponentServiceRequirementWithStatus[]
   current_bikes: ComponentCurrentBike[]
+  last_bike: ComponentLastBike | null
 }
 
 // Fields suffixed _at are ISO-8601 timestamps; _on fields are date-only

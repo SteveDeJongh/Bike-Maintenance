@@ -217,7 +217,7 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
   brand: 'Brand',
   model: 'Model',
   service_status: 'Service Status',
-  current_bikes: 'Current Bike',
+  current_bikes: 'Bike',
 }
 
 // Shared by every table/badge rendering a component's service_status --
@@ -242,6 +242,7 @@ export const DEFAULT_COMPONENT_LIST_COLUMNS: ComponentListColumn[] = [
   'acquired_on',
   'retired_on',
   'service_status',
+  'current_bikes',
 ]
 
 export const COMPONENT_LIST_SORT_COLUMNS = ['label', ...COMPONENT_LIST_COLUMNS] as const

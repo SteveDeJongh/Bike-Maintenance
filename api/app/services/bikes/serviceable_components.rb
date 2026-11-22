@@ -30,9 +30,13 @@ module Bikes
       candidates = user.components.where.not(id: mounted_ids)
         .where("retired_on IS NULL OR retired_on::timestamp >= ?", at)
 
+      # Each candidate's most recent assignment ending at-or-before `at`,
+      # batched (ComponentAssignment.last_ended_by_component) rather than
+      # one query per candidate.
+      last_ended = ComponentAssignment.last_ended_by_component(user, at: at)
       candidates.each_with_object(Hash.new { |h, k| h[k] = [] }) do |component, hash|
-        last_ended = component.component_assignments.where(ended_at: ..at).order(ended_at: :desc).first
-        hash[last_ended.bike_id] << component if last_ended
+        entry = last_ended[component.id]
+        hash[entry[:bike_id]] << component if entry
       end
     end
 

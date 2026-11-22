@@ -26,6 +26,7 @@ import {
   type ComponentListColumn,
   type ComponentListSortColumn,
 } from '../constants'
+import { bikeColumnSortKey, bikeColumnState } from '../utils/componentBike'
 import { formatDate } from '../utils/datetime'
 import type { Component, ComponentWithServiceStatus, TableViewPreferenceData } from '../types/models'
 
@@ -42,19 +43,15 @@ const COMPONENT_LIST_SORT_COLUMN_LABELS: Record<ComponentListSortColumn, string>
   ...COMPONENT_LIST_COLUMN_LABELS,
 }
 
-const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceStatus) => ReactNode> = {
-  category: (c) => categoryLabel(c.category),
-  acquired_on: (c) => formatDate(c.acquired_on),
-  retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
-  brand: (c) => c.brand ?? '—',
-  model: (c) => c.model ?? '—',
-  service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
-  current_bikes: (c) =>
-    c.current_bikes.length === 0 ? (
-      '—'
-    ) : (
+// Mounted: the bike(s), linked. Otherwise "Last on <bike>" (removed or
+// retired) or "Never installed", dimmed. The mobile card view shares this
+// renderer.
+function BikeCell({ component }: { component: ComponentWithServiceStatus }) {
+  const state = bikeColumnState(component)
+  if (state === 'mounted') {
+    return (
       <>
-        {c.current_bikes.map((bike, index) => (
+        {component.current_bikes.map((bike, index) => (
           <span key={bike.id}>
             {index > 0 && ', '}
             <Anchor component={Link} to={`/bikes/${bike.id}`}>
@@ -63,7 +60,34 @@ const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceSta
           </span>
         ))}
       </>
-    ),
+    )
+  }
+  if (state === 'last_on') {
+    const bike = component.last_bike!
+    return (
+      <Text span size="sm" c="dimmed">
+        Last on{' '}
+        <Anchor component={Link} to={`/bikes/${bike.id}`} size="sm">
+          {bike.name}
+        </Anchor>
+      </Text>
+    )
+  }
+  return (
+    <Text span size="sm" c="dimmed">
+      Never installed
+    </Text>
+  )
+}
+
+const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceStatus) => ReactNode> = {
+  category: (c) => categoryLabel(c.category),
+  acquired_on: (c) => formatDate(c.acquired_on),
+  retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
+  brand: (c) => c.brand ?? '—',
+  model: (c) => c.model ?? '—',
+  service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
+  current_bikes: (c) => <BikeCell component={c} />,
 }
 
 const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceStatus) => string | number | null> = {
@@ -74,7 +98,7 @@ const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceSt
   brand: (c) => c.brand,
   model: (c) => c.model,
   service_status: (c) => (c.service_status ? SERVICE_STATUS_SEVERITY[c.service_status] : null),
-  current_bikes: (c) => c.current_bikes[0]?.name ?? null,
+  current_bikes: bikeColumnSortKey,
 }
 
 export default function Components() {

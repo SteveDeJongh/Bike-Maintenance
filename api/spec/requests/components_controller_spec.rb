@@ -186,4 +186,65 @@ RSpec.describe "Components", type: :request do
       expect(by_id[bare_component.id]["current_bikes"]).to eq([])
     end
   end
+  describe "last_bike" do
+    let!(:juan) { create(:bike, user: current_user, name: "Juan Solo") }
+    let!(:soloist) { create(:bike, user: current_user, name: "Soloist") }
+
+    def list_entry(component)
+      get "/components"
+      JSON.parse(response.body).find { |c| c["id"] == component.id }
+    end
+
+    it "is null for a mounted component" do
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: component, bike: juan, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, component: component, bike: soloist, started_at: Time.zone.local(2026, 2, 1), ended_at: nil)
+
+      expect(list_entry(component)["last_bike"]).to be_nil
+    end
+
+    it "is the bike of a removed component's ended assignment, with removed_at" do
+      component = create(:component, user: current_user, category: "tire_front")
+      removed_at = Time.zone.local(2026, 3, 1, 9, 0)
+      create(:component_assignment, component: component, bike: juan, started_at: Time.zone.local(2026, 1, 1), ended_at: removed_at)
+
+      last_bike = list_entry(component)["last_bike"]
+      expect(last_bike).to include("id" => juan.id, "name" => "Juan Solo")
+      expect(Time.zone.parse(last_bike["removed_at"])).to eq(removed_at)
+    end
+
+    it "is still set for a retired component" do
+      component = create(:component, user: current_user, category: "tire_front", retired_on: Date.new(2026, 3, 2))
+      create(:component_assignment, component: component, bike: juan, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 3, 1))
+
+      expect(list_entry(component)["last_bike"]).to include("id" => juan.id, "name" => "Juan Solo")
+    end
+
+    it "is null for a component never installed" do
+      component = create(:component, user: current_user, category: "saddle")
+
+      expect(list_entry(component)["last_bike"]).to be_nil
+    end
+
+    it "picks the most recently ended assignment when the component has been on two bikes" do
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: component, bike: soloist, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      create(:component_assignment, component: component, bike: juan, started_at: Time.zone.local(2026, 2, 1), ended_at: Time.zone.local(2026, 3, 1))
+
+      expect(list_entry(component)["last_bike"]).to include("id" => juan.id, "name" => "Juan Solo")
+    end
+
+    it "is on GET /components/:id too, and null there when mounted" do
+      removed = create(:component, user: current_user, category: "tire_front")
+      create(:component_assignment, component: removed, bike: juan, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 3, 1))
+      mounted = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: mounted, bike: soloist, ended_at: nil)
+
+      get "/components/#{removed.id}"
+      expect(JSON.parse(response.body)["last_bike"]).to include("id" => juan.id, "name" => "Juan Solo")
+
+      get "/components/#{mounted.id}"
+      expect(JSON.parse(response.body)["last_bike"]).to be_nil
+    end
+  end
 end

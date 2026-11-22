@@ -6,10 +6,13 @@ class ComponentsController < ApplicationController
     @components = current_user.components
     statuses = Maintenance::RequirementStatus.worst_status_by_component(current_user)
     bikes_by_component = Component.current_bikes_by_component(current_user)
+    last_ended = ComponentAssignment.last_ended_by_component(current_user)
     render json: @components.map { |component|
+      current_bikes = bikes_by_component[component.id] || []
       component.as_json.merge(
         service_status: statuses[component.id],
-        current_bikes: bikes_by_component[component.id] || [],
+        current_bikes: current_bikes,
+        last_bike: current_bikes.empty? ? last_bike_json(last_ended[component.id]) : nil,
       )
     }
   end
@@ -20,9 +23,14 @@ class ComponentsController < ApplicationController
     current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike)
       .map { |a| { id: a.bike.id, name: a.bike.name, assignment_id: a.id } }
 
+    last_bike = if current_bikes.empty?
+      last_bike_json(ComponentAssignment.last_ended_by_component(current_user, component_ids: [ @component.id ])[@component.id])
+    end
+
     render json: @component.as_json(methods: %i[ total_distance ]).merge(
       service_requirements: service_requirements,
       current_bikes: current_bikes,
+      last_bike: last_bike,
     )
   end
 
@@ -59,6 +67,15 @@ class ComponentsController < ApplicationController
 
     def component_params
       params.require(:component).permit(:label, :category, :acquired_on, :retired_on, :brand, :model, :notes)
+    end
+
+    # {id, name, removed_at} | nil -- the bike of the component's most
+    # recently ended assignment. Callers only pass an entry when the
+    # component has no active assignment, so a mounted component reads nil.
+    def last_bike_json(entry)
+      return nil unless entry
+
+      { id: entry[:bike_id], name: entry[:bike_name], removed_at: entry[:ended_at] }
     end
 
     # The real requirement/satisfiers payload (increment 3) -- effective_*

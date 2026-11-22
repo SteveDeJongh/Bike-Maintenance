@@ -6,7 +6,8 @@ import { categoryLabel } from '../constants'
 
 // Shared by the standalone ComponentDetail page and the Bike page's
 // AssignmentDetailModal -- the leading identity row: Category, Component
-// (linked), and Status ("Uninstalled", or "Installed - " each current
+// (linked), and Status ("Uninstalled", plus "Last on <bike>" when it has
+// been on one, or "Installed - " each current
 // bike linked -- a component can be on more than one at once, see
 // ComponentAssignment's documented indoor_only-on-two-bikes exception).
 // `extra` lets a caller fold its own fields into the same Group (e.g. the
@@ -48,7 +49,17 @@ export default function ComponentIdentityStatus({ componentId, extra }: { compon
           Status
         </Text>
         {component.current_bikes.length === 0 ? (
-          <Text fw={500}>Uninstalled</Text>
+          <Text fw={500}>
+            Uninstalled
+            {component.last_bike && (
+              <Text span c="dimmed" fw={400}>
+                {' · Last on '}
+                <Anchor component={Link} to={`/bikes/${component.last_bike.id}`}>
+                  {component.last_bike.name}
+                </Anchor>
+              </Text>
+            )}
+          </Text>
         ) : (
           <Text fw={500}>
             Installed -{' '}
