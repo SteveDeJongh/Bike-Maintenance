@@ -7,6 +7,7 @@ import { useComponents, useTableViewPreference } from '../api/queries'
 import { useDeleteComponent } from '../api/mutations'
 import { confirmDelete } from '../components/confirmDelete'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
+import RetireComponentModal from '../components/forms/RetireComponentModal'
 import ServiceStatusBadge from '../components/ServiceStatusBadge'
 import ColumnPicker from '../components/datatable/ColumnPicker'
 import DataCardList from '../components/datatable/DataCardList'
@@ -108,6 +109,7 @@ export default function Components() {
 
   const [modalOpened, setModalOpened] = useState(false)
   const [editing, setEditing] = useState<Component | null>(null)
+  const [retiringId, setRetiringId] = useState<number | null>(null)
 
   function openCreate() {
     setEditing(null)
@@ -149,8 +151,13 @@ export default function Components() {
           components={data}
           initialData={preferenceData.data}
           onEdit={openEdit}
+          onRetire={(component) => setRetiringId(component.id)}
           onDelete={handleDelete}
         />
+      )}
+
+      {retiringId !== null && (
+        <RetireComponentModal opened onClose={() => setRetiringId(null)} componentId={retiringId} />
       )}
 
       <ComponentFormModal
@@ -166,11 +173,13 @@ function ComponentsTable({
   components,
   initialData,
   onEdit,
+  onRetire,
   onDelete,
 }: {
   components: ComponentWithServiceStatus[]
   initialData: TableViewPreferenceData
   onEdit: (component: Component) => void
+  onRetire: (component: Component) => void
   onDelete: (component: Component) => void
 }) {
   const {
@@ -241,6 +250,7 @@ function ComponentsTable({
             renderActions={(component) => (
               <>
                 <Menu.Item onClick={() => onEdit(component)}>Edit</Menu.Item>
+                {!component.retired_on && <Menu.Item onClick={() => onRetire(component)}>Retire…</Menu.Item>}
                 <Menu.Item color="red" onClick={() => onDelete(component)}>
                   Delete
                 </Menu.Item>
@@ -302,6 +312,11 @@ function ComponentsTable({
                       <Button size="xs" variant="subtle" onClick={() => onEdit(component)}>
                         Edit
                       </Button>
+                      {!component.retired_on && (
+                        <Button size="xs" variant="subtle" color="red" onClick={() => onRetire(component)}>
+                          Retire…
+                        </Button>
+                      )}
                       <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(component)}>
                         Delete
                       </Button>

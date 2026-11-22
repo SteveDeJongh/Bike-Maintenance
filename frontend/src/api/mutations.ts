@@ -138,7 +138,10 @@ export function useUnlinkIdentity() {
 
 export type BikePayload = Omit<Bike, 'id' | 'created_at'>
 export type BikeTypePayload = Omit<BikeType, 'id'>
-export type ComponentPayload = Omit<Component, 'id'>
+// retired_on isn't part of the create/edit form: retiring goes through
+// useRetireComponent (which also takes it off the bike), and clearing it
+// through useUnretireComponent.
+export type ComponentPayload = Omit<Component, 'id' | 'retired_on'>
 export type ComponentAssignmentPayload = Omit<ComponentAssignment, 'id'>
 // service_session_id is never sent here -- it's only ever set via the batch
 // service logger's own POST /bikes/:id/service_sessions, never through this
@@ -268,6 +271,41 @@ export function useUpdateComponent(id: number) {
     mutationFn: (values: Partial<ComponentPayload>) =>
       apiPatch<Component>(`/components/${id}`, { component: values }),
     onSuccess: () => invalidate(queryClient, 'serviceStatus', 'history', 'categorySettings'),
+  })
+}
+
+export interface RetireComponentPayload {
+  componentId: number
+  at: string
+  replacement_component_id?: number
+  tz: string
+}
+
+export interface RetireComponentResult {
+  component: Component
+  ended_assignments: ComponentAssignment[]
+  new_assignment: ComponentAssignment | null
+}
+
+// POST /components/:id/retire -- ends the component's active
+// assignment(s) at `at`, optionally swapping a replacement in at that
+// instant, and sets retired_on to at's local date in tz. Same groups as a
+// swap; serviceStatus already covers ['components'] and ['dashboard'].
+export function useRetireComponent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ componentId, ...body }: RetireComponentPayload) =>
+      apiPost<RetireComponentResult>(`/components/${componentId}/retire`, body),
+    onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
+  })
+}
+
+// Clears retired_on only -- never re-mounts anything.
+export function useUnretireComponent(id: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPatch<Component>(`/components/${id}`, { component: { retired_on: null } }),
+    onSuccess: () => invalidate(queryClient, 'serviceStatus', 'history'),
   })
 }
 

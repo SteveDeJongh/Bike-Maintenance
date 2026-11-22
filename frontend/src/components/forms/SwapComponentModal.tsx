@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Select, Stack, Text } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
-import { useComponents, useComponentsDetails } from '../../api/queries'
 import { useSwapComponentAssignment } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
 import AppModal from '../AppModal'
-import { formatDistance } from '../../utils/distance'
-import { formatRemaining } from '../../utils/serviceInterval'
+import CandidateOption from './CandidateOption'
+import { useSwapCandidates } from './useSwapCandidates'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
-import { SERVICE_STATUS_SEVERITY } from '../../constants'
-import type { ComponentDetail } from '../../types/models'
 
 interface SwapComponentModalProps {
   opened: boolean
@@ -32,17 +29,8 @@ export default function SwapComponentModal({
   category,
   currentComponentId,
 }: SwapComponentModalProps) {
-  const { data: components } = useComponents()
   const swap = useSwapComponentAssignment()
-
-  const eligible = (components ?? []).filter(
-    (c) => c.category === category && c.id !== currentComponentId && !c.retired_on,
-  )
-  const eligibleIds = eligible.map((c) => c.id)
-  const detailQueries = useComponentsDetails(eligibleIds)
-  const detailsById = new Map<number, ComponentDetail>(
-    detailQueries.filter((q) => q.data).map((q) => [q.data!.id, q.data!]),
-  )
+  const { eligible, options, captionFor } = useSwapCandidates(category, currentComponentId)
 
   const [componentId, setComponentId] = useState<string | null>(() =>
     eligible.length === 1 ? String(eligible[0].id) : null,
@@ -61,23 +49,6 @@ export default function SwapComponentModal({
     setPrevEligibleCount(eligible.length)
     if (componentId === null && eligible.length === 1) setComponentId(String(eligible[0].id))
   }
-
-  function captionFor(id: number): string | undefined {
-    const detail = detailsById.get(id)
-    if (!detail) return undefined
-
-    const parts = [`Total ${formatDistance(detail.total_distance)}`]
-    const worst = [...detail.service_requirements]
-      .filter((r) => r.enabled)
-      .sort((a, b) => SERVICE_STATUS_SEVERITY[b.status] - SERVICE_STATUS_SEVERITY[a.status])[0]
-    if (worst) {
-      const remaining = formatRemaining(worst.distance_remaining_meters, worst.days_remaining, worst.moving_time_remaining_seconds)
-      if (remaining) parts.push(`${worst.requirement_name}: ${remaining}`)
-    }
-    return parts.join(' · ')
-  }
-
-  const options = eligible.map((c) => ({ value: String(c.id), label: c.label }))
 
   function handleClose() {
     setComponentId(null)
@@ -111,19 +82,7 @@ export default function SwapComponentModal({
               data={options}
               value={componentId}
               onChange={setComponentId}
-              renderOption={({ option }) => {
-                const caption = captionFor(Number(option.value))
-                return (
-                  <Stack gap={0}>
-                    <Text size="sm">{option.label}</Text>
-                    {caption && (
-                      <Text size="xs" c="dimmed">
-                        {caption}
-                      </Text>
-                    )}
-                  </Stack>
-                )
-              }}
+              renderOption={({ option }) => <CandidateOption label={option.label} caption={captionFor(Number(option.value))} />}
             />
           )}
           <DateTimePicker

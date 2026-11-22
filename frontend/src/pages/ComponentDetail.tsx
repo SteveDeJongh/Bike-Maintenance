@@ -3,8 +3,11 @@ import { useParams, Link } from 'react-router-dom'
 import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
+import { useUnretireComponent } from '../api/mutations'
+import { modals } from '@mantine/modals'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import SwapComponentModal from '../components/forms/SwapComponentModal'
+import RetireComponentModal from '../components/forms/RetireComponentModal'
 import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
@@ -19,6 +22,21 @@ export default function ComponentDetail() {
 
   const [editOpened, setEditOpened] = useState(false)
   const [swapAssignmentId, setSwapAssignmentId] = useState<number | null>(null)
+  const [retireOpened, setRetireOpened] = useState(false)
+  const unretire = useUnretireComponent(componentId)
+
+  function confirmUnretire() {
+    modals.openConfirmModal({
+      title: 'Un-retire component',
+      children: (
+        <Text size="sm">
+          Un-retire this component? It won't be put back on a bike — install it again from the bike page if needed.
+        </Text>
+      ),
+      labels: { confirm: 'Un-retire', cancel: 'Cancel' },
+      onConfirm: () => unretire.mutate(),
+    })
+  }
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -75,6 +93,15 @@ export default function ComponentDetail() {
                 </Button>
               ),
           )}
+          {component.retired_on ? (
+            <Button variant="default" onClick={confirmUnretire} loading={unretire.isPending}>
+              Un-retire
+            </Button>
+          ) : (
+            <Button variant="default" onClick={() => setRetireOpened(true)}>
+              Retire…
+            </Button>
+          )}
           <Button variant="default" onClick={() => setEditOpened(true)}>
             Edit
           </Button>
@@ -112,6 +139,7 @@ export default function ComponentDetail() {
           currentComponentId={component.id}
         />
       )}
+      <RetireComponentModal opened={retireOpened} onClose={() => setRetireOpened(false)} componentId={componentId} />
     </Stack>
   )
 }

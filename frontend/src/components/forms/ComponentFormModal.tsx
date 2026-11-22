@@ -19,7 +19,6 @@ interface ComponentFormValues {
   label: string
   category: string
   acquired_on: string | null
-  retired_on: string | null
   brand: string
   model: string
   notes: string
@@ -29,7 +28,6 @@ const emptyValues: ComponentFormValues = {
   label: '',
   category: '',
   acquired_on: null,
-  retired_on: null,
   brand: '',
   model: '',
   notes: '',
@@ -40,7 +38,6 @@ function toFormValues(component: Component): ComponentFormValues {
     label: component.label,
     category: component.category,
     acquired_on: component.acquired_on,
-    retired_on: component.retired_on,
     brand: component.brand ?? '',
     model: component.model ?? '',
     notes: component.notes ?? '',
@@ -52,7 +49,6 @@ function toPayload(values: ComponentFormValues): ComponentPayload {
     label: values.label.trim(),
     category: values.category,
     acquired_on: values.acquired_on ?? '',
-    retired_on: values.retired_on,
     brand: values.brand.trim() || null,
     model: values.model.trim() || null,
     notes: values.notes.trim() || null,
@@ -163,7 +159,6 @@ function ComponentForm({
           {...form.getInputProps('category')}
         />
         <DateInput label="Acquired on" required {...form.getInputProps('acquired_on')} />
-        <DateInput label="Retired on" clearable {...form.getInputProps('retired_on')} />
         <ComponentBrandModelInputs
           brand={form.values.brand}
           model={form.values.model}
