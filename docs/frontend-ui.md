@@ -122,7 +122,8 @@ A future page can adopt the same UX without rework:
   the shared `DataCardList`: a row there is one of two unrelated UI shapes (a
   real assignment, or an empty slot's own inline install form — see
   `components/bike/SlotRow.tsx`/`EmptySlotRow.tsx`), which doesn't fit a single
-  generic column-renderer component. `DataCardList` itself carries an
+  generic column-renderer component. A filled card's title is `ComponentSwapPill`, as is
+  the desktop row's component cell. The card's "⋯" menu has only Remove. `DataCardList` itself carries an
   optional `onRowClick` prop (used by `bike_history`'s card, which — like its
   desktop row — opens `AssignmentDetailModal` on tap, not only via its
   pinned link) as a small, generally useful addition, not a one-off.

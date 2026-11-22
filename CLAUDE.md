@@ -14,7 +14,8 @@ attributed to the right chain.
 
 - **API**: Ruby on Rails, API-only (`config.api_only = true`), Postgres 14, RSpec. In `api/`.
 - **Frontend**: Vite + React + TypeScript SPA in `frontend/`, on `localhost:5173` in dev.
-  `react-router-dom`, `@tanstack/react-query`, Mantine (`@mantine/core`, `@mantine/dates`),
+  `react-router-dom`, `@tanstack/react-query`, Mantine (`@mantine/core`, `@mantine/dates`,
+  `@mantine/notifications`),
   `@dnd-kit/*` (column reordering), `@tabler/icons-react`, Vitest.
 - The two talk only via CORS (`api/config/initializers/cors.rb`) with a session cookie —
   no server-rendered views, no Hotwire/Turbo/Stimulus/importmap.
@@ -154,6 +155,9 @@ Frontend:
   `docs/dashboard.md`.
 - **Never hardcode a color.** Use Mantine tokens/CSS variables, named colors, or `"radar"`
   (the primary accent). "ok" status is `teal`, never `green`, so it's never confused with the accent.
+- **Swap choices go through `swapOptions`** (`utils/swapOptions.ts`, via `useSwapOptions`):
+  the pill and Retire's "Replace with" both use it, and it mirrors exactly what the swap
+  endpoint accepts (spares, plus shared indoor cassettes for `indoor_only` slots).
 - **New modals use `AppModal`**, never Mantine's `Modal` directly (it goes full-screen on mobile).
 - **Responsive:** prefer CSS (`hiddenFrom`/`visibleFrom`, per-breakpoint props) over JS.
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its

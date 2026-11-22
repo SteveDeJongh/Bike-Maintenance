@@ -26,30 +26,58 @@ Swapping one component for another in the same slot (the main use case: rotating
   `set_component_assignment`, the new component via `current_user.components.find_by`,
   404ing like every other cross-user access in this controller) and parses
   `swapped_at` before handing off.
-- **`SwapComponentModal`** (`frontend/src/components/forms/SwapComponentModal.tsx`)
-  is the one shared modal behind every "Swap…" entry point — a `Select` of
-  eligible same-category components (not retired, not the current one; each
-  option's caption shows total distance and its worst-status requirement's own
-  remaining/overdue text, via `useComponentsDetails` — a small `useQueries`-based
-  hook fetching each eligible candidate's own `GET /components/:id`, same
-  "fine for a handful, not for a many-row list" scale `Component#total_distance`'s
-  own note already describes) plus a `DateTimePicker` defaulting to now, through
-  `AppModal`. When exactly one other eligible component exists — the common
-  case, the other chain — it's preselected, so swapping is one tap to open plus
-  one tap on "Swap" to confirm. Entry points: the bike page's installed-components
-  table (`components/bike/SlotRow.tsx`, a plain "Swap…" button next to "Remove")
-  and its mobile cards (`InstalledComponentsCardList`'s `FilledSlotCard`, inside
-  the "⋯" menu); `ComponentDetail.tsx`, one "Swap…" button per bike the component
-  is currently mounted on (plural in the rare indoor_only-shared-across-bikes
-  case); and the dashboard's `BikeCard`, where tapping a `MountedRow` itself opens
-  the modal directly — the one-tap-plus-confirm phone shortcut the feature's own
-  rationale calls for. "Remove" and "Install" are both untouched everywhere —
-  swap is an addition, not a replacement. On success, invalidates `setup`,
-  `serviceStatus` (which already covers `dashboard`), and `history` — the same
-  groups `useCreateComponentAssignment`/`useDeleteComponentAssignment` already use.
-  `ComponentCurrentBike`/`DashboardMountedComponent` both carry an `assignment_id`
-  field (the swap action's own target) — `ComponentCurrentBike`'s is optional, since
-  only `GET /components/:id` (not the Components list's own `current_bikes`) sets it.
+- **Where swapping lives: `ComponentSwapPill`** (`frontend/src/components/ComponentSwapPill.tsx`).
+  An installed component's name is a two-segment pill: the label links to the
+  component, and a chevron (`aria-label` "Swap {label}") opens a Mantine `Combobox`
+  of what that slot can take. Choosing an option swaps **immediately**, at now, with
+  no confirmation step. A Mantine notification (`@mantine/notifications`) reads
+  "Swapped {old} → {new}", or shows the endpoint's message on failure, and the
+  pill then stays on the old component. While a swap is running, the chevron shows a
+  loader and the pill is disabled. The root stops click propagation, so the label,
+  the chevron and the portaled dropdown never trigger a row's own click.
+  - **Where it appears:**
+    - the bike page's installed-components table (`SlotRow`'s component cell);
+    - its mobile cards (`InstalledComponentsCardList`);
+    - `AssignmentDetailModal`'s Component field, through `ComponentIdentityStatus`'s
+      optional `swapAssignment`. That's passed only for a still-open installation, so
+      ended ones keep the plain link, as ComponentDetail does.
+  - **There's no other swap entry point.** ComponentDetail has no Swap button, and the
+    bike rows offer only Remove. Retire is on ComponentDetail only.
+  - **Invalidation:** `useSwapComponentAssignment` invalidates `setup`, `serviceStatus`
+    and `history`. `serviceStatus` covers `['bikes']`, `['components']` and
+    `['dashboard']`.
+- **Eligibility, exactly what the endpoint accepts:** `swapOptions` in
+  `utils/swapOptions.ts`, through `useSwapOptions`. A candidate must have the same
+  category, not be retired, and not be the current component. It must then be either:
+  - a **spare**, with no open assignment; or
+  - a **shared indoor cassette**: the category has `allows_multiple_assignments`, the
+    slot is `indoor_only`, every one of the candidate's open assignments is
+    `indoor_only`, and none is on this bike.
+
+  This follows `no_overlapping_assignment_for_component`, which only lets two
+  `indoor_only` assignments of a component overlap in an allows-multiple category, and
+  `no_overlapping_assignment_for_bike_slot`, under which a component already on this
+  bike conflicts. The rule needs `ride_context` on `current_bikes`, which
+  `GET /components` and `/components/:id` now include. A request spec in
+  `component_assignments_controller_spec` pins the shared case: a cassette on two bikes
+  swaps into a third bike's `indoor_only` slot, and is rejected for `both`,
+  `outdoor_only` or a bike it's already on.
+- **Dropdown options** show the label, a dimmed brand/model, and a dimmed status:
+  "Last on {bike}", "Never installed", or "Also on {bikes} (indoor)".
+  - **Order** (`orderSwapOptions`): spares by most recent removal, then
+    never-installed spares by name, then shared cassettes by name.
+  - **Empty:** one disabled row, "No spare {category}s".
+  - **Search** appears when there are more than 6 options.
+- **`AssignmentDetailModal`** takes `{ bikeId, assignmentId }` and reads the
+  assignment from that bike's `GET /bikes/:id`, which carries every assignment with
+  its stats. That's a cache hit on the bike page, and fetched on open from the
+  dashboard. After a swap it **follows the slot**: it switches to the new assignment's
+  id and shows a loader until the refetch brings it in, so it never shows the ended
+  one. There's no single-assignment-with-stats endpoint. If the dashboard's
+  whole-bike fetch ever gets slow, that would be the place to add one.
+  `ComponentCurrentBike` and `DashboardMountedComponent` both carry an
+  `assignment_id`. `ComponentCurrentBike`'s is optional, since only
+  `GET /components/:id` sets it.
 
 ## Last bike and the Components list's Bike column
 
@@ -108,14 +136,14 @@ can't keep reading as mounted or accruing mileage.
   - "Currently on X. It will be removed from the bike at this time.";
   - an optional **Replace with**, shown only when the component is on exactly one bike.
 
-  The button reads "Retire" or "Retire and replace". The candidates and their captions
-  come from `useSwapCandidates` (`swapCandidates` in `utils/swapCandidates.ts`), shared
-  with `SwapComponentModal`, and the captions now include "Last on {bike}".
+  The button reads "Retire" or "Retire and replace". **Replace with** offers exactly
+  the pill's options (`useSwapOptions`) for the component's one slot, since it's the
+  same swap.
 - **Entry points:**
-  - ComponentDetail's header;
-  - the bike page's installed rows (`SlotRow`) and mobile cards
-    (`InstalledComponentsCardList`);
+  - ComponentDetail's header ("Retire");
   - the Components list's row actions, on desktop and mobile, hidden when retired.
+
+  The bike page's rows no longer offer it.
 
   `useRetireComponent` invalidates `setup`, `serviceStatus` and `history`. Those are
   swap's groups, and `serviceStatus` covers the components list and the dashboard.

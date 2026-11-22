@@ -248,8 +248,11 @@ genuine data-model change deliberately not made speculatively here.
   `wearMetricLabel` — `formatDrivingRemaining`, red when due, with " · {requirement
   name}" appended unless the name already contains the category label (so a
   chain's "Wax" reads "8 km left · wax" but "Chain replacement" adds nothing); with
-  no requirement, an empty track and "{lifetime} total". Tapping a row still opens
-  `SwapComponentModal`. **Rotation strip** (`rotationGroups`, `utils/bikeCard.ts`):
+  no requirement, an empty track and "{lifetime} total". Tapping a row opens
+  `AssignmentDetailModal` for that row's `assignment_id`, the same installation modal
+  the bike page's rows open, with its own swap pill (`docs/components-and-setup.md`).
+  It fetches the bike's `GET /bikes/:id` on open, and a swap there refreshes
+  `/dashboard` through `serviceStatus`. **Rotation strip** (`rotationGroups`, `utils/bikeCard.ts`):
   for each category with `rotates: true` where the bike has both an off-bike component
   (the existing `off_bike` rule) and a mounted one — chains by default, any category
   the user sets to rotate on Settings → Component Categories — "{Category} rotation" with "Off: {label} · {display metric}", a
