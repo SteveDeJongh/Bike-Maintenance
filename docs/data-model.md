@@ -35,6 +35,10 @@
 - `Component`: user_id, label (e.g. "Chain A"), category (chain, cassette, tire_front,
   tire_rear, ...), acquired_on, retired_on, brand (string, nullable), model (string,
   nullable), notes (text, nullable) — category doubles as a "slot" for validation.
+  `retired_on` is set by the Retire action (`POST /components/:id/retire`, see
+  "Retiring a component" in `docs/components-and-setup.md`) as the **local date** of
+  the removal; the exact instant lives on the ended assignment's `ended_at`. The edit
+  form no longer sets it, and Un-retire clears it without re-mounting anything.
   `brand`/`model` are `normalizes`d (`v.squish.presence`, same convention as
   `User#normalizes :email`) — whitespace-collapsed, blank becomes `nil`, casing left
   alone (see "Brand/model autocomplete" below for where casing gets handled instead).

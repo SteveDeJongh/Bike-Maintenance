@@ -73,6 +73,64 @@ Swapping one component for another in the same slot (the main use case: rotating
 - **Component detail**: `ComponentIdentityStatus` reads "Uninstalled · Last on
   <bike>" when there's a `last_bike`.
 
+## Retiring a component
+
+Retiring is one action that also takes the part off the bike, so a retired component
+can't keep reading as mounted or accruing mileage.
+
+- **`POST /components/:id/retire`** `{ at, replacement_component_id?, tz }` →
+  `200 { component, ended_assignments, new_assignment }`. `new_assignment` is null
+  without a replacement. Errors are `422 { base: [...] }`, the same shape swap uses. Another
+  user's component or replacement 404s. `at` defaults to now, and `tz` is resolved like
+  `/dashboard`'s (`ActiveSupport::TimeZone[tz] || Time.zone`).
+- **`Components::Retire`**, in one transaction:
+  - With a replacement, it calls `ComponentAssignments::Swap` unchanged on the one
+    active assignment. Swap then enforces same-category, not-retired, not-itself and the
+    overlap rules, and copies the slot's `ride_context`.
+  - Otherwise it ends **every** active assignment at `at`. That covers the
+    `allows_multiple_assignments` indoor cassette shared across two bikes.
+  - Then it sets `retired_on = at.in_time_zone(zone).to_date`.
+  - Swap's own `transaction` nests inside Retire's without `requires_new`, so its
+    `ActiveRecord::Rollback` only unwinds to the outer block. Retire therefore raises
+    Rollback itself on any failure, and no half-done swap commits.
+- **Validations**, which use the same timing rules as swap:
+  - the component is already retired;
+  - `at` is blank, or more than `Swap::FUTURE_TOLERANCE` ahead;
+  - `at` is not strictly after an active assignment's start;
+  - for an unmounted component, `at` is before its last removal;
+  - a replacement was given for an unmounted component, or for one on more than one
+    bike. In that case, retire it alone and then install the new part on each bike.
+- **Date vs datetime:** `ended_at` keeps the exact instant, and attribution reads it,
+  since windows are half-open. So rides after `at` count toward the replacement.
+  `retired_on` is only the viewer's local calendar day.
+- **UI:** `RetireComponentModal` is an `AppModal` with three parts:
+  - **When**, using the swap modal's `DateTimePicker`;
+  - "Currently on X. It will be removed from the bike at this time.";
+  - an optional **Replace with**, shown only when the component is on exactly one bike.
+
+  The button reads "Retire" or "Retire and replace". The candidates and their captions
+  come from `useSwapCandidates` (`swapCandidates` in `utils/swapCandidates.ts`), shared
+  with `SwapComponentModal`, and the captions now include "Last on {bike}".
+- **Entry points:**
+  - ComponentDetail's header;
+  - the bike page's installed rows (`SlotRow`) and mobile cards
+    (`InstalledComponentsCardList`);
+  - the Components list's row actions, on desktop and mobile, hidden when retired.
+
+  `useRetireComponent` invalidates `setup`, `serviceStatus` and `history`. Those are
+  swap's groups, and `serviceStatus` covers the components list and the dashboard.
+- **The edit form has no "Retired on" field.** ComponentDetail shows **Un-retire** for
+  a retired component, which sends `PATCH retired_on: null`. Its confirmation says the
+  component won't be put back on a bike.
+- **No feed event.** Retire with a replacement reads in the Activity log as the usual
+  "Installed X on Bike, replacing Y". Retire alone reads as a removal.
+- **`rails components:audit_retired_mounted`** (`Components::RetiredMountedAudit`) is
+  read-only. It lists assignments whose component has `retired_on` set and that are
+  still open, or that end after the end of `retired_on`'s day. It prints user ids,
+  never emails. The day boundary uses the app's `Time.zone`, because a rake task has no
+  viewer zone. An entry within a few hours of midnight can flag differently from the
+  user's own zone, so each row prints its raw timestamps.
+
 ## Bike setup
 
 Replaces manually repeating "track a slot → create a component → install it" once

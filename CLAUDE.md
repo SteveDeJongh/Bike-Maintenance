@@ -50,6 +50,7 @@ bin/rails credentials:edit        # strava: (set up), google: (not yet)
 bin/rails strava:sync_all         # incremental sync for every connected user
 bin/rails strava:resync_all       # full resync for every connected user
 bin/rails "users:claim[email]"    # one-time: give the pre-auth seed user a real login
+bin/rails components:audit_retired_mounted  # read-only: retired components still on a bike
 
 # Frontend (from frontend/)
 npm run dev                       # Vite on :5173
@@ -229,5 +230,6 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   pagination and odometer, `Activity::Feed`'s keyset/offset branches, the install/removal
   merge rule, the `/activity` page.
 - `docs/components-and-setup.md` — **One-step component swap**, **Last bike and the
-  Components list's Bike column**, **Bike setup**, **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
+  Components list's Bike column**, **Retiring a component**, **Bike setup**,
+  **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
   component setup, suggestion sources and ranking.
