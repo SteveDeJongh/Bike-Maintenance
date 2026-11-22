@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Alert, Anchor, Group, Loader, Text } from '@mantine/core'
 import { useComponent } from '../api/queries'
 import { categoryLabel } from '../constants'
+import ComponentSwapPill, { type SwapPillAssignment } from './ComponentSwapPill'
+import type { ComponentAssignment } from '../types/models'
 
 // Shared by the standalone ComponentDetail page and the Bike page's
 // AssignmentDetailModal -- the leading identity row: Category, Component
@@ -13,7 +15,21 @@ import { categoryLabel } from '../constants'
 // `extra` lets a caller fold its own fields into the same Group (e.g. the
 // component page's own "Total distance" stat) rather than duplicating the
 // Group wrapper.
-export default function ComponentIdentityStatus({ componentId, extra }: { componentId: number; extra?: ReactNode }) {
+// swapAssignment (AssignmentDetailModal only, for a still-open
+// installation) turns the Component field into ComponentSwapPill;
+// onSwapped then reports the new assignment so the modal can follow the
+// slot. ComponentDetail passes neither and keeps the plain link.
+export default function ComponentIdentityStatus({
+  componentId,
+  extra,
+  swapAssignment,
+  onSwapped,
+}: {
+  componentId: number
+  extra?: ReactNode
+  swapAssignment?: SwapPillAssignment
+  onSwapped?: (newAssignment: ComponentAssignment) => void
+}) {
   const { data: component, isPending, error } = useComponent(componentId)
 
   if (isPending) return <Loader />
@@ -40,9 +56,15 @@ export default function ComponentIdentityStatus({ componentId, extra }: { compon
         <Text size="sm" c="dimmed">
           Component
         </Text>
-        <Anchor component={Link} to={`/components/${component.id}`} fw={500}>
-          {component.label}
-        </Anchor>
+        {swapAssignment ? (
+          <div>
+            <ComponentSwapPill assignment={swapAssignment} onSwapped={onSwapped} />
+          </div>
+        ) : (
+          <Anchor component={Link} to={`/components/${component.id}`} fw={500}>
+            {component.label}
+          </Anchor>
+        )}
       </div>
       <div>
         <Text size="sm" c="dimmed">

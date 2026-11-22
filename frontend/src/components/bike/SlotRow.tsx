@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
-import { Anchor, Badge, Button, Group, Table } from '@mantine/core'
+import { Badge, Button, Group, Table } from '@mantine/core'
 import EmptySlotRow from './EmptySlotRow'
+import ComponentSwapPill from '../ComponentSwapPill'
 import { installedComponentRenderer } from './installedComponentColumns'
 import { categoryLabel, RIDE_CONTEXT_LABELS, type InstalledComponentColumn } from '../../constants'
 import type { BikeComponentSlot, BikeDetail as BikeDetailData, Component, ComponentAssignmentWithStats } from '../../types/models'
@@ -44,13 +44,7 @@ export default function SlotRow({
             )}
           </Table.Td>
           <Table.Td>
-            <Anchor
-              component={Link}
-              to={`/components/${assignment.component_id}`}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {assignment.component.label}
-            </Anchor>
+            <ComponentSwapPill assignment={assignment} />
           </Table.Td>
           {orderedColumns.map((column) => (
             <Table.Td key={column}>{installedComponentRenderer[column](assignment)}</Table.Td>

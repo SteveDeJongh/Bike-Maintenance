@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react'
-import { ActionIcon, Alert, Anchor, Badge, Button, Card, Group, Menu, Select, Stack, Text } from '@mantine/core'
+import { ActionIcon, Alert, Badge, Button, Card, Group, Menu, Select, Stack, Text } from '@mantine/core'
 import { DateTimePicker } from '@mantine/dates'
 import { IconDots } from '@tabler/icons-react'
-import { Link } from 'react-router-dom'
 import { useComponentCategorySettings } from '../../api/queries'
 import { useCreateComponentAssignment, useDeleteBikeComponentSlot } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
 import ComponentFormModal from '../forms/ComponentFormModal'
 import RideContextCheckboxes from '../RideContextCheckboxes'
+import ComponentSwapPill from '../ComponentSwapPill'
 import { categoryLabel, RIDE_CONTEXT_LABELS, type InstalledComponentColumn } from '../../constants'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
@@ -107,14 +107,7 @@ function FilledSlotCard({
           <Text size="xs" c="dimmed">
             {categoryLabel(slot.category)}
           </Text>
-          <Anchor
-            component={Link}
-            to={`/components/${assignment.component_id}`}
-            fw={500}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {assignment.component.label}
-          </Anchor>
+          <ComponentSwapPill assignment={assignment} />
         </div>
         <Group gap="xs" wrap="wrap" align="center">
           {assignment.ride_context !== 'both' && (

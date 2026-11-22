@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Button, Divider, Group, Stack, Text } from '@mantine/core'
+import { Alert, Button, Divider, Group, Loader, Stack, Text } from '@mantine/core'
+import { useBike } from '../../api/queries'
 import AppModal from '../AppModal'
 import ComponentIdentityStatus from '../ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
@@ -15,15 +16,67 @@ import type { ComponentAssignmentWithStats } from '../../types/models'
 interface AssignmentDetailModalProps {
   opened: boolean
   onClose: () => void
-  assignment: ComponentAssignmentWithStats | null
+  bikeId: number
+  assignmentId: number | null
 }
 
-export default function AssignmentDetailModal({ opened, onClose, assignment }: AssignmentDetailModalProps) {
+// One installation's detail -- opened from the bike page's rows and the
+// dashboard's bike cards alike. It loads its own data from the bike's
+// GET /bikes/:id (already cached on the bike page; fetched on open from
+// the dashboard) and picks the assignment by id. After a swap from the
+// pill it follows the slot: it switches to the new assignment and waits
+// for the refetch rather than showing the ended one.
+export default function AssignmentDetailModal({ opened, onClose, bikeId, assignmentId }: AssignmentDetailModalProps) {
+  const [currentId, setCurrentId] = useState(assignmentId)
+  const [prevAssignmentId, setPrevAssignmentId] = useState(assignmentId)
+  if (assignmentId !== prevAssignmentId) {
+    setPrevAssignmentId(assignmentId)
+    setCurrentId(assignmentId)
+  }
+
   return (
-    <AppModal opened={opened} onClose={onClose} title={assignment?.component.label ?? ''} size="xl">
-      {opened && assignment && <AssignmentDetailContent key={assignment.id} assignment={assignment} />}
+    <AppModal opened={opened} onClose={onClose} title={<ModalTitle bikeId={bikeId} assignmentId={currentId} opened={opened} />} size="xl">
+      {opened && currentId != null && (
+        <AssignmentLoader key={currentId} bikeId={bikeId} assignmentId={currentId} onSwapped={setCurrentId} />
+      )}
     </AppModal>
   )
+}
+
+function useAssignment(bikeId: number, assignmentId: number | null, enabled: boolean) {
+  const bike = useBike(enabled ? bikeId : NaN)
+  const assignment = bike.data?.component_assignments.find((a) => a.id === assignmentId) ?? null
+  return { bike, assignment }
+}
+
+function ModalTitle({ bikeId, assignmentId, opened }: { bikeId: number; assignmentId: number | null; opened: boolean }) {
+  const { assignment } = useAssignment(bikeId, assignmentId, opened)
+  return <>{assignment?.component.label ?? ''}</>
+}
+
+function AssignmentLoader({
+  bikeId,
+  assignmentId,
+  onSwapped,
+}: {
+  bikeId: number
+  assignmentId: number
+  onSwapped: (id: number) => void
+}) {
+  const { bike, assignment } = useAssignment(bikeId, assignmentId, true)
+
+  if (bike.error) {
+    return (
+      <Alert color="red" title="Failed to load installation">
+        {bike.error.message}
+      </Alert>
+    )
+  }
+  // Right after a swap the new assignment isn't in the cached bike yet --
+  // keep loading until the refetch brings it in.
+  if (!assignment) return <Loader />
+
+  return <AssignmentDetailContent assignment={assignment} onSwapped={onSwapped} />
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -37,12 +90,22 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function AssignmentDetailContent({ assignment }: { assignment: ComponentAssignmentWithStats }) {
+function AssignmentDetailContent({
+  assignment,
+  onSwapped,
+}: {
+  assignment: ComponentAssignmentWithStats
+  onSwapped: (id: number) => void
+}) {
   const [editOpened, setEditOpened] = useState(false)
 
   return (
     <Stack>
-      <ComponentIdentityStatus componentId={assignment.component_id} />
+      <ComponentIdentityStatus
+        componentId={assignment.component_id}
+        swapAssignment={assignment.ended_at ? undefined : assignment}
+        onSwapped={(newAssignment) => onSwapped(newAssignment.id)}
+      />
 
       <Divider label="This installation" labelPosition="left" />
       <Group gap="xl">

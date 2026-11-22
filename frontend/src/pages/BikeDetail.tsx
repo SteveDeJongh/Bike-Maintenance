@@ -27,7 +27,7 @@ export default function BikeDetail() {
   const allCategories = useAllCategories()
 
   const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
-  const [selectedAssignment, setSelectedAssignment] = useState<ComponentAssignmentWithStats | null>(null)
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null)
   const [addCategory, setAddCategory] = useState<string | null>(null)
   const [batchServiceOpened, setBatchServiceOpened] = useState(false)
   const createSlot = useCreateBikeComponentSlot()
@@ -154,7 +154,7 @@ export default function BikeDetail() {
           components={components ?? []}
           activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
           onEndAssignment={setEndingAssignment}
-          onRowClick={setSelectedAssignment}
+          onRowClick={(assignment) => setSelectedAssignmentId(assignment.id)}
         />
       )}
 
@@ -179,7 +179,7 @@ export default function BikeDetail() {
       {historyAssignments.length === 0 && <Text c="dimmed">No past assignments.</Text>}
 
       {historyAssignments.length > 0 && (
-        <HistoryTable historyAssignments={historyAssignments} onRowClick={setSelectedAssignment} />
+        <HistoryTable historyAssignments={historyAssignments} onRowClick={(assignment) => setSelectedAssignmentId(assignment.id)} />
       )}
 
       <RideHistorySection bike={bike} />
@@ -192,9 +192,10 @@ export default function BikeDetail() {
       />
 
       <AssignmentDetailModal
-        opened={selectedAssignment !== null}
-        onClose={() => setSelectedAssignment(null)}
-        assignment={selectedAssignment}
+        opened={selectedAssignmentId !== null}
+        onClose={() => setSelectedAssignmentId(null)}
+        bikeId={bike.id}
+        assignmentId={selectedAssignmentId}
       />
 
       <BatchServiceModal opened={batchServiceOpened} onClose={() => setBatchServiceOpened(false)} bikeId={bike.id} />
