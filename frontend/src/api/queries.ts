@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQueries, useQuery, type Query, type QueryKey } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, type Query, type QueryKey } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
   ActivityFeedResponse,
@@ -107,20 +107,6 @@ export function useComponent(id: number) {
     queryKey: ['components', id],
     queryFn: () => apiGet<ComponentDetail>(`/components/${id}`),
     enabled: Number.isFinite(id),
-  })
-}
-
-// Same queryKey/queryFn as useComponent (so results share its cache),
-// just for a small, dynamic set of ids at once -- the swap picker's own
-// handful of same-category candidates, never a many-row list (see
-// Component#total_distance's own note on why that method -- what backs
-// ComponentDetail's total_distance -- isn't meant to scale beyond that).
-export function useComponentsDetails(ids: number[]) {
-  return useQueries({
-    queries: ids.map((id) => ({
-      queryKey: ['components', id],
-      queryFn: () => apiGet<ComponentDetail>(`/components/${id}`),
-    })),
   })
 }
 

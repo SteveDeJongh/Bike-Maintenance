@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Badge, Box, Button, Card, Divider, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
-import SwapComponentModal from '../forms/SwapComponentModal'
+import AssignmentDetailModal from '../forms/AssignmentDetailModal'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { categoryLabel, SERVICE_STATUS_COLORS } from '../../constants'
 import {
@@ -59,19 +59,18 @@ function StatusChip({ bike }: { bike: DashboardBike }) {
 const clickable: CSSProperties = { cursor: 'pointer' }
 
 // One wear row, laid out as three cells of the parent grid (display:
-// contents) so every row's bar lines up. Tapping it is the phone shortcut
-// for a swap -- it opens SwapComponentModal directly (preselecting the
-// other component when there's exactly one eligible), so the whole flow is
-// a tap to open plus the modal's own "Swap" to confirm.
+// contents) so every row's bar lines up. Tapping it opens the same
+// installation modal the bike page's rows do (AssignmentDetailModal),
+// where the component's pill handles swapping.
 function WearRow({ component, bikeId }: { component: DashboardMountedComponent; bikeId: number }) {
-  const [swapOpened, setSwapOpened] = useState(false)
+  const [detailOpened, setDetailOpened] = useState(false)
   const hasRequirement = component.fraction_used != null && component.service_status != null
   const color = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
   const over = component.service_status === 'due'
 
   return (
     <>
-      <Box style={{ display: 'contents' }} onClick={() => setSwapOpened(true)}>
+      <Box style={{ display: 'contents' }} onClick={() => setDetailOpened(true)}>
         <Text size="sm" truncate style={clickable}>
           {component.label}
         </Text>
@@ -88,14 +87,11 @@ function WearRow({ component, bikeId }: { component: DashboardMountedComponent; 
           {wearMetricLabel(component)}
         </Text>
       </Box>
-      <SwapComponentModal
-        opened={swapOpened}
-        onClose={() => setSwapOpened(false)}
-        assignmentId={component.assignment_id}
-        category={component.category}
-        currentComponentId={component.component_id}
+      <AssignmentDetailModal
+        opened={detailOpened}
+        onClose={() => setDetailOpened(false)}
         bikeId={bikeId}
-        rideContext={component.ride_context}
+        assignmentId={component.assignment_id}
       />
     </>
   )
