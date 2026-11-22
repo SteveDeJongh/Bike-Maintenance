@@ -6,7 +6,11 @@ Rails.application.routes.draw do
   resources :component_assignments, except: %i[ new edit ] do
     member { post :swap }
   end
-  resources :components, except: %i[ new edit ]
+  resources :components, except: %i[ new edit ] do
+    member do
+      post :retire
+    end
+  end
   resources :bikes, except: %i[ new edit ] do
     member do
       post :component_setup

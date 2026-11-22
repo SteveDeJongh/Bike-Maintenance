@@ -1,5 +1,5 @@
 class ComponentsController < ApplicationController
-  before_action :set_component, only: %i[ show update destroy ]
+  before_action :set_component, only: %i[ show update destroy retire ]
 
   # GET /components
   def index
@@ -58,6 +58,33 @@ class ComponentsController < ApplicationController
   def destroy
     @component.destroy!
     head :no_content
+  end
+
+  # POST /components/1/retire -- { at, replacement_component_id?, tz }.
+  # Ends the component's active assignment(s) at `at` (swapping the
+  # replacement in when given) and sets retired_on to at's local date in
+  # tz -- see Components::Retire.
+  def retire
+    replacement = nil
+    if params[:replacement_component_id].present?
+      replacement = current_user.components.find_by(id: params[:replacement_component_id])
+      return render json: { base: ["Bike or component not found"] }, status: :not_found unless replacement
+    end
+
+    at = params[:at].present? ? Time.zone.parse(params[:at].to_s) : Time.current
+    zone = (params[:tz].present? && ActiveSupport::TimeZone[params[:tz]]) || Time.zone
+
+    result = Components::Retire.call(component: @component, at: at, zone: zone, replacement: replacement)
+
+    if result.success?
+      render json: {
+        component: result.component,
+        ended_assignments: result.ended_assignments,
+        new_assignment: result.new_assignment,
+      }
+    else
+      render json: result.errors, status: :unprocessable_content
+    end
   end
 
   private

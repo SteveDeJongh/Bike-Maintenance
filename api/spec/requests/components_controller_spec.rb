@@ -247,4 +247,56 @@ RSpec.describe "Components", type: :request do
       expect(JSON.parse(response.body)["last_bike"]).to be_nil
     end
   end
+  describe "POST /components/:id/retire" do
+    let!(:bike) { create(:bike, user: current_user, name: "Juan Solo") }
+    let!(:chain_a) { create(:component, user: current_user, category: "chain", label: "Chain A") }
+    let!(:chain_b) { create(:component, user: current_user, category: "chain", label: "Chain B") }
+    let!(:assignment) { create(:component_assignment, component: chain_a, bike: bike, started_at: Time.zone.local(2026, 1, 1)) }
+    let(:at) { "2026-03-01T23:30:00Z" } # 15:30 in Vancouver
+
+    it "retires and replaces, returning the component and both assignments" do
+      post "/components/#{chain_a.id}/retire", params: { at: at, replacement_component_id: chain_b.id, tz: "America/Vancouver" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["component"]).to include("id" => chain_a.id, "retired_on" => "2026-03-01")
+      expect(body["ended_assignments"].map { |a| a["id"] }).to eq([ assignment.id ])
+      expect(body["new_assignment"]).to include("component_id" => chain_b.id, "bike_id" => bike.id)
+      expect(Time.zone.parse(body["new_assignment"]["started_at"])).to eq(Time.zone.parse(at))
+    end
+
+    it "retires without a replacement, with a null new_assignment" do
+      post "/components/#{chain_a.id}/retire", params: { at: at, tz: "America/Vancouver" }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["new_assignment"]).to be_nil
+      expect(assignment.reload.ended_at).to eq(Time.zone.parse(at))
+    end
+
+    it "returns 422 with base errors for an invalid request" do
+      post "/components/#{chain_a.id}/retire", params: { at: "2025-12-01T00:00:00Z" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].first).to include("must be after its installation")
+    end
+
+    it "404s for another user's component" do
+      other = create(:component, category: "chain")
+
+      post "/components/#{other.id}/retire", params: { at: at }
+
+      expect(response).to have_http_status(:not_found)
+      expect(other.reload.retired_on).to be_nil
+    end
+
+    it "404s for another user's replacement, changing nothing" do
+      other = create(:component, category: "chain")
+
+      post "/components/#{chain_a.id}/retire", params: { at: at, replacement_component_id: other.id }
+
+      expect(response).to have_http_status(:not_found)
+      expect(assignment.reload.ended_at).to be_nil
+      expect(chain_a.reload.retired_on).to be_nil
+    end
+  end
 end
