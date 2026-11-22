@@ -7,8 +7,6 @@ import { useComponentCategorySettings } from '../../api/queries'
 import { useCreateComponentAssignment, useDeleteBikeComponentSlot } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
 import ComponentFormModal from '../forms/ComponentFormModal'
-import SwapComponentModal from '../forms/SwapComponentModal'
-import RetireComponentModal from '../forms/RetireComponentModal'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { categoryLabel, RIDE_CONTEXT_LABELS, type InstalledComponentColumn } from '../../constants'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
@@ -101,8 +99,6 @@ function FilledSlotCard({
   columnLabels: Record<InstalledComponentColumn, string>
   columnRenderer: Record<InstalledComponentColumn, (a: ComponentAssignmentWithStats) => ReactNode>
 }) {
-  const [swapOpened, setSwapOpened] = useState(false)
-  const [retireOpened, setRetireOpened] = useState(false)
 
   return (
     <Card withBorder padding="sm" onClick={() => onRowClick(assignment)} style={{ cursor: 'pointer' }}>
@@ -139,23 +135,6 @@ function FilledSlotCard({
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setSwapOpened(true)
-                }}
-              >
-                Swap…
-              </Menu.Item>
-              <Menu.Item
-                color="red"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setRetireOpened(true)
-                }}
-              >
-                Retire…
-              </Menu.Item>
               <Menu.Item color="red" onClick={() => onEndAssignment(assignment)}>
                 Remove
               </Menu.Item>
@@ -163,22 +142,6 @@ function FilledSlotCard({
           </Menu>
         </Group>
       </Group>
-      {/* React events bubble through portals, so a click inside either
-          modal would otherwise reach the card's onRowClick. */}
-      <div onClick={(event) => event.stopPropagation()}>
-        <SwapComponentModal
-          opened={swapOpened}
-          onClose={() => setSwapOpened(false)}
-          assignmentId={assignment.id}
-          category={assignment.component.category}
-          currentComponentId={assignment.component_id}
-        />
-        <RetireComponentModal
-          opened={retireOpened}
-          onClose={() => setRetireOpened(false)}
-          componentId={assignment.component_id}
-        />
-      </div>
       <Group gap="md" wrap="wrap" mt={6}>
         {orderedColumns.map((column) => (
           <Stack key={column} gap={0} miw={90}>

@@ -1,9 +1,6 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Anchor, Badge, Button, Group, Table } from '@mantine/core'
 import EmptySlotRow from './EmptySlotRow'
-import SwapComponentModal from '../forms/SwapComponentModal'
-import RetireComponentModal from '../forms/RetireComponentModal'
 import { installedComponentRenderer } from './installedComponentColumns'
 import { categoryLabel, RIDE_CONTEXT_LABELS, type InstalledComponentColumn } from '../../constants'
 import type { BikeComponentSlot, BikeDetail as BikeDetailData, Component, ComponentAssignmentWithStats } from '../../types/models'
@@ -31,8 +28,6 @@ export default function SlotRow({
   onRowClick: (assignment: ComponentAssignmentWithStats) => void
   orderedColumns: InstalledComponentColumn[]
 }) {
-  const [swapOpened, setSwapOpened] = useState(false)
-  const [retireOpened, setRetireOpened] = useState(false)
 
   if (assignment) {
     return (
@@ -65,27 +60,6 @@ export default function SlotRow({
               <Button
                 size="xs"
                 variant="subtle"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setSwapOpened(true)
-                }}
-              >
-                Swap…
-              </Button>
-              <Button
-                size="xs"
-                variant="subtle"
-                color="red"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setRetireOpened(true)
-                }}
-              >
-                Retire…
-              </Button>
-              <Button
-                size="xs"
-                variant="subtle"
                 color="red"
                 onClick={(event) => {
                   event.stopPropagation()
@@ -98,18 +72,6 @@ export default function SlotRow({
           </Table.Td>
           <Table.Td />
         </Table.Tr>
-        <SwapComponentModal
-          opened={swapOpened}
-          onClose={() => setSwapOpened(false)}
-          assignmentId={assignment.id}
-          category={assignment.component.category}
-          currentComponentId={assignment.component_id}
-        />
-        <RetireComponentModal
-          opened={retireOpened}
-          onClose={() => setRetireOpened(false)}
-          componentId={assignment.component_id}
-        />
       </>
     )
   }

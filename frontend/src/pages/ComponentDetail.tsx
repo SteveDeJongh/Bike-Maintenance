@@ -6,7 +6,6 @@ import { useComponent } from '../api/queries'
 import { useUnretireComponent } from '../api/mutations'
 import { modals } from '@mantine/modals'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
-import SwapComponentModal from '../components/forms/SwapComponentModal'
 import RetireComponentModal from '../components/forms/RetireComponentModal'
 import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
@@ -21,7 +20,6 @@ export default function ComponentDetail() {
   const { data: component, isPending, error } = useComponent(componentId)
 
   const [editOpened, setEditOpened] = useState(false)
-  const [swapAssignmentId, setSwapAssignmentId] = useState<number | null>(null)
   const [retireOpened, setRetireOpened] = useState(false)
   const unretire = useUnretireComponent(componentId)
 
@@ -81,25 +79,13 @@ export default function ComponentDetail() {
           )}
         </div>
         <Group gap="xs" align="flex-start">
-          {component.current_bikes.map(
-            (bike) =>
-              bike.assignment_id != null && (
-                <Button
-                  key={bike.id}
-                  variant="default"
-                  onClick={() => setSwapAssignmentId(bike.assignment_id!)}
-                >
-                  {component.current_bikes.length > 1 ? `Swap (${bike.name})…` : 'Swap…'}
-                </Button>
-              ),
-          )}
           {component.retired_on ? (
             <Button variant="default" onClick={confirmUnretire} loading={unretire.isPending}>
               Un-retire
             </Button>
           ) : (
             <Button variant="default" onClick={() => setRetireOpened(true)}>
-              Retire…
+              Retire
             </Button>
           )}
           <Button variant="default" onClick={() => setEditOpened(true)}>
@@ -130,15 +116,6 @@ export default function ComponentDetail() {
         component={component}
       />
 
-      {swapAssignmentId != null && (
-        <SwapComponentModal
-          opened
-          onClose={() => setSwapAssignmentId(null)}
-          assignmentId={swapAssignmentId}
-          category={component.category}
-          currentComponentId={component.id}
-        />
-      )}
       <RetireComponentModal opened={retireOpened} onClose={() => setRetireOpened(false)} componentId={componentId} />
     </Stack>
   )
