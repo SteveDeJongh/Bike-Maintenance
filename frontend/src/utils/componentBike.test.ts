@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bikeColumnSortKey, bikeColumnState } from './componentBike'
 
-const mounted = { current_bikes: [{ id: 1, name: 'Soloist' }], last_bike: null }
+const mounted = { current_bikes: [{ id: 1, name: 'Soloist', ride_context: 'both' as const }], last_bike: null }
 const lastOn = { current_bikes: [], last_bike: { id: 2, name: 'Juan Solo', removed_at: '2026-03-01T09:00:00Z' } }
 const never = { current_bikes: [], last_bike: null }
 

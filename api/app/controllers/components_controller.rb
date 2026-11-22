@@ -21,7 +21,7 @@ class ComponentsController < ApplicationController
   def show
     service_requirements = Maintenance::RequirementStatus.for_component(@component).map { |status| serialize_requirement_status(status) }
     current_bikes = @component.component_assignments.where(ended_at: nil).includes(:bike)
-      .map { |a| { id: a.bike.id, name: a.bike.name, assignment_id: a.id } }
+      .map { |a| { id: a.bike.id, name: a.bike.name, assignment_id: a.id, ride_context: a.ride_context } }
 
     last_bike = if current_bikes.empty?
       last_bike_json(ComponentAssignment.last_ended_by_component(current_user, component_ids: [ @component.id ])[@component.id])

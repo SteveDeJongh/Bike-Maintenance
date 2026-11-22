@@ -90,6 +90,59 @@ RSpec.describe "ComponentAssignments", type: :request do
   end
 
   describe "POST /component_assignments/:id/swap" do
+    # Pins the frontend's swapOptions rule (utils/swapOptions.ts) to what
+    # the endpoint really accepts for a shared indoor cassette.
+    describe "a shared indoor cassette (allows_multiple_assignments)" do
+      let(:start) { Time.zone.local(2026, 1, 1, 8, 0) }
+      let(:swapped_at) { Time.zone.local(2026, 2, 1, 9, 0) }
+      let!(:bike_1) { create(:bike, user: current_user, name: "One") }
+      let!(:bike_2) { create(:bike, user: current_user, name: "Two") }
+      let!(:bike_3) { create(:bike, user: current_user, name: "Three") }
+      let!(:trainer_cassette) { create(:component, user: current_user, category: "cassette", label: "Trainer cassette") }
+
+      before do
+        expect(current_user.component_category_settings.find_by!(category: "cassette").allows_multiple_assignments).to be true
+        [ bike_1, bike_2 ].each do |bike|
+          create(:component_assignment, bike: bike, component: trainer_cassette, started_at: start, ride_context: "indoor_only")
+        end
+      end
+
+      def slot(bike, ride_context)
+        other = create(:component, user: current_user, category: "cassette")
+        create(:component_assignment, bike: bike, component: other, started_at: start, ride_context: ride_context)
+      end
+
+      def swap(assignment)
+        post "/component_assignments/#{assignment.id}/swap", params: { component_id: trainer_cassette.id, swapped_at: swapped_at.iso8601 }
+      end
+
+      it "swaps into a third bike's indoor_only slot" do
+        swap(slot(bike_3, "indoor_only"))
+
+        expect(response).to have_http_status(:created)
+        expect(trainer_cassette.component_assignments.where(ended_at: nil).pluck(:bike_id)).to contain_exactly(bike_1.id, bike_2.id, bike_3.id)
+      end
+
+      it "rejects a both slot" do
+        swap(slot(bike_3, "both"))
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+
+      it "rejects an outdoor_only slot" do
+        swap(slot(bike_3, "outdoor_only"))
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+
+      it "rejects a bike it's already on" do
+        # bike_1 already has the trainer cassette indoor_only; a second
+        # indoor_only cassette there can't coexist in the first place, so
+        # use an outdoor_only slot on that bike, which the cassette can't
+        # take either.
+        swap(slot(bike_1, "outdoor_only"))
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+    end
+
     it "ends the current assignment and installs the new component at exactly the swap time" do
       bike = create(:bike, user: current_user)
       chain_a = create(:component, user: current_user, category: "chain", label: "Chain A")

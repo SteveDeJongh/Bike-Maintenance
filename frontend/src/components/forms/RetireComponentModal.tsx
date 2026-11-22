@@ -6,9 +6,8 @@ import { useRetireComponent } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
 import AppModal from '../AppModal'
 import CandidateOption from './CandidateOption'
-import { useSwapCandidates } from './useSwapCandidates'
+import { useSwapOptions } from './useSwapOptions'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
-import { retireButtonLabel } from '../../utils/swapCandidates'
 
 interface RetireComponentModalProps {
   opened: boolean
@@ -32,7 +31,20 @@ export default function RetireComponentModal({ opened, onClose, componentId }: R
 function RetireForm({ componentId, onDone }: { componentId: number; onDone: () => void }) {
   const { data: component } = useComponent(componentId)
   const retire = useRetireComponent()
-  const { options, captionFor } = useSwapCandidates(component?.category ?? '', componentId)
+  // Replacing is the same slot swap as the pill's, so it offers exactly the
+  // same options -- only when the component is on exactly one bike.
+  const onlyBike = component?.current_bikes.length === 1 ? component.current_bikes[0] : null
+  const { options } = useSwapOptions(
+    component && onlyBike?.assignment_id != null
+      ? {
+          assignmentId: onlyBike.assignment_id,
+          bikeId: onlyBike.id,
+          componentId,
+          category: component.category,
+          rideContext: onlyBike.ride_context,
+        }
+      : null,
+  )
 
   const [at, setAt] = useState<string | null>(nowIsoUtc())
   const [replacementId, setReplacementId] = useState<string | null>(null)
@@ -93,7 +105,10 @@ function RetireForm({ componentId, onDone }: { componentId: number; onDone: () =
             data={options}
             value={replacementId}
             onChange={setReplacementId}
-            renderOption={({ option }) => <CandidateOption label={option.label} caption={captionFor(Number(option.value))} />}
+            renderOption={({ option }) => {
+              const view = options.find((o) => o.value === option.value)
+              return <CandidateOption label={option.label} brandModel={view?.brandModel} status={view?.status} />
+            }}
           />
         ))}
       {bikes.length > 1 && (
@@ -116,7 +131,7 @@ function RetireForm({ componentId, onDone }: { componentId: number; onDone: () =
           Cancel
         </Button>
         <Button color="red" onClick={handleSubmit} disabled={!at} loading={retire.isPending}>
-          {retireButtonLabel(canReplace ? replacementId : null)}
+          {canReplace && replacementId ? 'Retire and replace' : 'Retire'}
         </Button>
       </Group>
     </Stack>

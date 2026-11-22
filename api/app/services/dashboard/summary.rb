@@ -251,7 +251,7 @@ module Dashboard
       # A component can (rarely) be mounted on more than one bike at once
       # (the documented shared indoor_only-cassette case) -- picking the
       # first is a deliberate display simplification, not a data gap.
-      bike = bikes_by_component[component.id]&.first
+      bike = bikes_by_component[component.id]&.first&.slice(:id, :name)
 
       {
         component_id: component.id,

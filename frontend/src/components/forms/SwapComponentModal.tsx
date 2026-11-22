@@ -5,7 +5,7 @@ import { useSwapComponentAssignment } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
 import AppModal from '../AppModal'
 import CandidateOption from './CandidateOption'
-import { useSwapCandidates } from './useSwapCandidates'
+import { useSwapOptions } from './useSwapOptions'
 import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
 
 interface SwapComponentModalProps {
@@ -14,6 +14,8 @@ interface SwapComponentModalProps {
   assignmentId: number
   category: string
   currentComponentId: number
+  bikeId: number
+  rideContext: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
 // The one-step swap action's modal -- ends assignmentId and installs the
@@ -28,12 +30,16 @@ export default function SwapComponentModal({
   assignmentId,
   category,
   currentComponentId,
+  bikeId,
+  rideContext,
 }: SwapComponentModalProps) {
   const swap = useSwapComponentAssignment()
-  const { eligible, options, captionFor } = useSwapCandidates(category, currentComponentId)
+  // Kept only until the dashboard card moves to AssignmentDetailModal.
+  const { options } = useSwapOptions({ assignmentId, bikeId, componentId: currentComponentId, category, rideContext })
+  const eligible = options
 
   const [componentId, setComponentId] = useState<string | null>(() =>
-    eligible.length === 1 ? String(eligible[0].id) : null,
+    eligible.length === 1 ? eligible[0].value : null,
   )
   const [swappedAt, setSwappedAt] = useState<string | null>(nowIsoUtc())
   const [baseErrors, setBaseErrors] = useState<string[]>([])
@@ -47,7 +53,7 @@ export default function SwapComponentModal({
   const [prevEligibleCount, setPrevEligibleCount] = useState(eligible.length)
   if (eligible.length !== prevEligibleCount) {
     setPrevEligibleCount(eligible.length)
-    if (componentId === null && eligible.length === 1) setComponentId(String(eligible[0].id))
+    if (componentId === null && eligible.length === 1) setComponentId(eligible[0].value)
   }
 
   function handleClose() {
@@ -82,7 +88,10 @@ export default function SwapComponentModal({
               data={options}
               value={componentId}
               onChange={setComponentId}
-              renderOption={({ option }) => <CandidateOption label={option.label} caption={captionFor(Number(option.value))} />}
+              renderOption={({ option }) => {
+                const view = options.find((o) => o.value === option.value)
+                return <CandidateOption label={option.label} brandModel={view?.brandModel} status={view?.status} />
+              }}
             />
           )}
           <DateTimePicker

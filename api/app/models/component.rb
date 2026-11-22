@@ -35,8 +35,10 @@ class Component < ApplicationRecord
   def self.current_bikes_by_component(user)
     ComponentAssignment.joins(:bike, :component)
       .where(ended_at: nil, components: { user_id: user.id })
-      .pluck("component_assignments.component_id", "bikes.id", "bikes.name")
-      .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(cid, bid, bname), h| h[cid] << { id: bid, name: bname } }
+      .pluck("component_assignments.component_id", "bikes.id", "bikes.name", "component_assignments.ride_context")
+      .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(cid, bid, bname, ride_context), h|
+        h[cid] << { id: bid, name: bname, ride_context: ride_context }
+      end
   end
 
   # Lifetime sums across all this component's assignment windows, on the

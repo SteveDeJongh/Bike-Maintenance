@@ -183,6 +183,7 @@ RSpec.describe "Components", type: :request do
       by_id = JSON.parse(response.body).index_by { |c| c["id"] }
       shared_names = by_id[shared_component.id]["current_bikes"].map { |b| b["name"] }
       expect(shared_names).to contain_exactly("Road Bike", "Trainer Bike")
+      expect(by_id[shared_component.id]["current_bikes"].map { |b| b["ride_context"] }).to eq(%w[indoor_only indoor_only])
       expect(by_id[bare_component.id]["current_bikes"]).to eq([])
     end
   end

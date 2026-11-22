@@ -63,7 +63,7 @@ const clickable: CSSProperties = { cursor: 'pointer' }
 // for a swap -- it opens SwapComponentModal directly (preselecting the
 // other component when there's exactly one eligible), so the whole flow is
 // a tap to open plus the modal's own "Swap" to confirm.
-function WearRow({ component }: { component: DashboardMountedComponent }) {
+function WearRow({ component, bikeId }: { component: DashboardMountedComponent; bikeId: number }) {
   const [swapOpened, setSwapOpened] = useState(false)
   const hasRequirement = component.fraction_used != null && component.service_status != null
   const color = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
@@ -94,6 +94,8 @@ function WearRow({ component }: { component: DashboardMountedComponent }) {
         assignmentId={component.assignment_id}
         category={component.category}
         currentComponentId={component.component_id}
+        bikeId={bikeId}
+        rideContext={component.ride_context}
       />
     </>
   )
@@ -207,7 +209,7 @@ export default function BikeCard({ bike, style }: { bike: DashboardBike; style?:
               }}
             >
               {wearRows.map((component) => (
-                <WearRow key={component.component_id} component={component} />
+                <WearRow key={component.component_id} component={component} bikeId={bike.id} />
               ))}
             </Box>
           )}

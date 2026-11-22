@@ -224,7 +224,7 @@ RSpec.describe Component, type: :model do
 
       result = described_class.current_bikes_by_component(user)
 
-      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist" }])
+      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist", ride_context: "both" }])
     end
 
     it "includes both bikes for a component concurrently shared indoor_only across two bikes" do

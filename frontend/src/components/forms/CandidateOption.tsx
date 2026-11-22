@@ -1,14 +1,19 @@
 import { Stack, Text } from '@mantine/core'
 
-// One option in a swap/replace Select: the label, with useSwapCandidates'
-// caption under it.
-export default function CandidateOption({ label, caption }: { label: string; caption?: string }) {
+// One option in a swap/replace list: the label, a dimmed brand/model, and
+// a dimmed status line ("Last on X", "Never installed", "Also on X (indoor)").
+export default function CandidateOption({ label, brandModel, status }: { label: string; brandModel?: string | null; status?: string }) {
   return (
     <Stack gap={0}>
       <Text size="sm">{label}</Text>
-      {caption && (
+      {brandModel && (
         <Text size="xs" c="dimmed">
-          {caption}
+          {brandModel}
+        </Text>
+      )}
+      {status && (
+        <Text size="xs" c="dimmed">
+          {status}
         </Text>
       )}
     </Stack>

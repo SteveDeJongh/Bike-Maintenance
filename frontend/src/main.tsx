@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { MantineProvider, createTheme, localStorageColorSchemeManager } from '@mantine/core'
 import { DatesProvider } from '@mantine/dates'
 import { ModalsProvider } from '@mantine/modals'
+import { Notifications } from '@mantine/notifications'
 import { QueryClientProvider } from '@tanstack/react-query'
 import '@mantine/core/styles.css'
 import '@mantine/dates/styles.css'
+import '@mantine/notifications/styles.css'
 import './index.css'
 import App from './App.tsx'
 import MobileDatePickerDefaults from './components/MobileDatePickerDefaults.tsx'
@@ -76,6 +78,7 @@ createRoot(document.getElementById('root')!).render(
       {/* Sunday-start weeks for every Calendar-based picker (DateInput,
           DateTimePicker) app-wide -- weekendDays already defaults to
           [0, 6] regardless of firstDayOfWeek, so no change needed there. */}
+      <Notifications position="bottom-center" />
       <DatesProvider settings={{ firstDayOfWeek: 0 }}>
         <ModalsProvider>
           <QueryClientProvider client={queryClient}>

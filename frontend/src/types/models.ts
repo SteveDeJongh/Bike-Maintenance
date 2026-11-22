@@ -138,6 +138,9 @@ export interface ComponentCurrentBike {
   // Components list's own current_bikes -- the one-step swap action needs
   // this assignment's own id, which the list has no use for.
   assignment_id?: number
+  // That assignment's ride_context -- swapOptions needs it to tell a
+  // shared indoor cassette from one that can't be shared.
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
 // The bike of a component's most recently ended assignment -- set only
