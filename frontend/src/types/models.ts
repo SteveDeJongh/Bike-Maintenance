@@ -596,12 +596,16 @@ export type DashboardOffBikeComponent = {
   component_id: number
   label: string
   category: string
+  // The category's ComponentCategorySetting#rotates -- only a rotating
+  // category gets a rotation strip; otherwise it's the plain off-bike line.
+  rotates: boolean
   display_metric: DashboardDisplayMetric
 } & DashboardWearFields
 
 // The driving requirement's progress (all null with no enabled
 // requirement), plus lifetime distance -- set only for components in a
-// same-category rotation pair on the bike, null otherwise.
+// same-category rotation pair on the bike (a rotating category), null
+// otherwise.
 export interface DashboardWearFields {
   fraction_used: number | null
   driving_dimension: RequirementDimension | null

@@ -578,6 +578,39 @@ RSpec.describe "Dashboard", type: :request do
         expect(off_bike[chain_b.id]).to include("fraction_used" => nil, "driving_dimension" => nil)
       end
 
+      it "pairs only rotating categories: a non-rotating one stays a plain off-bike entry" do
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2025, 12, 10), distance_meters: 3_000)
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 10_000)
+        # Provisioned: chain rotates, tire_front doesn't.
+        chain_a = mount(create(:component, user: current_user, category: "chain", label: "Chain A"))
+        chain_b = mount(create(:component, user: current_user, category: "chain", label: "Chain B"),
+          from: Time.zone.local(2025, 12, 1), to: Time.zone.local(2026, 1, 1))
+        new_tire = mount(create(:component, user: current_user, category: "tire_front", label: "New tire"))
+        old_tire = mount(create(:component, user: current_user, category: "tire_front", label: "Old tire"),
+          from: Time.zone.local(2025, 12, 1), to: Time.zone.local(2026, 1, 1))
+
+        payload = bike_payload
+        mounted = payload["mounted"].index_by { |m| m["component_id"] }
+        off_bike = payload["off_bike"].index_by { |c| c["component_id"] }
+
+        expect(off_bike[chain_b.id]).to include("rotates" => true, "total_distance_meters" => 3_000)
+        expect(mounted[chain_a.id]["total_distance_meters"]).to eq(10_000)
+
+        expect(off_bike.keys).to include(old_tire.id)
+        expect(off_bike[old_tire.id]).to include("rotates" => false, "total_distance_meters" => nil)
+        expect(mounted[new_tire.id]["total_distance_meters"]).to be_nil
+      end
+
+      it "pairs a category once the user sets it to rotate" do
+        current_user.component_category_settings.find_by!(category: "tire_front").update!(rotates: true)
+        mount(create(:component, user: current_user, category: "tire_front", label: "New tire"))
+        old_tire = mount(create(:component, user: current_user, category: "tire_front", label: "Old tire"),
+          from: Time.zone.local(2025, 12, 1), to: Time.zone.local(2026, 1, 1))
+
+        off_bike = bike_payload["off_bike"].index_by { |c| c["component_id"] }
+        expect(off_bike[old_tire.id]).to include("rotates" => true, "total_distance_meters" => 0)
+      end
+
       it "reports the latest ride's sport type" do
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 5), activity_type: "Ride")
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 1, 9), activity_type: "GravelRide")

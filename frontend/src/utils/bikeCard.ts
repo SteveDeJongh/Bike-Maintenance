@@ -63,10 +63,11 @@ export interface RotationGroup {
   offBike: DashboardOffBikeComponent[]
 }
 
-// One group per category where the bike has both an off-bike component
-// and a mounted one (chains are the usual case, but nothing is
-// chain-specific). Off-bike components with no mounted partner are
-// returned separately, for the plain dimmed line.
+// One group per rotating category (rotates: true, from the category's
+// setting -- chain by default) where the bike has both an off-bike
+// component and a mounted one. Off-bike components in a non-rotating
+// category, or with no mounted partner, are returned separately, for the
+// plain dimmed line.
 export function rotationGroups(
   mounted: DashboardMountedComponent[],
   offBike: DashboardOffBikeComponent[],
@@ -75,7 +76,7 @@ export function rotationGroups(
   const unpaired: DashboardOffBikeComponent[] = []
 
   for (const component of offBike) {
-    const partners = mounted.filter((candidate) => candidate.category === component.category)
+    const partners = component.rotates ? mounted.filter((candidate) => candidate.category === component.category) : []
     if (partners.length === 0) {
       unpaired.push(component)
       continue

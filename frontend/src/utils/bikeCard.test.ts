@@ -26,8 +26,8 @@ function mounted(id: number, category: string, extra: Partial<DashboardMountedCo
   }
 }
 
-function offBike(id: number, category: string): DashboardOffBikeComponent {
-  return { component_id: id, label: `${category} ${id}`, category, display_metric: metric, ...noWear }
+function offBike(id: number, category: string, rotates = true): DashboardOffBikeComponent {
+  return { component_id: id, label: `${category} ${id}`, category, rotates, display_metric: metric, ...noWear }
 }
 
 describe('bikeStatusCounts', () => {
@@ -93,9 +93,15 @@ describe('rotationGroups', () => {
     expect(unpaired.map((component) => component.component_id)).toEqual([5])
   })
 
-  it('is not chain-specific', () => {
-    const { groups } = rotationGroups([mounted(1, 'tire_front')], [offBike(2, 'tire_front')])
+  it('pairs any category set to rotate, not just chain', () => {
+    const { groups } = rotationGroups([mounted(1, 'tire_front')], [offBike(2, 'tire_front', true)])
     expect(groups.map((group) => group.category)).toEqual(['tire_front'])
+  })
+
+  it('leaves a non-rotating category unpaired even with a mounted partner', () => {
+    const { groups, unpaired } = rotationGroups([mounted(1, 'tire_front')], [offBike(2, 'tire_front', false)])
+    expect(groups).toEqual([])
+    expect(unpaired.map((component) => component.component_id)).toEqual([2])
   })
 
   it('has nothing to pair with no off-bike components', () => {

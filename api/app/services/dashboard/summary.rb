@@ -102,11 +102,14 @@ module Dashboard
 
       worst_results = Maintenance::RequirementStatus.worst_result_by_component(user, results: results)
       off_bike_by_bike = off_bike_components_by_bike
+      # Categories set to rotate (ComponentCategorySetting#rotates); a
+      # category with no settings row behaves as the default, false.
+      rotating = user.component_category_settings.where(rotates: true).pluck(:category).to_set
 
       user.bikes.where(retired_on: nil).map do |bike|
         assignments = bike.component_assignments.where(ended_at: nil).includes(:component).to_a
         off_bike = off_bike_by_bike[bike.id] || []
-        paired_ids = rotation_component_ids(assignments.map(&:component), off_bike)
+        paired_ids = rotation_component_ids(assignments.map(&:component), off_bike, rotating)
 
         {
           id: bike.id,
@@ -117,17 +120,18 @@ module Dashboard
           last_ride_activity_type: last_ride_types[bike.id],
           distance_this_month: this_month_distances[bike.id] || 0,
           mounted: assignments.map { |assignment| mounted_payload(assignment, worst_results, paired_ids) },
-          off_bike: off_bike.map { |c| off_bike_payload(c, worst_results[c.id], paired_ids) },
+          off_bike: off_bike.map { |c| off_bike_payload(c, worst_results[c.id], paired_ids, rotating) },
         }
       end
     end
 
     # Components in a rotation pair on this bike: every off-bike component
-    # whose category also has a mounted component, plus those mounted
-    # partners. Only these get total_distance_meters -- the card's rotation
-    # strip is the one place lifetime distance is needed for both sides.
-    def rotation_component_ids(mounted_components, off_bike)
-      paired_categories = mounted_components.map(&:category) & off_bike.map(&:category)
+    # in a rotating category that also has a mounted component, plus those
+    # mounted partners. Only these get total_distance_meters -- the card's
+    # rotation strip is the one place lifetime distance is needed for both
+    # sides.
+    def rotation_component_ids(mounted_components, off_bike, rotating)
+      paired_categories = (mounted_components.map(&:category) & off_bike.map(&:category)).select { |c| rotating.include?(c) }
       (mounted_components + off_bike).select { |c| paired_categories.include?(c.category) }.map(&:id).to_set
     end
 
@@ -146,11 +150,12 @@ module Dashboard
       }.merge(wear_fields(component, result, paired_ids))
     end
 
-    def off_bike_payload(component, result, paired_ids)
+    def off_bike_payload(component, result, paired_ids, rotating)
       {
         component_id: component.id,
         label: component.label,
         category: component.category,
+        rotates: rotating.include?(component.category),
         display_metric: display_metric(component, result),
       }.merge(wear_fields(component, result, paired_ids))
     end
