@@ -71,7 +71,7 @@ Full fields, validations, and rules: `docs/data-model.md`.
   `BikeComponentSlot` (which categories a bike tracks), `ComponentAssignment` (component on
   bike over `[started_at, ended_at)`, with a `ride_context` of `both`/`outdoor_only`/`indoor_only`).
 - `ComponentCategorySetting` — per-user, per-category defaults (default ride_context,
-  trackable, `allows_multiple_assignments`, notification overrides, `common_brands`).
+  trackable, `allows_multiple_assignments`, `rotates`, notification overrides, `common_brands`).
 - Maintenance: `ServiceType` (user-defined, optionally tagged with categories via
   `ServiceTypeCategory` — untagged = universal), `MaintenanceEvent`, `ServiceSession` (a batch
   of events on one bike), `CategoryServiceRequirement` (template) →
@@ -228,6 +228,6 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/rides-and-activity.md` — **Ride history**, **Activity log**. Bike ride
   pagination and odometer, `Activity::Feed`'s keyset/offset branches, the install/removal
   merge rule, the `/activity` page.
-- `docs/components-and-setup.md` — **One-step component swap**, **Bike setup**,
-  **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
+- `docs/components-and-setup.md` — **One-step component swap**, **Last bike and the
+  Components list's Bike column**, **Bike setup**, **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
   component setup, suggestion sources and ranking.

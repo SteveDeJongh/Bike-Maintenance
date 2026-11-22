@@ -84,7 +84,7 @@
 - `ComponentCategorySetting`: user_id, category, default_ride_context (string, same
   3-value enum/validation as `ComponentAssignment#ride_context`, DB default `"both"`),
   trackable (boolean, DB default `true`), allows_multiple_assignments (boolean, DB
-  default `false`) — unique per `(user_id, category)`. User-serviceable (`GET
+  default `false`), rotates (boolean, DB default `false`) — unique per `(user_id, category)`. User-serviceable (`GET
   /component_category_settings` returns every category's settings at once; `PATCH
   /component_category_settings/:category` upserts one, same upsert-by-key
   convention as `TableViewPreference`'s own `PATCH`), surfaced on the Settings
@@ -108,6 +108,12 @@
     separate columns — they're the same underlying idea for a category ("not strictly
     one-active-installation-at-a-time"), and splitting them isn't justified until a real
     need for independent control over each surfaces.
+  - `rotates` (boolean, DB default `false`) — whether the category's components rotate
+    on a bike (two waxed chains swapped back and forth). Display-only: it gates the
+    Home page's rotation strip and which components `Dashboard::Summary` computes
+    lifetime distance for (`docs/dashboard.md`). `AddRotatesToComponentCategorySettings`
+    backfilled `true` for every existing chain row; `Users::Provision::ROTATES_CATEGORIES`
+    (`%w[chain]`) does the same for new users. Custom categories default to `false`.
   A missing row behaves as each column's own DB default (`"both"`/`true`/`false`).
   Every user gets a fully editable starting point for each of the 18 known categories
   — picker order is drivetrain → wheels/tires → brakes → contact points → frame/

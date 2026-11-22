@@ -51,8 +51,10 @@ distance/status computation happens here that doesn't already live elsewhere:
   `display_metric` both show the *driving* requirement (status-only callers like the
   Components table can't change). **`total_distance_meters`** (lifetime, via
   `Component#total_distance`) is set only for components in a **rotation pair** — an
-  off-bike component plus every mounted one of the same category on that bike — and
-  `null` otherwise; it runs one query per assignment per paired component, fine for
+  off-bike component in a **rotating category** (`ComponentCategorySetting#rotates`,
+  read once per request; chain by default) plus every mounted one of the same category
+  on that bike — and `null` otherwise. Each `off_bike` entry carries `rotates`, so the
+  card knows which ones get a strip; it runs one query per assignment per paired component, fine for
   the handful on a card and an open batching question if more of the page needs it.
   A component with no requirement already has its lifetime total in
   `display_metric.distance_meters`. **`last_ride_activity_type`** — the latest ride's
@@ -248,12 +250,14 @@ genuine data-model change deliberately not made speculatively here.
   chain's "Wax" reads "8 km left · wax" but "Chain replacement" adds nothing); with
   no requirement, an empty track and "{lifetime} total". Tapping a row still opens
   `SwapComponentModal`. **Rotation strip** (`rotationGroups`, `utils/bikeCard.ts`):
-  for each category where the bike has both an off-bike component (the existing
-  `off_bike` rule) and a mounted one — chains are the usual case, nothing is
-  chain-specific — "{Category} rotation" with "Off: {label} · {display metric}", a
+  for each category with `rotates: true` where the bike has both an off-bike component
+  (the existing `off_bike` rule) and a mounted one — chains by default, any category
+  the user sets to rotate on Settings → Component Categories — "{Category} rotation" with "Off: {label} · {display metric}", a
   split bar of each side's `total_distance_meters` (mounted in the primary colour,
   off-bike in `--mantine-primary-color-9`), and per-component labels. An off-bike
-  component with no mounted partner keeps the plain "Off the bike: …" line. Footer:
+  component in a non-rotating category, or with no mounted partner, keeps the plain
+  "Off the bike: …" line — so a replaced tire left un-retired no longer reads as a
+  rotation. Footer:
   an outline "Log service" (`BatchServiceModal`), pinned to the bottom.
 - **`BikeCards`** — "Bikes" with "N bikes · sorted by most urgent" and "Manage
   bikes →". `sortBikesByUrgency`: most due components, then most warning, then most

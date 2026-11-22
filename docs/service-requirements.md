@@ -269,7 +269,10 @@ this bike" gets computed and how the batch logger itself works.
   computation — `Dashboard::Summary#off_bike_components_by_bike` is a one-line delegate to this at its default `at:`. A component retired on the same calendar
   day as `at` still excludes correctly (compares `retired_on` cast to a
   timestamp against `at`, not a bare date, specifically so a same-day
-  retirement reads as "before" any later moment that day)
+  retirement reads as "before" any later moment that day). Each candidate's
+  bike comes from `ComponentAssignment.last_ended_by_component(user, at:)`
+  — one `DISTINCT ON` query, the same lookup behind `GET /components`'
+  `last_bike` — not a query per candidate
 - **`GET /bikes/:id/serviceable_components?at=<iso8601>`** (`BikesController`,
   same home as the existing `:rides` member action) returns `{ mounted: [...],
   off_bike: [...] }`, each component with its **enabled** service requirements

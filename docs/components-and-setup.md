@@ -51,6 +51,28 @@ Swapping one component for another in the same slot (the main use case: rotating
   field (the swap action's own target) — `ComponentCurrentBike`'s is optional, since
   only `GET /components/:id` (not the Components list's own `current_bikes`) sets it.
 
+## Last bike and the Components list's Bike column
+
+- **`ComponentAssignment.last_ended_by_component(user, at: Time.current, component_ids: nil)`**
+  → `{ component_id => { bike_id:, bike_name:, ended_at: } }`: each component's
+  most recently ended assignment (ended at or before `at`, ties on the higher id),
+  in one `DISTINCT ON (component_id)` query. It's the one definition of "which bike
+  was this last on", shared by `GET /components`, `GET /components/:id` and
+  `Bikes::ServiceableComponents.off_bike_components_by_bike`.
+- **`last_bike: {id, name, removed_at} | null`** on `GET /components` and
+  `GET /components/:id` — set only when `current_bikes` is empty, retired components
+  included; `null` when mounted or never installed.
+- **Bike column** (key still `current_bikes`, so saved preferences keep working;
+  label "Bike"), now in `DEFAULT_COMPONENT_LIST_COLUMNS`. Mounted: the bike(s),
+  linked. Otherwise a dimmed "Last on <bike>" (linked) or "Never installed". Sort
+  (`bikeColumnSortKey`, `utils/componentBike.ts`): mounted by bike name, then
+  last-on by bike name, then never installed. The mobile cards share the renderer.
+  Saved column preferences **replace** the defaults, with no merge
+  (`useTableViewPreferences`), and every save, even a sort change, writes `columns`.
+  So anyone who has ever touched the table turns the column on from the picker.
+- **Component detail**: `ComponentIdentityStatus` reads "Uninstalled · Last on
+  <bike>" when there's a `last_bike`.
+
 ## Bike setup
 
 Replaces manually repeating "track a slot → create a component → install it" once
