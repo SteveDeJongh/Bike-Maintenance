@@ -559,7 +559,9 @@ export function useSaveComponentCategorySettings() {
           }),
         ),
       ),
-    onSuccess: () => invalidate(queryClient, 'categorySettings'),
+    // serviceStatus too: rotates reshapes the dashboard's bike cards, and
+    // the notification overrides feed its alert flags.
+    onSuccess: () => invalidate(queryClient, 'categorySettings', 'serviceStatus'),
   })
 }
 

@@ -206,6 +206,10 @@ export interface ComponentCategorySetting {
   // dedicated outdoor cassette alongside a dedicated trainer cassette).
   // Enforced server-side in ComponentAssignment, not just a frontend hint.
   allows_multiple_assignments: boolean
+  // Whether components of this category rotate on a bike (two waxed
+  // chains) -- gates the dashboard's rotation strip. Chain is true by
+  // default; everything else, custom categories included, false.
+  rotates: boolean
   // Per-category notification overrides -- null means "inherit the global
   // NotificationSetting", same missing-value-means-inherit convention as
   // default_ride_context's own column default.

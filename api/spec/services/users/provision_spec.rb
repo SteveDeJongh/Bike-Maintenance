@@ -24,6 +24,7 @@ RSpec.describe Users::Provision, type: :model do
     settings.each do |category, setting|
       expect(setting.default_ride_context).to eq(outdoor_only.include?(category) ? "outdoor_only" : "both")
       expect(setting.allows_multiple_assignments).to eq(category == "cassette")
+      expect(setting.rotates).to eq(category == "chain")
       expect(setting.trackable).to be true
     end
   end

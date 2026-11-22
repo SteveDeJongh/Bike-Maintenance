@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { useComponentCategorySettings } from '../../api/queries'
 import { useSaveComponentCategorySettings } from '../../api/mutations'
@@ -26,6 +27,7 @@ interface CategoryFormValues {
   default_ride_context: 'both' | 'outdoor_only' | 'indoor_only'
   trackable: boolean
   allows_multiple_assignments: boolean
+  rotates: boolean
   notifications_enabled: boolean | null
   warning_threshold_percent: number | null
   common_brands: string[]
@@ -35,6 +37,7 @@ const DEFAULT_VALUES: CategoryFormValues = {
   default_ride_context: 'both',
   trackable: true,
   allows_multiple_assignments: false,
+  rotates: false,
   notifications_enabled: null,
   warning_threshold_percent: null,
   common_brands: [],
@@ -45,11 +48,15 @@ function settingToValues(setting: ComponentCategorySetting | undefined): Categor
     default_ride_context: setting?.default_ride_context ?? DEFAULT_VALUES.default_ride_context,
     trackable: setting?.trackable ?? DEFAULT_VALUES.trackable,
     allows_multiple_assignments: setting?.allows_multiple_assignments ?? DEFAULT_VALUES.allows_multiple_assignments,
+    rotates: setting?.rotates ?? DEFAULT_VALUES.rotates,
     notifications_enabled: setting?.notifications_enabled ?? null,
     warning_threshold_percent: setting?.warning_threshold_percent ?? null,
     common_brands: setting?.common_brands ?? DEFAULT_VALUES.common_brands,
   }
 }
+
+const ROTATES_HELP =
+  'Show a rotation strip on the bike card when another component of this category is off the bike (e.g. two waxed chains).'
 
 // null (inherit global) is a real third state here, not just an unset
 // checkbox -- a plain Select with an explicit "Inherit global" option.
@@ -90,7 +97,8 @@ export default function ComponentCategorySettingsPage() {
         accruing mileage from, whether the category is offered when tracking a new component on
         a bike or creating a new component, whether a second, complementary-context component
         (e.g. a dedicated outdoor cassette alongside a dedicated trainer cassette) can be
-        installed in the same slot at once, and which brands are suggested in the brand
+        installed in the same slot at once, whether its components rotate on a bike (shown as
+        a rotation strip on the Home page's bike card), and which brands are suggested in the brand
         autocomplete when adding a component of this category. Changes are staged below and
         only take effect once you click Save.
       </Text>
@@ -194,7 +202,7 @@ function CategoryTable({
 
   return (
     <Stack>
-      <Table.ScrollContainer minWidth={1500}>
+      <Table.ScrollContainer minWidth={1600}>
       <Table>
         <Table.Thead>
           <Table.Tr>
@@ -202,6 +210,11 @@ function CategoryTable({
             <Table.Th>Default ride context</Table.Th>
             <Table.Th>Trackable</Table.Th>
             <Table.Th>Allows multiple installed at once</Table.Th>
+            <Table.Th>
+              <Tooltip multiline w={280} label={ROTATES_HELP}>
+                <span style={{ textDecoration: 'underline dotted', cursor: 'help' }}>Rotates</span>
+              </Tooltip>
+            </Table.Th>
             <Table.Th>Notifications</Table.Th>
             <Table.Th>Warning %</Table.Th>
             <Table.Th>Common brands</Table.Th>
@@ -232,6 +245,14 @@ function CategoryTable({
                     updateLocal(category, { allows_multiple_assignments: event.currentTarget.checked })
                   }
                   disabled={saveSettings.isPending}
+                />
+              </Table.Td>
+              <Table.Td>
+                <Checkbox
+                  checked={localValues[category].rotates}
+                  onChange={(event) => updateLocal(category, { rotates: event.currentTarget.checked })}
+                  disabled={saveSettings.isPending}
+                  aria-label={`${categoryLabel(category)} rotates`}
                 />
               </Table.Td>
               <Table.Td>

@@ -28,6 +28,11 @@ module Users
 
     ALLOWS_MULTIPLE_ASSIGNMENTS_CATEGORIES = %w[cassette].freeze
 
+    # Categories whose components rotate on a bike (the dashboard's
+    # rotation strip) -- mirrors AddRotatesToComponentCategorySettings's
+    # backfill.
+    ROTATES_CATEGORIES = %w[chain].freeze
+
     # The live version of AddCommonBrandsToComponentCategorySettings's own
     # frozen snapshot -- same split as DEFAULT_BIKE_TYPES below. A category
     # with no entry (frame, or any custom category) just keeps the column's
@@ -94,6 +99,7 @@ module Users
         setting = ComponentCategorySetting.find_or_create_by!(user: user, category: category) do |s|
           s.default_ride_context = OUTDOOR_ONLY_CATEGORIES.include?(category) ? "outdoor_only" : "both"
           s.allows_multiple_assignments = ALLOWS_MULTIPLE_ASSIGNMENTS_CATEGORIES.include?(category)
+          s.rotates = ROTATES_CATEGORIES.include?(category)
           s.common_brands = COMMON_BRANDS_BY_CATEGORY[category] || []
         end
         setting

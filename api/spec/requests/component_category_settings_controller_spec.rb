@@ -23,6 +23,14 @@ RSpec.describe "ComponentCategorySettings", type: :request do
   end
 
   describe "PATCH /component_category_settings/:category" do
+    it "updates rotates" do
+      patch "/component_category_settings/tire_front", params: { component_category_setting: { rotates: true } }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["rotates"]).to be true
+      expect(current_user.component_category_settings.find_by(category: "tire_front").rotates).to be true
+    end
+
     it "creates a setting on first write" do
       # "fenders" is deliberately not one of the categories Users::Provision
       # seeds automatically, so there's genuinely no row yet to write over.
