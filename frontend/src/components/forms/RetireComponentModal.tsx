@@ -15,11 +15,11 @@ interface RetireComponentModalProps {
   componentId: number
 }
 
-// Retire… -- POST /components/:id/retire. Takes the component off every
+// Retire -- POST /components/:id/retire. Takes the component off every
 // bike it's on at "When" and sets retired_on to that local date; with a
 // replacement chosen (offered only when it's on exactly one bike), swaps
-// it into the same slot at the same instant. Shared by ComponentDetail,
-// the bike page's installed rows/cards, and the Components list.
+// it into the same slot at the same instant. Opened from ComponentDetail
+// and the Components list.
 export default function RetireComponentModal({ opened, onClose, componentId }: RetireComponentModalProps) {
   return (
     <AppModal opened={opened} onClose={onClose} title="Retire component">

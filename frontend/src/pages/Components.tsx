@@ -250,7 +250,7 @@ function ComponentsTable({
             renderActions={(component) => (
               <>
                 <Menu.Item onClick={() => onEdit(component)}>Edit</Menu.Item>
-                {!component.retired_on && <Menu.Item onClick={() => onRetire(component)}>Retire…</Menu.Item>}
+                {!component.retired_on && <Menu.Item onClick={() => onRetire(component)}>Retire</Menu.Item>}
                 <Menu.Item color="red" onClick={() => onDelete(component)}>
                   Delete
                 </Menu.Item>
@@ -314,7 +314,7 @@ function ComponentsTable({
                       </Button>
                       {!component.retired_on && (
                         <Button size="xs" variant="subtle" color="red" onClick={() => onRetire(component)}>
-                          Retire…
+                          Retire
                         </Button>
                       )}
                       <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(component)}>
