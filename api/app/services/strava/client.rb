@@ -28,7 +28,12 @@ module Strava
       end
     end
 
+    # A push subscription create rejected because the app already has one
+    # (Strava allows a single subscription per app).
+    class SubscriptionExistsError < Error; end
+
     BASE_URL = "https://www.strava.com"
+    PUSH_SUBSCRIPTIONS_PATH = "/api/v3/push_subscriptions"
 
     def exchange_code(code)
       request_token(grant_type: "authorization_code", code: code)
@@ -55,7 +60,45 @@ module Strava
       get("/api/v3/activities/#{id}", access_token: access_token)
     end
 
+    # The app's webhook push subscription (one per Strava app, covering every
+    # athlete who authorized it). These authenticate with the app's
+    # client_id/client_secret, not an athlete token. Creating one makes
+    # Strava call back GET <callback_url> to validate it before answering
+    # (StravaWebhooksController#verify).
+    def create_push_subscription(callback_url:, verify_token:)
+      app_request(:post, PUSH_SUBSCRIPTIONS_PATH, callback_url: callback_url, verify_token: verify_token)
+    end
+
+    def list_push_subscriptions
+      app_request(:get, PUSH_SUBSCRIPTIONS_PATH)
+    end
+
+    def delete_push_subscription(id)
+      app_request(:delete, "#{PUSH_SUBSCRIPTIONS_PATH}/#{id}")
+      nil
+    end
+
     private
+
+    # POST sends the params form-encoded (the connection's url_encoded
+    # middleware); GET and DELETE send them as the query string.
+    def app_request(method, path, params = {})
+      params = { client_id: credentials[:client_id], client_secret: credentials[:client_secret] }.merge(params)
+      response = connection.public_send(method, path, params)
+
+      raise NotFoundError, "Strava request to #{path} failed: 404" if response.status == 404
+      raise rate_limited_error(path, response) if response.status == 429
+      if response.status == 400 && subscription_exists?(response.body)
+        raise SubscriptionExistsError, "Strava already has a push subscription for this app"
+      end
+      raise Error, "Strava request to #{path} failed: #{response.status} #{response.body.inspect}" unless response.success?
+
+      response.body
+    end
+
+    def subscription_exists?(body)
+      body.is_a?(Hash) && Array(body["errors"]).any? { |error| error.is_a?(Hash) && error["code"] == "already exists" }
+    end
 
     def get(path, access_token:, params: {})
       response = connection.get(path, params.compact) do |req|

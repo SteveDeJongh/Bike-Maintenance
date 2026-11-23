@@ -105,4 +105,76 @@ RSpec.describe Strava::Client do
       expect(client.fetch_activity(1, access_token: "tok")).to eq("id" => 1, "name" => "Ride")
     end
   end
+
+  describe "push subscriptions" do
+    let(:client) { described_class.new }
+    let(:path) { "/api/v3/push_subscriptions" }
+
+    before do
+      allow(Rails.application.credentials).to receive(:strava).and_return(client_id: "test-client", client_secret: "test-secret")
+    end
+
+    # Records each request so the specs can check the app credentials went
+    # in the form body (POST) or the query string (GET/DELETE).
+    def stub_app(method, path, status:, body: nil)
+      requests = []
+      conn = Faraday.new do |f|
+        f.request :url_encoded
+        f.response :json
+        f.adapter :test do |stub|
+          stub.public_send(method, path) do |env|
+            requests << env
+            [status, { "Content-Type" => "application/json" }, body&.to_json]
+          end
+        end
+      end
+      allow(client).to receive(:connection).and_return(conn)
+      requests
+    end
+
+    it "creates one with the app credentials and the callback, form-encoded" do
+      requests = stub_app(:post, path, status: 201, body: { "id" => 120_475 })
+
+      result = client.create_push_subscription(callback_url: "https://example.test/strava/webhook", verify_token: "tok")
+
+      expect(result).to eq("id" => 120_475)
+      expect(Rack::Utils.parse_query(requests.first.request_body)).to eq(
+        "client_id" => "test-client", "client_secret" => "test-secret",
+        "callback_url" => "https://example.test/strava/webhook", "verify_token" => "tok",
+      )
+    end
+
+    it "raises SubscriptionExistsError when the app already has one" do
+      stub_app(:post, path, status: 400, body: {
+        "message" => "Bad Request",
+        "errors" => [ { "resource" => "PushSubscription", "field" => "", "code" => "already exists" } ],
+      })
+
+      expect { client.create_push_subscription(callback_url: "https://x.test/strava/webhook", verify_token: "tok") }
+        .to raise_error(Strava::Client::SubscriptionExistsError)
+    end
+
+    it "raises a plain Error, with Strava's reason, for any other 400" do
+      stub_app(:post, path, status: 400, body: { "errors" => [ { "code" => "GET to callback URL does not return 200" } ] })
+
+      expect { client.create_push_subscription(callback_url: "https://x.test/strava/webhook", verify_token: "tok") }
+        .to raise_error(Strava::Client::Error, /does not return 200/) { |error|
+          expect(error).not_to be_a(Strava::Client::SubscriptionExistsError)
+        }
+    end
+
+    it "lists them with the app credentials as query params" do
+      requests = stub_app(:get, path, status: 200, body: [ { "id" => 1, "callback_url" => "https://x.test/strava/webhook" } ])
+
+      expect(client.list_push_subscriptions).to eq([ { "id" => 1, "callback_url" => "https://x.test/strava/webhook" } ])
+      expect(requests.first.url.query).to include("client_id=test-client", "client_secret=test-secret")
+    end
+
+    it "deletes one by id (204)" do
+      requests = stub_app(:delete, "#{path}/1", status: 204)
+
+      expect(client.delete_push_subscription(1)).to be_nil
+      expect(requests.first.url.query).to include("client_id=test-client")
+    end
+  end
 end
