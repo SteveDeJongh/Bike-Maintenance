@@ -44,7 +44,8 @@ distance/status computation happens here that doesn't already live elsewhere:
   `Maintenance::RequirementStatus.worst_result_by_component` (returns the full winning `Result`; `worst_status_by_component` is a one-line wrapper over it) and
   their bike-grouping from `Component.current_bikes_by_component` .
   Each `mounted`/`off_bike` entry also carries the card's wear fields, straight from
-  that worst `Result` (all `null` with no enabled requirement): `fraction_used`,
+  that worst `Result` via `Maintenance::WearFields` (shared with the ride details
+  endpoint; all `null` with no enabled requirement): `fraction_used`,
   `driving_dimension`, `distance_remaining_meters`, `moving_time_remaining_seconds`,
   `days_remaining`. "Worst" is worst status, then — new for the wear bar — highest
   `fraction_used` among requirements sharing that status, so the bar and the

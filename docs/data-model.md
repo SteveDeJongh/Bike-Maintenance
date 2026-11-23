@@ -20,7 +20,8 @@
   sortable/configurable-column table in the app (see "Sortable, configurable tables"
   below), not Bikes-specific — a second list page gets its own `table_key`, reusing the
   same model/endpoint. `data` holds `{ columns: [...], sort_column, sort_direction }`;
-  validated only as "must be a Hash" — like `Component#category`, the actual allowed
+  validated as "must be a Hash", plus one per-key rule: `group_by` (the activity log's
+  grouping) must be `week` or `none` when present. Otherwise, like `Component#category`, the actual allowed
   column keys live only on each page's own frontend constant (e.g. `constants.ts`'s
   `BIKE_LIST_COLUMNS`), not enforced server-side. Exposed via `GET/PATCH
   /table_view_preferences/:table_key` — `update` upserts (a user may not have a row for

@@ -89,8 +89,8 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
 - **`Activity::Feed.call(user, **params)`** (`app/services/activity/feed.rb`) has
   two branches, not one mechanism forced to cover both: a keyset-paginated,
   date-ordered default (any combination of kinds), and a separate offset-paginated
-  `sort: "distance"` branch restricted to `kinds == ["ride"]` (`422` otherwise,
-  `Activity::Feed::InvalidSortError`) — mirroring `Strava::RideLog`'s own
+  **metric-sort** branch (`call_metric_sorted`) that always lists rides only,
+  whatever `kinds` asked for (see "Metric sorts" below) — mirroring `Strava::RideLog`'s own
   offset-pagination shape but implemented as its own method here, not a call-through
   (that class has no `q`/date-range/`component_id` support, and the Rides tab stays
   exactly as it is). The date-ordered branch is a raw-SQL `UNION ALL` of up to five
@@ -138,11 +138,11 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   throughout. Params: `kinds[]` (`ride`/`service`/`setup`, default `["ride"]`),
   `bike_id`, `from`/`to` (dates) + `tz` (reusing the Dashboard's own
   tz-then-UTC-boundary convention), `q`, `component_id`, `order` (`desc`/`asc`),
-  `sort` (`date`/`distance`), `cursor` (opaque, keyset only — base64 of
-  `occurred_at|kind_rank|source_id`), `page` (offset, distance-sort only),
-  `per_page`. Response: `{ items, meta, next_cursor }` — `next_cursor` is `null` on
-  the last page, an opaque cursor string for the date branch, or a page number
-  (as a string) for the distance branch, so the frontend's `useInfiniteQuery` reads
+  `sort` (`date` or a metric key), `cursor` (opaque, keyset only — base64 of
+  `occurred_at|kind_rank|source_id`), `page` (offset, metric sorts only),
+  `per_page`. Response: `{ items, meta, next_cursor, rides_only }` — `next_cursor`
+  is `null` on the last page, an opaque cursor string for the date branch, or a
+  page number (as a string) for a metric sort, so the frontend's `useInfiniteQuery` reads
   one field regardless of which branch served the page. `meta.ride_totals`
   (count/distance/moving_time/elevation) and `meta.kind_counts` are both computed
   from the non-`kinds` filters alone, independent of the active `kinds[]`
@@ -155,6 +155,57 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   ever renders it, never assembles or parses the sentence itself; where a row needs
   a clickable component name (see below), that's a separate small link affordance
   next to the summary, not a hyperlinked substring within it.
+- **`meta.week_totals`** (date order only; absent for metric sorts, `{}` for an
+  empty page): `{ "YYYY-MM-DD" => { ride_count, distance_meters, moving_time,
+  total_elevation_gain, service_count, setup_count } }`, keyed by the **local Monday**
+  (in `tz`) of each week this page's rows touch. The totals are for the **whole week**
+  under every current filter, `kinds` included, not just the loaded rows. So a week split
+  across two pages reads the same on both, and `per_page` doesn't change them.
+  - A kind that isn't selected reports `null`, so the UI can hide it.
+  - `service_count` covers sessions plus session-less events, like the "Service" kind.
+  - `setup_count` counts **merged** changes: a removal that would merge into a
+    "replaced" row (same slot, matching install within `MERGE_TOLERANCE`) isn't
+    counted again. So unlike `kind_counts`, a swap counts once.
+  - **How it's computed:** week boundaries come from Ruby's zone data, are passed as UTC
+    instants and bucketed with `width_bucket`, never `AT TIME ZONE` (see CLAUDE.md).
+    Rides use `ride_meta_scope`. Service and setup wrap the same per-kind sub-selects as
+    the union, so the filters can't drift from the list's.
+- **Metric sorts** (`Activity::Feed::SORT_COLUMNS`): `distance` (the original key) or
+  any numeric activity-log column: `distance_meters`, `moving_time`, `elapsed_time`,
+  `total_elevation_gain`, `average_speed`, `max_speed`, `average_watts`,
+  `weighted_average_watts`, `kilojoules`, `average_heartrate`, `max_heartrate` and
+  `average_cadence`.
+  - The column comes only from that whitelist, never from the param, and an unknown key
+    is a `422` (`InvalidSortError`).
+  - Sorting is `NULLS LAST` in both directions, with `id` as the tie-break.
+  - Paging is offset, as distance always was. A keyset over a nullable float would need
+    null-aware tuple comparisons, for no real gain at this scale.
+  - A metric sort **always lists rides only**, and says so with the top-level
+    `rides_only: true`, which is `false` for date order. That replaced the old
+    `422` for `sort=distance` with other kinds selected.
+- **`GET /strava/rides/:id`** (`StravaController#ride`, `Strava::RideDetail`) returns
+  one ride for the ride details modal. It's scoped through `current_user`, so another
+  user's ride 404s. The payload:
+  - **Identity:** `RideSerialization.base_json` plus `trainer`, `indoor` (`#indoor?`),
+    `bike`, `gear_id`, `gear_mapped` (a bike of the user's claims that gear) and
+    `reason` (same as the feed: `unmapped_gear`/`no_gear`/`gear`/`ride`, null when
+    attributed). That's every stored metric, with nulls passed through and never
+    zero-filled. `distance_meters` is `NOT NULL DEFAULT 0` in the schema, so it's never
+    null.
+  - **`components`:** what this ride counts toward, from
+    `Maintenance::CountedTowardQuery`, so the indoor/outdoor split cassette matches the
+    feed. Each has `component_id`, `label` and `category`, the worst requirement's wear
+    (`Maintenance::WearFields`: `service_status`, `fraction_used`,
+    `driving_dimension` and the remaining amounts), and `total_distance_meters`
+    (lifetime) only when there's no enabled requirement.
+  - **`service_nearby`:** `{ id, occurred_at, summary, position }` for sessions on the
+    ride's bike. `before` is the latest at or before `moved_at`. `after` covers the
+    sessions after the ride, up to the bike's next ride, or at most 5 when there's no
+    later ride. The summary is `Activity::Feed.session_summary`, the feed's own
+    wording. It's empty for a ride with no bike.
+- **`group_by`** (`"week"` / `"none"`, absent means week) is stored in the
+  `activity_log` `TableViewPreference` beside columns, sort and `kinds`. It's the
+  one `data` key the model validates; anything else is a `422`.
 - **Indexes**: `strava_activities(user_id, moved_at, id)` is the one index added on
   real justification — this feed is the first caller needing that table ordered by
   user across every bike at once (every existing index on it is `bike_id`-scoped).
