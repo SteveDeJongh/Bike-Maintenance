@@ -65,6 +65,17 @@ RSpec.describe "Activity", type: :request do
       expect(item["component"]).to eq("id" => component.id, "label" => "Chain A")
     end
 
+    it "includes meta.week_totals keyed by the local Monday for a date-ordered page" do
+      bike = create(:bike, user: current_user)
+      create(:strava_activity, user: current_user, bike: bike, moved_at: ActiveSupport::TimeZone["America/Vancouver"].parse("2026-03-15 23:30"), distance_meters: 3_000)
+
+      get "/activity", params: { tz: "America/Vancouver" }
+
+      week_totals = JSON.parse(response.body)["meta"]["week_totals"]
+      expect(week_totals.keys).to eq([ "2026-03-09" ]) # Sunday 23:30 local
+      expect(week_totals["2026-03-09"]).to include("ride_count" => 1, "distance_meters" => 3_000)
+    end
+
     it "responds 422 when sort=distance is combined with a kind other than ride" do
       get "/activity", params: { kinds: [ "ride", "setup" ], sort: "distance" }
 

@@ -75,6 +75,7 @@ module Activity
       @per_page = per_page.present? ? per_page.to_i.clamp(1, MAX_PER_PAGE) : DEFAULT_PER_PAGE
 
       zone = (tz.present? && ActiveSupport::TimeZone[tz]) || Time.zone
+      @zone = zone
       @from_time = from.present? ? Date.parse(from).in_time_zone(zone).beginning_of_day.utc : nil
       @to_time = to.present? ? Date.parse(to).in_time_zone(zone).end_of_day.utc : nil
 
@@ -105,7 +106,8 @@ module Activity
       items = hydrate(rows)
       merge_setup_changes!(items)
 
-      Result.new(items: items, meta: @include_meta ? build_meta : nil, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil)
+      meta = @include_meta ? build_meta.merge(week_totals: week_totals(rows)) : nil
+      Result.new(items: items, meta: meta, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil)
     end
 
     def fetch_page_rows
@@ -449,6 +451,113 @@ module Activity
         item.delete(:_ride_context)
         item.delete(:_merged)
       end
+    end
+
+    # --- week totals (date order only) ---
+
+    # { "YYYY-MM-DD" (local Monday) => totals } for every Monday-start week
+    # in @zone that this page's rows touch. Each week's totals cover the
+    # whole week under the current filters -- kinds included, an unselected
+    # kind reporting nil -- not just the loaded rows, so a week split across
+    # two pages gets the same totals from both. Local week boundaries come
+    # from Ruby's zone data and are bucketed in SQL with width_bucket (never
+    # AT TIME ZONE -- see CLAUDE.md), the same idiom as
+    # Dashboard::Summary#daily_distances.
+    def week_totals(rows)
+      return {} if rows.empty?
+
+      times = rows.map { |row| row_time(row["occurred_at"]) }
+      week_starts = times.map { |time| time.in_time_zone(@zone).beginning_of_week(:monday) }.uniq.sort
+      boundaries = []
+      week = week_starts.first
+      while week <= week_starts.last
+        boundaries << week
+        week = (week + 1.week).in_time_zone(@zone).beginning_of_week(:monday)
+      end
+      boundaries << week
+      span = boundaries.first.utc...boundaries.last.utc
+
+      rides = ride_week_totals(boundaries, span)
+      service = @kind_groups.include?("service") ? count_by_week(KIND_GROUPS["service"], boundaries, span) : nil
+      setup = @kind_groups.include?("setup") ? setup_count_by_week(boundaries, span) : nil
+
+      week_starts.to_h do |start|
+        bucket = boundaries.index(start) + 1
+        ride = rides && (rides[bucket] || { count: 0, distance: 0, moving_time: 0, elevation: 0.0 })
+        [
+          start.to_date.iso8601,
+          {
+            ride_count: ride && ride[:count],
+            distance_meters: ride && ride[:distance],
+            moving_time: ride && ride[:moving_time],
+            total_elevation_gain: ride && ride[:elevation],
+            service_count: service && service.fetch(bucket, 0),
+            setup_count: setup && setup.fetch(bucket, 0),
+          },
+        ]
+      end
+    end
+
+    def row_time(value)
+      value.is_a?(Time) ? value : ActiveSupport::TimeZone["UTC"].parse(value.to_s)
+    end
+
+    def bucket_sql(column, boundaries)
+      ActiveRecord::Base.sanitize_sql_array([ "width_bucket(#{column}, ARRAY[?]::timestamp[])", boundaries.map(&:utc) ])
+    end
+
+    def ride_week_totals(boundaries, span)
+      return nil unless @kind_groups.include?("ride")
+
+      bucket = bucket_sql("moved_at", boundaries)
+      ride_meta_scope.where(moved_at: span).group(Arel.sql(bucket)).pluck(
+        Arel.sql(bucket), Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(distance_meters), 0)"),
+        Arel.sql("COALESCE(SUM(moving_time), 0)"), Arel.sql("COALESCE(SUM(total_elevation_gain), 0)"),
+      ).to_h do |b, count, distance, moving_time, elevation|
+        [ b.to_i, { count: count.to_i, distance: distance.to_i, moving_time: moving_time.to_i, elevation: elevation.to_f } ]
+      end
+    end
+
+    # { bucket => count } over the same per-kind sub-selects the union uses,
+    # so every filter applies exactly as it does to the list.
+    def count_by_week(source_kinds, boundaries, span, extra_where: nil)
+      source_kinds.each_with_object(Hash.new(0)) do |kind, totals|
+        sql = subselect_sql(kind)
+        next unless sql
+
+        conditions = [ "t.occurred_at >= #{quote(span.begin)}", "t.occurred_at < #{quote(span.end)}" ]
+        conditions << extra_where if extra_where
+        grouped = ActiveRecord::Base.connection.exec_query(<<~SQL)
+          SELECT #{bucket_sql('t.occurred_at', boundaries)} AS bucket, COUNT(*) AS count
+          FROM (#{sql}) t
+          WHERE #{conditions.join(' AND ')}
+          GROUP BY bucket
+        SQL
+        grouped.each { |row| totals[row["bucket"].to_i] += row["count"].to_i }
+      end
+    end
+
+    # Setup changes as the list shows them: installs plus removals, minus
+    # each removal that merges into a "replaced" row -- an install (that
+    # itself passes the filters) in the same slot starting within
+    # MERGE_TOLERANCE after it, the same rule as merge_setup_changes!.
+    def setup_count_by_week(boundaries, span)
+      raw = count_by_week(KIND_GROUPS["setup"], boundaries, span)
+      installed_sql = subselect_sql("setup_installed")
+      merged = count_by_week([ "setup_removed" ], boundaries, span, extra_where: <<~SQL.squish)
+        EXISTS (
+          SELECT 1 FROM (#{installed_sql}) i
+          JOIN component_assignments ins ON ins.id = i.source_id
+          JOIN components ins_c ON ins_c.id = ins.component_id
+          JOIN component_assignments rem ON rem.id = t.source_id
+          JOIN components rem_c ON rem_c.id = rem.component_id
+          WHERE ins.bike_id = rem.bike_id AND ins_c.category = rem_c.category
+            AND ins.ride_context = rem.ride_context
+            AND ins.started_at >= rem.ended_at
+            AND ins.started_at <= rem.ended_at + INTERVAL '#{MERGE_TOLERANCE.to_i} seconds'
+        )
+      SQL
+      raw.to_h { |bucket, count| [ bucket, count - merged.fetch(bucket, 0) ] }
     end
 
     # --- meta: ride totals + per-kind counts, both independent of @kind_groups ---

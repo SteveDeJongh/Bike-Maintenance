@@ -298,6 +298,93 @@ RSpec.describe Activity::Feed do
     end
   end
 
+  describe "meta.week_totals" do
+    let(:user) { create(:user) }
+    let(:bike) { create(:bike, user: user, name: "Juan Solo") }
+    let(:other_bike) { create(:bike, user: user, name: "Other") }
+    let(:vancouver) { ActiveSupport::TimeZone["America/Vancouver"] }
+    let(:tz) { "America/Vancouver" }
+
+    def ride(local, distance: 1_000, on: bike, **attrs)
+      create(:strava_activity, user: user, bike: on, moved_at: vancouver.parse(local), distance_meters: distance,
+        moving_time: 600, total_elevation_gain: 10.0, **attrs)
+    end
+
+    def totals(**kwargs)
+      described_class.call(user, tz: tz, **kwargs).meta[:week_totals]
+    end
+
+    it "groups by Monday-start weeks in the viewer's zone, not UTC" do
+      # Sunday 23:30 in Vancouver is already Monday in UTC.
+      ride("2026-03-15 23:30", distance: 2_000)
+      ride("2026-03-16 08:00", distance: 5_000)
+
+      week_totals = totals
+
+      expect(week_totals.keys).to contain_exactly("2026-03-09", "2026-03-16")
+      expect(week_totals["2026-03-09"]).to include(ride_count: 1, distance_meters: 2_000, moving_time: 600, total_elevation_gain: 10.0)
+      expect(week_totals["2026-03-16"]).to include(ride_count: 1, distance_meters: 5_000)
+    end
+
+    it "counts the whole week under the filters, independent of page size, and the same on both pages of a split week" do
+      5.times { |n| ride("2026-03-1#{n + 1} 12:00") }
+      ride("2026-03-12 13:00", on: other_bike) # filtered out by bike
+
+      full = totals(bike_id: bike.id, per_page: 50)
+      first_page = described_class.call(user, tz: tz, bike_id: bike.id, per_page: 2)
+      second_page = described_class.call(user, tz: tz, bike_id: bike.id, per_page: 2, cursor: first_page.next_cursor)
+
+      expect(full["2026-03-09"][:ride_count]).to eq(5)
+      expect(first_page.meta[:week_totals]).to eq(full)
+      expect(second_page.meta[:week_totals]).to eq(full)
+    end
+
+    it "respects the date range and search" do
+      ride("2026-03-10 12:00", name: "Hill repeats")
+      ride("2026-03-11 12:00", name: "Recovery")
+      ride("2026-03-14 12:00", name: "Hill climb")
+
+      expect(totals(q: "hill")["2026-03-09"][:ride_count]).to eq(2)
+      expect(totals(from: "2026-03-11", to: "2026-03-12")["2026-03-09"][:ride_count]).to eq(1)
+    end
+
+    it "respects the component filter" do
+      chain = create(:component, user: user, category: "chain")
+      create(:component_assignment, component: chain, bike: bike, started_at: vancouver.parse("2026-03-11 00:00"))
+      ride("2026-03-10 12:00")
+      ride("2026-03-12 12:00")
+
+      expect(totals(component_id: chain.id)["2026-03-09"][:ride_count]).to eq(1)
+    end
+
+    it "reports nil for kinds that aren't selected, and counts service and merged setup changes" do
+      ride("2026-03-10 12:00")
+      session = create(:service_session, bike: bike, user: user, performed_at: vancouver.parse("2026-03-11 12:00"))
+      chain_a = create(:component, user: user, category: "chain", label: "Chain A")
+      chain_b = create(:component, user: user, category: "chain", label: "Chain B")
+      create(:maintenance_event, component: chain_a, service_session: session, performed_at: session.performed_at)
+      create(:maintenance_event, component: chain_a, performed_at: vancouver.parse("2026-03-12 12:00"))
+      swap_at = vancouver.parse("2026-03-13 12:00")
+      create(:component_assignment, component: chain_a, bike: bike, started_at: vancouver.parse("2026-03-01 12:00"), ended_at: swap_at)
+      create(:component_assignment, component: chain_b, bike: bike, started_at: swap_at)
+
+      rides_only = totals(kinds: %w[ride])["2026-03-09"]
+      expect(rides_only).to include(ride_count: 1, service_count: nil, setup_count: nil)
+
+      everything = totals(kinds: %w[ride service setup])["2026-03-09"]
+      # The session and the session-less event; the swap's removal and
+      # install read as one "replaced" row.
+      expect(everything).to include(ride_count: 1, service_count: 2, setup_count: 1)
+
+      service_only = totals(kinds: %w[service])["2026-03-09"]
+      expect(service_only).to include(ride_count: nil, distance_meters: nil, service_count: 2)
+    end
+
+    it "is empty for an empty page" do
+      expect(totals).to eq({})
+    end
+  end
+
   describe "include_meta: false" do
     it "returns the entries with no meta" do
       user = create(:user)
