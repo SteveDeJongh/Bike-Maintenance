@@ -7,13 +7,17 @@ import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
 import { formatPower } from '../../utils/power'
 import { formatSpeed } from '../../utils/speed'
+import { componentsCellState } from '../../utils/rideDetail'
 import type { BikeRide } from '../../types/models'
 
 // Everything a ride-ish row has in common between Ride history (BikeRide,
 // one bike, with an odometer) and the Rides tab (StravaRide, across every
 // bike, no odometer) -- both types satisfy this shape structurally, so one
 // renderer map works for either without a cast.
-type SharedRideFields = Omit<BikeRide, 'cumulative_distance_meters'>
+// bike is optional: Ride history rows (one bike) don't carry it, the Rides
+// tab and Activity rows do -- the Components cell reads "No bike" only when
+// it's explicitly null.
+type SharedRideFields = Omit<BikeRide, 'cumulative_distance_meters'> & { bike?: { id: number; name: string } | null }
 
 // The subset of ride columns common to both tables -- each caller's own
 // COLUMN_RENDERER spreads this in and adds its own unique columns
@@ -79,7 +83,7 @@ export const SHARED_RIDE_COLUMN_RENDERERS: Record<
       </Group>
     ) : (
       <Text size="sm" c="dimmed">
-        Not counted
+        {componentsCellState(ride) === 'no_bike' ? 'No bike' : 'None'}
       </Text>
     ),
 }

@@ -87,7 +87,7 @@ export function serviceNearbyLabel(item: Pick<RideServiceNearby, 'occurred_at' |
 }
 
 // What a ride's Components cell shows: "No bike" when it has none, "None"
-// when it has a bike but counted toward nothing mounted, otherwise the
+// when it has a bike but no component it adds distance to, otherwise the
 // list.
 export function componentsCellState(ride: { bike?: unknown | null; counted_toward: unknown[] }): 'no_bike' | 'none' | 'list' {
   if (ride.counted_toward.length > 0) return 'list'

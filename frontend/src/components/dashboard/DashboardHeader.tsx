@@ -115,7 +115,7 @@ function ConnectedControls({ sync, onSync, syncing, failure, stillRunning }: Das
       )}
       {unattributed.without_gear.count > 0 && (
         <IssueChip color="orange" action={{ label: 'Review', to: '/strava?tab=rides' }}>
-          {unattributed.without_gear.count} {rideWord(unattributed.without_gear.count)} not counted
+          {unattributed.without_gear.count} {rideWord(unattributed.without_gear.count)} with no bike
         </IssueChip>
       )}
 

@@ -759,6 +759,9 @@ export interface BikeRide {
   average_heartrate: number | null
   max_heartrate: number | null
   average_cadence: number | null
+  // The components this ride adds distance to -- shown as the "Components"
+  // column. The API key keeps its original name so saved column
+  // preferences and existing payloads don't change.
   counted_toward: { component_id: number; label: string }[]
 }
 

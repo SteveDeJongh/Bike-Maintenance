@@ -350,7 +350,7 @@ export const BIKE_RIDE_COLUMN_LABELS: Record<BikeRideColumn, string> = {
   max_heartrate: 'Max HR',
   average_cadence: 'Avg cadence',
   commute: 'Commute',
-  counted_toward: 'Counted toward',
+  counted_toward: 'Components',
 }
 
 export const DEFAULT_BIKE_RIDE_COLUMNS: BikeRideColumn[] = [
@@ -418,7 +418,7 @@ export const STRAVA_RIDE_COLUMN_LABELS: Record<StravaRideColumn, string> = {
   max_heartrate: 'Max HR',
   average_cadence: 'Avg cadence',
   commute: 'Commute',
-  counted_toward: 'Counted toward',
+  counted_toward: 'Components',
   ignored_at: 'Ignored on',
 }
 
@@ -482,7 +482,7 @@ export const ACTIVITY_LOG_COLUMN_LABELS: Record<ActivityLogColumn, string> = {
   max_heartrate: 'Max HR',
   average_cadence: 'Avg cadence',
   commute: 'Commute',
-  counted_toward: 'Counted toward',
+  counted_toward: 'Components',
 }
 
 export const DEFAULT_ACTIVITY_LOG_COLUMNS: ActivityLogColumn[] = [
