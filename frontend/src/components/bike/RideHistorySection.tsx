@@ -10,9 +10,8 @@ import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
-import ViewOnStravaLink from '../ride/ViewOnStravaLink'
-import ResyncRideButton from '../ride/ResyncRideButton'
-import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
+import RideDetailModal from '../ride/RideDetailModal'
+import RideNameButton from '../ride/RideNameButton'
 import { BIKE_RIDE_COLUMNS, BIKE_RIDE_COLUMN_LABELS, DEFAULT_BIKE_RIDE_COLUMNS, type BikeRideColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -41,6 +40,7 @@ const BIKE_RIDE_COLUMN_OPTIONS = BIKE_RIDE_COLUMNS.map((column) => ({ key: colum
 
 function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; initialData: TableViewPreferenceData }) {
   const [typeFilter, setTypeFilter] = useState<RideTypeFilter>('all')
+  const [rideId, setRideId] = useState<number | null>(null)
   const {
     orderedColumns,
     toggleColumn,
@@ -133,19 +133,13 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
           {isMobile ? (
             <Stack gap="xs">
               {rides.map((ride) => (
-                <Card key={ride.id} withBorder padding="sm">
-                  <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
-                    <Stack gap={0}>
-                      <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
-                      <Text size="xs" c="dimmed">
-                        {formatDateTime(ride.moved_at)}
-                      </Text>
-                    </Stack>
-                    <Group gap={4} wrap="nowrap" align="flex-start">
-                      <LogServiceAfterRideButton bikeId={bike.id} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
-                      <ResyncRideButton rideId={ride.id} />
-                    </Group>
-                  </Group>
+                <Card key={ride.id} withBorder padding="sm" onClick={() => setRideId(ride.id)} style={{ cursor: 'pointer' }}>
+                  <Stack gap={0}>
+                    <RideNameButton name={ride.name} fw={500} onOpen={() => setRideId(ride.id)} />
+                    <Text size="xs" c="dimmed">
+                      {formatDateTime(ride.moved_at)}
+                    </Text>
+                  </Stack>
                   <Group gap="md" wrap="wrap" mt={6}>
                     {orderedColumns.map((column) => (
                       <Stack key={column} gap={0} miw={90}>
@@ -179,7 +173,6 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                             sortable={false}
                           />
                         ))}
-                        <Table.Th />
                         <Table.Th>
                           <ColumnPicker
                             allColumns={BIKE_RIDE_COLUMN_OPTIONS}
@@ -196,20 +189,14 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
                 </Table.Thead>
                 <Table.Tbody>
                   {rides.map((ride) => (
-                    <Table.Tr key={ride.id}>
+                    <Table.Tr key={ride.id} onClick={() => setRideId(ride.id)} style={{ cursor: 'pointer' }}>
                       <Table.Td>{formatDateTime(ride.moved_at)}</Table.Td>
                       <Table.Td>
-                        <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
+                        <RideNameButton name={ride.name} onOpen={() => setRideId(ride.id)} />
                       </Table.Td>
                       {orderedColumns.map((column) => (
                         <Table.Td key={column}>{COLUMN_RENDERER[column](ride)}</Table.Td>
                       ))}
-                      <Table.Td>
-                        <Group gap={4} wrap="nowrap" align="flex-start">
-                          <LogServiceAfterRideButton bikeId={bike.id} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
-                          <ResyncRideButton rideId={ride.id} />
-                        </Group>
-                      </Table.Td>
                       <Table.Td />
                     </Table.Tr>
                   ))}
@@ -232,6 +219,7 @@ function RideHistorySectionInner({ bike, initialData }: { bike: BikeDetail; init
           )}
         </>
       )}
+      <RideDetailModal opened={rideId !== null} onClose={() => setRideId(null)} rideId={rideId} />
     </Stack>
   )
 }

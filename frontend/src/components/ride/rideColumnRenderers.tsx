@@ -69,6 +69,9 @@ export const SHARED_RIDE_COLUMN_RENDERERS: Record<
             to={`/components/${component.component_id}`}
             variant="light"
             style={{ cursor: 'pointer' }}
+            // Rows that open RideDetailModal on click mustn't also open it
+            // when a component chip is what was clicked.
+            onClick={(event: React.MouseEvent) => event.stopPropagation()}
           >
             {component.label}
           </Badge>

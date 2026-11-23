@@ -3,6 +3,7 @@ import { Alert, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import { useIsMobile } from '../hooks/useIsMobile'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
+import RideDetailModal from '../components/ride/RideDetailModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
 import ActivityFilters from '../components/activity/ActivityFilters'
 import ActivityTable from '../components/activity/ActivityTable'
@@ -60,6 +61,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
 
   const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
   const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
+  const [viewingRideId, setViewingRideId] = useState<number | null>(null)
   const isNarrow = useIsMobile()
 
   function toggleSessionExpanded(sessionId: number) {
@@ -153,6 +155,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
               key={`${item.kind}-${item.id}-${index}`}
               item={item}
               onViewSession={setViewingSessionId}
+              onOpenRide={setViewingRideId}
             />
           ))}
         </Stack>
@@ -168,6 +171,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
           expandedSessionIds={expandedSessionIds}
           onToggleSessionExpanded={toggleSessionExpanded}
           onViewSession={setViewingSessionId}
+          onOpenRide={setViewingRideId}
         />
       )}
 
@@ -191,6 +195,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
       {viewingSessionId !== null && (
         <ServiceSessionViewModal opened onClose={() => setViewingSessionId(null)} sessionId={viewingSessionId} />
       )}
+      <RideDetailModal opened={viewingRideId !== null} onClose={() => setViewingRideId(null)} rideId={viewingRideId} />
     </Stack>
   )
 }

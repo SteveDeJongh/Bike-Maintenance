@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ActionIcon, Anchor, Badge, Button, Group, Table, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Anchor, Badge, Group, Table, Text, Tooltip } from '@mantine/core'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link } from 'react-router-dom'
@@ -8,9 +8,7 @@ import ColumnPicker from '../datatable/ColumnPicker'
 import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
-import ViewOnStravaLink from '../ride/ViewOnStravaLink'
-import ResyncRideButton from '../ride/ResyncRideButton'
-import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
+import RideNameButton from '../ride/RideNameButton'
 import { activityItemIconMeta, nonRideNote } from './activityItemMeta'
 import { ACTIVITY_LOG_COLUMNS, ACTIVITY_LOG_COLUMN_LABELS, type ActivityLogColumn } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
@@ -61,7 +59,7 @@ const ACTIVITY_COLUMN_RENDERER: Record<ActivityLogColumn, (ride: ActivityRideIte
 
 // The desktop table: header (drag/column-picker, no click-to-sort -- see
 // "Ride history" in CLAUDE.md for why this table's columns are drag-only)
-// plus ActivityRow/NonRideCellContent/RideRowActions, moved out of
+// plus ActivityRow/NonRideCellContent, moved out of
 // ActivityInner as one unit.
 export default function ActivityTable({
   orderedColumns,
@@ -72,6 +70,7 @@ export default function ActivityTable({
   expandedSessionIds,
   onToggleSessionExpanded,
   onViewSession,
+  onOpenRide,
 }: {
   orderedColumns: ActivityLogColumn[]
   toggleColumn: (column: ActivityLogColumn) => void
@@ -81,6 +80,7 @@ export default function ActivityTable({
   expandedSessionIds: Set<number>
   onToggleSessionExpanded: (sessionId: number) => void
   onViewSession: (sessionId: number) => void
+  onOpenRide: (rideId: number) => void
 }) {
   const headerDragSensors = useColumnDragSensors()
   const mergedColSpan = 1 + orderedColumns.length
@@ -137,6 +137,7 @@ export default function ActivityTable({
               expanded={item.kind === 'service_session' && expandedSessionIds.has(item.id)}
               onToggleExpand={() => item.kind === 'service_session' && onToggleSessionExpanded(item.id)}
               onViewSession={onViewSession}
+              onOpenRide={onOpenRide}
             />
           ))}
         </Table.Tbody>
@@ -152,9 +153,10 @@ interface ActivityRowProps {
   expanded: boolean
   onToggleExpand: () => void
   onViewSession: (sessionId: number) => void
+  onOpenRide: (rideId: number) => void
 }
 
-function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleExpand, onViewSession }: ActivityRowProps) {
+function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleExpand, onViewSession, onOpenRide }: ActivityRowProps) {
   const { Icon, label } = activityItemIconMeta(item)
 
   if (item.kind === 'ride') {
@@ -167,14 +169,12 @@ function ActivityRow({ item, orderedColumns, mergedColSpan, expanded, onToggleEx
         </Table.Td>
         <Table.Td>{formatDateTime(item.occurred_at)}</Table.Td>
         <Table.Td>
-          <ViewOnStravaLink stravaId={item.strava_id} name={item.name} />
+          <RideNameButton name={item.name} onOpen={() => onOpenRide(item.id)} />
         </Table.Td>
         {orderedColumns.map((column) => (
           <Table.Td key={column}>{ACTIVITY_COLUMN_RENDERER[column](item)}</Table.Td>
         ))}
-        <Table.Td>
-          <RideRowActions ride={item} />
-        </Table.Td>
+        <Table.Td />
         <Table.Td />
       </Table.Tr>
     )
@@ -290,30 +290,6 @@ function NonRideCellContent({
           </Text>
         </Tooltip>
       )}
-    </Group>
-  )
-}
-
-// "Log service after this ride" (LogServiceAfterRideButton, which renders
-// nothing for a ride with no bike -- no session to log against). "Re-sync" reuses ResyncRideButton as-is,
-// including its own 429/retry-at handling. Deliberately no "change bike"
-// action -- attribution comes from Strava's own gear mapping, not anything
-// editable here.
-export function RideRowActions({ ride }: { ride: ActivityRideItem }) {
-  return (
-    <Group gap={4} wrap="nowrap">
-      <LogServiceAfterRideButton bikeId={ride.bike?.id ?? null} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
-      <Button
-        size="xs"
-        variant="default"
-        component="a"
-        href={`https://www.strava.com/activities/${ride.strava_id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        View on Strava
-      </Button>
-      <ResyncRideButton rideId={ride.id} />
     </Group>
   )
 }

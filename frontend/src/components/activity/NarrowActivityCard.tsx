@@ -1,7 +1,6 @@
 import { Anchor, Card, Group, Text, Tooltip } from '@mantine/core'
 import { Link } from 'react-router-dom'
-import ViewOnStravaLink from '../ride/ViewOnStravaLink'
-import { RideRowActions } from './ActivityTable'
+import RideNameButton from '../ride/RideNameButton'
 import { activityItemIconMeta, nonRideNote } from './activityItemMeta'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -14,9 +13,11 @@ import type { ActivityItem } from '../../types/models'
 export default function NarrowActivityCard({
   item,
   onViewSession,
+  onOpenRide,
 }: {
   item: ActivityItem
   onViewSession: (sessionId: number) => void
+  onOpenRide: (rideId: number) => void
 }) {
   const { Icon, label } = activityItemIconMeta(item)
 
@@ -32,9 +33,8 @@ export default function NarrowActivityCard({
               {formatDateTime(item.occurred_at)}
             </Text>
           </Group>
-          <RideRowActions ride={item} />
         </Group>
-        <ViewOnStravaLink stravaId={item.strava_id} name={item.name} />
+        <RideNameButton name={item.name} fw={500} onOpen={() => onOpenRide(item.id)} />
         <Group gap="xs" mt={4}>
           <Text size="sm">{item.bike ? item.bike.name : 'No bike'}</Text>
           <Text size="sm" c="dimmed">

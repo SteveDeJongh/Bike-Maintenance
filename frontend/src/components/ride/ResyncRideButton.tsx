@@ -3,8 +3,8 @@ import { ApiError } from '../../api/client'
 import { useResyncRide } from '../../api/mutations'
 import { formatDateTime } from '../../utils/datetime'
 
-// One Strava API call, not a paginated history refresh -- fast enough to
-// offer per-row, on every ride regardless of status, unlike "Refresh all
+// One Strava API call, not a paginated history refresh -- offered on any
+// ride from RideDetailModal, regardless of status, unlike "Refresh all
 // rides" (see the Strava page). No toast on success: matches this app's
 // existing no-modals/toasts convention outside the maintenance banners --
 // the row's own data simply updates once the invalidated queries refetch.

@@ -26,9 +26,8 @@ import DraggableHeaderCell from '../datatable/DraggableHeaderCell'
 import { useColumnDragSensors } from '../datatable/useColumnDragSensors'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { SHARED_RIDE_COLUMN_RENDERERS } from '../ride/rideColumnRenderers'
-import ViewOnStravaLink from '../ride/ViewOnStravaLink'
-import ResyncRideButton from '../ride/ResyncRideButton'
-import LogServiceAfterRideButton from '../ride/LogServiceAfterRideButton'
+import RideDetailModal from '../ride/RideDetailModal'
+import RideNameButton from '../ride/RideNameButton'
 import {
   STRAVA_RIDE_COLUMNS,
   STRAVA_RIDE_COLUMN_LABELS,
@@ -102,6 +101,7 @@ function RidesTabInner({ initialData, fullSync }: { initialData: TableViewPrefer
   const [sort, setSort] = useState<Sort>('date')
   const [order, setOrder] = useState<Order>('desc')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [rideId, setRideId] = useState<number | null>(null)
   const [selectAllMatching, setSelectAllMatching] = useState(false)
 
   // Filters/sort are view parameters, not column layout -- kept as plain
@@ -429,7 +429,7 @@ function RidesTabInner({ initialData, fullSync }: { initialData: TableViewPrefer
                     )}
                     <Table.Td>{formatDateTime(ride.moved_at)}</Table.Td>
                     <Table.Td>
-                      <ViewOnStravaLink stravaId={ride.strava_id} name={ride.name} />
+                      <RideNameButton name={ride.name} onOpen={() => setRideId(ride.id)} />
                     </Table.Td>
                     {orderedColumns.map((column) => (
                       <Table.Td key={column}>{columnRenderer[column](ride)}</Table.Td>
@@ -458,10 +458,14 @@ function RidesTabInner({ initialData, fullSync }: { initialData: TableViewPrefer
           )}
         </>
       )}
+      <RideDetailModal opened={rideId !== null} onClose={() => setRideId(null)} rideId={rideId} />
     </Stack>
   )
 }
 
+// Only this page's own cleanup actions stay per row (Ignore, Un-ignore,
+// Resolve gear) -- the ride-level ones (Log service, Re-sync, View on
+// Strava) live in RideDetailModal, opened from the ride name.
 function RowActions({ ride }: { ride: StravaRide }) {
   const ignoreRides = useIgnoreRides()
   const unignoreRides = useUnignoreRides()
@@ -469,7 +473,6 @@ function RowActions({ ride }: { ride: StravaRide }) {
   if (ride.attribution === 'needs_attention') {
     return (
       <Group gap="xs" wrap="nowrap">
-        <ResyncRideButton rideId={ride.id} />
         <Button
           size="xs"
           variant="subtle"
@@ -478,20 +481,9 @@ function RowActions({ ride }: { ride: StravaRide }) {
         >
           Ignore
         </Button>
-        {ride.reason === 'unmapped_gear' && ride.gear ? (
+        {ride.reason === 'unmapped_gear' && ride.gear && (
           <Button size="xs" variant="default" component={Link} to={`/strava?tab=gear&gear=${ride.gear.strava_gear_id}`}>
             Resolve gear
-          </Button>
-        ) : (
-          <Button
-            size="xs"
-            variant="default"
-            component="a"
-            href={`https://www.strava.com/activities/${ride.strava_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View on Strava
           </Button>
         )}
       </Group>
@@ -501,23 +493,19 @@ function RowActions({ ride }: { ride: StravaRide }) {
   if (ride.attribution === 'ignored') {
     if (ride.reason === 'ride') {
       return (
-        <Group gap="xs" wrap="nowrap">
-          <ResyncRideButton rideId={ride.id} />
-          <Button
-            size="xs"
-            variant="default"
-            onClick={() => unignoreRides.mutate({ activity_ids: [ride.id] })}
-            loading={unignoreRides.isPending}
-          >
-            Un-ignore
-          </Button>
-        </Group>
+        <Button
+          size="xs"
+          variant="default"
+          onClick={() => unignoreRides.mutate({ activity_ids: [ride.id] })}
+          loading={unignoreRides.isPending}
+        >
+          Un-ignore
+        </Button>
       )
     }
 
     return (
       <Group gap={4} wrap="nowrap">
-        <ResyncRideButton rideId={ride.id} />
         <Text size="sm" c="dimmed">
           Gear ignored
         </Text>
@@ -528,14 +516,7 @@ function RowActions({ ride }: { ride: StravaRide }) {
     )
   }
 
-  // Attributed: the only branch with a bike, so the only one offering
-  // "Log service after this ride".
-  return (
-    <Group gap={4} wrap="nowrap" align="flex-start">
-      <LogServiceAfterRideButton bikeId={ride.bike?.id ?? null} movedAt={ride.moved_at} elapsedTime={ride.elapsed_time} />
-      <ResyncRideButton rideId={ride.id} />
-    </Group>
-  )
+  return null
 }
 
 function EmptyState({ status }: { status: Status }) {

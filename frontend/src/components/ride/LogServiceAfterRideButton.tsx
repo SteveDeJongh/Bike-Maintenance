@@ -4,10 +4,10 @@ import BatchServiceModal from '../forms/BatchServiceModal'
 import { initialPerformedAtForRide } from '../../utils/rideTiming'
 
 // "Log service after this ride": opens BatchServiceModal for the ride's
-// bike with the session's date prefilled at the ride's end. Shared by every
-// ride list (Activity, Ride history, the Strava Rides tab, Dashboard Recent
-// rides), next to ResyncRideButton. Renders nothing without a bike -- an
-// unattributed or ignored ride has no bike to log service against.
+// bike with the session's date prefilled at the ride's end. Lives in
+// RideDetailModal's actions row (ride lists no longer carry row actions).
+// Renders nothing without a bike -- an unattributed or ignored ride has no
+// bike to log service against.
 //
 // Owns its own modal state rather than having each page wire one up: the
 // modal only mounts while open (and BatchServiceModal itself renders
