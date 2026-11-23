@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Anchor, Box, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
+import { Alert, Anchor, Box, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
 import { IconBike } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
 import { useRideDetail } from '../../api/queries'
@@ -13,7 +13,9 @@ import { formatDrivingRemaining } from '../../utils/serviceInterval'
 import { rideHeaderParts, rideStatLines, serviceNearbyLabel, type RideStat } from '../../utils/rideDetail'
 import type { RideDetail, RideDetailComponent } from '../../types/models'
 
-// Everything about one ride (GET /strava/rides/:id): header, ride-level
+// Everything about one ride (GET /strava/rides/:id): the icon and name in
+// the modal's own header (beside the close button, so pinned on mobile),
+// then the date/sport/bike/context line, ride-level
 // actions, condensed stats, the components it counts toward with their
 // wear, and the service sessions around it. Opened by clicking a ride in
 // any ride list -- each list holds one rideId and renders one of these,
@@ -28,7 +30,14 @@ export default function RideDetailModal({
   rideId: number | null
 }) {
   return (
-    <AppModal opened={opened} onClose={onClose} size="lg" withCloseButton title={null} padding="lg">
+    <AppModal
+      opened={opened}
+      onClose={onClose}
+      size="lg"
+      padding="lg"
+      title={opened && rideId != null ? <RideTitle rideId={rideId} /> : null}
+      styles={{ title: { flex: 1, minWidth: 0 } }}
+    >
       {opened && rideId != null && <RideDetailContent rideId={rideId} />}
     </AppModal>
   )
@@ -93,35 +102,47 @@ function RideDetailContent({ rideId }: { rideId: number }) {
   )
 }
 
+// The modal header's title: the ride icon and name, two lines at most.
+// Reads the same (deduped) query as the body.
+function RideTitle({ rideId }: { rideId: number }) {
+  const { data: ride, isPending } = useRideDetail(rideId)
+
+  return (
+    <Group gap="sm" wrap="nowrap">
+      <ThemeIcon radius="xl" size={36} variant="filled" style={{ flexShrink: 0 }}>
+        <IconBike size={20} />
+      </ThemeIcon>
+      {ride ? (
+        <Text fz="lg" fw={700} lh={1.25} lineClamp={2} style={{ overflowWrap: 'anywhere' }}>
+          {ride.name}
+        </Text>
+      ) : (
+        isPending && <Skeleton height={20} width={200} />
+      )}
+    </Group>
+  )
+}
+
+// The body's first line: date · sport type · bike · indoor/outdoor.
 function RideHeader({ ride }: { ride: RideDetail }) {
   const { when, sport, context } = rideHeaderParts(ride)
 
   return (
-    <Group gap="sm" wrap="nowrap" align="flex-start">
-      <ThemeIcon radius="xl" size={40} variant="filled">
-        <IconBike size={22} />
-      </ThemeIcon>
-      <Stack gap={2} style={{ minWidth: 0 }}>
-        <Title order={3} style={{ overflowWrap: 'anywhere' }}>
-          {ride.name}
-        </Title>
-        <Text size="sm" c="dimmed">
-          {when}
-          {sport && ` · ${sport}`}
-          {' · '}
-          {ride.bike ? (
-            <Anchor component={Link} to={`/bikes/${ride.bike.id}`} size="sm">
-              {ride.bike.name}
-            </Anchor>
-          ) : (
-            <Text span size="sm" c="orange">
-              No bike on Strava
-            </Text>
-          )}
-          {` · ${context}`}
+    <Text size="sm" c="dimmed">
+      {when}
+      {sport && ` · ${sport}`}
+      {' · '}
+      {ride.bike ? (
+        <Anchor component={Link} to={`/bikes/${ride.bike.id}`} size="sm">
+          {ride.bike.name}
+        </Anchor>
+      ) : (
+        <Text span size="sm" c="orange">
+          No bike on Strava
         </Text>
-      </Stack>
-    </Group>
+      )}
+      {` · ${context}`}
+    </Text>
   )
 }
 
@@ -188,7 +209,7 @@ function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped
       </div>
 
       {!ride.bike ? (
-        <Text size="sm" c="dimmed">
+    <Text size="sm" c="dimmed">
           No bike on Strava, so this ride isn't added to any components.
           {gearUnmapped && (
             <>
@@ -200,7 +221,7 @@ function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped
           )}
         </Text>
       ) : ride.components.length === 0 ? (
-        <Text size="sm" c="dimmed">
+    <Text size="sm" c="dimmed">
           None
         </Text>
       ) : (
@@ -244,7 +265,7 @@ function RideServiceNearby({ ride, onOpenSession }: { ride: RideDetail; onOpenSe
     <Stack gap={6}>
       <Text fw={600}>Service around this ride</Text>
       {ride.service_nearby.length === 0 ? (
-        <Text size="sm" c="dimmed">
+    <Text size="sm" c="dimmed">
           Nothing logged after this ride yet.
         </Text>
       ) : (
@@ -274,13 +295,7 @@ function RideServiceNearby({ ride, onOpenSession }: { ride: RideDetail; onOpenSe
 function RideDetailSkeleton() {
   return (
     <Stack gap="md">
-      <Group gap="sm" wrap="nowrap">
-        <Skeleton circle height={40} />
-        <Stack gap={6} style={{ flex: 1 }}>
-          <Skeleton height={22} width="60%" />
-          <Skeleton height={12} width="80%" />
-        </Stack>
-      </Group>
+      <Skeleton height={12} width="80%" />
       <Skeleton height={30} width="70%" />
       <SimpleGrid cols={4} spacing="sm">
         {[0, 1, 2, 3].map((i) => (
