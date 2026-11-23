@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Anchor, Box, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
+import { Alert, Anchor, Box, Button, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
 import { IconBike } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
 import { useRideDetail } from '../../api/queries'
@@ -62,30 +62,35 @@ function RideDetailContent({ rideId }: { rideId: number }) {
     <Stack gap="md">
       <RideHeader ride={ride} />
 
-      <Group gap="xs" wrap="wrap">
+      {/* One size (sm) for every action. Log service keeps the after-ride
+          date prefill; only its label is shorter here. */}
+      <Group gap="xs" wrap="wrap" align="flex-start">
         <LogServiceAfterRideButton
           bikeId={ride.bike?.id ?? null}
           movedAt={ride.moved_at}
           elapsedTime={ride.elapsed_time}
-          label="Log service after this ride"
+          label="Log service"
           variant="filled"
           size="sm"
         />
-        <Anchor
+        {/* Strava's brand guidelines: the exact "View on Strava" wording,
+            in their orange. */}
+        <Button
+          component="a"
           href={`https://www.strava.com/activities/${ride.strava_id}`}
           target="_blank"
           rel="noopener noreferrer"
-          fw={700}
           size="sm"
-          style={{ color: 'var(--strava-orange)' }}
+          variant="outline"
+          color="var(--strava-orange)"
         >
           View on Strava ↗
-        </Anchor>
-        <ResyncRideButton rideId={ride.id} />
+        </Button>
+        <ResyncRideButton rideId={ride.id} variant="default" size="sm" />
         {gearUnmapped && (
-          <Anchor component={Link} to="/strava?tab=gear" size="sm" c="orange">
+          <Button component={Link} to="/strava?tab=gear" size="sm" variant="subtle" color="orange">
             Link gear
-          </Anchor>
+          </Button>
         )}
       </Group>
 

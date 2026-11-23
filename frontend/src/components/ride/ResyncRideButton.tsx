@@ -8,7 +8,15 @@ import { formatDateTime } from '../../utils/datetime'
 // rides" (see the Strava page). No toast on success: matches this app's
 // existing no-modals/toasts convention outside the maintenance banners --
 // the row's own data simply updates once the invalidated queries refetch.
-export default function ResyncRideButton({ rideId }: { rideId: number }) {
+export default function ResyncRideButton({
+  rideId,
+  variant = 'subtle',
+  size = 'xs',
+}: {
+  rideId: number
+  variant?: 'subtle' | 'default'
+  size?: 'xs' | 'sm'
+}) {
   const resyncRide = useResyncRide()
 
   const rateLimited = resyncRide.error instanceof ApiError && resyncRide.error.status === 429
@@ -17,7 +25,7 @@ export default function ResyncRideButton({ rideId }: { rideId: number }) {
 
   return (
     <Stack gap={2} align="flex-start">
-      <Button size="xs" variant="subtle" onClick={() => resyncRide.mutate(rideId)} loading={resyncRide.isPending}>
+      <Button size={size} variant={variant} onClick={() => resyncRide.mutate(rideId)} loading={resyncRide.isPending}>
         Re-sync
       </Button>
       {resyncRide.isError && (

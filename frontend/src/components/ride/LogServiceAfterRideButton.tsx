@@ -3,8 +3,8 @@ import { Button } from '@mantine/core'
 import BatchServiceModal from '../forms/BatchServiceModal'
 import { initialPerformedAtForRide } from '../../utils/rideTiming'
 
-// "Log service after this ride": opens BatchServiceModal for the ride's
-// bike with the session's date prefilled at the ride's end. Lives in
+// "Log service": opens BatchServiceModal for the ride's bike with the
+// session's date prefilled at the ride's end. Lives in
 // RideDetailModal's actions row (ride lists no longer carry row actions).
 // Renders nothing without a bike -- an unattributed or ignored ride has no
 // bike to log service against.
