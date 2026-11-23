@@ -162,6 +162,10 @@ Frontend:
 - **Swap choices go through `swapOptions`** (`utils/swapOptions.ts`, via `useSwapOptions`):
   the pill and Retire's "Replace with" both use it, and it mirrors exactly what the swap
   endpoint accepts (spares, plus shared indoor cassettes for `indoor_only` slots).
+- **Scroll position is React Router's job**: `<ScrollRestoration />`, rendered once in
+  `Layout.tsx` (AppShell scrolls the window). Never add `window.scrollTo`. A
+  search-param update that shouldn't jump to the top passes `preventScrollReset: true`
+  (Strava's tabs); an in-page highlight uses `scrollIntoView` in an effect.
 - **New modals use `AppModal`**, never Mantine's `Modal` directly (it goes full-screen on mobile).
 - **Responsive:** prefer CSS (`hiddenFrom`/`visibleFrom`, per-breakpoint props) over JS.
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its

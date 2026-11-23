@@ -60,7 +60,7 @@ export default function Strava() {
       if (value === 'rides') next.set('tab', 'rides')
       else next.delete('tab')
       return next
-    })
+    }, { preventScrollReset: true })
   }
 
   return (

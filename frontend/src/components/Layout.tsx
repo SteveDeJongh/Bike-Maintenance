@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Anchor, AppShell, Divider, Drawer, Group, Menu, NavLink, Stack, Text, Title, UnstyledButton } from '@mantine/core'
-import { Link, NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink as RouterNavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom'
 import { IconDots, IconLogout, IconUser } from '@tabler/icons-react'
 import EmailVerificationBanner from './EmailVerificationBanner'
 import { useCurrentUser } from '../api/queries'
@@ -70,6 +70,13 @@ export default function Layout() {
         <EmailVerificationBanner />
         <Outlet />
       </AppShell.Main>
+
+      {/* AppShell scrolls the window, so without this a new page opened at
+          the previous page's offset. A new navigation starts at the top;
+          Back/Forward restores the saved position. Search-param-only
+          updates that shouldn't jump pass preventScrollReset (Strava's
+          tabs). Pages' own scrollIntoView effects run after its reset. */}
+      <ScrollRestoration />
 
       {/* overflow: hidden -- at `sm` and up the footer's own height resolves
           to 0 (see FOOTER_HEIGHT above), but a 0-height box doesn't clip its
