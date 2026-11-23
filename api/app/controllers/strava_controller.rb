@@ -85,6 +85,13 @@ class StravaController < ApplicationController
     }
   end
 
+  # GET /strava/rides/:id -- one ride for the ride details modal
+  # (Strava::RideDetail). Another user's ride 404s.
+  def ride
+    activity = current_user.strava_activities.find(params[:id])
+    render json: Strava::RideDetail.call(activity, current_user)
+  end
+
   # POST /strava/sync -- full: true re-reads the user's entire Strava
   # history (and reconciles rides gone from Strava); without it, behavior
   # is unchanged. The cooldown only gates the full-refresh path -- an

@@ -51,6 +51,12 @@ module Activity
       new(user, **kwargs).call
     end
 
+    # A service session's one-line wording -- also used by the ride details
+    # endpoint's service_nearby, so both read the same.
+    def self.session_summary(item_count, bike_name)
+      "Service · #{item_count} #{item_count == 1 ? 'item' : 'items'} on #{bike_name}"
+    end
+
     def initialize(user, kinds: nil, bike_id: nil, from: nil, to: nil, tz: nil, q: nil, component_id: nil,
       order: "desc", sort: "date", cursor: nil, page: 1, per_page: nil, include_meta: true)
       @user = user
@@ -344,7 +350,7 @@ module Activity
         notes: session.notes,
         item_count: items.size,
         items: items,
-        summary: "Service · #{items.size} #{items.size == 1 ? 'item' : 'items'} on #{bike&.name}",
+        summary: self.class.session_summary(items.size, bike&.name),
       }
     end
 

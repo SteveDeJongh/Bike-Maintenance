@@ -166,14 +166,9 @@ module Dashboard
     # assignment -- fine for the few paired components on a card, and an
     # open batching question if more of the page ever needs it.
     def wear_fields(component, result, paired_ids)
-      {
-        fraction_used: result&.fraction_used,
-        driving_dimension: result&.driving_dimension,
-        distance_remaining_meters: result&.distance_remaining_meters,
-        moving_time_remaining_seconds: result&.moving_time_remaining_seconds,
-        days_remaining: result&.days_remaining,
+      Maintenance::WearFields.call(result).except(:service_status).merge(
         total_distance_meters: paired_ids.include?(component.id) ? component.total_distance : nil,
-      }
+      )
     end
 
     # The driving requirement's distance/moving-time/days-used since its
