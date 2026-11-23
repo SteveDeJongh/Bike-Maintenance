@@ -2,7 +2,7 @@ import type { KeyboardEvent, ReactNode } from 'react'
 import { Badge, Box, Group, Stack, Text, ThemeIcon } from '@mantine/core'
 import { IconArrowsExchange, IconBike, IconTool } from '@tabler/icons-react'
 import { formatActivityField, type ActivityField } from './activityFields'
-import { activityGridTemplate, dayLabel, timeLabel } from './activityListModel'
+import { activityGridTemplate, dayLabel, phoneMetricLine, timeLabel } from './activityListModel'
 import { rideSportLabel } from '../../utils/recentActivity'
 import type { ActivityItem } from '../../types/models'
 
@@ -126,12 +126,15 @@ export default function ActivityRow({
   item,
   fields,
   showDate,
+  phone = false,
   onOpen,
 }: {
   item: ActivityItem
   fields: ActivityField[]
   // The day label shows on a day's first row only (desktop, week grouping).
   showDate: boolean
+  // Stacked phone layout: no grid columns; the day is a header above.
+  phone?: boolean
   onOpen: () => void
 }) {
   const noBike = item.kind === 'ride' && !item.bike
@@ -143,14 +146,45 @@ export default function ActivityRow({
     }
   }
 
+  const rowProps = {
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': accessibleName(item),
+    className: 'activity-row',
+    onClick: onOpen,
+    onKeyDown: handleKeyDown,
+  } as const
+
+  if (phone) {
+    const metrics = phoneMetricLine(item, fields)
+    return (
+      <Box
+        {...rowProps}
+        style={{
+          padding: '10px 12px',
+          borderTop: '1px solid var(--mantine-color-default-border)',
+          background: noBike ? 'var(--mantine-color-orange-light)' : undefined,
+          cursor: 'pointer',
+        }}
+      >
+        <Group gap="sm" wrap="nowrap" align="flex-start">
+          <KindIcon item={item} />
+          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+            <ActivityCell item={item} />
+            {metrics && (
+              <Text size="xs" c="dimmed">
+                {metrics}
+              </Text>
+            )}
+          </Stack>
+        </Group>
+      </Box>
+    )
+  }
+
   return (
     <Box
-      role="button"
-      tabIndex={0}
-      aria-label={accessibleName(item)}
-      className="activity-row"
-      onClick={onOpen}
-      onKeyDown={handleKeyDown}
+      {...rowProps}
       style={{
         display: 'grid',
         gridTemplateColumns: activityGridTemplate(fields.length),

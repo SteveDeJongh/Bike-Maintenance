@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { Group, Paper, Text } from '@mantine/core'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import ActivityListHeader from './ActivityListHeader'
 import ActivityRow from './ActivityRow'
 import type { ActivityField } from './activityFields'
-import { activityListMinWidth, buildActivityRenderList, type ActivityPage, type GroupBy } from './activityListModel'
+import { activityListMinWidth, buildActivityRenderList, dayLabel, type ActivityPage, type GroupBy } from './activityListModel'
 import type { ActivitySort, Order } from './useActivityFilters'
 import type { ActivityItem } from '../../types/models'
 
@@ -27,14 +28,17 @@ export default function ActivityList({
   onSort: (column: ActivitySort) => void
   onOpen: (item: ActivityItem) => void
 }) {
-  const entries = useMemo(() => buildActivityRenderList(pages, { groupBy, phone: false }), [pages, groupBy])
+  // A phone gets the same list stacked: no column header, day headers
+  // above their rows, and each row's fields as one line under its title.
+  const phone = useIsMobile()
+  const entries = useMemo(() => buildActivityRenderList(pages, { groupBy, phone }), [pages, groupBy, phone])
 
   return (
-    <Paper withBorder radius="md" style={{ overflowX: 'auto' }}>
+    <Paper withBorder radius="md" style={{ overflowX: phone ? undefined : 'auto' }}>
       {/* Wide enough for the fixed columns plus each field, so narrower
           screens scroll sideways rather than squeezing the columns. */}
-      <div style={{ minWidth: activityListMinWidth(fields.length) }}>
-        <ActivityListHeader fields={fields} sortColumn={sortColumn} order={order} onSort={onSort} />
+      <div style={{ minWidth: phone ? undefined : activityListMinWidth(fields.length) }}>
+        {!phone && <ActivityListHeader fields={fields} sortColumn={sortColumn} order={order} onSort={onSort} />}
         {entries.map((entry) => {
           if (entry.type === 'week') return <WeekBand key={entry.key} title={entry.title} totals={entry.totals} />
           if (entry.type === 'row') {
@@ -44,11 +48,12 @@ export default function ActivityList({
                 item={entry.item}
                 fields={fields}
                 showDate={entry.showDate}
+                phone={phone}
                 onOpen={() => onOpen(entry.item)}
               />
             )
           }
-          return null
+          return <DayHeader key={entry.key} value={entry.value} />
         })}
       </div>
     </Paper>
@@ -77,5 +82,14 @@ function WeekBand({ title, totals }: { title: string; totals: string }) {
         </Text>
       )}
     </Group>
+  )
+}
+
+function DayHeader({ value }: { value: string }) {
+  const { primary, secondary } = dayLabel(value)
+  return (
+    <Text size="xs" fw={600} c="dimmed" px={12} pt={8} pb={2} style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+      {primary} · {secondary}
+    </Text>
   )
 }

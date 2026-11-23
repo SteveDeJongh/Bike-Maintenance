@@ -4,6 +4,7 @@ import {
   buildActivityRenderList,
   canAddField,
   effectiveGroupBy,
+  phoneMetricLine,
   weekBandTitle,
   weekStartKey,
   weekTotalsLine,
@@ -108,5 +109,20 @@ describe('buildActivityRenderList', () => {
     const entries = buildActivityRenderList([page1], { groupBy: 'week', phone: true, today })
     expect(entries.map((e) => e.type)).toEqual(['week', 'day', 'row', 'row', 'day', 'row'])
     expect(entries.some((e) => e.type === 'row' && e.showDate)).toBe(false)
+  })
+})
+
+describe('phoneMetricLine', () => {
+  const ride = {
+    kind: 'ride', id: 1, occurred_at: at(2026, 11, 20), distance_meters: 48_000, moving_time: 5_760,
+    total_elevation_gain: 510.4, average_watts: null,
+  } as unknown as ActivityItem
+
+  it('joins the chosen fields in order, skipping unrecorded ones', () => {
+    expect(phoneMetricLine(ride, ['distance_meters', 'moving_time', 'average_watts', 'total_elevation_gain'])).toBe('48 km · 1.6 hrs · 510 m')
+  })
+
+  it('is empty for non-ride rows', () => {
+    expect(phoneMetricLine(session(1, at(2026, 11, 20)), ['distance_meters'])).toBe('')
   })
 })

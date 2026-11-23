@@ -1,4 +1,4 @@
-import { MAX_ACTIVITY_FIELDS } from './activityFields'
+import { formatActivityField, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
@@ -174,4 +174,12 @@ export function buildActivityRenderList(
   })
 
   return entries
+}
+
+// A phone row's metrics, wrapped under the title: "48 km · 1.6 hrs · 510 m"
+// -- the chosen fields in order, skipping any Strava didn't record. Empty
+// for service and setup rows.
+export function phoneMetricLine(item: ActivityItem, fields: ActivityField[]): string {
+  if (item.kind !== 'ride') return ''
+  return fields.flatMap((field) => formatActivityField(item, field) ?? []).join(' · ')
 }
