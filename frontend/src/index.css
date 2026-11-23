@@ -23,8 +23,23 @@ body {
    palette alone via Mantine's own CSS, so nothing else needs this. */
 [data-mantine-color-scheme='dark'] .mantine-Paper-root,
 [data-mantine-color-scheme='dark'] .mantine-Modal-content,
+[data-mantine-color-scheme='dark'] .mantine-Modal-header,
 [data-mantine-color-scheme='dark'] .mantine-AppShell-header {
   background-color: var(--mantine-color-dark-6);
+}
+
+/* Modals: the header (sticky, with its own body-coloured background) sits
+   on the same dark-6 surface as the content above, so it no longer reads as
+   a black band. A 1px edge separates the modal from the overlay -- dark-4
+   with a stronger shadow in dark mode, the default border in light mode
+   (whose shadow stays Mantine's own). Full-screen (mobile) modals have no
+   visible edge, so they skip it. */
+.mantine-Modal-content:not([data-full-screen]) {
+  border: 1px solid var(--mantine-color-default-border);
+}
+[data-mantine-color-scheme='dark'] .mantine-Modal-content:not([data-full-screen]) {
+  border-color: var(--mantine-color-dark-4);
+  box-shadow: var(--mantine-shadow-xl);
 }
 
 /* iOS Safari zooms the whole page in when a tapped input's font-size is
