@@ -1,8 +1,8 @@
 import type { KeyboardEvent, ReactNode } from 'react'
-import { Badge, Box, Group, Stack, Text, ThemeIcon } from '@mantine/core'
+import { Badge, Box, Group, Stack, Text, ThemeIcon, Tooltip } from '@mantine/core'
 import { IconArrowsExchange, IconBike, IconTool } from '@tabler/icons-react'
 import { formatActivityField, type ActivityField } from './activityFields'
-import { activityGridTemplate, dayLabel, phoneMetricLine, timeLabel } from './activityListModel'
+import { activityGridTemplate, dayLabel, phoneMetricLine, splitChips, timeLabel } from './activityListModel'
 import { rideSportLabel } from '../../utils/recentActivity'
 import type { ActivityItem } from '../../types/models'
 
@@ -43,20 +43,59 @@ function KindIcon({ item }: { item: ActivityItem }) {
   )
 }
 
-function ServiceChips({ chips }: { chips: string[] }) {
+function Chip({ children }: { children: string }) {
   return (
-    <Group gap={4} wrap="wrap" mt={2}>
-      {chips.map((chip, index) => (
-        <Badge key={`${chip}-${index}`} size="sm" variant="light" color="teal" tt="none" fw={500}>
-          {chip}
-        </Badge>
+    <Badge size="sm" variant="light" color="teal" tt="none" fw={500} style={{ flexShrink: 0 }}>
+      {children}
+    </Badge>
+  )
+}
+
+// Phone: every chip, wrapping under the sub-line. Desktop (inline): one
+// line of up to three chips, then a gray "+N" whose tooltip lists them all.
+function ServiceChips({ chips, inline }: { chips: string[]; inline: boolean }) {
+  if (!inline) {
+    return (
+      <Group gap={4} wrap="wrap">
+        {chips.map((chip, index) => (
+          <Chip key={`${chip}-${index}`}>{chip}</Chip>
+        ))}
+      </Group>
+    )
+  }
+
+  const { visible, overflow } = splitChips(chips)
+  return (
+    <Group gap={4} wrap="nowrap" style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
+      {visible.map((chip, index) => (
+        <Chip key={`${chip}-${index}`}>{chip}</Chip>
       ))}
+      {overflow > 0 && (
+        <Tooltip
+          multiline
+          withinPortal
+          label={
+            <Stack gap={2}>
+              {chips.map((chip, index) => (
+                <span key={`${chip}-${index}`}>{chip}</span>
+              ))}
+            </Stack>
+          }
+        >
+          <Badge size="sm" variant="light" color="gray" tt="none" fw={500} style={{ flexShrink: 0 }}>
+            +{overflow}
+          </Badge>
+        </Tooltip>
+      )}
     </Group>
   )
 }
 
 // The title (with the time dimmed beside it) and the kind's sub-line.
-function ActivityCell({ item }: { item: ActivityItem }) {
+// "stacked" (phone) puts any service chips on their own line below;
+// "inline" (desktop) puts them to the right, so service rows stay the
+// same height as ride rows.
+function ActivityCell({ item, layout = 'stacked' }: { item: ActivityItem; layout?: 'stacked' | 'inline' }) {
   let subLine: ReactNode
   let chips: string[] = []
 
@@ -83,8 +122,8 @@ function ActivityCell({ item }: { item: ActivityItem }) {
       break
   }
 
-  return (
-    <Stack gap={0} style={{ minWidth: 0 }}>
+  const text = (
+    <Stack gap={0} style={{ minWidth: 0, flex: layout === 'inline' ? '0 1 auto' : undefined }}>
       <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
         <Text size="sm" fw={500} truncate>
           {itemTitle(item)}
@@ -98,7 +137,22 @@ function ActivityCell({ item }: { item: ActivityItem }) {
           {subLine}
         </Text>
       )}
-      {chips.length > 0 && <ServiceChips chips={chips} />}
+    </Stack>
+  )
+
+  if (chips.length === 0) return text
+  if (layout === 'inline') {
+    return (
+      <Group gap="sm" wrap="nowrap" align="center" style={{ minWidth: 0 }}>
+        {text}
+        <ServiceChips chips={chips} inline />
+      </Group>
+    )
+  }
+  return (
+    <Stack gap={2} style={{ minWidth: 0 }}>
+      {text}
+      <ServiceChips chips={chips} inline={false} />
     </Stack>
   )
 }
@@ -138,6 +192,9 @@ export default function ActivityRow({
   onOpen: () => void
 }) {
   const noBike = item.kind === 'ride' && !item.bike
+  // Service sessions and events have no metric values, so on desktop their
+  // Activity cell spans the metric columns to give the chips room.
+  const spansMetrics = item.kind === 'service_session' || item.kind === 'maintenance_event'
 
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -198,22 +255,30 @@ export default function ActivityRow({
     >
       <DateCell value={showDate ? item.occurred_at : null} />
       <KindIcon item={item} />
-      <ActivityCell item={item} />
-      {fields.map((field) => {
-        const value = item.kind === 'ride' ? formatActivityField(item, field) : null
-        return (
-          <Text
-            key={field}
-            size="sm"
-            ta="right"
-            c={field === 'distance_meters' ? undefined : 'dimmed'}
-            fw={field === 'distance_meters' ? 600 : undefined}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {value ?? ''}
-          </Text>
-        )
-      })}
+      {spansMetrics ? (
+        <Box style={{ gridColumn: '3 / -1', minWidth: 0 }}>
+          <ActivityCell item={item} layout="inline" />
+        </Box>
+      ) : (
+        <>
+          <ActivityCell item={item} layout="inline" />
+          {fields.map((field) => {
+            const value = item.kind === 'ride' ? formatActivityField(item, field) : null
+            return (
+              <Text
+                key={field}
+                size="sm"
+                ta="right"
+                c={field === 'distance_meters' ? undefined : 'dimmed'}
+                fw={field === 'distance_meters' ? 600 : undefined}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {value ?? ''}
+              </Text>
+            )
+          })}
+        </>
+      )}
     </Box>
   )
 }

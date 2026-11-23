@@ -183,3 +183,12 @@ export function phoneMetricLine(item: ActivityItem, fields: ActivityField[]): st
   if (item.kind !== 'ride') return ''
   return fields.flatMap((field) => formatActivityField(item, field) ?? []).join(' · ')
 }
+
+export const MAX_VISIBLE_CHIPS = 3
+
+// A desktop row keeps its service chips on one line: the first few show,
+// the rest collapse into a "+N" badge (whose tooltip lists every chip).
+// A fixed cap rather than measuring widths.
+export function splitChips(chips: string[], max = MAX_VISIBLE_CHIPS): { visible: string[]; overflow: number } {
+  return { visible: chips.slice(0, max), overflow: Math.max(0, chips.length - max) }
+}

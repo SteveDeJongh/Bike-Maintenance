@@ -5,6 +5,7 @@ import {
   canAddField,
   effectiveGroupBy,
   phoneMetricLine,
+  splitChips,
   weekBandTitle,
   weekStartKey,
   weekTotalsLine,
@@ -124,5 +125,25 @@ describe('phoneMetricLine', () => {
 
   it('is empty for non-ride rows', () => {
     expect(phoneMetricLine(session(1, at(2026, 11, 20)), ['distance_meters'])).toBe('')
+  })
+})
+
+describe('splitChips', () => {
+  const chips = ['Chain A · Wax', 'Cassette · Clean', 'Tires · Check', 'Brakes · Bleed', 'Bar tape · Replace']
+
+  it('shows nothing for no chips', () => {
+    expect(splitChips([])).toEqual({ visible: [], overflow: 0 })
+  })
+
+  it('shows a single chip with no overflow', () => {
+    expect(splitChips(chips.slice(0, 1))).toEqual({ visible: ['Chain A · Wax'], overflow: 0 })
+  })
+
+  it('shows exactly three chips with no overflow', () => {
+    expect(splitChips(chips.slice(0, 3))).toEqual({ visible: chips.slice(0, 3), overflow: 0 })
+  })
+
+  it('caps five chips at three plus an overflow of two', () => {
+    expect(splitChips(chips)).toEqual({ visible: chips.slice(0, 3), overflow: 2 })
   })
 })
