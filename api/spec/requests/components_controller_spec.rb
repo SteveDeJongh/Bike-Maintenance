@@ -133,7 +133,7 @@ RSpec.describe "Components", type: :request do
       get "/components/#{component.id}"
 
       expect(JSON.parse(response.body)["current_bikes"]).to eq(
-        [ { "id" => bike.id, "name" => "Juan Solo", "assignment_id" => assignment.id } ],
+        [ { "id" => bike.id, "name" => "Juan Solo", "assignment_id" => assignment.id, "ride_context" => "both" } ],
       )
     end
 
