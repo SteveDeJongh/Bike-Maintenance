@@ -192,6 +192,10 @@ Mantine's color-scheme support — nothing on the backend:
 - `frontend/src/index.css` — a few `[data-mantine-color-scheme='dark']`
   rules that lift Paper/Modal/AppShell-header one shade above the near-black
   body (they default to the same `--mantine-color-body` var as the page).
+  The modal's sticky header gets the same dark-6 as its content, so it doesn't
+  show as a black band. Non-full-screen modals also get a 1px edge: `dark-4` with
+  `--mantine-shadow-xl` in dark mode, and the default border colour with Mantine's
+  own shadow in light mode. Full-screen (mobile) modals skip it.
   Table rows and Popover/Menu dropdowns already layer correctly from the
   `dark` palette alone, via Mantine's own CSS — no extra rules needed there.
 - `frontend/index.html` — a small inline script setting
