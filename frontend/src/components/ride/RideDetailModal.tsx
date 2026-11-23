@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Alert, Anchor, Box, Button, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
+import { Alert, Anchor, Box, Button, Divider, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon } from '@mantine/core'
 import { IconBike } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
 import { useRideDetail } from '../../api/queries'
@@ -7,21 +6,19 @@ import { useAllCategories } from '../../hooks/useAllCategories'
 import { categoryLabel } from '../../constants'
 import AppModal from '../AppModal'
 import WearBar from '../dashboard/WearBar'
-import ServiceSessionViewModal from '../forms/ServiceSessionViewModal'
 import LogServiceAfterRideButton from './LogServiceAfterRideButton'
 import ResyncRideButton from './ResyncRideButton'
 import { formatDistance } from '../../utils/distance'
 import { formatDrivingRemaining } from '../../utils/serviceInterval'
-import { rideHeaderParts, rideStatLines, serviceNearbyLabel, sortRideComponents, type RideStat } from '../../utils/rideDetail'
+import { rideHeaderParts, rideStatLines, sortRideComponents, type RideStat } from '../../utils/rideDetail'
 import type { RideDetail, RideDetailComponent } from '../../types/models'
 
 // Everything about one ride (GET /strava/rides/:id): the icon and name in
 // the modal's own header (beside the close button, so pinned on mobile),
-// then the date/sport/bike/context line, ride-level
-// actions, condensed stats, the components it counts toward with their
-// wear, and the service sessions around it. Opened by clicking a ride in
-// any ride list -- each list holds one rideId and renders one of these,
-// outside its table, rather than one per row.
+// then the date/sport/bike/context line, ride-level actions, condensed
+// stats, and the components it counts toward with their wear. Opened by
+// clicking a ride in any ride list -- each list holds one rideId and
+// renders one of these, outside its table, rather than one per row.
 export default function RideDetailModal({
   opened,
   onClose,
@@ -47,7 +44,6 @@ export default function RideDetailModal({
 
 function RideDetailContent({ rideId }: { rideId: number }) {
   const { data: ride, isPending, error } = useRideDetail(rideId)
-  const [sessionId, setSessionId] = useState<number | null>(null)
 
   if (isPending) return <RideDetailSkeleton />
   if (error) {
@@ -98,13 +94,6 @@ function RideDetailContent({ rideId }: { rideId: number }) {
 
       <RideStats ride={ride} />
       <RideComponents ride={ride} gearUnmapped={gearUnmapped} />
-      <RideServiceNearby ride={ride} onOpenSession={setSessionId} />
-
-      <ServiceSessionViewModal
-        opened={sessionId !== null}
-        onClose={() => setSessionId(null)}
-        sessionId={sessionId ?? 0}
-      />
     </Stack>
   )
 }
@@ -286,38 +275,6 @@ function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped
   )
 }
 
-function RideServiceNearby({ ride, onOpenSession }: { ride: RideDetail; onOpenSession: (id: number) => void }) {
-  return (
-    <Stack gap={6}>
-      <Text fw={600}>Service around this ride</Text>
-      {ride.service_nearby.length === 0 ? (
-    <Text size="sm" c="dimmed">
-          Nothing logged after this ride yet.
-        </Text>
-      ) : (
-        ride.service_nearby.map((session) => (
-          <UnstyledButton key={session.id} onClick={() => onOpenSession(session.id)}>
-            <Group gap="sm" wrap="nowrap" align="flex-start">
-              <Box
-                mt={7}
-                w={8}
-                h={8}
-                style={{ borderRadius: '50%', background: 'var(--mantine-primary-color-filled)', flexShrink: 0 }}
-              />
-              <div>
-                <Text size="sm">{session.summary}</Text>
-                <Text size="xs" c="dimmed">
-                  {serviceNearbyLabel(session)}
-                </Text>
-              </div>
-            </Group>
-          </UnstyledButton>
-        ))
-      )}
-    </Stack>
-  )
-}
-
 function RideDetailSkeleton() {
   return (
     <Stack gap="md">
@@ -335,8 +292,6 @@ function RideDetailSkeleton() {
       </SimpleGrid>
       <Skeleton height={14} width="30%" />
       <Skeleton height={60} />
-      <Skeleton height={14} width="40%" />
-      <Skeleton height={36} />
     </Stack>
   )
 }

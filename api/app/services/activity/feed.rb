@@ -73,8 +73,7 @@ module Activity
       new(user, **kwargs).call
     end
 
-    # A service session's one-line wording -- also used by the ride details
-    # endpoint's service_nearby, so both read the same.
+    # A service session's one-line wording.
     def self.session_summary(item_count, bike_name)
       "Service · #{item_count} #{item_count == 1 ? 'item' : 'items'} on #{bike_name}"
     end

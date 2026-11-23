@@ -907,13 +907,6 @@ export interface RideDetailComponent {
   total_distance_meters: number | null
 }
 
-export interface RideServiceNearby {
-  id: number
-  occurred_at: string
-  summary: string
-  position: 'before' | 'after'
-}
-
 export interface RideDetail {
   id: number
   strava_id: number
@@ -942,5 +935,4 @@ export interface RideDetail {
   max_heartrate: number | null
   average_cadence: number | null
   components: RideDetailComponent[]
-  service_nearby: RideServiceNearby[]
 }

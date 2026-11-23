@@ -92,36 +92,6 @@ RSpec.describe "GET /strava/rides/:id", type: :request do
     end
   end
 
-  describe "service_nearby" do
-    def session_at(time, items: 1)
-      session = create(:service_session, bike: bike, user: current_user, performed_at: time)
-      component = create(:component, user: current_user, category: "chain")
-      items.times do
-        create(:maintenance_event, component: component, service_session: session, performed_at: time)
-      end
-      session
-    end
-
-    it "lists the latest session at or before the ride, then sessions up to the bike's next ride" do
-      session_at(moved_at - 5.days)
-      before = session_at(moved_at - 1.day, items: 2)
-      ride = create(:strava_activity, user: current_user, bike: bike, moved_at: moved_at)
-      after = session_at(moved_at + 2.hours)
-      create(:strava_activity, user: current_user, bike: bike, moved_at: moved_at + 1.day)
-      session_at(moved_at + 2.days) # after the next ride: excluded
-
-      nearby = detail(ride)["service_nearby"]
-
-      expect(nearby.map { |s| [ s["id"], s["position"] ] }).to eq([ [ before.id, "before" ], [ after.id, "after" ] ])
-      expect(nearby.first["summary"]).to eq("Service · 2 items on Juan Solo")
-    end
-
-    it "is empty when the ride has no bike" do
-      ride = create(:strava_activity, user: current_user, bike: nil, moved_at: moved_at)
-      expect(detail(ride)["service_nearby"]).to eq([])
-    end
-  end
-
   it "404s for another user's ride" do
     other = create(:strava_activity)
 

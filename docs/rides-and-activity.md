@@ -81,9 +81,6 @@ of their own.
   so the bars and metrics stay aligned. With
   no bike, the section explains that the ride isn't added to any components, plus Link
   gear when it applies. With a bike but nothing counted, it says "None".
-- **Service around this ride:** a dot, the session summary, and "Fri, Nov 20 · before
-  this ride" or "after this ride" (`serviceNearbyLabel`). A row opens
-  `ServiceSessionViewModal`. Empty: "Nothing logged after this ride yet."
 - **Loading:** skeletons. **Errors:** an inline alert.
 - **Where it opens.** Each list holds one `rideId` and renders one modal, outside its
   table:
@@ -256,11 +253,6 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
     (`Maintenance::WearFields`: `service_status`, `fraction_used`,
     `driving_dimension` and the remaining amounts), and `total_distance_meters`
     (lifetime) only when there's no enabled requirement.
-  - **`service_nearby`:** `{ id, occurred_at, summary, position }` for sessions on the
-    ride's bike. `before` is the latest at or before `moved_at`. `after` covers the
-    sessions after the ride, up to the bike's next ride, or at most 5 when there's no
-    later ride. The summary is `Activity::Feed.session_summary`, the feed's own
-    wording. It's empty for a ride with no bike.
 - **`group_by`** (`"week"` / `"none"`, absent means week) is stored in the
   `activity_log` `TableViewPreference` beside columns, sort and `kinds`. It's the
   one `data` key the model validates; anything else is a `422`.

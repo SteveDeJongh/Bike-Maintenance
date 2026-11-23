@@ -4,7 +4,7 @@ import { formatElevation } from './elevation'
 import { formatPower } from './power'
 import { formatSpeed } from './speed'
 import { formatSportType } from './strava'
-import type { RideDetail, RideDetailComponent, RideServiceNearby } from '../types/models'
+import type { RideDetail, RideDetailComponent } from '../types/models'
 
 export interface RideStat {
   key: string
@@ -78,12 +78,6 @@ export function rideHeaderParts(ride: Pick<RideDetail, 'moved_at' | 'activity_ty
     sport: ride.activity_type ? formatSportType(ride.activity_type) : null,
     context: ride.indoor ? 'Indoor' : 'Outdoor',
   }
-}
-
-// "Fri, Nov 20 · before this ride"
-export function serviceNearbyLabel(item: Pick<RideServiceNearby, 'occurred_at' | 'position'>): string {
-  const day = new Date(item.occurred_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-  return `${day} · ${item.position} this ride`
 }
 
 // The modal's Components rows in the bike page's order: by category, in

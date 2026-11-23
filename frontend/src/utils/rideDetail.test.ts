@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { componentsCellState, rideHeaderParts, rideStatLines, serviceNearbyLabel, sortRideComponents } from './rideDetail'
+import { componentsCellState, rideHeaderParts, rideStatLines, sortRideComponents } from './rideDetail'
 
 const full = {
   distance_meters: 48_000, moving_time: 5_400, total_elevation_gain: 512, average_watts: 180.4,
@@ -47,14 +47,6 @@ describe('rideHeaderParts', () => {
     const parts = rideHeaderParts({ moved_at: new Date(2026, 0, 5, 18, 0).toISOString(), activity_type: null, indoor: true })
     expect(parts.sport).toBeNull()
     expect(parts.context).toBe('Indoor')
-  })
-})
-
-describe('serviceNearbyLabel', () => {
-  it('says before or after this ride', () => {
-    const at = new Date(2026, 10, 20, 9, 0).toISOString()
-    expect(serviceNearbyLabel({ occurred_at: at, position: 'before' })).toBe('Fri, Nov 20 · before this ride')
-    expect(serviceNearbyLabel({ occurred_at: at, position: 'after' })).toBe('Fri, Nov 20 · after this ride')
   })
 })
 
