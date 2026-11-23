@@ -155,6 +155,10 @@ Frontend:
   `docs/dashboard.md`.
 - **Never hardcode a color.** Use Mantine tokens/CSS variables, named colors, or `"radar"`
   (the primary accent). "ok" status is `teal`, never `green`, so it's never confused with the accent.
+  The one exception is `--strava-orange` (`index.css`), Strava's brand colour, which their guidelines
+  require for "View on Strava" links. Reference the variable, never the hex.
+- **A ride opens `RideDetailModal`.** Ride lists carry no ride-level row actions; Log service,
+  Re-sync, View on Strava and Link gear live in the modal (`docs/rides-and-activity.md`).
 - **Swap choices go through `swapOptions`** (`utils/swapOptions.ts`, via `useSwapOptions`):
   the pill and Retire's "Replace with" both use it, and it mirrors exactly what the swap
   endpoint accepts (spares, plus shared indoor cassettes for `indoor_only` slots).
@@ -231,7 +235,8 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
 - `docs/rides-and-activity.md` — **Ride history**, **Activity log**. Bike ride
-  pagination and odometer, `Activity::Feed`'s keyset/offset branches, the install/removal
+  pagination and odometer, the ride details modal (`RideDetailModal`, `GET /strava/rides/:id`),
+  `Activity::Feed`'s keyset/offset branches, week totals and metric sorts, the install/removal
   merge rule, the `/activity` page.
 - `docs/components-and-setup.md` — **One-step component swap**, **Last bike and the
   Components list's Bike column**, **Retiring a component**, **Bike setup**,

@@ -324,7 +324,7 @@ this bike" gets computed and how the batch logger itself works.
   service-type-first, with no requirement concept to group by. Rows show no remaining-distance text (a row can clear several requirements with different remaining amounts, and the "clears X (status)" list already says what matters) — `ComponentDetail`'s own rows do. Takes an optional
   `initialPerformedAt` prop — unused by `BikeDetail`'s header "Log service"
   button and the Dashboard `BikeCard`'s own "Log service" action, but used by the shared "Log service after this ride" per-ride action
-  (`LogServiceAfterRideButton`, on every ride list — see "Ride history"), which
+  (`LogServiceAfterRideButton`, in `RideDetailModal` — see "Ride history"), which
   passes a ride's `moved_at + elapsed_time`. Mutations
   (`useCreateServiceSession`/`useUpdateServiceSession`/`useDeleteServiceSession`)
   invalidate the `history` and `serviceStatus` groups, same as single-event

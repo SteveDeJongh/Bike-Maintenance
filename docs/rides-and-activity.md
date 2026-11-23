@@ -34,31 +34,76 @@ clicking a column header — the point of this view is the sequence, and
 client-side column sorting would only reorder the current page, which would
 mislead against a server-paginated list. A page does this by never including its configurable columns in `sortColumns`, and by passing `sortable={false}` to `DraggableHeaderCell` so those columns don't visually invite clicks they can't act on.
 
-**"Log service after this ride" is a shared per-ride action on every ride list** —
-Ride history (table rows and mobile cards), the Activity log (table and
-`NarrowActivityCard`), the Strava page's Rides tab, and the Dashboard's Recent
-rides — always beside Re-sync where Re-sync appears.
-`components/ride/LogServiceAfterRideButton.tsx` (`bikeId`, `movedAt`,
-`elapsedTime`) opens `BatchServiceModal` for that bike with `initialPerformedAt`
-set to the ride's end (`utils/rideTiming.ts`'s `initialPerformedAtForRide`: `moved_at
-+ elapsed_time`, or `moved_at` when `elapsed_time` is null). It owns its own modal
-state — no page wires one up — and mounts the modal only while open, so a closed
-button costs one `useState` even across a full page of rows. It renders nothing
-when `bikeId` is null, which is what hides it on every unattributed or ignored
-ride. No new invalidation: `BatchServiceModal`'s own mutation already invalidates
-`history` and `serviceStatus` (which covers `['dashboard']` and `['bikes']`).
+**Ride details modal (`RideDetailModal`).** One modal holds everything about a ride, and
+it's opened by clicking a ride in any list. Ride lists carry no ride-level action buttons
+of their own.
+
+- **Data:** `components/ride/RideDetailModal.tsx` on `AppModal` (full-screen on
+  mobile), reading `GET /strava/rides/:id` through `useRideDetail`. The key
+  `['ride_detail', id]` is in the `rides`, `serviceStatus` and `history` invalidation
+  groups, so a re-sync, a logged service or a swap refreshes it.
+- **Header:** a round primary bike icon, the ride name, and a dimmed "Sun, Nov 22 ·
+  8:12 am · Gravel Ride · {bike link} · Outdoor" (`rideHeaderParts`,
+  `utils/rideDetail.ts`). Without a bike it reads an orange "No bike on Strava".
+- **Actions:**
+  - "Log service after this ride" (`LogServiceAfterRideButton`, filled here; hidden
+    without a bike);
+  - "View on Strava ↗";
+  - Re-sync (`ResyncRideButton` as-is, including its 429 retry text);
+  - "Link gear" → `/strava?tab=gear`, only when `gear_id` is set and `!gear_mapped`.
+- **"View on Strava":** Strava's API Brand Guidelines require that exact wording, styled
+  bold, underlined, or in Strava orange #FC5200. The link is bold in
+  `var(--strava-orange)`, the app's one external brand colour, defined in `index.css`.
+  No ride name links out to Strava directly any more.
+- **Stats** (`rideStatLines`), between thin dividers:
+  - **Line 1:** Distance, Moving time, Elevation and Avg power, large, with small
+    uppercase labels.
+  - **Line 2:** Elapsed, Avg speed, Max speed, Weighted power, Energy, Avg HR, Max HR
+    and Cadence as label/value pairs, in four columns (two on a phone).
+  - **Nulls:** hidden, never shown as a dash. A missing line-1 value is filled by the
+    next recorded line-2 metric.
+- **Components:** "This ride added {distance} to each". Each row is the linked label,
+  the shared `WearBar` (`components/dashboard/WearBar.tsx`, also used by the Home bike
+  card) in the status colour, and `formatDrivingRemaining` ("132 km left" / "120 km
+  over"). A component without a requirement shows "{lifetime} total" and no bar. With
+  no bike, the section explains that the ride isn't added to any components, plus Link
+  gear when it applies. With a bike but nothing counted, it says "None".
+- **Service around this ride:** a dot, the session summary, and "Fri, Nov 20 · before
+  this ride" or "after this ride" (`serviceNearbyLabel`). A row opens
+  `ServiceSessionViewModal`. Empty: "Nothing logged after this ride yet."
+- **Loading:** skeletons. **Errors:** an inline alert.
+- **Where it opens.** Each list holds one `rideId` and renders one modal, outside its
+  table:
+  - **Home, Recent rides:** the whole row.
+  - **Bike page, Ride history:** the row or the name, on desktop and mobile.
+  - **Strava page, Rides tab:** the name only, so the selection checkboxes keep their
+    clicks. Its own cleanup actions (Ignore, Un-ignore, Resolve gear) stay per row.
+  - **Activity page:** the ride name, in the table and the narrow cards.
+
+  Names render through `RideNameButton`, which stops propagation so a clickable row
+  doesn't open the modal twice. The component chips in the Components column do the
+  same.
+- **Log service after a ride** opens `BatchServiceModal` for the bike with
+  `initialPerformedAt` set to the ride's end (`initialPerformedAtForRide` in
+  `utils/rideTiming.ts`: `moved_at + elapsed_time`, or `moved_at` when
+  `elapsed_time` is null). It renders nothing for a ride without a bike.
+
+**Terminology.** The components a ride adds distance to are shown as **"Components"**:
+- the column label in the bike rides, Strava rides and activity log column sets;
+- the "Components" section in the modal.
+
+Details:
+- The column key and the API field are still `counted_toward`, so saved preferences and
+  existing payloads didn't change. Part 1's ride endpoint calls it `components`.
+- An empty cell reads "No bike" for a ride without one, and "None" otherwise
+  (`componentsCellState`).
 
 Frontend: `components/bike/RideHistorySection.tsx`, mounted on `BikeDetail.tsx`
 directly after Component History, at the same heading level. Adopts the
 configurable-table system (`table_key: "bike_rides"`) the same way as `Bikes.tsx`;
 `useBikeRides` is a `useInfiniteQuery` with a "Load
-more" button (not infinite scroll) plus "Showing N of M". The Name column links
-to `https://www.strava.com/activities/{strava_id}` in a new tab, with "View on
-Strava" as the tooltip/accessible label per Strava's brand guideline for
-API-sourced content — the link uses the `orange` Mantine token (never a hardcoded
-hex) rather than this app's own `radar` accent, so it doesn't read as an in-app
-action (`components/ride/ViewOnStravaLink.tsx`, extracted so the Strava page's
-Rides tab — see "Strava integration" above — can render the same link). `formatSpeed`
+more" button (not infinite scroll) plus "Showing N of M". The Name column
+(`RideNameButton`) and the row both open `RideDetailModal` (above). `formatSpeed`
 (`utils/speed.ts`) matches `formatDistance`'s own hardcoded-km convention (no
 metric/imperial setting exists anywhere in this app to plug into). The Avg power
 column reuses `formatPower`, dimmed with an "Estimated" tooltip when `device_watts`
@@ -223,7 +268,7 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   `components/activity/useActivityFilters.ts` (all filter state and derived query
   params, including the kind-chip persistence below and the rideOnly/sort-metric
   reset), `ActivityFilters.tsx` (the chips/filter-bar UI), `ActivityTable.tsx` (the
-  desktop table, plus `ActivityRow`/`NonRideCellContent`/exported `RideRowActions`),
+  desktop table, plus `ActivityRow`/`NonRideCellContent`),
   `NarrowActivityCard.tsx`, and `EmptyState.tsx` — `pages/Activity.tsx` itself is
   just the page shell (preference-query gating, wiring the hook to
   `useActivityFeed`, expanded-session/modal state, choosing table vs. cards).
@@ -253,13 +298,11 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   (`ComponentServiceAndHistory` reads that param and scrolls to/highlights the
   matching history row, the same `?gear=<id>` convention `Strava.tsx` already used
   for "Resolve gear"); `setup_change` links to the installed component, with a
-  second small link to the replaced one when the row is a merged entry. Ride row actions: "Log service after this ride" (the shared
-  `LogServiceAfterRideButton`, see "Ride history" above), "View on Strava", and
-  `ResyncRideButton` reused as-is. Deliberately no "change
-  bike" action — a tooltip on the Actions header explains why (fix it on Strava,
-  then Re-sync). Below 768px width the table swaps for a card list
-  (`components/activity/NarrowActivityCard.tsx`) — ride cards keep date/name/bike/distance/moving time and
-  the same row actions; non-ride cards stay single lines, already compact enough.
+  second small link to the replaced one when the row is a merged entry. A ride's name opens
+  `RideDetailModal`, which holds its actions; the rows carry none. Below 768px width
+  the table swaps for a card list (`components/activity/NarrowActivityCard.tsx`).
+  Ride cards keep the date, name, bike, distance and moving time, and the name opens
+  the modal. Non-ride cards stay single lines, already compact enough.
   Invalidation: `['activity']` is in the `history` invalidation group (see "Cache
   invalidation" under Conventions), used by every mutation whose data this feed reads —
   ride/gear decisions and reassignment, a bike's `strava_gear_id` edits, every

@@ -129,19 +129,16 @@ A future page can adopt the same UX without rework:
   pinned link) as a small, generally useful addition, not a one-off.
 - **`strava_rides` (the Strava page's Rides tab) deliberately has no card
   view** — it has per-row bulk-select checkboxes, a "select all"/"select all
-  matching" toolbar, and row actions that are several conditional buttons
-  (Resync/Ignore/Resolve gear/View on Strava), none of which `DataCardList`
+  matching" toolbar, and conditional row actions (Ignore/Un-ignore/Resolve gear),
+  none of which `DataCardList`
   supports; it still only scrolls horizontally on mobile (`Table.ScrollContainer`).
   Giving it a real card view needs a deliberate design decision first (most
   likely either a selection-aware extension of `DataCardList`, or its own
   bespoke card component, same precedent as `NarrowActivityCard`/
   `InstalledComponentsCardList`) — revisit if this is genuinely painful on a
   phone in practice, rather than guessing at an interaction now.
-  `components/bike/RideHistorySection.tsx`'s own Resync and "Log service" buttons
-  stay directly on its card rather than moving into a "⋯" menu (unlike every
-  other adopter's actions) — they're the only two actions there, and
-  `ResyncRideButton`'s own loading/rate-limit-error UI doesn't fit cleanly
-  inside a `Menu.Item`.
+  `components/bike/RideHistorySection.tsx`'s cards have no actions: tapping one
+  opens `RideDetailModal`, as on every ride list.
 
 **To adopt this on a new or existing table**, define on the frontend (nothing to
 build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is

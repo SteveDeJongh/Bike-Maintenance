@@ -176,7 +176,7 @@ genuine data-model change deliberately not made speculatively here.
     "Reconnect Strava" for `auth_failed` only), unmapped gear (orange, "N unmapped
     gear · Link gear" → `/strava?tab=gear`; shown when `unmapped_gear_count` or
     `with_gear.count` is non-zero, falling back to counting the rides when the gear
-    count is 0), and rides with no bike on Strava (orange, "N rides not counted ·
+    count is 0), and rides with no bike on Strava (orange, "N rides with no bike ·
     Review" → `/strava?tab=rides`, `without_gear.count`).
   - **Sync now**, from the page's `useStravaSyncRunner({ full: false })`.
   - Not connected: all of the above is replaced by a single "Connect Strava" button.
@@ -284,10 +284,9 @@ genuine data-model change deliberately not made speculatively here.
   saved preference, not a URL param); one grid row per ride (`display: contents`
   rows so columns line up): "Nov 16" | name over "{sport} · {bike}"
   (`rideSportLabel` → `formatSportType`, `utils/recentActivity.ts`/`utils/strava.ts`)
-  | moving time | distance | `LogServiceAfterRideButton` (see "Ride history"; renders
-  nothing for a ride with no bike). A no-bike ride gets the orange-light tint and an
-  orange "No bike" linking to `/strava?tab=rides`, plus "Link gear" →
-  `/strava?tab=gear` only when `gear_id` is present. Empty: "No rides yet."
+  | moving time | distance. The whole row opens `RideDetailModal`
+  (`docs/rides-and-activity.md`), which holds Log service, Re-sync and Link gear. A
+  no-bike ride gets the orange-light tint and an orange "No bike". Empty: "No rides yet."
   **Recent service**: "Activity log →" (`/activity`); each row a primary dot, the
   entry's own `summary` (never recomposed), and a dimmed "Nov 14 · {bike}" — "(off
   bike)" when the entry has no bike, which for a session-less event means the
