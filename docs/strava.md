@@ -31,10 +31,13 @@
   a "Sync now" button on the frontend's `/strava` page. `bin/rails strava:sync_all`
   exists for a future production scheduler (e.g. a Render Cron Job) to call once the app
   is actually deployed — not wired up to anything automatic yet, since there's no
-  deployed host. No webhook until there's a public URL.
+  deployed host. Once the app is deployed and subscribed, ride creates, edits and
+  deletes arrive by webhook (see "Webhooks" below); gear changes still need a sync.
 - `StravaSyncJob` pages `GET /athlete/activities` incrementally, using
-  `StravaActivity.maximum(:moved_at)` as the `after` cursor (no separate "last synced"
-  column). Only `Ride`/`VirtualRide`-type activities are stored (`SYNCED_TYPES`) — the
+  `StravaActivity.maximum(:moved_at) - CURSOR_OVERLAP` (3 days) as the `after` cursor
+  (no separate "last synced" column). The overlap exists because webhook events write
+  rides too: if ride A's event fails and a later ride B's succeeds, a cursor of B alone
+  would skip A forever. Upserts are idempotent, so the overlap only re-reads a few rides. Only `Ride`/`VirtualRide`-type activities are stored (`SYNCED_TYPES`) — the
   latter is what Zwift/virtual-trainer rides come back as, a distinct `type` from plain
   `"Ride"`, not a flag on a Ride. It also runs `Strava::GearSync` once after paging
   finishes, so the gear cache stays current on every routine sync. `perform(user_id,
@@ -195,8 +198,9 @@
   edit, but it costs `full_sync_request_estimate` calls regardless of how small
   the actual fix was — too slow for "I fixed the gear on one ride." `POST
   /strava/rides/:id/resync` re-fetches that one activity (`GET
-  /activities/{id}`, one call) and runs it through `Strava::ActivityUpsert`
-  exactly like the sync job does; a 404, or a type that's since changed to
+  /activities/{id}`, one call) through `Strava::ActivityRefresh` (shared with
+  the webhook job), which upserts via `Strava::ActivityUpsert` exactly like the
+  sync job does; a 404, or a type that's since changed to
   something `SYNCED_TYPES` excludes, deletes the local row — the same
   "indistinguishable from deleted" rule full-refresh reconciliation already
   uses. `POST /strava/rides/resync` (`{ activity_ids: [...] }`) is the bulk
@@ -208,9 +212,10 @@
   `last_synced_at`/`last_full_sync_at`/`Strava::GearSync#call` — this is a
   standalone action, not a sync cycle — but each one **does** backfill
   `StravaGear` for any gear_id it doesn't already have cached (a bike added on
-  Strava since the last sync), via the new `Strava::GearSync#sync_gear(gear_id)`
-  (`StravaController#sync_uncached_gear`, one fetch per distinct new gear id
-  even across a whole bulk batch, not per ride) — without this, a resynced ride
+  Strava since the last sync), via `Strava::GearSync#sync_gear(gear_id)`
+  (`Strava::UncachedGear`, one fetch per distinct new gear id even across a
+  whole bulk batch, not per ride: the bulk path passes `backfill_gear: false`
+  to `ActivityRefresh` and backfills once at the end) — without this, a resynced ride
   could carry a gear_id the Gear tab and the Rides tab's own Gear column had
   never heard of, until the next full/incremental sync. See "Strava rate
   limits" below for the stop-on-rate-limit behavior both actions share, and why
@@ -273,3 +278,71 @@
   installed component's batched `service_status` into the response the same way
   `#index` merges its own grouped stats.
 
+## Webhooks
+
+Strava's push subscription tells the app, within seconds, that something changed for
+an athlete who authorized it, so new, edited and deleted rides arrive without "Sync now".
+
+- **One subscription per Strava app**, covering every athlete. It's managed with:
+  - `bin/rails "strava:webhook:subscribe[https://<host>/strava/webhook]"`, which prints
+    the new id to store as `strava.webhook_subscription_id`, or the existing
+    subscription if there already is one;
+  - `bin/rails strava:webhook:show`;
+  - `bin/rails strava:webhook:unsubscribe`.
+
+  A dev-tunnel subscription has to be deleted before production can subscribe.
+- **Credentials** (`strava:` in `config/credentials.yml.enc`):
+  - `webhook_verify_token`: a long random string Strava echoes back when validating.
+  - `webhook_subscription_id`: optional; once set, events for any other subscription
+    are ignored.
+- **`GET /strava/webhook`** (`StravaWebhooksController#verify`): Strava's validation
+  request on subscribe. It answers `{"hub.challenge": …}` when `hub.mode` is
+  `subscribe` and `hub.verify_token` matches the credential (`secure_compare`).
+  Anything else is `403`, including an unset or blank credential.
+- **`POST /strava/webhook`** (`#receive`):
+  - It skips `require_authentication` and forgery protection, since Strava sends no
+    session and no CSRF token.
+  - Events aren't signed, so the payload is only ever "something changed for athlete X
+    / activity Y". `receive` permits the fields, logs them (`[StravaWebhook]`, info
+    level), enqueues `StravaWebhookEventJob` and returns `200`. It makes no Strava
+    calls and runs no queries, so it stays well inside Strava's 2-second limit.
+  - It returns `400` only when a required field is missing. A non-200 just makes
+    Strava retry, up to three attempts.
+- **`StravaWebhookEventJob`** finds the `StravaCredential` by `owner_id`; with none, it
+  logs and returns. Then:
+
+  | Event | Handling |
+  |---|---|
+  | activity `create` / `update` | `ensure_fresh_access_token!`, then `Strava::ActivityRefresh` re-fetches the activity whatever `updates` lists (one call, and it covers type and visibility changes). A synced type is upserted and attributed by gear; an excluded type or a `404` deletes the row, like full-refresh reconciliation. |
+  | activity `delete` | Destroys the user's row with that `strava_id`, if any. No API call. |
+  | athlete `update` with `updates.authorized == "false"` | Deauthorization: destroys the credential, since its tokens are dead. Rides, gear and the Strava `UserIdentity` are kept for now. Whether deauthorization should delete Strava-sourced data is open, pending a read of Strava's API agreement. The app then shows its usual "not connected" states. |
+  | anything else | Logged and ignored. |
+
+- **Errors:**
+  - **Rate limit:** re-enqueued at the error's `retry_at` (15 minutes if unset), 3
+    attempts, through `rescue_from`, because `retry_on`'s `wait:` proc never sees the
+    error.
+  - **Other `Strava::Client::Error`s and Faraday timeouts:** polynomial backoff, 4
+    attempts.
+  - **`AuthenticationError`** (revoked refresh token): logged and discarded.
+
+  The job never writes `last_sync_failed_*`, `sync_started_at` or `last_synced_at`. A
+  webhook isn't a sync run, and `useSyncCompletionWatcher` mustn't start polling
+  because of one.
+- **Idempotency:** one save on Strava can send several events (a title, then a type).
+  Re-processing re-fetches and upserts the same values. Two events for one new ride can
+  race to insert the same `strava_id` (unique). The losing `ActivityRefresh` re-finds
+  the row and upserts onto it.
+- **Not covered: gear changes.** Strava documents `updates` keys only for `title`,
+  `type` and `private`, and doesn't say a gear change fires an event. Gear changes still
+  need the scheduled sync or "Refresh all rides".
+- **Lost jobs:** the dev/default async adapter runs jobs in-process, so a webhook job
+  still queued when the process restarts is lost. The scheduled incremental sync, with
+  its `CURSOR_OVERLAP`, is the backstop. Choosing a durable adapter is a deploy
+  decision.
+- **Manual end-to-end check before deploying** (not part of the test suite):
+  1. Run the API behind a tunnel: `cloudflared tunnel --url http://localhost:3000`.
+  2. Run `bin/rails "strava:webhook:subscribe[https://<tunnel>/strava/webhook]"`.
+  3. Edit a ride's title on Strava and watch `log/development.log` for
+     `[StravaWebhook]`.
+  4. Run `bin/rails strava:webhook:unsubscribe`, so production can subscribe later.

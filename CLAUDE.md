@@ -47,9 +47,12 @@ pg_ctl -D /usr/local/var/postgresql@14 -l /usr/local/var/log/postgresql@14.log s
 bin/rails server -p 3000          # health check: GET /up
 bundle exec rspec                 # all specs; pass a path for one file
 bin/rails db:migrate
-bin/rails credentials:edit        # strava: (set up), google: (not yet)
+bin/rails credentials:edit        # strava: client_id/secret, webhook_verify_token,
+                                  #   webhook_subscription_id (after subscribing); google: (not yet)
 bin/rails strava:sync_all         # incremental sync for every connected user
 bin/rails strava:resync_all       # full resync for every connected user
+bin/rails "strava:webhook:subscribe[https://<host>/strava/webhook]"  # also :show, :unsubscribe;
+                                  #   one subscription per Strava app (docs/strava.md, "Webhooks")
 bin/rails "users:claim[email]"    # one-time: give the pre-auth seed user a real login
 bin/rails components:audit_retired_mounted  # read-only: retired components still on a bike
 
@@ -213,9 +216,10 @@ Frontend:
 
 ## Current phase
 
-Phase 5, Polish. Remaining work: deploy, webhooks, charts. The Strava page's Rides tab
-still has no mobile card view (see `docs/frontend-ui.md`). Strava sync is manual until
-there's a deployed scheduler.
+Phase 5, Polish. Remaining work: deploy, charts. The Strava page's Rides tab
+still has no mobile card view (see `docs/frontend-ui.md`). Once deployed and
+subscribed, webhooks push ride creates, edits and deletes; gear changes still need a
+sync, which stays manual until there's a deployed scheduler (`docs/strava.md`).
 
 ## Further docs
 
@@ -228,7 +232,7 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/service-requirements.md` — **Service intervals and maintenance alerts**, **Batch
   service logging**. The due-point algorithm, batched position query, alert eligibility
   and dismissals, the requirement/satisfier UI, `ServiceSession` and `BatchServiceModal`.
-- `docs/strava.md` — **Strava integration**. OAuth, incremental and full sync,
+- `docs/strava.md` — **Strava integration**, **Webhooks**. OAuth, incremental and full sync,
   reconciliation, gear mapping/ignoring, ride ignore, single and bulk resync, sync
   failure recording, rate limits.
 - `docs/auth.md` — **Authentication**. Sessions/CSRF/CORS, `Auth::ResolveIdentity`,
