@@ -4,7 +4,7 @@ import { formatElevation } from './elevation'
 import { formatPower } from './power'
 import { formatSpeed } from './speed'
 import { formatSportType } from './strava'
-import type { RideDetail, RideServiceNearby } from '../types/models'
+import type { RideDetail, RideDetailComponent, RideServiceNearby } from '../types/models'
 
 export interface RideStat {
   key: string
@@ -84,6 +84,22 @@ export function rideHeaderParts(ride: Pick<RideDetail, 'moved_at' | 'activity_ty
 export function serviceNearbyLabel(item: Pick<RideServiceNearby, 'occurred_at' | 'position'>): string {
   const day = new Date(item.occurred_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   return `${day} · ${item.position} this ride`
+}
+
+// The modal's Components rows in the bike page's order: by category, in
+// `categoryOrder` (useAllCategories: the baseline list, then custom
+// categories), with unknown categories after those, then by label.
+export function sortRideComponents<T extends Pick<RideDetailComponent, 'category' | 'label'>>(
+  components: T[],
+  categoryOrder: readonly string[],
+): T[] {
+  const rank = (category: string) => {
+    const index = categoryOrder.indexOf(category)
+    return index === -1 ? categoryOrder.length : index
+  }
+  return [...components].sort(
+    (a, b) => rank(a.category) - rank(b.category) || a.category.localeCompare(b.category) || a.label.localeCompare(b.label),
+  )
 }
 
 // What a ride's Components cell shows: "No bike" when it has none, "None"

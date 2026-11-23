@@ -3,6 +3,8 @@ import { Alert, Anchor, Box, Button, Divider, Group, SimpleGrid, Skeleton, Stack
 import { IconBike } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
 import { useRideDetail } from '../../api/queries'
+import { useAllCategories } from '../../hooks/useAllCategories'
+import { categoryLabel } from '../../constants'
 import AppModal from '../AppModal'
 import WearBar from '../dashboard/WearBar'
 import ServiceSessionViewModal from '../forms/ServiceSessionViewModal'
@@ -10,7 +12,7 @@ import LogServiceAfterRideButton from './LogServiceAfterRideButton'
 import ResyncRideButton from './ResyncRideButton'
 import { formatDistance } from '../../utils/distance'
 import { formatDrivingRemaining } from '../../utils/serviceInterval'
-import { rideHeaderParts, rideStatLines, serviceNearbyLabel, type RideStat } from '../../utils/rideDetail'
+import { rideHeaderParts, rideStatLines, serviceNearbyLabel, sortRideComponents, type RideStat } from '../../utils/rideDetail'
 import type { RideDetail, RideDetailComponent } from '../../types/models'
 
 // Everything about one ride (GET /strava/rides/:id): the icon and name in
@@ -204,17 +206,23 @@ function componentValue(component: RideDetailComponent): string {
   return component.total_distance_meters != null ? `${formatDistance(component.total_distance_meters)} total` : '—'
 }
 
+// Category | name | wear bar | metric, in the bike page's category order.
+// A component with no enabled requirement still gets the bar's empty track
+// (faint), so every row's bar and metric line up.
 function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped: boolean }) {
+  const categoryOrder = useAllCategories()
+  const components = sortRideComponents(ride.components, categoryOrder)
+
   return (
     <Stack gap={6}>
-      <div>
+      <Group justify="space-between" align="baseline" wrap="nowrap" gap="sm">
         <Text fw={600}>Components</Text>
         {ride.bike && ride.components.length > 0 && (
-          <Text size="sm" c="dimmed">
+          <Text size="xs" c="dimmed" ta="right">
             This ride added {formatDistance(ride.distance_meters)} to each
           </Text>
         )}
-      </div>
+      </Group>
 
       {!ride.bike ? (
     <Text size="sm" c="dimmed">
@@ -236,21 +244,31 @@ function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped
         <Box
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.2fr) minmax(48px, 1fr) auto',
+            gridTemplateColumns: '90px minmax(0, 1.2fr) minmax(48px, 1fr) auto',
             alignItems: 'center',
             columnGap: 'var(--mantine-spacing-sm)',
             rowGap: 6,
           }}
         >
-          {ride.components.map((component) => (
+          {components.map((component) => (
             <Box key={component.component_id} style={{ display: 'contents' }}>
-              <Anchor component={Link} to={`/components/${component.component_id}`} size="sm" truncate>
+              <Text size="xs" c="dimmed" truncate>
+                {categoryLabel(component.category)}
+              </Text>
+              <Anchor
+                component={Link}
+                to={`/components/${component.component_id}`}
+                size="sm"
+                c="var(--mantine-color-text)"
+                underline="hover"
+                truncate
+              >
                 {component.label}
               </Anchor>
               {component.driving_dimension ? (
                 <WearBar fraction={component.fraction_used} status={component.service_status} />
               ) : (
-                <span />
+                <WearBar fraction={null} status={null} style={{ opacity: 0.5 }} />
               )}
               <Text
                 size="sm"

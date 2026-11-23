@@ -42,19 +42,23 @@ of their own.
   mobile), reading `GET /strava/rides/:id` through `useRideDetail`. The key
   `['ride_detail', id]` is in the `rides`, `serviceStatus` and `history` invalidation
   groups, so a re-sync, a logged service or a swap refreshes it.
-- **Header:** a round primary bike icon, the ride name, and a dimmed "Sun, Nov 22 ·
-  8:12 am · Gravel Ride · {bike link} · Outdoor" (`rideHeaderParts`,
-  `utils/rideDetail.ts`). Without a bike it reads an orange "No bike on Strava".
-- **Actions:**
-  - "Log service after this ride" (`LogServiceAfterRideButton`, filled here; hidden
-    without a bike);
-  - "View on Strava ↗";
-  - Re-sync (`ResyncRideButton` as-is, including its 429 retry text);
-  - "Link gear" → `/strava?tab=gear`, only when `gear_id` is set and `!gear_mapped`.
+- **Header:** the round primary bike icon and the ride name are the `AppModal` title,
+  beside the close button, so they stay pinned on mobile. The name takes two lines,
+  then truncates. The body opens with a dimmed "Sun, Nov 22 · 8:12 am · Gravel Ride ·
+  {bike link} · Outdoor" (`rideHeaderParts`, `utils/rideDetail.ts`). Without a bike it
+  reads an orange "No bike on Strava".
+- **Actions**, all `sm` buttons:
+  - "Log service" (`LogServiceAfterRideButton` with `label`, filled; hidden without a
+    bike). It still prefills the session's date at the ride's end;
+  - "View on Strava ↗", an outline button in Strava orange, opening the activity in a
+    new tab;
+  - Re-sync (`ResyncRideButton` with `variant="default"`, including its 429 retry text);
+  - "Link gear" → `/strava?tab=gear`, subtle orange, only when `gear_id` is set and
+    `!gear_mapped`.
 - **"View on Strava":** Strava's API Brand Guidelines require that exact wording, styled
-  bold, underlined, or in Strava orange #FC5200. The link is bold in
-  `var(--strava-orange)`, the app's one external brand colour, defined in `index.css`.
-  No ride name links out to Strava directly any more.
+  bold, underlined, or in Strava orange #FC5200. The button uses
+  `color="var(--strava-orange)"`, the app's one external brand colour, defined in
+  `index.css`. No ride name links out to Strava directly any more.
 - **Stats** (`rideStatLines`), between thin dividers:
   - **Line 1:** Distance, Moving time, Elevation and Avg power, large, with small
     uppercase labels.
@@ -64,10 +68,17 @@ of their own.
     modal's `lg` width, too close to "Max speed 52.3 km/h" to stay on one line.
   - **Nulls:** hidden, never shown as a dash. A missing line-1 value is filled by the
     next recorded line-2 metric.
-- **Components:** "This ride added {distance} to each". Each row is the linked label,
-  the shared `WearBar` (`components/dashboard/WearBar.tsx`, also used by the Home bike
-  card) in the status colour, and `formatDrivingRemaining` ("132 km left" / "120 km
-  over"). A component without a requirement shows "{lifetime} total" and no bar. With
+- **Components:** "Components" with a dimmed "This ride added {distance} to each"
+  right-aligned on the same line. Rows follow the bike page's category order
+  (`useAllCategories`, via `sortRideComponents`), then label. Each row is a grid of:
+  - the category (`categoryLabel`, xs dimmed, 90px);
+  - the name, linked in the default text colour, underlined on hover;
+  - the shared `WearBar` (`components/dashboard/WearBar.tsx`, also used by the Home
+    bike card) in the status colour;
+  - `formatDrivingRemaining` ("132 km left" / "120 km over").
+
+  A component without a requirement shows "{lifetime} total" and a faint empty track,
+  so the bars and metrics stay aligned. With
   no bike, the section explains that the ride isn't added to any components, plus Link
   gear when it applies. With a bike but nothing counted, it says "None".
 - **Service around this ride:** a dot, the session summary, and "Fri, Nov 20 · before

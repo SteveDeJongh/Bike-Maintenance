@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { componentsCellState, rideHeaderParts, rideStatLines, serviceNearbyLabel } from './rideDetail'
+import { componentsCellState, rideHeaderParts, rideStatLines, serviceNearbyLabel, sortRideComponents } from './rideDetail'
 
 const full = {
   distance_meters: 48_000, moving_time: 5_400, total_elevation_gain: 512, average_watts: 180.4,
@@ -64,5 +64,43 @@ describe('componentsCellState', () => {
     expect(componentsCellState({ bike: { id: 1 }, counted_toward: [] })).toBe('none')
     expect(componentsCellState({ counted_toward: [] })).toBe('none') // ride history rows carry no bike field
     expect(componentsCellState({ bike: { id: 1 }, counted_toward: [{}] })).toBe('list')
+  })
+})
+
+describe('sortRideComponents', () => {
+  const order = ['chain', 'cassette', 'tire_front', 'tire_rear']
+
+  it('orders by the category order, then by label', () => {
+    const sorted = sortRideComponents(
+      [
+        { category: 'tire_rear', label: 'GP5000 rear' },
+        { category: 'chain', label: 'Chain B' },
+        { category: 'cassette', label: 'Ultegra 11-30' },
+        { category: 'chain', label: 'Chain A' },
+      ],
+      order,
+    )
+    expect(sorted.map((c) => c.label)).toEqual(['Chain A', 'Chain B', 'Ultegra 11-30', 'GP5000 rear'])
+  })
+
+  it('puts categories missing from the order last, by category then label', () => {
+    const sorted = sortRideComponents(
+      [
+        { category: 'zz_custom', label: 'A' },
+        { category: 'aa_custom', label: 'B' },
+        { category: 'tire_front', label: 'C' },
+      ],
+      order,
+    )
+    expect(sorted.map((c) => c.label)).toEqual(['C', 'B', 'A'])
+  })
+
+  it('does not mutate its input', () => {
+    const input = [
+      { category: 'cassette', label: 'X' },
+      { category: 'chain', label: 'Y' },
+    ]
+    sortRideComponents(input, order)
+    expect(input.map((c) => c.label)).toEqual(['X', 'Y'])
   })
 })
