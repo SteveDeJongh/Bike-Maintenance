@@ -127,7 +127,8 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
 
       {!isPending && items.length > 0 && (
         <ActivityList
-          items={items}
+          pages={data?.pages ?? []}
+          groupBy={filters.listGroupBy}
           fields={fields}
           sortColumn={filters.sortColumn}
           order={order}
