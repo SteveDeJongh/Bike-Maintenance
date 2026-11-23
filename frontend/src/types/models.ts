@@ -106,6 +106,9 @@ export interface TableViewPreferenceData {
   // option) rather than a second preference row, since the backend already
   // treats this whole value as free-form per-table JSON.
   kinds?: string[]
+  // Activity log's list grouping ("week" when absent) -- validated
+  // server-side, the one key that is.
+  group_by?: 'week' | 'none'
 }
 
 // null means no enabled service interval at all (not "ok") -- the Components
@@ -860,6 +863,15 @@ export type ActivityItem =
   | ActivityMaintenanceEventItem
   | ActivitySetupChangeItem
 
+export interface ActivityWeekTotals {
+  ride_count: number | null
+  distance_meters: number | null
+  moving_time: number | null
+  total_elevation_gain: number | null
+  service_count: number | null
+  setup_count: number | null
+}
+
 export interface ActivityFeedResponse {
   items: ActivityItem[]
   meta: {
@@ -868,7 +880,12 @@ export interface ActivityFeedResponse {
     // counts stay meaningful regardless of which chips are toggled.
     ride_totals: { count: number; distance_meters: number; moving_time: number; total_elevation_gain: number }
     kind_counts: { ride: number; service: number; setup: number }
+    // Date order only: whole-week totals for each local Monday-start week
+    // this page touches (null for a kind that isn't selected).
+    week_totals?: Record<string, ActivityWeekTotals>
   }
+  // True when a metric sort narrowed the list to rides.
+  rides_only: boolean
   // Opaque: a keyset cursor for sort=date, or a page number for
   // sort=distance -- the frontend never parses it, just echoes it back.
   next_cursor: string | null

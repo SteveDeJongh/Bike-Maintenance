@@ -3,21 +3,22 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { useUpdateTableViewPreference } from '../../api/mutations'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from './dateRanges'
-import { ACTIVITY_LOG_COLUMNS, ACTIVITY_UI_KINDS, DEFAULT_ACTIVITY_KINDS, DEFAULT_ACTIVITY_LOG_COLUMNS, type ActivityLogColumn } from '../../constants'
+import { ACTIVITY_UI_KINDS, DEFAULT_ACTIVITY_KINDS } from '../../constants'
+import { ACTIVITY_FIELDS, DEFAULT_ACTIVITY_FIELDS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
+import { canAddField, effectiveGroupBy, type GroupBy } from './activityList'
 import type { ActivityUiKind, TableViewPreferenceData } from '../../types/models'
 
 export type Order = 'asc' | 'desc'
-export type SortMetric = 'date' | 'distance'
+export type ActivitySort = 'occurred_at' | ActivityField
 export type DatePreset = 'this_week' | 'this_month' | 'this_year' | 'last_30_days' | 'custom'
 
 function isActivityUiKind(value: string): value is ActivityUiKind {
   return (ACTIVITY_UI_KINDS as readonly string[]).includes(value)
 }
 
-// All of Activity's filter state and derived query params, including the
-// extraData kinds persistence and the prevRideOnly sync -- moved as-is out
-// of ActivityInner. Returns what both the page (the feed query, the table/
-// card columns) and the filter bar need.
+// All of Activity's filter, sort, grouping and field state and the derived
+// query params -- what the page (the feed query, the list) and the toolbar
+// need.
 export function useActivityFilters(initialData: TableViewPreferenceData) {
   const [kinds, setKinds] = useState<ActivityUiKind[]>(() => {
     const stored = initialData.kinds?.filter(isActivityUiKind)
@@ -29,58 +30,73 @@ export function useActivityFilters(initialData: TableViewPreferenceData) {
   const [customRange, setCustomRange] = useState<[string | null, string | null]>([null, null])
   const [qInput, setQInput] = useState('')
   const [q] = useDebouncedValue(qInput, 300)
-  const [sortMetric, setSortMetric] = useState<SortMetric>('date')
-
-  const rideOnly = kinds.length === 1 && kinds[0] === 'ride'
-
-  // Sort-by-distance only makes sense with Rides as the sole selected kind
-  // (GET /activity's own 422 rule) -- adjusted during render (React's
-  // documented "resetting state when a prop changes" pattern) rather than
-  // an effect, same convention as the Rides tab's own filter-reset logic.
-  const [prevRideOnly, setPrevRideOnly] = useState(rideOnly)
-  if (prevRideOnly !== rideOnly) {
-    setPrevRideOnly(rideOnly)
-    if (!rideOnly && sortMetric === 'distance') setSortMetric('date')
-  }
+  const [groupBy, setGroupByState] = useState<GroupBy>(initialData.group_by === 'none' ? 'none' : 'week')
 
   const updatePreference = useUpdateTableViewPreference('activity_log')
 
+  // Fields (the shown metric columns, capped at MAX_ACTIVITY_FIELDS) and the
+  // header sort, persisted in the activity_log preference alongside kinds
+  // and group_by (extraData, so a column/sort save never drops them).
   const {
-    orderedColumns,
+    orderedColumns: fields,
     toggleColumn,
     reorderColumn,
-    onHeaderDragEnd,
     sortColumn,
     sortDirection,
     setSort,
     saveError,
     clearSaveError,
-  } = useTableViewPreferences<ActivityLogColumn, 'occurred_at'>({
+  } = useTableViewPreferences<ActivityField, ActivitySort>({
     tableKey: 'activity_log',
     initialData,
-    allColumns: ACTIVITY_LOG_COLUMNS,
-    defaultColumns: DEFAULT_ACTIVITY_LOG_COLUMNS,
-    sortColumns: ['occurred_at'] as const,
+    allColumns: ACTIVITY_FIELDS,
+    defaultColumns: DEFAULT_ACTIVITY_FIELDS,
+    sortColumns: ['occurred_at', ...ACTIVITY_FIELDS] as const,
     defaultSort: { column: 'occurred_at', direction: 'desc' },
-    extraData: () => ({ kinds }),
+    extraData: () => ({ kinds, group_by: groupBy }),
   })
   const order: Order = sortDirection
 
-  function handleOrderChange(value: string) {
-    const desired: Order = value === 'newest' ? 'desc' : 'asc'
-    if (order !== desired) setSort('occurred_at')
+  // Adding past the cap is a no-op (the picker also disables it).
+  function toggleField(field: ActivityField) {
+    if (!fields.includes(field) && !canAddField(fields, MAX_ACTIVITY_FIELDS)) return
+    toggleColumn(field)
   }
 
-  // The kind chips aren't owned by useTableViewPreferences (that hook only
-  // manages columns/sort), but they're persisted in the same
-  // TableViewPreference row -- so every save here still has to include the
-  // current columns/sort, the same way useTableViewPreferences' own saves
-  // now include kinds via its extraData option.
+  // Header sort: the active column flips; a new field starts biggest-first,
+  // and Date goes back to newest-first.
+  function onHeaderSort(column: ActivitySort) {
+    if (column === sortColumn) setSort(column, sortDirection === 'asc' ? 'desc' : 'asc')
+    else setSort(column, 'desc')
+  }
+
+  // The feed's sort param: 'date', or the field's own key.
+  const apiSort = sortColumn === 'occurred_at' ? 'date' : sortColumn
+  const listGroupBy = effectiveGroupBy(sortColumn, groupBy)
+
+  // kinds and group_by aren't owned by useTableViewPreferences, but share
+  // its TableViewPreference row -- a PATCH replaces the whole data value,
+  // so each save sends everything.
+  function saveAll(next: { kinds?: ActivityUiKind[]; group_by?: GroupBy }) {
+    updatePreference.mutate({
+      columns: fields,
+      sort_column: sortColumn,
+      sort_direction: sortDirection,
+      kinds: next.kinds ?? kinds,
+      group_by: next.group_by ?? groupBy,
+    })
+  }
+
   function toggleKind(kind: ActivityUiKind) {
     const next = kinds.includes(kind) ? kinds.filter((k) => k !== kind) : [...kinds, kind]
     if (next.length === 0) return // at least one kind must stay selected
     setKinds(next)
-    updatePreference.mutate({ columns: orderedColumns, sort_column: sortColumn, sort_direction: sortDirection, kinds: next })
+    saveAll({ kinds: next })
+  }
+
+  function setGroupBy(value: GroupBy) {
+    setGroupByState(value)
+    saveAll({ group_by: value })
   }
 
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
@@ -126,15 +142,17 @@ export function useActivityFilters(initialData: TableViewPreferenceData) {
     qInput,
     setQInput,
     q,
-    sortMetric,
-    setSortMetric,
-    rideOnly,
     order,
-    handleOrderChange,
-    orderedColumns,
-    toggleColumn,
+    sortColumn,
+    onHeaderSort,
+    setSort,
+    apiSort,
+    groupBy,
+    setGroupBy,
+    listGroupBy,
+    fields,
+    toggleField,
     reorderColumn,
-    onHeaderDragEnd,
     saveError,
     clearSaveError,
     tz,

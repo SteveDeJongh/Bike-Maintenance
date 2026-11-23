@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ActionIcon, Checkbox, Divider, Group, Popover, Stack, Text, Tooltip } from '@mantine/core'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -10,24 +10,61 @@ export interface ColumnOption {
   label: string
 }
 
-interface ColumnPickerProps {
+interface ColumnPickerPanelProps {
   allColumns: ColumnOption[]
   orderedVisible: string[]
   onToggle: (key: string) => void
   onReorder: (activeKey: string, overKey: string) => void
+  // At most this many visible; further "Available" checkboxes disable,
+  // with a hint. Omitted: no cap (every configurable table today).
+  maxVisible?: number
+}
+
+interface ColumnPickerProps extends ColumnPickerPanelProps {
+  // Replaces the default "+" trigger (e.g. the Activity page's "Fields"
+  // button); receives the toggle to call on click.
+  renderTarget?: (toggle: () => void) => ReactNode
 }
 
 // The "+" column picker, reused by any sortable/configurable table: a popover
 // with a draggable "Visible" section (current order) and a static
 // "Available" section. Drag-and-drop lives only here, never on the live
 // table headers, so there's no gesture conflict with click-to-sort.
-export default function ColumnPicker({ allColumns, orderedVisible, onToggle, onReorder }: ColumnPickerProps) {
+export default function ColumnPicker({ renderTarget, ...panelProps }: ColumnPickerProps) {
   const [opened, setOpened] = useState(false)
+  const toggle = () => setOpened((o) => !o)
+
+  return (
+    <Popover opened={opened} onChange={setOpened} position="bottom-end" withArrow shadow="md">
+      <Popover.Target>
+        {renderTarget ? (
+          renderTarget(toggle)
+        ) : (
+          <Tooltip label="Choose columns">
+            <ActionIcon variant="default" aria-label="Choose columns" onClick={toggle}>
+              +
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </Popover.Target>
+
+      <Popover.Dropdown>
+        <ColumnPickerPanel {...panelProps} />
+      </Popover.Dropdown>
+    </Popover>
+  )
+}
+
+// The checklist itself -- a draggable "Visible" section (current order) and
+// a static "Available" section -- usable outside the popover too (the
+// Activity page's phone "View" sheet).
+export function ColumnPickerPanel({ allColumns, orderedVisible, onToggle, onReorder, maxVisible }: ColumnPickerPanelProps) {
   const sensors = useColumnDragSensors()
 
   const labelByKey = new Map(allColumns.map((column) => [column.key, column.label]))
   const visible = orderedVisible.map((key) => ({ key, label: labelByKey.get(key) ?? key }))
   const available = allColumns.filter((column) => !orderedVisible.includes(column.key))
+  const atCap = maxVisible != null && orderedVisible.length >= maxVisible
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -37,57 +74,46 @@ export default function ColumnPicker({ allColumns, orderedVisible, onToggle, onR
   }
 
   return (
-    <Popover opened={opened} onChange={setOpened} position="bottom-end" withArrow shadow="md">
-      <Popover.Target>
-        <Tooltip label="Choose columns">
-          <ActionIcon variant="default" aria-label="Choose columns" onClick={() => setOpened((o) => !o)}>
-            +
-          </ActionIcon>
-        </Tooltip>
-      </Popover.Target>
+    <Stack gap="xs" w={220}>
+      <Text size="xs" fw={600} c="dimmed">
+        Visible
+      </Text>
 
-      <Popover.Dropdown>
-        <Stack gap="xs" w={220}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={visible.map((column) => column.key)} strategy={verticalListSortingStrategy}>
+          <Stack gap={4}>
+            {visible.map((column) => (
+              <DraggableColumnRow key={column.key} columnKey={column.key} label={column.label} onToggle={onToggle} />
+            ))}
+          </Stack>
+        </SortableContext>
+      </DndContext>
+
+      {available.length > 0 && (
+        <>
+          <Divider />
           <Text size="xs" fw={600} c="dimmed">
-            Visible
+            Available
           </Text>
-
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={visible.map((column) => column.key)} strategy={verticalListSortingStrategy}>
-              <Stack gap={4}>
-                {visible.map((column) => (
-                  <DraggableColumnRow
-                    key={column.key}
-                    columnKey={column.key}
-                    label={column.label}
-                    onToggle={onToggle}
-                  />
-                ))}
-              </Stack>
-            </SortableContext>
-          </DndContext>
-
-          {available.length > 0 && (
-            <>
-              <Divider />
-              <Text size="xs" fw={600} c="dimmed">
-                Available
-              </Text>
-              <Stack gap={4}>
-                {available.map((column) => (
-                  <Checkbox
-                    key={column.key}
-                    label={column.label}
-                    checked={false}
-                    onChange={() => onToggle(column.key)}
-                  />
-                ))}
-              </Stack>
-            </>
+          {atCap && (
+            <Text size="xs" c="dimmed">
+              Up to {maxVisible} shown. Uncheck one to add another.
+            </Text>
           )}
-        </Stack>
-      </Popover.Dropdown>
-    </Popover>
+          <Stack gap={4}>
+            {available.map((column) => (
+              <Checkbox
+                key={column.key}
+                label={column.label}
+                checked={false}
+                disabled={atCap}
+                onChange={() => onToggle(column.key)}
+              />
+            ))}
+          </Stack>
+        </>
+      )}
+    </Stack>
   )
 }
 

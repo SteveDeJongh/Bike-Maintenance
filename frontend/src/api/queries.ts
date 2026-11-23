@@ -283,12 +283,13 @@ export interface ActivityFeedFilters {
   q?: string
   componentId?: number
   order: 'asc' | 'desc'
-  sort: 'date' | 'distance'
+  // 'date', or a metric key (Activity::Feed::SORT_COLUMNS) -- see ACTIVITY_FIELDS.
+  sort: string
 }
 
 // Same Load-more pagination shape as useBikeRides/useStravaRides. pageParam
 // is opaque -- a keyset cursor string for sort=date, or a page number
-// string for sort=distance (Activity::Feed's own two branches) -- sent back
+// string for a metric sort (Activity::Feed's own two branches) -- sent back
 // as whichever param each branch actually reads. The query key includes
 // every filter/kinds/order/sort so changing any of them discards stale
 // pages automatically.
@@ -308,7 +309,7 @@ export function useActivityFeed(filters: ActivityFeedFilters) {
       if (componentId) params.set('component_id', String(componentId))
       params.set('order', order)
       params.set('sort', sort)
-      if (sort === 'distance') {
+      if (sort !== 'date') {
         params.set('page', pageParam ?? '1')
       } else if (pageParam) {
         params.set('cursor', pageParam)

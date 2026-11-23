@@ -5,13 +5,13 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import RideDetailModal from '../components/ride/RideDetailModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
-import ActivityFilters from '../components/activity/ActivityFilters'
+import ActivityToolbar from '../components/activity/ActivityToolbar'
+import ActivitySummaryTiles from '../components/activity/ActivitySummaryTiles'
+import ActivityViewSheet from '../components/activity/ActivityViewSheet'
+import { ACTIVITY_FIELD_LABELS, type ActivityField } from '../components/activity/activityFields'
 import ActivityTable from '../components/activity/ActivityTable'
 import NarrowActivityCard from '../components/activity/NarrowActivityCard'
 import EmptyState from '../components/activity/EmptyState'
-import { formatDistance } from '../utils/distance'
-import { formatDuration } from '../utils/duration'
-import { formatElevation } from '../utils/elevation'
 import type { TableViewPreferenceData } from '../types/models'
 
 // Gates the whole page on activity_log's TableViewPreference resolving
@@ -27,41 +27,13 @@ export default function Activity() {
 }
 
 function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {
-  const {
-    kinds,
-    toggleKind,
-    bikeId,
-    setBikeId,
-    componentId,
-    setComponentId,
-    datePreset,
-    setDatePreset,
-    customRange,
-    setCustomRange,
-    qInput,
-    setQInput,
-    q,
-    sortMetric,
-    setSortMetric,
-    rideOnly,
-    order,
-    handleOrderChange,
-    orderedColumns,
-    toggleColumn,
-    reorderColumn,
-    onHeaderDragEnd,
-    saveError,
-    clearSaveError,
-    tz,
-    from,
-    to,
-    clearFilters,
-    hasActiveFilters,
-  } = useActivityFilters(initialData)
+  const filters = useActivityFilters(initialData)
+  const { kinds, bikeId, componentId, tz, from, to, q, order, apiSort, fields, saveError, clearSaveError } = filters
 
   const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
   const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
   const [viewingRideId, setViewingRideId] = useState<number | null>(null)
+  const [viewSheetOpened, setViewSheetOpened] = useState(false)
   const isNarrow = useIsMobile()
 
   function toggleSessionExpanded(sessionId: number) {
@@ -85,50 +57,39 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
     q: q || undefined,
     componentId,
     order,
-    sort: sortMetric,
+    sort: apiSort,
   })
 
-  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [ data ])
-  const meta = data?.pages[data.pages.length - 1]?.meta
-  const totalForLoadedKinds = meta ? kinds.reduce((sum, kind) => sum + meta.kind_counts[kind], 0) : 0
+  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data])
+  const lastPage = data?.pages[data.pages.length - 1]
+  const meta = lastPage?.meta
+  const ridesOnly = lastPage?.rides_only ?? false
+  const total = meta ? (ridesOnly ? meta.kind_counts.ride : kinds.reduce((sum, kind) => sum + meta.kind_counts[kind], 0)) : 0
 
   return (
     <Stack>
       <div>
         <Title order={2}>Activity</Title>
-        {meta && (
-          <Text c="dimmed" size="sm">
-            {meta.ride_totals.count} {meta.ride_totals.count === 1 ? 'ride' : 'rides'} ·{' '}
-            {formatDistance(meta.ride_totals.distance_meters)} · {formatDuration(meta.ride_totals.moving_time)} ·{' '}
-            {formatElevation(meta.ride_totals.total_elevation_gain)}
-          </Text>
-        )}
+        <Text c="dimmed" size="sm">
+          Rides, service and setup changes in one list
+        </Text>
       </div>
 
-      <ActivityFilters
-        kinds={kinds}
-        toggleKind={toggleKind}
+      <ActivitySummaryTiles meta={meta} />
+
+      <ActivityToolbar
+        filters={filters}
         kindCounts={meta?.kind_counts}
         bikesList={bikesList}
         componentsList={componentsList}
-        bikeId={bikeId}
-        setBikeId={setBikeId}
-        componentId={componentId}
-        setComponentId={setComponentId}
-        datePreset={datePreset}
-        setDatePreset={setDatePreset}
-        customRange={customRange}
-        setCustomRange={setCustomRange}
-        qInput={qInput}
-        setQInput={setQInput}
-        hasActiveFilters={hasActiveFilters}
-        clearFilters={clearFilters}
-        order={order}
-        handleOrderChange={handleOrderChange}
-        rideOnly={rideOnly}
-        sortMetric={sortMetric}
-        setSortMetric={setSortMetric}
+        onOpenView={() => setViewSheetOpened(true)}
       />
+
+      {ridesOnly && filters.sortColumn !== 'occurred_at' && (
+        <Text size="xs" c="dimmed">
+          Sorted by {ACTIVITY_FIELD_LABELS[filters.sortColumn]}: showing rides only
+        </Text>
+      )}
 
       {saveError && (
         <Alert color="red" withCloseButton onClose={clearSaveError}>
@@ -145,7 +106,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
       )}
 
       {!isPending && !isError && items.length === 0 && (
-        <EmptyState hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters} />
+        <EmptyState hasActiveFilters={filters.hasActiveFilters} onClearFilters={filters.clearFilters} />
       )}
 
       {!isPending && items.length > 0 && isNarrow && (
@@ -163,10 +124,10 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
 
       {!isPending && items.length > 0 && !isNarrow && (
         <ActivityTable
-          orderedColumns={orderedColumns}
-          toggleColumn={toggleColumn}
-          reorderColumn={reorderColumn}
-          onHeaderDragEnd={onHeaderDragEnd}
+          orderedColumns={fields}
+          toggleColumn={(column) => filters.toggleField(column as ActivityField)}
+          reorderColumn={(a, b) => filters.reorderColumn(a as ActivityField, b as ActivityField)}
+          onHeaderDragEnd={() => {}}
           items={items}
           expandedSessionIds={expandedSessionIds}
           onToggleSessionExpanded={toggleSessionExpanded}
@@ -186,7 +147,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
           </Group>
           {meta && (
             <Text size="sm" c="dimmed" ta="center">
-              Showing {items.length} of {totalForLoadedKinds}
+              Showing {items.length} of {total}
             </Text>
           )}
         </>
@@ -196,6 +157,7 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
         <ServiceSessionViewModal opened onClose={() => setViewingSessionId(null)} sessionId={viewingSessionId} />
       )}
       <RideDetailModal opened={viewingRideId !== null} onClose={() => setViewingRideId(null)} rideId={viewingRideId} />
+      <ActivityViewSheet opened={viewSheetOpened} onClose={() => setViewSheetOpened(false)} filters={filters} />
     </Stack>
   )
 }
