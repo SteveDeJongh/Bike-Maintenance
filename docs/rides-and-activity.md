@@ -262,55 +262,100 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   at current scale (true for a personal, near-single-tenant app) — added as cheap,
   defensively reasonable indexes for the filtered-`WHERE` case, not because the
   evidence demanded them.
-- **Frontend**: `pages/Activity.tsx` (`/activity`, nav item "Activity"), gated on
-  `activity_log`'s `TableViewPreference` resolving first, same two-component
-  wrapper/Inner split as every other adopter. Split into
-  `components/activity/useActivityFilters.ts` (all filter state and derived query
-  params, including the kind-chip persistence below and the rideOnly/sort-metric
-  reset), `ActivityFilters.tsx` (the chips/filter-bar UI), `ActivityTable.tsx` (the
-  desktop table, plus `ActivityRow`/`NonRideCellContent`),
-  `NarrowActivityCard.tsx`, and `EmptyState.tsx` — `pages/Activity.tsx` itself is
-  just the page shell (preference-query gating, wiring the hook to
-  `useActivityFeed`, expanded-session/modal state, choosing table vs. cards).
-  Kind chips (Rides/Service/Setup
-  changes, at least one always selected) persist in that *same*
-  `TableViewPreference` row as this table's own column/sort prefs, via
-  `useTableViewPreferences`' `extraData` option (see "Sortable, configurable
-  tables" above) — not a second preference row. Bike/component/date-range/name-
-  search filters and the order/sort-metric controls are local, unpersisted state,
-  same convention as the Rides tab's own filters; the date/distance sort control
-  only renders when `kinds` is exactly `["ride"]` (mirroring the backend's `422`
-  rule), else a dimmed hint takes its place. The table's configurable columns
-  (`ACTIVITY_LOG_COLUMNS` in `constants.ts`) spread in
-  `SHARED_RIDE_COLUMN_RENDERERS` wholesale plus this page's own `bike` column (the
-  one ride column no other adopter needs, since every other one is already scoped
-  to a bike or shows it as its own pinned column). Pinned: a 28px icon-only gutter
-  (every row, including rides, via `@tabler/icons-react` ),
-  then Date, then Name. A ride row renders normally through every visible column; a
-  non-ride row renders the gutter icon and Date, then one `<Table.Td
-  colSpan={1 + orderedColumns.length}>` absorbing the Name slot and every
-  configurable column into a single summary cell on a
-  `var(--mantine-color-gray-light)` surface — the `+1` for Name is why the span
-  tracks column visibility automatically rather than needing its own state. A
-  `service_session` row has a chevron expanding into indented sub-rows (component +
-  service type + note) and opens `ServiceSessionViewModal` on click;
-  `maintenance_event` links to `/components/:id?event=<id>`
-  (`ComponentServiceAndHistory` reads that param and scrolls to/highlights the
-  matching history row, the same `?gear=<id>` convention `Strava.tsx` already used
-  for "Resolve gear"); `setup_change` links to the installed component, with a
-  second small link to the replaced one when the row is a merged entry. A ride's name opens
-  `RideDetailModal`, which holds its actions; the rows carry none. Below 768px width
-  the table swaps for a card list (`components/activity/NarrowActivityCard.tsx`).
-  Ride cards keep the date, name, bike, distance and moving time, and the name opens
-  the modal. Non-ride cards stay single lines, already compact enough.
+- **Frontend**: `pages/Activity.tsx` (`/activity`, nav item "Activity") is **one grouped
+  list** in the Home page's style. There is no configurable `<Table>` and no separate phone
+  cards.
+  - **Loading:** the page waits for `activity_log`'s `TableViewPreference`, the same
+    wrapper/Inner split as before.
+  - **Header:** "Activity", with the dimmed line "Rides, service and setup changes in one
+    list".
+  - **`ActivitySummaryTiles`:** five compact tiles in one row that never wraps; it scrolls
+    sideways when narrow. They show Rides, Distance, Moving time, Elevation and "Service ·
+    setup", from the latest page's `meta`.
+    - They follow every filter **except** the kind toggles, because `ride_totals` and
+      `kind_counts` ignore `kinds`.
+    - The setup figure is the raw `kind_counts` count, so a swap counts 2 there, while the
+      week bands count it once.
+  - **`ActivityToolbar`,** a Paper with two rows:
+    - **Row 1:** the kind pills (Rides, Service, Setup), each with a coloured dot
+      (primary, teal or blue, `ACTIVITY_KIND_COLOR`) and its count, tinted when selected.
+      At least one always stays selected.
+    - **Row 1, from `sm` up:** "Group by" (Week | None) and a **Fields** button.
+    - **Row 1, on a phone:** a **View** button instead, opening `ActivityViewSheet` (an
+      `AppModal`) with Group by, **Sort** (field plus direction, since there are no
+      headers to click) and Fields.
+    - **Row 2:** a search pill, then **Bike**, **Component** and **Date** filter pills
+      (Mantine `Menu`s, tinted when active). "Custom range…" opens a range `DatePicker`
+      in a popover. "Clear filters" appears when any filter is set.
+  - **Fields** (`activityFields.ts`, `ACTIVITY_FIELDS`):
+    - They're the 12 numeric ride metrics, which are exactly the feed's metric sort keys.
+      Name, date and type are always shown. Bike and sport type live in a ride's
+      sub-line, and Components and Commute in `RideDetailModal`.
+    - At most 6 can be shown (`MAX_ACTIVITY_FIELDS`), with reordering by drag.
+    - The checklist is `ColumnPicker`, opened from the Fields button
+      (`renderTarget`, `maxVisible`), and `ColumnPickerPanel` inline in the phone sheet.
+  - **`useActivityFilters`** owns the filters, `kinds` and `group_by` (both persisted in
+    the same preference row through `useTableViewPreferences`' `extraData`), the fields,
+    and the header sort.
+    - **`onHeaderSort`:** the active column flips direction, a new field starts at
+      biggest-first, and Date goes back to newest-first.
+    - **`apiSort`:** `'date'` or the field's key.
+    - **`listGroupBy`** (`effectiveGroupBy`): sorting by a field turns grouping off
+      without changing the saved Week/None. While a field sort is active, a dimmed
+      "Sorted by {field}: showing rides only" note sits under the toolbar, driven by
+      the feed's `rides_only`.
+  - **`ActivityList`:** one Paper, scrolling sideways inside itself
+    (`activityListMinWidth`).
+    - **The grid:** a dimmed column header band (`ActivityListHeader`: Date | icon |
+      Activity | fields, sortable by Date and each field, with an arrow on the active
+      one) and every row share one grid template (`activityGridTemplate`).
+    - **`buildActivityRenderList`** (`activityListModel.ts`) turns the loaded pages into
+      entries.
+      - **Week mode** (date order) adds a band per local Monday-start week:
+        `weekBandTitle` reads "This week · Nov 16 – 22", "Last week · …" or "Nov 2 – 8",
+        handling month and year boundaries and adding the year for another year's week.
+        `weekTotalsLine` gives "5 rides · 214 km · … · 2 service", with service and
+        setup only when above zero.
+      - **Band totals** come from `meta.week_totals` of the **first page that contains
+        the week**, so a week split by Load more stays one band. The day label shows on
+        each day's first row only.
+      - **None mode** has no bands, and every row is dated.
+  - **`ActivityRow`:** the date cell, a 32px round kind icon, then the Activity cell (the
+    title, the time dimmed beside it, and a sub-line), then right-aligned dimmed metrics,
+    with Distance in bold. Service and setup rows leave the metrics empty.
+    - **Sub-lines by kind:**
+      - **Ride:** "{sport} · {bike}". With no bike it reads "{sport} · No bike on Strava"
+        in orange, and the row is orange-tinted.
+      - **Session:** "{bike} · N items", plus teal chips "{component} · {service}". That
+        replaces the old expand/collapse sub-rows.
+      - **Session-less event:** one chip.
+      - **Setup change:** the server `summary` as the title, with the bike and any ride
+        context as the sub-line.
+    - **Click target:** no row actions. The whole row is a `role="button"` target with a
+      hover background, Enter/Space, and an accessible name like "Morning loop, Nov 22,
+      open details".
+    - **What a row opens:**
+      - a ride opens `RideDetailModal`;
+      - a session opens `ServiceSessionViewModal`;
+      - an event navigates to `/components/:id?event=<id>`;
+      - a setup change opens `AssignmentDetailModal`, which offers the component page
+        when the assignment can't be found.
+  - **Phone (`useIsMobile`), the same list:**
+    - the column header hides;
+    - week bands stay, and days become small headers above their rows;
+    - each row stacks the icon, title, time and sub-line, with the fields as one dimmed
+      line underneath (`phoneMetricLine`: "48 km · 1.6 hrs · 510 m").
+  - **Footer:** "Load more" with "Showing N of M". M is the selected kinds' count, or the
+    ride count under a field sort.
+  - **`EmptyState`** keeps its clear-filters action, inside a Paper.
   Invalidation: `['activity']` is in the `history` invalidation group (see "Cache
   invalidation" under Conventions), used by every mutation whose data this feed reads —
   ride/gear decisions and reassignment, a bike's `strava_gear_id` edits, every
   maintenance event and service session mutation, and component assignment
   create/update/delete.
 
-**Not built**: week/month/year grouping headers with subtotals (shared with Ride
-history); a weekly distance chart stacked by bike; a ride detail drawer; threshold
+**Not built**: month/year grouping (Activity groups by week only) and grouping on
+Ride history; a weekly distance chart stacked by bike; threshold
 markers on the ride that pushed a requirement into warning/due; a "since last
 service" component-filter option; CSV export — all explicitly deferred.
 

@@ -5,11 +5,21 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on nine tables: the Bikes list, the Bike detail page's Installed components,
-History, and Ride history tables, the Strava page's Rides tab, the Activity log,
-and the Components/Maintenance Events/Assignments lists (each its own `table_key`:
+on eight tables: the Bikes list, the Bike detail page's Installed components,
+History, and Ride history tables, the Strava page's Rides tab, and the
+Components/Maintenance Events/Assignments lists (each its own `table_key`:
 `bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
-`strava_rides`, `activity_log`, `components`, `maintenance_events`, `assignments`).
+`strava_rides`, `components`, `maintenance_events`, `assignments`).
+- **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
+  grouped list (`docs/rides-and-activity.md`), whose `activity_log` preference
+  stores its Fields, header sort, `kinds` and `group_by` through
+  `useTableViewPreferences`.
+- **`ColumnPicker`** splits into the popover and **`ColumnPickerPanel`**, the checklist
+  itself, which also works inline. It takes two optional props:
+  - `maxVisible`, a cap that disables further checkboxes with a hint;
+  - `renderTarget`, a custom trigger such as Activity's "Fields" button.
+
+  Tables pass neither.
 A future page can adopt the same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
@@ -93,7 +103,7 @@ A future page can adopt the same UX without rework:
   instead of resetting it, and the toggle button keeps the current column —
   but still saves through the exact same `PATCH` path as a desktop header
   click, so a sort chosen on the phone is the one desktop sees next. A table
-  with no click-to-sort at all (`bike_rides`, `activity_log`) renders no
+  with no click-to-sort at all (`bike_rides`) renders no
   `MobileSortControl`, same as it has no sortable `DraggableHeaderCell`s on
   desktop. `Bikes.tsx` is the reference implementation for both pieces, the
   same role it already plays for the table/column-picker side — it reuses the
