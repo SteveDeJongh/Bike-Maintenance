@@ -25,6 +25,26 @@ RSpec.describe "TableViewPreferences", type: :request do
   end
 
   describe "PATCH /table_view_preferences/:table_key" do
+    it "round-trips the activity log's group_by alongside its other keys" do
+      %w[none week].each do |value|
+        data = { columns: [ "bike" ], sort_column: "date", sort_direction: "desc", kinds: [ "ride" ], group_by: value }
+        patch "/table_view_preferences/activity_log", params: { table_view_preference: { data: data } }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        get "/table_view_preferences/activity_log"
+        expect(JSON.parse(response.body)["data"]).to include("group_by" => value, "kinds" => [ "ride" ])
+      end
+    end
+
+    it "rejects an unknown group_by, keeping the saved value" do
+      patch "/table_view_preferences/activity_log", params: { table_view_preference: { data: { group_by: "week" } } }, as: :json
+      patch "/table_view_preferences/activity_log", params: { table_view_preference: { data: { group_by: "month" } } }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["data"].first).to include("group_by")
+      expect(current_user.table_view_preferences.find_by(table_key: "activity_log").data["group_by"]).to eq("week")
+    end
+
     it "creates a preference on first write" do
       expect {
         patch "/table_view_preferences/bikes", params: {
