@@ -176,10 +176,13 @@ function RideStats({ ride }: { ride: RideDetail }) {
         ))}
       </SimpleGrid>
       {secondary.length > 0 && (
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" verticalSpacing={6}>
+        // Each pair stays on one line. Three columns on desktop, not four:
+        // at size="lg" a quarter is ~134px, and "Max speed 52.3 km/h"
+        // needs ~131px, too close to rely on.
+        <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm" verticalSpacing={6}>
           {secondary.map((stat) => (
-            <Group key={stat.key} gap={6} wrap="nowrap">
-              <Text size="sm" c="dimmed">
+            <Group key={stat.key} gap={6} wrap="nowrap" style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+              <Text size="xs" c="dimmed">
                 {stat.label}
               </Text>
               <Text size="sm" fw={500}>
@@ -307,8 +310,8 @@ function RideDetailSkeleton() {
           <Skeleton key={i} height={44} />
         ))}
       </SimpleGrid>
-      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+      <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
           <Skeleton key={i} height={14} />
         ))}
       </SimpleGrid>

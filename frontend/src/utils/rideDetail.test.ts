@@ -13,7 +13,7 @@ describe('rideStatLines', () => {
     expect(primary.map((s) => s.label)).toEqual(['Distance', 'Moving time', 'Elevation', 'Avg power'])
     expect(primary[3].value).toBe('180 W')
     expect(secondary.map((s) => s.label)).toEqual([
-      'Elapsed', 'Avg speed', 'Max speed', 'Weighted power', 'Energy', 'Avg HR', 'Max HR', 'Cadence',
+      'Elapsed', 'Avg speed', 'Max speed', 'Weighted', 'Energy', 'Avg HR', 'Max HR', 'Cadence',
     ])
   })
 

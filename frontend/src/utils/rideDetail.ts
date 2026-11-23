@@ -40,7 +40,7 @@ const SECONDARY: [keyof MetricFields, string, (v: number) => string][] = [
   ['elapsed_time', 'Elapsed', formatDuration],
   ['average_speed', 'Avg speed', formatSpeed],
   ['max_speed', 'Max speed', formatSpeed],
-  ['weighted_average_watts', 'Weighted power', (v) => formatPower(Math.round(v))],
+  ['weighted_average_watts', 'Weighted', (v) => formatPower(Math.round(v))],
   ['kilojoules', 'Energy', (v) => `${Math.round(v)} kJ`],
   ['average_heartrate', 'Avg HR', (v) => `${Math.round(v)} bpm`],
   ['max_heartrate', 'Max HR', (v) => `${Math.round(v)} bpm`],

@@ -58,8 +58,10 @@ of their own.
 - **Stats** (`rideStatLines`), between thin dividers:
   - **Line 1:** Distance, Moving time, Elevation and Avg power, large, with small
     uppercase labels.
-  - **Line 2:** Elapsed, Avg speed, Max speed, Weighted power, Energy, Avg HR, Max HR
-    and Cadence as label/value pairs, in four columns (two on a phone).
+  - **Line 2:** Elapsed, Avg speed, Max speed, Weighted, Energy, Avg HR, Max HR
+    and Cadence as one-line label/value pairs (an xs dimmed label, then the sm value),
+    in three columns (two on a phone). Four would leave about 134px per pair at the
+    modal's `lg` width, too close to "Max speed 52.3 km/h" to stay on one line.
   - **Nulls:** hidden, never shown as a dash. A missing line-1 value is filled by the
     next recorded line-2 metric.
 - **Components:** "This ride added {distance} to each". Each row is the linked label,
