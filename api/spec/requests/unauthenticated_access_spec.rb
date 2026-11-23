@@ -82,6 +82,7 @@ RSpec.describe "Unauthenticated access", type: :request do
     [:post, "/auth/password/forgot"], [:post, "/auth/password/reset"],
     [:post, "/auth/email/verify"],
     [:get, "/auth/strava"], [:get, "/auth/strava/callback"],
+    [:get, "/strava/webhook"], [:post, "/strava/webhook"],
     [:get, "/up"],
   ].freeze
 

@@ -79,6 +79,9 @@ Rails.application.routes.draw do
   post "strava/rides/resync",   to: "strava#resync_rides"
   post "strava/rides/:id/resync", to: "strava#resync_ride"
   get  "strava/rides/:id",        to: "strava#ride", constraints: { id: /\d+/ }
+  # Strava's push subscription callback -- no session (StravaWebhooksController).
+  get  "strava/webhook", to: "strava_webhooks#verify"
+  post "strava/webhook", to: "strava_webhooks#receive"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.

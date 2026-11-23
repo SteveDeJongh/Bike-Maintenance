@@ -166,6 +166,10 @@ class StravaController < ApplicationController
   end
 
   def refresh_gear
+    if current_user.strava_credential.nil?
+      return render json: { base: ["Strava is not connected"] }, status: :unprocessable_content
+    end
+
     Strava::GearSync.new(current_user).call
     head :no_content
   end
