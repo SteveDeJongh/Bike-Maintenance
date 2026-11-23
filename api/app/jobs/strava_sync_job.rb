@@ -8,6 +8,14 @@ class StravaSyncJob < ApplicationJob
   # generous ceiling for a personal app while still bounded.
   FULL_SYNC_MAX_PAGES = 200
 
+  # The incremental cursor starts this far before the newest stored ride.
+  # Webhook events (StravaWebhookEventJob) write rides too, so the newest
+  # stored ride no longer proves everything before it was stored: if ride
+  # A's event failed and a later ride B's succeeded, a cursor of B alone
+  # would skip A forever. Upserts are idempotent, so the overlap only costs
+  # re-reading a few rides, usually all on the first page.
+  CURSOR_OVERLAP = 3.days
+
   # full_resync: true ignores the incremental cursor and re-fetches from the
   # beginning of the user's Strava history -- needed after loosening which
   # activity types get synced (e.g. VirtualRide), since the cursor only looks
@@ -75,9 +83,14 @@ class StravaSyncJob < ApplicationJob
     end
   end
 
+  def incremental_cursor(user)
+    newest = user.strava_activities.maximum(:moved_at)
+    newest && (newest - CURSOR_OVERLAP).to_i
+  end
+
   def run_sync(user, credential, full_resync:)
     access_token = credential.ensure_fresh_access_token!
-    after = full_resync ? nil : user.strava_activities.maximum(:moved_at)&.to_i
+    after = full_resync ? nil : incremental_cursor(user)
     client = Strava::Client.new
     max_pages = full_resync ? FULL_SYNC_MAX_PAGES : MAX_PAGES
     seen_strava_ids = Set.new

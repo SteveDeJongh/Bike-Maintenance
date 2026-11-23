@@ -110,17 +110,35 @@ RSpec.describe StravaSyncJob, type: :job do
     expect(client).to have_received(:fetch_activities).twice
   end
 
-  it "uses the latest stored moved_at as the after cursor for incremental sync" do
+  it "starts the incremental cursor CURSOR_OVERLAP before the latest stored moved_at" do
     create(:strava_activity, user: user, bike: create(:bike, user: user),
       moved_at: Time.zone.local(2026, 5, 1, 9, 0))
 
     allow(client).to receive(:fetch_activities)
-      .with(access_token: anything, after: Time.zone.local(2026, 5, 1, 9, 0).to_i, page: 1, per_page: 100)
+      .with(access_token: anything, after: Time.zone.local(2026, 4, 28, 9, 0).to_i, page: 1, per_page: 100)
       .and_return([])
 
     StravaSyncJob.perform_now(user.id)
 
     expect(client).to have_received(:fetch_activities).once
+  end
+
+  it "picks up a ride older than the newest stored ride but within the overlap" do
+    # A webhook stored the May 1 ride, while the event for the April 30 ride
+    # was lost.
+    create(:strava_activity, user: user, bike: create(:bike, user: user), strava_id: 2,
+      moved_at: Time.zone.parse("2026-05-01T09:00:00Z"))
+
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: Time.zone.parse("2026-04-28T09:00:00Z").to_i, page: 1, per_page: 100)
+      .and_return([ ride(id: 1, start_date: "2026-04-30T09:00:00Z"), ride(id: 2, start_date: "2026-05-01T09:00:00Z") ])
+    allow(client).to receive(:fetch_activities)
+      .with(access_token: anything, after: anything, page: 2, per_page: 100)
+      .and_return([])
+
+    StravaSyncJob.perform_now(user.id)
+
+    expect(user.strava_activities.order(:moved_at).pluck(:strava_id)).to eq([ 1, 2 ])
   end
 
   it "ignores the stored cursor and fetches from the beginning when full_resync is true" do
