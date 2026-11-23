@@ -5,7 +5,7 @@ import { IconAdjustmentsHorizontal, IconChevronDown, IconColumns, IconSearch } f
 import ColumnPicker from '../datatable/ColumnPicker'
 import { ACTIVITY_KIND_LABELS, ACTIVITY_UI_KINDS } from '../../constants'
 import { ACTIVITY_KIND_COLOR, FIELD_OPTIONS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
-import type { GroupBy } from './activityList'
+import type { GroupBy } from './activityListModel'
 import type { DatePreset, useActivityFilters } from './useActivityFilters'
 import type { ActivityUiKind, Bike, Component } from '../../types/models'
 

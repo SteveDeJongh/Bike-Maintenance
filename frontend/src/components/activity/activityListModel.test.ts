@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityGridTemplate, canAddField, effectiveGroupBy } from './activityList'
+import { activityGridTemplate, canAddField, effectiveGroupBy } from './activityListModel'
 
 describe('effectiveGroupBy', () => {
   it('keeps the saved grouping in date order and turns it off for a field sort', () => {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Button, Divider, Group, Loader, Stack, Text } from '@mantine/core'
+import { Alert, Anchor, Button, Divider, Group, Loader, Stack, Text } from '@mantine/core'
+import { Link } from 'react-router-dom'
 import { useBike } from '../../api/queries'
 import AppModal from '../AppModal'
 import ComponentIdentityStatus from '../ComponentIdentityStatus'
@@ -18,6 +19,9 @@ interface AssignmentDetailModalProps {
   onClose: () => void
   bikeId: number
   assignmentId: number | null
+  // Where to send the user when the assignment can't be found once the
+  // bike has loaded (e.g. the Activity list's setup rows).
+  fallbackComponentId?: number
 }
 
 // One installation's detail -- opened from the bike page's rows and the
@@ -26,7 +30,7 @@ interface AssignmentDetailModalProps {
 // the dashboard) and picks the assignment by id. After a swap from the
 // pill it follows the slot: it switches to the new assignment and waits
 // for the refetch rather than showing the ended one.
-export default function AssignmentDetailModal({ opened, onClose, bikeId, assignmentId }: AssignmentDetailModalProps) {
+export default function AssignmentDetailModal({ opened, onClose, bikeId, assignmentId, fallbackComponentId }: AssignmentDetailModalProps) {
   const [currentId, setCurrentId] = useState(assignmentId)
   const [prevAssignmentId, setPrevAssignmentId] = useState(assignmentId)
   if (assignmentId !== prevAssignmentId) {
@@ -37,7 +41,13 @@ export default function AssignmentDetailModal({ opened, onClose, bikeId, assignm
   return (
     <AppModal opened={opened} onClose={onClose} title={<ModalTitle bikeId={bikeId} assignmentId={currentId} opened={opened} />} size="xl">
       {opened && currentId != null && (
-        <AssignmentLoader key={currentId} bikeId={bikeId} assignmentId={currentId} onSwapped={setCurrentId} />
+        <AssignmentLoader
+          key={currentId}
+          bikeId={bikeId}
+          assignmentId={currentId}
+          onSwapped={setCurrentId}
+          fallbackComponentId={fallbackComponentId}
+        />
       )}
     </AppModal>
   )
@@ -58,10 +68,12 @@ function AssignmentLoader({
   bikeId,
   assignmentId,
   onSwapped,
+  fallbackComponentId,
 }: {
   bikeId: number
   assignmentId: number
   onSwapped: (id: number) => void
+  fallbackComponentId?: number
 }) {
   const { bike, assignment } = useAssignment(bikeId, assignmentId, true)
 
@@ -73,8 +85,23 @@ function AssignmentLoader({
     )
   }
   // Right after a swap the new assignment isn't in the cached bike yet --
-  // keep loading until the refetch brings it in.
-  if (!assignment) return <Loader />
+  // keep loading until the refetch brings it in. Once the bike has settled
+  // without it, it isn't coming: say so, and offer the component instead.
+  if (!assignment) {
+    if (bike.data && !bike.isFetching) {
+      return (
+        <Stack gap="xs">
+          <Text c="dimmed">This installation isn't available.</Text>
+          {fallbackComponentId != null && (
+            <Anchor component={Link} to={`/components/${fallbackComponentId}`}>
+              Open the component
+            </Anchor>
+          )}
+        </Stack>
+      )
+    }
+    return <Loader />
+  }
 
   return <AssignmentDetailContent assignment={assignment} onSwapped={onSwapped} />
 }

@@ -5,7 +5,7 @@ import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from './dateRanges'
 import { ACTIVITY_UI_KINDS, DEFAULT_ACTIVITY_KINDS } from '../../constants'
 import { ACTIVITY_FIELDS, DEFAULT_ACTIVITY_FIELDS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
-import { canAddField, effectiveGroupBy, type GroupBy } from './activityList'
+import { canAddField, effectiveGroupBy, type GroupBy } from './activityListModel'
 import type { ActivityUiKind, TableViewPreferenceData } from '../../types/models'
 
 export type Order = 'asc' | 'desc'

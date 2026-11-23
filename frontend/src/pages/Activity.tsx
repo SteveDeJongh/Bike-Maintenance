@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
+import { Alert, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
+import { useNavigate } from 'react-router-dom'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
-import { useIsMobile } from '../hooks/useIsMobile'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import RideDetailModal from '../components/ride/RideDetailModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
 import ActivityToolbar from '../components/activity/ActivityToolbar'
 import ActivitySummaryTiles from '../components/activity/ActivitySummaryTiles'
 import ActivityViewSheet from '../components/activity/ActivityViewSheet'
-import { ACTIVITY_FIELD_LABELS, type ActivityField } from '../components/activity/activityFields'
-import ActivityTable from '../components/activity/ActivityTable'
-import NarrowActivityCard from '../components/activity/NarrowActivityCard'
+import { ACTIVITY_FIELD_LABELS } from '../components/activity/activityFields'
+import ActivityList from '../components/activity/ActivityList'
+import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import EmptyState from '../components/activity/EmptyState'
-import type { TableViewPreferenceData } from '../types/models'
+import type { ActivityItem, TableViewPreferenceData } from '../types/models'
+
+type OpenedItem =
+  | { kind: 'ride'; id: number }
+  | { kind: 'session'; id: number }
+  | { kind: 'assignment'; id: number; bikeId: number; componentId: number }
 
 // Gates the whole page on activity_log's TableViewPreference resolving
 // first, same two-component wrapper/Inner split as every other adopter of
@@ -30,19 +35,28 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
   const filters = useActivityFilters(initialData)
   const { kinds, bikeId, componentId, tz, from, to, q, order, apiSort, fields, saveError, clearSaveError } = filters
 
-  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(new Set())
-  const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
-  const [viewingRideId, setViewingRideId] = useState<number | null>(null)
+  // What a clicked row opened -- each kind has its own modal (a
+  // session-less maintenance event navigates to its component instead).
+  const [opened, setOpened] = useState<OpenedItem | null>(null)
   const [viewSheetOpened, setViewSheetOpened] = useState(false)
-  const isNarrow = useIsMobile()
+  const navigate = useNavigate()
 
-  function toggleSessionExpanded(sessionId: number) {
-    setExpandedSessionIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(sessionId)) next.delete(sessionId)
-      else next.add(sessionId)
-      return next
-    })
+  function openItem(item: ActivityItem) {
+    switch (item.kind) {
+      case 'ride':
+        setOpened({ kind: 'ride', id: item.id })
+        break
+      case 'service_session':
+        setOpened({ kind: 'session', id: item.id })
+        break
+      case 'maintenance_event':
+        navigate(`/components/${item.component_id}?event=${item.id}`)
+        break
+      case 'setup_change':
+        if (item.bike) setOpened({ kind: 'assignment', id: item.id, bikeId: item.bike.id, componentId: item.component.id })
+        else navigate(`/components/${item.component.id}`)
+        break
+    }
   }
 
   const { data: bikesList } = useBikes()
@@ -106,33 +120,19 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
       )}
 
       {!isPending && !isError && items.length === 0 && (
-        <EmptyState hasActiveFilters={filters.hasActiveFilters} onClearFilters={filters.clearFilters} />
+        <Paper withBorder radius="md" p="lg">
+          <EmptyState hasActiveFilters={filters.hasActiveFilters} onClearFilters={filters.clearFilters} />
+        </Paper>
       )}
 
-      {!isPending && items.length > 0 && isNarrow && (
-        <Stack gap="xs">
-          {items.map((item, index) => (
-            <NarrowActivityCard
-              key={`${item.kind}-${item.id}-${index}`}
-              item={item}
-              onViewSession={setViewingSessionId}
-              onOpenRide={setViewingRideId}
-            />
-          ))}
-        </Stack>
-      )}
-
-      {!isPending && items.length > 0 && !isNarrow && (
-        <ActivityTable
-          orderedColumns={fields}
-          toggleColumn={(column) => filters.toggleField(column as ActivityField)}
-          reorderColumn={(a, b) => filters.reorderColumn(a as ActivityField, b as ActivityField)}
-          onHeaderDragEnd={() => {}}
+      {!isPending && items.length > 0 && (
+        <ActivityList
           items={items}
-          expandedSessionIds={expandedSessionIds}
-          onToggleSessionExpanded={toggleSessionExpanded}
-          onViewSession={setViewingSessionId}
-          onOpenRide={setViewingRideId}
+          fields={fields}
+          sortColumn={filters.sortColumn}
+          order={order}
+          onSort={filters.onHeaderSort}
+          onOpen={openItem}
         />
       )}
 
@@ -153,10 +153,19 @@ function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }
         </>
       )}
 
-      {viewingSessionId !== null && (
-        <ServiceSessionViewModal opened onClose={() => setViewingSessionId(null)} sessionId={viewingSessionId} />
+      <RideDetailModal opened={opened?.kind === 'ride'} onClose={() => setOpened(null)} rideId={opened?.kind === 'ride' ? opened.id : null} />
+      {opened?.kind === 'session' && (
+        <ServiceSessionViewModal opened onClose={() => setOpened(null)} sessionId={opened.id} />
       )}
-      <RideDetailModal opened={viewingRideId !== null} onClose={() => setViewingRideId(null)} rideId={viewingRideId} />
+      {opened?.kind === 'assignment' && (
+        <AssignmentDetailModal
+          opened
+          onClose={() => setOpened(null)}
+          bikeId={opened.bikeId}
+          assignmentId={opened.id}
+          fallbackComponentId={opened.componentId}
+        />
+      )}
       <ActivityViewSheet opened={viewSheetOpened} onClose={() => setViewSheetOpened(false)} filters={filters} />
     </Stack>
   )

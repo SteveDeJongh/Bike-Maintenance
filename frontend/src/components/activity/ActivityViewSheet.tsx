@@ -2,7 +2,7 @@ import { Divider, SegmentedControl, Select, Stack, Text } from '@mantine/core'
 import AppModal from '../AppModal'
 import { ColumnPickerPanel } from '../datatable/ColumnPicker'
 import { ACTIVITY_FIELD_LABELS, FIELD_OPTIONS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
-import type { GroupBy } from './activityList'
+import type { GroupBy } from './activityListModel'
 import type { ActivitySort, useActivityFilters } from './useActivityFilters'
 
 type Filters = ReturnType<typeof useActivityFilters>

@@ -54,3 +54,12 @@ body {
     font-size: 16px;
   }
 }
+
+/* The Activity list's rows are whole-row click targets (role="button"). */
+.activity-row:hover {
+  background-color: var(--mantine-color-default-hover) !important;
+}
+.activity-row:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
