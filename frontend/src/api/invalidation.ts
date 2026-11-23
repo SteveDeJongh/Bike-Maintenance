@@ -18,17 +18,19 @@ export const INVALIDATION_GROUPS = {
   // Anything that shows a component's computed interval status, distance, or
   // mounted state -- i.e. everything Maintenance::IntervalStatus feeds.
   // Changes whenever rides, events, assignments, or intervals change.
-  serviceStatus: [['components'], ['bikes'], ['serviceable_components'], ['maintenance_alerts'], ['dashboard']],
+  serviceStatus: [['components'], ['bikes'], ['serviceable_components'], ['maintenance_alerts'], ['dashboard'], ['ride_detail']],
   // Logged history: the activity feed, the maintenance event list, and
   // service session detail views -- plus service types, whose event_count
   // (Settings -> Service types) changes with every logged event.
-  history: [['activity'], ['maintenance_events'], ['service_sessions'], ['service_types']],
+  history: [['activity'], ['maintenance_events'], ['service_sessions'], ['service_types'], ['ride_detail']],
   // Which component is on which bike, and when.
   setup: [['component_assignments']],
   // Strava gear lists and status (unmapped/mapped/ignored gear, sync status).
   gear: [['strava']],
-  // Ride lists -- the Strava Rides tab and each bike's Ride history.
-  rides: [['strava_rides'], ['bike_rides']],
+  // Ride lists -- the Strava Rides tab and each bike's Ride history -- and
+  // the ride details modal (GET /strava/rides/:id), which also reads wear
+  // (serviceStatus) and nearby sessions (history).
+  rides: [['strava_rides'], ['bike_rides'], ['ride_detail']],
   // Category templates and per-component service requirement config --
   // plus service types: adding/switching a satisfier can auto-tag its type
   // with the requirement's category, and changes requirement_count.

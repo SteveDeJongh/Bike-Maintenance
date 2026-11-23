@@ -17,10 +17,16 @@ export default function LogServiceAfterRideButton({
   bikeId,
   movedAt,
   elapsedTime,
+  label = 'Log service',
+  variant = 'subtle',
+  size = 'xs',
 }: {
   bikeId: number | null
   movedAt: string
   elapsedTime: number | null
+  label?: string
+  variant?: 'subtle' | 'filled'
+  size?: 'xs' | 'sm'
 }) {
   const [opened, setOpened] = useState(false)
 
@@ -28,8 +34,8 @@ export default function LogServiceAfterRideButton({
 
   return (
     <>
-      <Button size="xs" variant="subtle" onClick={() => setOpened(true)}>
-        Log service
+      <Button size={size} variant={variant} onClick={() => setOpened(true)}>
+        {label}
       </Button>
       {opened && (
         <BatchServiceModal

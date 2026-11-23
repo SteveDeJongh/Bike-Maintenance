@@ -1,4 +1,9 @@
+/* --strava-orange: Strava's brand orange, an external colour required by
+   their API Brand Guidelines for "View on Strava" links (not part of this
+   app's own palette, and not Mantine's `orange`). The one hard-coded colour
+   in the app -- reference the variable, never the hex. */
 :root {
+  --strava-orange: #FC5200;
   color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;

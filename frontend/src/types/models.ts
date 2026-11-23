@@ -870,3 +870,57 @@ export interface ActivityFeedResponse {
   // sort=distance -- the frontend never parses it, just echoes it back.
   next_cursor: string | null
 }
+
+// GET /strava/rides/:id -- one ride for RideDetailModal. Every metric is
+// null when Strava didn't record it (distance_meters is never null).
+export interface RideDetailComponent {
+  component_id: number
+  label: string
+  category: string
+  service_status: ServiceStatus | null
+  fraction_used: number | null
+  driving_dimension: RequirementDimension | null
+  distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
+  days_remaining: number | null
+  // Lifetime distance -- set only when there's no enabled requirement.
+  total_distance_meters: number | null
+}
+
+export interface RideServiceNearby {
+  id: number
+  occurred_at: string
+  summary: string
+  position: 'before' | 'after'
+}
+
+export interface RideDetail {
+  id: number
+  strava_id: number
+  name: string
+  moved_at: string
+  activity_type: string | null
+  ride_kind: 'outdoor' | 'trainer' | 'virtual'
+  indoor: boolean
+  trainer: boolean
+  commute: boolean
+  bike: { id: number; name: string } | null
+  gear_id: string | null
+  gear_mapped: boolean
+  reason: 'unmapped_gear' | 'no_gear' | 'gear' | 'ride' | null
+  distance_meters: number
+  moving_time: number | null
+  elapsed_time: number | null
+  total_elevation_gain: number | null
+  average_speed: number | null
+  max_speed: number | null
+  average_watts: number | null
+  weighted_average_watts: number | null
+  device_watts: boolean | null
+  kilojoules: number | null
+  average_heartrate: number | null
+  max_heartrate: number | null
+  average_cadence: number | null
+  components: RideDetailComponent[]
+  service_nearby: RideServiceNearby[]
+}

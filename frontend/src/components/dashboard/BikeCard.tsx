@@ -3,6 +3,7 @@ import { Badge, Box, Button, Card, Divider, Group, Stack, Text } from '@mantine/
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
 import AssignmentDetailModal from '../forms/AssignmentDetailModal'
+import WearBar from './WearBar'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { categoryLabel, SERVICE_STATUS_COLORS } from '../../constants'
 import {
@@ -64,8 +65,6 @@ const clickable: CSSProperties = { cursor: 'pointer' }
 // where the component's pill handles swapping.
 function WearRow({ component, bikeId }: { component: DashboardMountedComponent; bikeId: number }) {
   const [detailOpened, setDetailOpened] = useState(false)
-  const hasRequirement = component.fraction_used != null && component.service_status != null
-  const color = component.service_status ? SERVICE_STATUS_COLORS[component.service_status] : 'gray'
   const over = component.service_status === 'due'
 
   return (
@@ -74,15 +73,7 @@ function WearRow({ component, bikeId }: { component: DashboardMountedComponent; 
         <Text size="sm" truncate style={clickable}>
           {component.label}
         </Text>
-        <Box h={6} style={{ ...clickable, borderRadius: 3, background: 'var(--mantine-color-default-border)', overflow: 'hidden' }}>
-          {hasRequirement && (
-            <Box
-              h="100%"
-              w={`${Math.min(Math.max(component.fraction_used ?? 0, 0), 1) * 100}%`}
-              style={{ background: `var(--mantine-color-${color}-6)` }}
-            />
-          )}
-        </Box>
+        <WearBar fraction={component.fraction_used} status={component.service_status} style={clickable} />
         <Text size="sm" ta="right" c={over ? 'red' : 'dimmed'} style={{ ...clickable, whiteSpace: 'nowrap' }}>
           {wearMetricLabel(component)}
         </Text>

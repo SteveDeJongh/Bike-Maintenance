@@ -18,6 +18,7 @@ import type {
   MaintenanceAlertScope,
   MaintenanceEvent,
   NotificationSetting,
+  RideDetail,
   ServiceableComponentsResponse,
   ServiceSession,
   ServiceType,
@@ -316,5 +317,16 @@ export function useActivityFeed(filters: ActivityFeedFilters) {
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,
+  })
+}
+
+// One ride for RideDetailModal (GET /strava/rides/:id). In the rides,
+// serviceStatus and history invalidation groups: a re-sync, a logged
+// service or a swap all change what it shows.
+export function useRideDetail(id: number | null) {
+  return useQuery({
+    queryKey: ['ride_detail', id],
+    queryFn: () => apiGet<RideDetail>(`/strava/rides/${id}`),
+    enabled: id != null,
   })
 }
