@@ -1,7 +1,7 @@
 module Strava
   # The one place a raw Strava activity payload gets written onto a
   # StravaActivity row -- shared by StravaSyncJob (which resolves `activity`/
-  # `bike` from hashes it preloads once per sync) and StravaController#resync_ride
+  # `bike` from hashes it preloads once per sync) and Strava::ActivityRefresh
   # (which resolves them for a single row), so attribution/ignored_at rules
   # can never drift between the two call sites.
   module ActivityUpsert

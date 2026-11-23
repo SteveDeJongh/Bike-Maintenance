@@ -15,7 +15,7 @@ module Strava
     end
 
     # Fetches and upserts a single gear id -- used after a single/bulk ride
-    # resync (StravaController) to backfill StravaGear for a gear id the
+    # resync (Strava::UncachedGear) to backfill StravaGear for a gear id the
     # cache doesn't have yet (a bike added on Strava since the last sync),
     # without running the full #call (which also hits GET /athlete and every
     # other already-known gear id -- unnecessary just to pick up one new id).
