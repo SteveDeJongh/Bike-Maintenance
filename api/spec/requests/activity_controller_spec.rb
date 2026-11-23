@@ -76,16 +76,31 @@ RSpec.describe "Activity", type: :request do
       expect(week_totals["2026-03-09"]).to include("ride_count" => 1, "distance_meters" => 3_000)
     end
 
-    it "responds 422 when sort=distance is combined with a kind other than ride" do
-      get "/activity", params: { kinds: [ "ride", "setup" ], sort: "distance" }
+    it "lists rides only for a metric sort, whatever kinds asked for, and says so with rides_only" do
+      bike = create(:bike, user: current_user)
+      create(:strava_activity, user: current_user, bike: bike, moved_at: 1.day.ago)
+      create(:service_session, bike: bike, user: current_user, performed_at: 1.day.ago)
 
-      expect(response).to have_http_status(:unprocessable_content)
+      get "/activity", params: { kinds: [ "ride", "service" ], sort: "average_watts" }
+
+      body = JSON.parse(response.body)
+      expect(response).to have_http_status(:ok)
+      expect(body["rides_only"]).to be true
+      expect(body["items"].map { |i| i["kind"] }).to eq([ "ride" ])
+      expect(body["meta"]).not_to have_key("week_totals")
     end
 
-    it "allows sort=distance when kinds is exactly ride" do
-      get "/activity", params: { kinds: [ "ride" ], sort: "distance" }
+    it "reports rides_only false for date order" do
+      get "/activity"
 
-      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["rides_only"]).to be false
+    end
+
+    it "responds 422 for an unknown sort key" do
+      get "/activity", params: { sort: "name; DROP TABLE strava_activities" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"].first).to include("Unknown sort")
     end
 
     describe "cross-account isolation" do

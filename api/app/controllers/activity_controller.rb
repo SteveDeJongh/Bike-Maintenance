@@ -17,7 +17,7 @@ class ActivityController < ApplicationController
       per_page: params[:per_page],
     )
 
-    render json: { items: result.items, meta: result.meta, next_cursor: result.next_cursor }
+    render json: { items: result.items, meta: result.meta, next_cursor: result.next_cursor, rides_only: result.rides_only }
   rescue Activity::Feed::InvalidSortError => e
     render json: { base: [ e.message ] }, status: :unprocessable_content
   end

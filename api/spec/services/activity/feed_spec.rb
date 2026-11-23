@@ -277,12 +277,33 @@ RSpec.describe Activity::Feed do
       expect(result.meta[:ride_totals][:distance_meters]).to eq(10_000)
     end
 
-    it "raises InvalidSortError for sort=distance unless kinds is exactly ['ride']" do
+    it "raises InvalidSortError only for an unknown sort key" do
       user = create(:user)
 
-      expect { described_class.call(user, kinds: %w[ride setup], sort: "distance") }
-        .to raise_error(Activity::Feed::InvalidSortError)
-      expect { described_class.call(user, kinds: %w[ride], sort: "distance") }.not_to raise_error
+      expect { described_class.call(user, sort: "bogus") }.to raise_error(Activity::Feed::InvalidSortError)
+      expect { described_class.call(user, kinds: %w[ride setup], sort: "distance") }.not_to raise_error
+    end
+
+    describe "metric sorts" do
+      let(:user) { create(:user) }
+      let(:bike) { create(:bike, user: user) }
+
+      described_class::SORT_COLUMNS.each do |key, column|
+        it "sorts rides by #{key} in both directions, nulls last" do
+          nullable = column != "distance_meters"
+          low = create(:strava_activity, user: user, bike: bike, moved_at: Time.zone.local(2026, 1, 1), column => 1)
+          high = create(:strava_activity, user: user, bike: bike, moved_at: Time.zone.local(2026, 1, 2), column => 5)
+          blank = nullable ? create(:strava_activity, user: user, bike: bike, moved_at: Time.zone.local(2026, 1, 3), column => nil) : nil
+
+          asc = described_class.call(user, kinds: %w[ride service setup], sort: key, order: "asc")
+          desc = described_class.call(user, sort: key, order: "desc")
+
+          expect(asc.items.map { |i| i[:id] }).to eq([ low.id, high.id, blank&.id ].compact)
+          expect(desc.items.map { |i| i[:id] }).to eq([ high.id, low.id, blank&.id ].compact)
+          expect(asc.rides_only).to be true
+          expect(asc.items.map { |i| i[:kind] }.uniq).to eq([ "ride" ])
+        end
+      end
     end
 
     it "offset-paginates sort=distance rides by distance" do

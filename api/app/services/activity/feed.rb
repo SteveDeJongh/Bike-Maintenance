@@ -45,7 +45,29 @@ module Activity
       "setup_removed" => 2,
     }.freeze
 
-    Result = Struct.new(:items, :meta, :next_cursor, keyword_init: true)
+    # The metric sorts, as ?sort= value => strava_activities column. A
+    # whitelist: the column string only ever comes from this hash, never
+    # from the param. "distance" is the original key, kept for existing
+    # callers; the rest match the activity log's numeric column keys.
+    SORT_COLUMNS = {
+      "distance" => "distance_meters",
+      "distance_meters" => "distance_meters",
+      "moving_time" => "moving_time",
+      "elapsed_time" => "elapsed_time",
+      "total_elevation_gain" => "total_elevation_gain",
+      "average_speed" => "average_speed",
+      "max_speed" => "max_speed",
+      "average_watts" => "average_watts",
+      "weighted_average_watts" => "weighted_average_watts",
+      "kilojoules" => "kilojoules",
+      "average_heartrate" => "average_heartrate",
+      "max_heartrate" => "max_heartrate",
+      "average_cadence" => "average_cadence",
+    }.freeze
+
+    # rides_only: true when a metric sort narrowed the list to rides
+    # (whatever kinds asked for) -- top-level so it's there without meta.
+    Result = Struct.new(:items, :meta, :next_cursor, :rides_only, keyword_init: true)
 
     def self.call(user, **kwargs)
       new(user, **kwargs).call
@@ -69,7 +91,11 @@ module Activity
       @component_id = component_id.presence
       @q = q.presence
       @order = order == "asc" ? "ASC" : "DESC"
-      @sort = sort == "distance" ? "distance" : "date"
+      sort = sort.presence || "date"
+      unless sort == "date" || SORT_COLUMNS.key?(sort)
+        raise InvalidSortError, "Unknown sort: #{sort}. Use date or one of #{SORT_COLUMNS.keys.join(', ')}."
+      end
+      @sort = sort
       @cursor = cursor.presence
       @page = [ page.to_i, 1 ].max
       @per_page = per_page.present? ? per_page.to_i.clamp(1, MAX_PER_PAGE) : DEFAULT_PER_PAGE
@@ -79,13 +105,10 @@ module Activity
       @from_time = from.present? ? Date.parse(from).in_time_zone(zone).beginning_of_day.utc : nil
       @to_time = to.present? ? Date.parse(to).in_time_zone(zone).end_of_day.utc : nil
 
-      if @sort == "distance" && @kind_groups != [ "ride" ]
-        raise InvalidSortError, "sort=distance is only available when kinds is exactly ['ride']"
-      end
     end
 
     def call
-      sort == "distance" ? call_distance_sorted : call_date_ordered
+      sort == "date" ? call_date_ordered : call_metric_sorted
     end
 
     private
@@ -107,7 +130,7 @@ module Activity
       merge_setup_changes!(items)
 
       meta = @include_meta ? build_meta.merge(week_totals: week_totals(rows)) : nil
-      Result.new(items: items, meta: meta, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil)
+      Result.new(items: items, meta: meta, next_cursor: has_more && rows.any? ? encode_cursor(rows.last) : nil, rides_only: false)
     end
 
     def fetch_page_rows
@@ -150,13 +173,18 @@ module Activity
       nil
     end
 
-    # --- distance-sorted (offset) branch -- rides only, enforced in #initialize ---
+    # --- metric-sorted (offset) branch -- always rides only, whatever kinds
+    # asked for (Result#rides_only tells the UI). Offset paging, as distance
+    # always had: a keyset over a nullable float would need null-aware tuple
+    # comparisons for no real gain at this scale. Nulls sort last in both
+    # directions. ---
 
-    def call_distance_sorted
+    def call_metric_sorted
       scope = ride_meta_scope
       total_count = scope.count
-      direction = order == "DESC" ? :desc : :asc
-      rides = scope.order(distance_meters: direction, id: direction)
+      column = SORT_COLUMNS.fetch(sort)
+      direction = order == "DESC" ? "DESC" : "ASC"
+      rides = scope.order(Arel.sql("strava_activities.#{column} #{direction} NULLS LAST, strava_activities.id #{direction}"))
         .offset((page - 1) * per_page).limit(per_page).to_a
 
       ignored_gear_ids = StravaGear.ignored_for(user).pluck(:strava_gear_id)
@@ -167,6 +195,7 @@ module Activity
         items: items,
         meta: @include_meta ? build_meta : nil,
         next_cursor: page * per_page < total_count ? (page + 1).to_s : nil,
+        rides_only: true,
       )
     end
 
