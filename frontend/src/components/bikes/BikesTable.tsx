@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import DataList from '../datalist/DataList'
 import DataListHeader, { type DataListColumn } from '../datalist/DataListHeader'
 import DataListRow from '../datalist/DataListRow'
-import { dataListMinWidth, dataListTemplate } from '../datalist/dataListModel'
+import { dataListMinWidth, dataListTemplate, fieldMinWidth } from '../datalist/dataListModel'
 import BikeStatusChip from '../bike/BikeStatusChip'
 import { BIKE_LIST_COLUMN_LABELS, type BikeListColumn, type BikeListSortColumn } from '../../constants'
 import { formatDate } from '../../utils/datetime'
@@ -23,8 +23,9 @@ const FIELD_MIN = 84
 const STATUS_MIN = 110
 const MAIN_MIN = 200
 
+// Wide enough for the values and for the header label.
 function fieldMin(column: BikeListColumn): number {
-  return column === 'status' ? STATUS_MIN : FIELD_MIN
+  return fieldMinWidth(BIKE_LIST_COLUMN_LABELS[column], column === 'status' ? STATUS_MIN : FIELD_MIN)
 }
 
 function renderCell(column: BikeListColumn, bike: BikeWithStats, typeName: string | null): ReactNode {

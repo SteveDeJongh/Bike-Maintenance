@@ -1,4 +1,5 @@
-import { Text, UnstyledButton } from '@mantine/core'
+import { useState, type MouseEvent } from 'react'
+import { Text, Tooltip, UnstyledButton } from '@mantine/core'
 import { IconArrowDown, IconArrowUp } from '@tabler/icons-react'
 
 export interface DataListColumn<K extends string> {
@@ -8,12 +9,17 @@ export interface DataListColumn<K extends string> {
   // Default true; false renders the label as plain text.
   sortable?: boolean
   align?: 'left' | 'right'
+  // Always shown in the header's tooltip ("Total time · Over the
+  // component's whole life"); the Fields picker shows it too.
+  description?: string
 }
 
 // The column header band: one cell per grid track, as a subgrid of the
 // DataList so it lines up with the rows. Sortable columns are buttons that
 // call onSort (the caller decides the first direction and the flip); the
-// active one shows an arrow.
+// active one shows an arrow. Labels stay on one line: a column narrower
+// than its label (fieldMinWidth should prevent it) truncates the text --
+// never the arrow -- and the full label shows in a tooltip.
 export default function DataListHeader<K extends string>({
   columns,
   sortColumn,
@@ -38,20 +44,26 @@ export default function DataListHeader<K extends string>({
     >
       {columns.map((column) => {
         if (!column.label) return <span key={column.key} />
+        const alignRight = column.align === 'right'
         if (column.sortable === false) {
           return (
-            <Text key={column.key} size="xs" c="dimmed" fw={500} ta={column.align}>
-              {column.label}
-            </Text>
+            <HeaderLabel
+              key={column.key}
+              label={column.label}
+              description={column.description}
+              active={false}
+              alignRight={alignRight}
+            />
           )
         }
         return (
           <SortButton
             key={column.key}
             label={column.label}
+            description={column.description}
             active={column.key === sortColumn}
             order={order}
-            alignRight={column.align === 'right'}
+            alignRight={alignRight}
             onClick={() => onSort(column.key as K)}
           />
         )
@@ -60,14 +72,55 @@ export default function DataListHeader<K extends string>({
   )
 }
 
+// One line of label text that may truncate. The tooltip shows when the
+// column has a description, or when the label is cut off (checked as the
+// pointer arrives, so a resize is always picked up).
+function HeaderLabel({
+  label,
+  description,
+  active,
+  alignRight,
+}: {
+  label: string
+  description?: string
+  active: boolean
+  alignRight: boolean
+}) {
+  const [truncated, setTruncated] = useState(false)
+  const tooltip = description ? `${label} · ${description}` : label
+
+  function measure(event: MouseEvent<HTMLElement>) {
+    const el = event.currentTarget
+    setTruncated(el.scrollWidth > el.clientWidth)
+  }
+
+  return (
+    <Tooltip label={tooltip} disabled={!description && !truncated} withinPortal openDelay={300}>
+      <Text
+        size="xs"
+        c={active ? undefined : 'dimmed'}
+        fw={active ? 600 : 500}
+        ta={alignRight ? 'right' : undefined}
+        truncate="end"
+        onMouseEnter={measure}
+        style={{ minWidth: 0 }}
+      >
+        {label}
+      </Text>
+    </Tooltip>
+  )
+}
+
 function SortButton({
   label,
+  description,
   active,
   order,
   alignRight,
   onClick,
 }: {
   label: string
+  description?: string
   active: boolean
   order: 'asc' | 'desc'
   alignRight: boolean
@@ -79,12 +132,16 @@ function SortButton({
     <UnstyledButton
       onClick={onClick}
       aria-label={`Sort by ${label}`}
-      style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: alignRight ? 'flex-end' : 'flex-start' }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        minWidth: 0,
+        justifyContent: alignRight ? 'flex-end' : 'flex-start',
+      }}
     >
-      <Text size="xs" c={active ? undefined : 'dimmed'} fw={active ? 600 : 500} style={{ whiteSpace: 'nowrap' }}>
-        {label}
-      </Text>
-      {active && <Arrow size={12} />}
+      <HeaderLabel label={label} description={description} active={active} alignRight={alignRight} />
+      {active && <Arrow size={12} style={{ flexShrink: 0 }} />}
     </UnstyledButton>
   )
 }

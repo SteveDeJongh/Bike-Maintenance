@@ -34,7 +34,7 @@ export default function ActivityList({
   // above their rows, and each row's fields as one line under its title.
   const phone = useIsMobile()
   const entries = useMemo(() => buildActivityRenderList(pages, { groupBy, phone }), [pages, groupBy, phone])
-  const { template, minWidth } = activityListLayout(fields.length)
+  const { template, minWidth } = activityListLayout(fields.map((field) => ACTIVITY_FIELD_LABELS[field]))
   const columns: DataListColumn<ActivitySort>[] = [
     { key: 'occurred_at', label: 'Date' },
     { key: 'icon' },

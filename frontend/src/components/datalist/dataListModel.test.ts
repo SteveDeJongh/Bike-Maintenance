@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAddField, canToggleField, dataListMinWidth, dataListTemplate, fieldPickerState } from './dataListModel'
+import { canAddField, canToggleField, dataListMinWidth, dataListTemplate, fieldMinWidth, fieldPickerState } from './dataListModel'
 
 const ALL = [
   { key: 'distance', label: 'Distance' },
@@ -84,5 +84,31 @@ describe('canToggleField', () => {
   it('shows a hidden field only under the cap, not counting locked ones', () => {
     expect(canToggleField('power', { visible: ['time', 'elevation'], cap: 2 })).toBe(false)
     expect(canToggleField('power', { visible: ['distance', 'time'], locked: ['distance'], cap: 2 })).toBe(true)
+  })
+})
+
+describe('fieldMinWidth', () => {
+  it('keeps the value minimum for a short label', () => {
+    expect(fieldMinWidth('Rides')).toBe(84)
+    expect(fieldMinWidth('Rides', 120)).toBe(120)
+  })
+
+  it('grows to fit a long label and its sort arrow', () => {
+    // 18 characters * 6.5 + 14 for the arrow
+    expect(fieldMinWidth('Lifetime avg power')).toBe(131)
+  })
+
+  it('feeds the scroll width: the list is never narrower than its labels', () => {
+    const labels = ['Distance', 'Lifetime elevation', 'Installed on']
+    const fields = labels.map((label) => fieldMinWidth(label))
+    expect(fields).toEqual([84, 131, 92])
+    expect(dataListMinWidth({ leading: [], main: 200, fields })).toBe(200 + 84 + 131 + 92 + 3 * 12 + 24)
+  })
+})
+
+describe('fieldPickerState descriptions', () => {
+  it('keeps a shown field\'s description', () => {
+    const all = [{ key: 'life', label: 'Total time', description: "Over the component's whole life" }]
+    expect(fieldPickerState({ all, visible: ['life'] }).visible).toEqual(all)
   })
 })

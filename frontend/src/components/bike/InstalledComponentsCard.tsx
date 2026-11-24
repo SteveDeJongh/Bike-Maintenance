@@ -8,7 +8,7 @@ import DataList from '../datalist/DataList'
 import DataListHeader, { type DataListColumn } from '../datalist/DataListHeader'
 import DataListRow from '../datalist/DataListRow'
 import FieldsPicker from '../datalist/FieldsPicker'
-import { dataListMinWidth, dataListTemplate } from '../datalist/dataListModel'
+import { dataListMinWidth, dataListTemplate, fieldMinWidth } from '../datalist/dataListModel'
 import WearBar from '../dashboard/WearBar'
 import EmptySlotPill from './EmptySlotPill'
 import { installedComponentRenderer } from './installedComponentColumns'
@@ -28,6 +28,7 @@ import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import {
   categoryLabel,
   DEFAULT_INSTALLED_COMPONENT_COLUMNS,
+  INSTALLED_COMPONENT_COLUMN_DESCRIPTIONS,
   INSTALLED_COMPONENT_COLUMN_LABELS,
   INSTALLED_COMPONENT_COLUMNS,
   INSTALLED_COMPONENT_SORT_COLUMNS,
@@ -45,12 +46,17 @@ import type {
   TableViewPreferenceData,
 } from '../../types/models'
 
-const FIELD_OPTIONS = INSTALLED_COMPONENT_COLUMNS.map((column) => ({ key: column, label: INSTALLED_COMPONENT_COLUMN_LABELS[column] }))
-const CATEGORY_MIN = 110
-const COMPONENT_MIN = 200
-const CONTEXT_MIN = 90
-const WEAR_MIN = 190
-const FIELD_MIN = 84
+const FIELD_OPTIONS = INSTALLED_COMPONENT_COLUMNS.map((column) => ({
+  key: column,
+  label: INSTALLED_COMPONENT_COLUMN_LABELS[column],
+  description: INSTALLED_COMPONENT_COLUMN_DESCRIPTIONS[column],
+}))
+// The fixed columns' minimums, each checked against its label too.
+const CATEGORY_MIN = fieldMinWidth('Category', 110)
+const COMPONENT_MIN = fieldMinWidth('Component', 200)
+const CONTEXT_MIN = fieldMinWidth('Ride context', 90)
+const WEAR_MIN = fieldMinWidth('Wear', 190)
+const fieldMin = (column: InstalledComponentColumn) => fieldMinWidth(INSTALLED_COMPONENT_COLUMN_LABELS[column])
 
 interface Props {
   bike: BikeDetail
@@ -129,19 +135,24 @@ function InstalledComponentsCardInner({
   const template = dataListTemplate({
     leading: [`minmax(${CATEGORY_MIN}px, auto)`],
     main: `minmax(${COMPONENT_MIN}px, 1.2fr)`,
-    fields: [`minmax(${CONTEXT_MIN}px, auto)`, `minmax(${WEAR_MIN}px, 1fr)`, ...fields.map(() => `minmax(${FIELD_MIN}px, auto)`)],
+    fields: [`minmax(${CONTEXT_MIN}px, auto)`, `minmax(${WEAR_MIN}px, 1fr)`, ...fields.map((column) => `minmax(${fieldMin(column)}px, auto)`)],
   })
   const minWidth = dataListMinWidth({
     leading: [CATEGORY_MIN],
     main: COMPONENT_MIN,
-    fields: [CONTEXT_MIN, WEAR_MIN, ...fields.map(() => FIELD_MIN)],
+    fields: [CONTEXT_MIN, WEAR_MIN, ...fields.map(fieldMin)],
   })
   const columns: DataListColumn<InstalledComponentSortColumn>[] = [
     { key: 'category', label: 'Category' },
     { key: 'component_label', label: 'Component' },
     { key: 'ride_context', label: 'Ride context' },
     { key: 'wear', label: 'Wear' },
-    ...fields.map((column) => ({ key: column, label: INSTALLED_COMPONENT_COLUMN_LABELS[column], align: 'right' as const })),
+    ...fields.map((column) => ({
+      key: column,
+      label: INSTALLED_COMPONENT_COLUMN_LABELS[column],
+      description: INSTALLED_COMPONENT_COLUMN_DESCRIPTIONS[column],
+      align: 'right' as const,
+    })),
   ]
 
   // A new column starts biggest-first; Category and Component A-Z.

@@ -23,12 +23,21 @@ describe('effectiveGroupBy', () => {
 
 describe('activityListLayout', () => {
   it('adds one column per field after the fixed three', () => {
-    expect(activityListLayout(0).template).toBe('88px 32px minmax(220px, 1fr)')
-    expect(activityListLayout(2).template).toBe('88px 32px minmax(220px, 1fr) minmax(84px, auto) minmax(84px, auto)')
+    expect(activityListLayout([]).template).toBe('88px 32px minmax(220px, 1fr)')
+    expect(activityListLayout(['Distance', 'Avg HR']).template).toBe(
+      '88px 32px minmax(220px, 1fr) minmax(84px, auto) minmax(84px, auto)',
+    )
   })
 
-  it('keeps the old minimum width (tracks, gaps and padding)', () => {
-    expect(activityListLayout(4).minWidth).toBe(88 + 32 + 220 + 4 * 84 + 6 * 12 + 24)
+  it('widens a field whose label is longer than its values', () => {
+    // "Weighted power": 14 * 6.5 + 14 = 105
+    expect(activityListLayout(['Weighted power']).template).toBe('88px 32px minmax(220px, 1fr) minmax(105px, auto)')
+  })
+
+  it('sums tracks, gaps and padding for the scroll width', () => {
+    expect(activityListLayout(['Distance', 'Avg HR', 'Cadence', 'Weighted power']).minWidth).toBe(
+      88 + 32 + 220 + 3 * 84 + 105 + 6 * 12 + 24,
+    )
   })
 })
 

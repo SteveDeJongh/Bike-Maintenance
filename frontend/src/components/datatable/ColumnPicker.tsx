@@ -10,6 +10,8 @@ import { useColumnDragSensors } from './useColumnDragSensors'
 export interface ColumnOption {
   key: string
   label: string
+  // Shown under the label in the picker (e.g. "Over the component's whole life").
+  description?: string
 }
 
 interface ColumnPickerPanelProps {
@@ -99,7 +101,7 @@ export function ColumnPickerPanel({
           {locked.map((column) => (
             <Group key={column.key} gap="xs" wrap="nowrap">
               <IconLock size={14} aria-label="Always shown" style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />
-              <Checkbox label={column.label} checked disabled readOnly style={{ flex: 1 }} />
+              <Checkbox label={column.label} description={column.description} checked disabled readOnly style={{ flex: 1 }} />
             </Group>
           ))}
         </Stack>
@@ -109,7 +111,13 @@ export function ColumnPickerPanel({
         <SortableContext items={visible.map((column) => column.key)} strategy={verticalListSortingStrategy}>
           <Stack gap={4}>
             {visible.map((column) => (
-              <DraggableColumnRow key={column.key} columnKey={column.key} label={column.label} onToggle={onToggle} />
+              <DraggableColumnRow
+                key={column.key}
+                columnKey={column.key}
+                label={column.label}
+                description={column.description}
+                onToggle={onToggle}
+              />
             ))}
           </Stack>
         </SortableContext>
@@ -131,6 +139,7 @@ export function ColumnPickerPanel({
               <Checkbox
                 key={column.key}
                 label={column.label}
+                description={column.description}
                 checked={false}
                 disabled={atCap}
                 onChange={() => onToggle(column.key)}
@@ -146,10 +155,12 @@ export function ColumnPickerPanel({
 function DraggableColumnRow({
   columnKey,
   label,
+  description,
   onToggle,
 }: {
   columnKey: string
   label: string
+  description?: string
   onToggle: (key: string) => void
 }) {
   const { setNodeRef, containerStyle, handleProps } = useColumnDragHandle(columnKey)
@@ -159,7 +170,7 @@ function DraggableColumnRow({
       <Text span {...handleProps}>
         {'⠿'}
       </Text>
-      <Checkbox label={label} checked onChange={() => onToggle(columnKey)} style={{ flex: 1 }} />
+      <Checkbox label={label} description={description} checked onChange={() => onToggle(columnKey)} style={{ flex: 1 }} />
     </Group>
   )
 }

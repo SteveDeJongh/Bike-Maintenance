@@ -159,11 +159,27 @@ export const INSTALLED_COMPONENT_COLUMN_LABELS: Record<InstalledComponentColumn,
   period_elevation: 'Elevation',
   period_avg_power: 'Avg power',
   component_total_distance: 'Lifetime',
-  component_total_time: 'Lifetime time',
-  component_total_elevation: 'Lifetime elevation',
-  component_avg_power: 'Lifetime avg power',
+  component_total_time: 'Total time',
+  component_total_elevation: 'Total climb',
+  component_avg_power: 'Avg power',
   service_status: 'Service status',
   installed_on: 'Installed on',
+}
+
+// The header tooltip and Fields-picker hint for the metric columns, whose
+// short labels don't say which span they cover -- "Avg power" is both a
+// this-install and a whole-life field.
+const THIS_INSTALL = 'During this install'
+const WHOLE_LIFE = "Over the component's whole life"
+export const INSTALLED_COMPONENT_COLUMN_DESCRIPTIONS: Partial<Record<InstalledComponentColumn, string>> = {
+  period_distance: THIS_INSTALL,
+  period_time: THIS_INSTALL,
+  period_elevation: THIS_INSTALL,
+  period_avg_power: THIS_INSTALL,
+  component_total_distance: WHOLE_LIFE,
+  component_total_time: WHOLE_LIFE,
+  component_total_elevation: WHOLE_LIFE,
+  component_avg_power: WHOLE_LIFE,
 }
 
 export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [

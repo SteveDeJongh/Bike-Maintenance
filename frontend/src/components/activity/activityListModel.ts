@@ -1,5 +1,5 @@
 import { DEFAULT_ACTIVITY_FIELDS, formatActivityField, isActivityField, type ActivityField } from './activityFields'
-import { dataListMinWidth, dataListTemplate } from '../datalist/dataListModel'
+import { dataListMinWidth, dataListTemplate, fieldMinWidth } from '../datalist/dataListModel'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
@@ -16,12 +16,14 @@ export function effectiveGroupBy(sortColumn: ActivitySortColumn, saved: GroupBy)
 }
 
 // The Activity DataList's columns: Date | icon | Activity | one per shown
-// field. The narrowest it gets before scrolling sideways is every track's
-// minimum plus the gaps and padding.
-export function activityListLayout(fieldCount: number): { template: string; minWidth: number } {
+// field, each at least as wide as its header label (fieldMinWidth). The
+// narrowest it gets before scrolling sideways is every track's minimum
+// plus the gaps and padding.
+export function activityListLayout(fieldLabels: readonly string[]): { template: string; minWidth: number } {
+  const fields = fieldLabels.map((label) => fieldMinWidth(label))
   return {
-    template: dataListTemplate({ leading: ['88px', '32px'], fields: Array(fieldCount).fill('minmax(84px, auto)') }),
-    minWidth: dataListMinWidth({ leading: [88, 32], main: 220, fields: Array(fieldCount).fill(84) }),
+    template: dataListTemplate({ leading: ['88px', '32px'], fields: fields.map((min) => `minmax(${min}px, auto)`) }),
+    minWidth: dataListMinWidth({ leading: [88, 32], main: 220, fields }),
   }
 }
 
