@@ -1,4 +1,5 @@
-import { Box, Text } from '@mantine/core'
+import { Text } from '@mantine/core'
+import TileRow from '../TileRow'
 import StatTile from './StatTile'
 import WeekBars from './WeekBars'
 import YearProgressBar from './YearProgressBar'
@@ -23,7 +24,8 @@ export default function SummaryTiles({ stats, attention }: { stats: DashboardSta
   const change = formatPercentChange(ytd.distance_meters, ytd.last_year_to_date_distance_meters)
 
   return (
-    <Box style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--mantine-spacing-md)' }}>
+    // 220px: what "This week" needs for its value beside the day bars.
+    <TileRow minTileWidth={220}>
       <StatTile
         label="This week"
         value={formatDistance(week.distance_meters)}
@@ -61,6 +63,6 @@ export default function SummaryTiles({ stats, attention }: { stats: DashboardSta
       </StatTile>
 
       <NextServiceTile attention={attention} />
-    </Box>
+    </TileRow>
   )
 }

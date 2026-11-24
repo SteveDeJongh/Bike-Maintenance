@@ -1,11 +1,12 @@
-import { Box, Paper, Text } from '@mantine/core'
+import { Paper, Text } from '@mantine/core'
+import TileRow from '../TileRow'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
 import type { ActivityFeedResponse } from '../../types/models'
 
-// Five compact tiles in one row that never wraps -- it scrolls sideways
-// when narrow. The values follow every filter except the kind toggles
+// Five compact tiles in one TileRow (never wraps; scrolls sideways, tile
+// to tile, only when narrow). The values follow every filter except the kind toggles
 // (meta.ride_totals and kind_counts deliberately ignore kinds).
 export default function ActivitySummaryTiles({ meta }: { meta: ActivityFeedResponse['meta'] | undefined }) {
   const totals = meta?.ride_totals
@@ -19,9 +20,9 @@ export default function ActivitySummaryTiles({ meta }: { meta: ActivityFeedRespo
   ]
 
   return (
-    <Box style={{ display: 'flex', flexWrap: 'nowrap', gap: 'var(--mantine-spacing-sm)', overflowX: 'auto' }}>
+    <TileRow minTileWidth={140}>
       {tiles.map((tile) => (
-        <Paper key={tile.label} withBorder radius="md" px="md" py="sm" style={{ flex: '1 0 170px' }}>
+        <Paper key={tile.label} withBorder radius="md" px="md" py="sm">
           <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ letterSpacing: '0.04em' }}>
             {tile.label}
           </Text>
@@ -30,6 +31,6 @@ export default function ActivitySummaryTiles({ meta }: { meta: ActivityFeedRespo
           </Text>
         </Paper>
       ))}
-    </Box>
+    </TileRow>
   )
 }

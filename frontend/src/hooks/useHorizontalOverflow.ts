@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { overflowEdges } from '../utils/horizontalOverflow'
 
 interface HorizontalOverflow {
   // False when everything fits -- the arrows hide.
@@ -11,7 +12,8 @@ interface HorizontalOverflow {
 
 // Tracks a horizontally scrolling track's overflow and position, via a
 // ResizeObserver (the track or its contents changing size) plus a scroll
-// listener. A pixel of slack absorbs sub-pixel scroll positions. resetKey
+// listener (the edge maths is overflowEdges, utils/horizontalOverflow.ts).
+// Used by the Home bike row and TileRow. resetKey
 // re-runs the setup whenever the track or its children may have been
 // replaced (e.g. the item count, or the track mounting after a layout
 // switch).
@@ -23,12 +25,7 @@ export function useHorizontalOverflow(ref: RefObject<HTMLElement | null>, resetK
     if (!element) return
 
     const update = () => {
-      const { scrollLeft, scrollWidth, clientWidth } = element
-      const next = {
-        overflowing: scrollWidth > clientWidth + 1,
-        atStart: scrollLeft <= 1,
-        atEnd: scrollLeft + clientWidth >= scrollWidth - 1,
-      }
+      const next = overflowEdges(element)
       setState((current) =>
         current.overflowing === next.overflowing && current.atStart === next.atStart && current.atEnd === next.atEnd ? current : next,
       )

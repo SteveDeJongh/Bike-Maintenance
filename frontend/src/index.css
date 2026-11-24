@@ -78,3 +78,23 @@ body {
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: -2px;
 }
+
+/* TileRow: one row of summary tiles that never wraps. Tiles share the width
+   down to --tile-min (set per caller), then the row scrolls sideways, tile
+   to tile, with no scrollbar (TileRow draws edge fades instead). */
+.tile-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--mantine-spacing-md);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.tile-row::-webkit-scrollbar {
+  display: none;
+}
+.tile-row > * {
+  flex: 1 1 0;
+  min-width: var(--tile-min);
+  scroll-snap-align: start;
+}
