@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Alert, Anchor, Button, Divider, Group, Loader, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
-import { useBike } from '../../api/queries'
+import { useBike, useComponent } from '../../api/queries'
 import AppModal from '../AppModal'
-import ComponentIdentityStatus from '../ComponentIdentityStatus'
+import ComponentSwapPill from '../ComponentSwapPill'
+import WhereItIs from '../installation/WhereItIs'
+import { installationActions, whereItIs } from '../installation/installationModel'
+import MaintenanceEventFormModal from './MaintenanceEventFormModal'
 import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
 import EditInstallationModal from './EditInstallationModal'
 import EndAssignmentModal from './EndAssignmentModal'
-import { RIDE_CONTEXT_LABELS } from '../../constants'
-import { formatDateTime } from '../../utils/datetime'
+import { categoryLabel } from '../../constants'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
@@ -60,9 +62,21 @@ function useAssignment(bikeId: number, assignmentId: number | null, enabled: boo
   return { bike, assignment }
 }
 
+// "INSTALLATION · CHAIN" over the component's label, like the ride modal's
+// lifted title; Mantine's close button stays on the right.
 function ModalTitle({ bikeId, assignmentId, opened }: { bikeId: number; assignmentId: number | null; opened: boolean }) {
   const { assignment } = useAssignment(bikeId, assignmentId, opened)
-  return <>{assignment?.component.label ?? ''}</>
+  if (!assignment) return null
+  return (
+    <Stack gap={2}>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ letterSpacing: '0.04em' }}>
+        Installation · {categoryLabel(assignment.component.category)}
+      </Text>
+      <Text fz="lg" fw={700} lh={1.25} style={{ overflowWrap: 'anywhere' }}>
+        {assignment.component.label}
+      </Text>
+    </Stack>
+  )
 }
 
 function AssignmentLoader({
@@ -104,7 +118,7 @@ function AssignmentLoader({
     return <Loader />
   }
 
-  return <AssignmentDetailContent assignment={assignment} onSwapped={onSwapped} />
+  return <AssignmentDetailContent assignment={assignment} bikeName={bike.data?.name ?? ''} onSwapped={onSwapped} />
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -120,21 +134,53 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function AssignmentDetailContent({
   assignment,
+  bikeName,
   onSwapped,
 }: {
   assignment: ComponentAssignmentWithStats
+  bikeName: string
   onSwapped: (id: number) => void
 }) {
+  const { data: component } = useComponent(assignment.component_id)
+  const [logOpened, setLogOpened] = useState(false)
   const [editOpened, setEditOpened] = useState(false)
   const [removeOpened, setRemoveOpened] = useState(false)
+  const where = whereItIs(assignment, bikeName, component?.current_bikes)
+  const actions = installationActions(assignment)
 
   return (
     <Stack>
-      <ComponentIdentityStatus
-        componentId={assignment.component_id}
-        swapAssignment={assignment.ended_at ? undefined : assignment}
-        onSwapped={(newAssignment) => onSwapped(newAssignment.id)}
-      />
+      <WhereItIs where={where} />
+
+      {where.kind === 'current' && (
+        <Group gap="xs" wrap="nowrap">
+          <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ letterSpacing: '0.04em' }}>
+            Swap
+          </Text>
+          <ComponentSwapPill assignment={assignment} onSwapped={(newAssignment) => onSwapped(newAssignment.id)} />
+        </Group>
+      )}
+
+      {/* Remove from bike lives here (the bike page's rows have no
+          buttons): the EndAssignmentModal flow -- an end date defaulting to
+          now. Only an open installation can be removed or logged against. */}
+      <Group gap="xs" wrap="wrap">
+        {actions.includes('log_service') && (
+          <Button size="sm" onClick={() => setLogOpened(true)}>
+            Log service
+          </Button>
+        )}
+        {actions.includes('edit') && (
+          <Button size="sm" variant="default" onClick={() => setEditOpened(true)}>
+            Edit installation
+          </Button>
+        )}
+        {actions.includes('remove') && (
+          <Button size="sm" variant="outline" color="red" onClick={() => setRemoveOpened(true)}>
+            Remove from bike
+          </Button>
+        )}
+      </Group>
 
       <Divider label="This installation" labelPosition="left" />
       <Group gap="xl">
@@ -152,30 +198,15 @@ function AssignmentDetailContent({
         <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
       </Group>
 
-      <Divider label="Installation details" labelPosition="left" />
-      <Group gap="xl">
-        <Stat label="Installed on" value={formatDateTime(assignment.started_at)} />
-        {assignment.ended_at && <Stat label="Uninstalled on" value={formatDateTime(assignment.ended_at)} />}
-        <Stat label="Ride context" value={RIDE_CONTEXT_LABELS[assignment.ride_context]} />
-      </Group>
-      {/* Remove from bike lives here (the bike page's rows have no
-          buttons): the same EndAssignmentModal flow as before -- an end
-          date defaulting to now, then the same update and invalidation.
-          Only an open installation can be removed. */}
-      <Group justify="flex-end">
-        {!assignment.ended_at && (
-          <Button variant="outline" color="red" onClick={() => setRemoveOpened(true)}>
-            Remove from bike
-          </Button>
-        )}
-        <Button variant="default" onClick={() => setEditOpened(true)}>
-          Edit installation
-        </Button>
-      </Group>
 
       <Divider label="Service intervals & maintenance history" labelPosition="left" />
       <ComponentServiceAndHistory componentId={assignment.component_id} />
 
+      <MaintenanceEventFormModal
+        opened={logOpened}
+        onClose={() => setLogOpened(false)}
+        defaultComponentId={assignment.component_id}
+      />
       <EditInstallationModal opened={editOpened} onClose={() => setEditOpened(false)} assignment={assignment} />
       <EndAssignmentModal
         opened={removeOpened}

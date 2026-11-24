@@ -1,9 +1,10 @@
 import { useMemo, type ReactNode } from 'react'
-import { Alert, Badge, Box, Button, Group, Loader, Menu, Stack, Text } from '@mantine/core'
+import { Alert, Box, Button, Group, Loader, Menu, Stack, Text } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
 import { useComponentAssignments, useComponentCategorySettings, useComponents, useTableViewPreference } from '../../api/queries'
 import { useCreateBikeComponentSlot } from '../../api/mutations'
 import ComponentSwapPill from '../ComponentSwapPill'
+import RideContextChip from '../RideContextChip'
 import PageSection from '../PageSection'
 import DataList from '../datalist/DataList'
 import DataListHeader, { type DataListColumn } from '../datalist/DataListHeader'
@@ -250,24 +251,6 @@ function Isolated({ children }: { children: ReactNode }) {
   )
 }
 
-// Indoor-only and outdoor-only get a coloured chip. A both context is
-// plain dimmed "All rides" in the Ride context column (`showBoth`), and
-// nothing beside a pill, where it would only repeat the default.
-function ContextChip({ rideContext, showBoth = false }: { rideContext: 'both' | 'outdoor_only' | 'indoor_only'; showBoth?: boolean }) {
-  if (rideContext === 'both') {
-    return showBoth ? (
-      <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-        {RIDE_CONTEXT_LABELS.both}
-      </Text>
-    ) : null
-  }
-  return (
-    <Badge size="sm" color={rideContext === 'indoor_only' ? 'grape' : 'blue'}>
-      {RIDE_CONTEXT_LABELS[rideContext]}
-    </Badge>
-  )
-}
-
 // Wear from the worst requirement: the bar plus what's left or over; a
 // faint empty bar and "No interval" without one.
 function WearCell({ row }: { row: InstalledRow }) {
@@ -315,7 +298,7 @@ function GridRow(props: RowProps) {
         <Box style={{ gridColumn: '2 / -1' }}>
           <Group gap="sm" wrap="nowrap">
             <EmptyPill {...props} />
-            <ContextChip rideContext={slot.ride_context} />
+            <RideContextChip rideContext={slot.ride_context} />
           </Group>
         </Box>
       </DataListRow>
@@ -329,7 +312,7 @@ function GridRow(props: RowProps) {
         <ComponentSwapPill assignment={assignment} />
       </Isolated>
       <div>
-        <ContextChip rideContext={assignment.ride_context} showBoth />
+        <RideContextChip rideContext={assignment.ride_context} showBoth />
       </div>
       <WearCell row={row} />
       {fields.map((column) => {
@@ -377,7 +360,7 @@ function PhoneRow(props: RowProps) {
           ) : (
             <EmptyPill {...props} />
           )}
-          <ContextChip rideContext={assignment?.ride_context ?? slot.ride_context} />
+          <RideContextChip rideContext={assignment?.ride_context ?? slot.ride_context} />
         </Group>
         {assignment && <WearCell row={row} />}
         {assignment && fields.length > 0 && (

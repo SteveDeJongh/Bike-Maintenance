@@ -193,9 +193,14 @@ const dayOnly = (value: string) => new Date(value).toLocaleDateString(undefined,
 // stint, "Jun 2 → Sep 30, 2026 · Trainer only" for a past one (the start's
 // year only when it differs from the end's). Days in the browser's zone.
 export function installationRangeText(installation: ComponentInstallation): string {
-  const context = RIDE_CONTEXT_LABELS[installation.ride_context]
-  if (!installation.ended_at) return `${dayWithYear(installation.started_at)} → now · ${context}`
+  return `${installationRange(installation)} · ${RIDE_CONTEXT_LABELS[installation.ride_context]}`
+}
+
+// Just the range: "Oct 15, 2026 → now", "Jun 2 → Sep 30, 2026". Shared with
+// the installation modal's "Was on <bike> · <range>".
+export function installationRange(installation: Pick<ComponentInstallation, 'started_at' | 'ended_at'>): string {
+  if (!installation.ended_at) return `${dayWithYear(installation.started_at)} → now`
   const sameYear = new Date(installation.started_at).getFullYear() === new Date(installation.ended_at).getFullYear()
   const start = sameYear ? dayOnly(installation.started_at) : dayWithYear(installation.started_at)
-  return `${start} → ${dayWithYear(installation.ended_at)} · ${context}`
+  return `${start} → ${dayWithYear(installation.ended_at)}`
 }
