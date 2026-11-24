@@ -57,6 +57,15 @@ export interface BikeWithStats extends Bike {
   average_power: number | null
   total_elevation_gain: number
   installed_components_count: number
+  ride_count: number
+  // Since local Jan 1 in the zone useBikes sends.
+  distance_this_year: number
+  last_ride_activity_type: string | null
+  // Mounted components by their worst status (each counts once).
+  status_counts: { due: number; warning: number }
+  // Up to three mounted components, most worn first (no requirement last,
+  // with its lifetime total_distance_meters). The ride modal's shape.
+  most_worn: RideDetailComponent[]
 }
 
 // component_assignments/bike_component_slots are only present on GET /bikes/:id

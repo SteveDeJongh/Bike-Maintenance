@@ -45,7 +45,8 @@ export function useCurrentUser() {
 export function useBikes() {
   return useQuery({
     queryKey: ['bikes'],
-    queryFn: () => apiGet<BikeWithStats[]>('/bikes'),
+    // tz: the viewer's zone, for distance_this_year's Jan 1 boundary.
+    queryFn: () => apiGet<BikeWithStats[]>(`/bikes?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
   })
 }
 

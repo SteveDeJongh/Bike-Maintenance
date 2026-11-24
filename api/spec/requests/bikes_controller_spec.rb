@@ -13,6 +13,132 @@ RSpec.describe "Bikes", type: :request do
 
       expect(JSON.parse(response.body).map { |b| b["id"] }).to eq([mine.id])
     end
+
+    describe "the Bikes page's card fields" do
+      let!(:bike) { create(:bike, user: current_user, name: "Soloist") }
+
+      def bike_json(id = bike.id, **params)
+        get "/bikes", params: params
+        JSON.parse(response.body).find { |b| b["id"] == id }
+      end
+
+      # A mounted component on `bike` with one distance interval; `used`
+      # meters ridden since mounting sets how worn it is.
+      def mounted(label, category:, interval: nil, on: bike)
+        component = create(:component, user: current_user, category: category, label: label)
+        component.component_service_requirements.destroy_all
+        if interval
+          create(:component_service_requirement, component: component,
+            service_type: current_user.service_types.find_by!(name: "inspect"), distance_interval_meters: interval)
+        end
+        create(:component_assignment, component: component, bike: on, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+        component
+      end
+
+      it "counts mounted components by worst status and lists the three most worn, no-requirement last" do
+        mounted("Chain", category: "chain", interval: 1_000)         # 2,000 / 1,000: due
+        mounted("Cassette", category: "cassette", interval: 2_100)   # warning
+        mounted("Tire", category: "tire_front", interval: 100_000)   # ok, barely worn
+        saddle = mounted("Saddle", category: "saddle")               # no requirement
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 2_000)
+
+        json = bike_json
+
+        expect(json["status_counts"]).to eq("due" => 1, "warning" => 1)
+        expect(json["installed_components_count"]).to eq(4)
+        expect(json["most_worn"].map { |c| c["label"] }).to eq(%w[Chain Cassette Tire])
+        expect(json["most_worn"].first).to include(
+          "service_status" => "due", "driving_dimension" => "distance", "distance_remaining_meters" => -1_000,
+          "total_distance_meters" => nil,
+        )
+        expect(json["most_worn"].map { |c| c["component_id"] }).not_to include(saddle.id)
+      end
+
+      it "shows a no-requirement component with its lifetime distance when it makes the top three" do
+        mounted("Chain", category: "chain", interval: 10_000)
+        saddle = mounted("Saddle", category: "saddle")
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 2_140)
+
+        worn = bike_json["most_worn"]
+
+        expect(worn.map { |c| c["label"] }).to eq(%w[Chain Saddle])
+        expect(worn.last).to include(
+          "component_id" => saddle.id, "service_status" => nil, "fraction_used" => nil, "total_distance_meters" => 2_140,
+        )
+      end
+
+      it "counts this year's distance from local Jan 1 in the viewer's zone" do
+        zone = ActiveSupport::TimeZone["America/Vancouver"]
+        travel_to(zone.parse("2026-06-01 12:00")) do
+          create(:strava_activity, user: current_user, bike: bike, moved_at: zone.parse("2025-12-31 23:30"), distance_meters: 1_000)
+          create(:strava_activity, user: current_user, bike: bike, moved_at: zone.parse("2026-01-01 00:30"), distance_meters: 5_000)
+
+          expect(bike_json(tz: "America/Vancouver")["distance_this_year"]).to eq(5_000)
+          # In UTC the Dec 31 23:30 Vancouver ride is already Jan 1.
+          expect(bike_json(tz: "UTC")["distance_this_year"]).to eq(6_000)
+        end
+      end
+
+      it "reports rides and the last ride's sport type" do
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), activity_type: "Ride")
+        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 3, 1), activity_type: "GravelRide")
+
+        json = bike_json
+
+        expect(json["ride_count"]).to eq(2)
+        expect(json["last_ride_activity_type"]).to eq("GravelRide")
+      end
+
+      it "includes retired bikes with their stats" do
+        retired = create(:bike, user: current_user, retired_on: Date.new(2025, 3, 1))
+        create(:strava_activity, user: current_user, bike: retired, moved_at: Time.zone.local(2024, 5, 1), distance_meters: 3_000)
+
+        json = bike_json(retired.id)
+
+        expect(json["retired_on"]).to eq("2025-03-01")
+        expect(json).to include("total_distance" => 3_000, "ride_count" => 1, "status_counts" => { "due" => 0, "warning" => 0 }, "most_worn" => [])
+      end
+
+      it "never counts another user's rides or components" do
+        other_bike = create(:bike)
+        other_component = create(:component, user: other_bike.user, category: "chain")
+        create(:component_assignment, component: other_component, bike: other_bike, started_at: Time.zone.local(2026, 1, 1))
+        create(:strava_activity, user: other_bike.user, bike: other_bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 9_000)
+
+        get "/bikes"
+        body = JSON.parse(response.body)
+
+        expect(body.map { |b| b["id"] }).to eq([ bike.id ])
+        expect(body.first).to include("ride_count" => 0, "total_distance" => 0, "most_worn" => [], "installed_components_count" => 0)
+      end
+
+      # Every stat is grouped across bikes, so adding bikes (with rides and
+      # mounted parts in the top three) adds no queries. Requirements are
+      # held fixed: Maintenance::RequirementStatus.for_user, the shared
+      # status path, costs a few lookups per requirement wherever it's used.
+      it "runs the same number of queries for one bike as for four" do
+        def count_queries
+          count = 0
+          counter = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:sql].start_with?("BEGIN", "COMMIT") }
+          ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { yield }
+          count
+        end
+
+        mounted("Chain", category: "chain", interval: 1_000)
+        setup = lambda do |target|
+          mounted("Saddle #{target.id}", category: "saddle", on: target)
+          mounted("Bar tape #{target.id}", category: "handlebar_tape", on: target)
+          create(:strava_activity, user: current_user, bike: target, moved_at: Time.zone.local(2026, 2, 1))
+        end
+        setup.call(bike)
+        one = count_queries { get "/bikes" }
+
+        3.times { setup.call(create(:bike, user: current_user)) }
+        four = count_queries { get "/bikes" }
+
+        expect(four).to eq(one)
+      end
+    end
   end
 
   describe "cross-account isolation" do

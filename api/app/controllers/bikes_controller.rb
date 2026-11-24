@@ -1,21 +1,45 @@
 class BikesController < ApplicationController
   before_action :set_bike, only: %i[ show update destroy component_setup rides serviceable_components ]
 
-  # GET /bikes
+  # Mounted components shown on a Bikes-list card.
+  MOST_WORN_LIMIT = 3
+
+  # GET /bikes -- every bike with its stats, plus what the Bikes page's
+  # cards and tiles need: rides, this year's distance (?tz= the viewer's
+  # zone), the last ride's sport type, status counts and the most worn
+  # mounted components. Every stat is one grouped query across all bikes
+  # and statuses are computed once (worst_result_by_component), so the
+  # query count doesn't grow with the number of bikes.
   def index
     @bikes = current_user.bikes
-    distances = current_user.strava_activities.group(:bike_id).sum(:distance_meters)
-    times = current_user.strava_activities.group(:bike_id).sum(:moving_time)
-    first_rides = current_user.strava_activities.group(:bike_id).minimum(:moved_at)
-    last_rides = current_user.strava_activities.group(:bike_id).maximum(:moved_at)
-    elevations = current_user.strava_activities.group(:bike_id).sum(:total_elevation_gain)
-    average_powers = current_user.strava_activities
+    activities = current_user.strava_activities
+    distances = activities.group(:bike_id).sum(:distance_meters)
+    times = activities.group(:bike_id).sum(:moving_time)
+    first_rides = activities.group(:bike_id).minimum(:moved_at)
+    last_rides = activities.group(:bike_id).maximum(:moved_at)
+    elevations = activities.group(:bike_id).sum(:total_elevation_gain)
+    ride_counts = activities.group(:bike_id).count
+    average_powers = activities
       .where(device_watts: true)
       .group(:bike_id)
       .average(:average_watts)
-    installed_counts = current_user.component_assignments.where(ended_at: nil).group(:bike_id).count
+    # Local Jan 1 from Ruby's zone data, passed to SQL as a UTC instant.
+    year_start = Time.current.in_time_zone(viewer_zone).beginning_of_year.utc
+    this_year_distances = activities.where(moved_at: year_start..).group(:bike_id).sum(:distance_meters)
+    last_ride_types = activities.where.not(bike_id: nil)
+      .select("DISTINCT ON (bike_id) bike_id, activity_type").order(:bike_id, moved_at: :desc, id: :desc)
+      .to_h { |activity| [ activity.bike_id, activity.activity_type ] }
+
+    open_assignments = current_user.component_assignments.where(ended_at: nil).includes(:component).group_by(&:bike_id)
+    worst = Maintenance::RequirementStatus.worst_result_by_component(current_user)
+    most_worn_by_bike = open_assignments.transform_values { |assignments| most_worn(assignments, worst) }
+    lifetime = Maintenance::LifetimeDistanceQuery.call(
+      current_user,
+      component_ids: most_worn_by_bike.values.flatten.reject { |a| worst[a.component_id] }.map(&:component_id),
+    )
 
     render json: @bikes.map { |bike|
+      assignments = open_assignments[bike.id] || []
       bike.as_json.merge(
         total_distance: distances[bike.id] || 0,
         total_moving_time: times[bike.id] || 0,
@@ -23,7 +47,12 @@ class BikesController < ApplicationController
         last_ride_on: last_rides[bike.id],
         average_power: average_powers[bike.id]&.round,
         total_elevation_gain: elevations[bike.id] || 0,
-        installed_components_count: installed_counts[bike.id] || 0,
+        installed_components_count: assignments.size,
+        ride_count: ride_counts[bike.id] || 0,
+        distance_this_year: this_year_distances[bike.id] || 0,
+        last_ride_activity_type: last_ride_types[bike.id],
+        status_counts: status_counts(assignments, worst),
+        most_worn: (most_worn_by_bike[bike.id] || []).map { |assignment| worn_json(assignment, worst, lifetime) },
       )
     }
   end
@@ -184,6 +213,35 @@ class BikesController < ApplicationController
   end
 
   private
+
+  def viewer_zone
+    (params[:tz].present? && ActiveSupport::TimeZone[params[:tz]]) || Time.zone
+  end
+
+  # Mounted components by their worst status, the same rule as the Home
+  # card's chip (bikeStatusCounts): each component counts once.
+  def status_counts(assignments, worst)
+    statuses = assignments.map { |assignment| worst[assignment.component_id]&.status }
+    { due: statuses.count("due"), warning: statuses.count("warning") }
+  end
+
+  # The most worn first; a component with no enabled requirement sorts
+  # after every one that has one, then by label.
+  def most_worn(assignments, worst)
+    assignments
+      .sort_by { |a| [ -(worst[a.component_id]&.fraction_used || -1), a.component.label.to_s ] }
+      .first(MOST_WORN_LIMIT)
+  end
+
+  # Maintenance::WearFields (the shape the ride modal uses), plus the
+  # lifetime distance only when there's no requirement to show wear for.
+  def worn_json(assignment, worst, lifetime)
+    component = assignment.component
+    result = worst[component.id]
+    { component_id: component.id, label: component.label, category: component.category }
+      .merge(Maintenance::WearFields.call(result))
+      .merge(total_distance_meters: result ? nil : lifetime[component.id])
+  end
     def set_bike
       @bike = current_user.bikes.find(params[:id])
     end
