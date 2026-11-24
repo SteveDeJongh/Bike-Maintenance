@@ -45,10 +45,17 @@ class ComponentsController < ApplicationController
       last_bike_json(ComponentAssignment.last_ended_by_component(current_user, component_ids: [ @component.id ])[@component.id])
     end
 
+    history = Components::LifeHistory.call(@component)
+
     render json: @component.as_json(methods: %i[ total_distance ]).merge(
       service_requirements: service_requirements,
       current_bikes: current_bikes,
       last_bike: last_bike,
+      assignments: history.assignments,
+      lifetime_stats: history.lifetime_stats,
+      maintenance_events: history.maintenance_events,
+      maintenance_events_count: history.maintenance_events.size,
+      deletable: history.assignments.empty? && history.maintenance_events.empty?,
     )
   end
 
@@ -72,8 +79,14 @@ class ComponentsController < ApplicationController
     end
   end
 
-  # DELETE /components/1
+  # DELETE /components/1 -- only a component with no history: no
+  # assignment and no maintenance event. Anything that has been on a bike
+  # or serviced is retired instead, so mileage and history are never lost.
   def destroy
+    unless @component.deletable?
+      return render json: { base: [ Component::UNDELETABLE_MESSAGE ] }, status: :unprocessable_content
+    end
+
     @component.destroy!
     head :no_content
   end

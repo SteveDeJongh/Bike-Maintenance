@@ -214,6 +214,23 @@ RSpec.describe Component, type: :model do
     end
   end
 
+  describe "#deletable?" do
+    it "is true only with no assignment and no maintenance event" do
+      component = create(:component)
+      expect(component.deletable?).to be true
+
+      create(:maintenance_event, component: component)
+      expect(component.deletable?).to be false
+    end
+
+    it "is false once it has been installed, even after removal" do
+      component = create(:component)
+      create(:component_assignment, component: component, bike: create(:bike, user: component.user),
+             started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      expect(component.deletable?).to be false
+    end
+  end
+
   describe ".current_bikes_by_component" do
     it "returns every currently-installed bike per component, batched" do
       user = create(:user)

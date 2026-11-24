@@ -345,6 +345,106 @@ RSpec.describe "Components", type: :request do
       expect(JSON.parse(response.body)["last_bike"]).to be_nil
     end
   end
+  describe "GET /components/:id history" do
+    let!(:road) { create(:bike, user: current_user, name: "Soloist") }
+    let!(:trainer) { create(:bike, user: current_user, name: "Juan Solo") }
+
+    def show(component)
+      get "/components/#{component.id}"
+      JSON.parse(response.body)
+    end
+
+    it "lists current and past assignments, newest first, with each stint's distance" do
+      chain = create(:component, user: current_user, category: "chain")
+      past = create(:component_assignment, component: chain, bike: road, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      current = create(:component_assignment, component: chain, bike: trainer, started_at: Time.zone.local(2026, 2, 1))
+      create(:strava_activity, bike: road, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 6_000)
+      create(:strava_activity, bike: trainer, moved_at: Time.zone.local(2026, 2, 10), distance_meters: 4_000)
+
+      body = show(chain)
+
+      expect(body["assignments"].map { |a| a["id"] }).to eq([ current.id, past.id ])
+      expect(body["assignments"].first).to include("bike" => { "id" => trainer.id, "name" => "Juan Solo" }, "ended_at" => nil,
+                                                   "ride_context" => "both", "distance_meters" => 4_000)
+      expect(body["assignments"].last).to include("distance_meters" => 6_000)
+      expect(body["assignments"].last["ended_at"]).to be_present
+    end
+
+    it "lists both bikes of a shared indoor cassette" do
+      cassette = create(:component, user: current_user, category: "cassette")
+      create(:component_assignment, component: cassette, bike: road, ride_context: "indoor_only")
+      create(:component_assignment, component: cassette, bike: trainer, ride_context: "indoor_only")
+
+      expect(show(cassette)["assignments"].map { |a| a.dig("bike", "name") }).to contain_exactly("Soloist", "Juan Solo")
+    end
+
+    it "includes lifetime stats, the event count and deletable" do
+      chain = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: chain, bike: road, started_at: Time.zone.local(2026, 1, 1))
+      create(:strava_activity, bike: road, moved_at: Time.zone.local(2026, 1, 2), distance_meters: 10_000, moving_time: 1_800,
+             total_elevation_gain: 120.5, average_watts: 210, device_watts: true)
+      create(:maintenance_event, component: chain, performed_at: Time.zone.local(2026, 1, 3))
+
+      body = show(chain)
+
+      expect(body["lifetime_stats"]).to eq("distance_meters" => 10_000, "moving_time_seconds" => 1_800,
+                                           "elevation_gain_meters" => 120.5, "average_power" => 210)
+      expect(body["maintenance_events_count"]).to eq(1)
+      expect(body["deletable"]).to be false
+      expect(body["maintenance_events"].first["component_distance_at_event_meters"]).to eq(10_000)
+    end
+
+    it "is deletable with no assignments and no events" do
+      expect(show(create(:component, user: current_user))).to include("deletable" => true, "maintenance_events_count" => 0, "assignments" => [])
+    end
+
+    it "never counts another user's rides or sessions" do
+      chain = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: chain, bike: road, started_at: Time.zone.local(2026, 1, 1))
+      other_bike = create(:bike)
+      create(:strava_activity, bike: other_bike, moved_at: Time.zone.local(2026, 1, 2), distance_meters: 50_000)
+      create(:maintenance_event, component: chain, performed_at: Time.zone.local(2026, 1, 3))
+
+      body = show(chain)
+
+      expect(body["lifetime_stats"]["distance_meters"]).to eq(0)
+      expect(body["maintenance_events"].first["component_distance_at_event_meters"]).to eq(0)
+    end
+  end
+
+  describe "DELETE /components/:id" do
+    it "deletes a component with no history" do
+      component = create(:component, user: current_user)
+
+      delete "/components/#{component.id}"
+
+      expect(response).to have_http_status(:no_content)
+      expect(Component.exists?(component.id)).to be false
+    end
+
+    it "refuses a component that has been installed, keeping it" do
+      component = create(:component, user: current_user)
+      create(:component_assignment, component: component, bike: create(:bike, user: current_user),
+             started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+
+      delete "/components/#{component.id}"
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["base"]).to eq([ Component::UNDELETABLE_MESSAGE ])
+      expect(Component.exists?(component.id)).to be true
+    end
+
+    it "refuses a component with a maintenance event" do
+      component = create(:component, user: current_user)
+      create(:maintenance_event, component: component)
+
+      delete "/components/#{component.id}"
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Component.exists?(component.id)).to be true
+    end
+  end
+
   describe "POST /components/:id/retire" do
     let!(:bike) { create(:bike, user: current_user, name: "Juan Solo") }
     let!(:chain_a) { create(:component, user: current_user, category: "chain", label: "Chain A") }

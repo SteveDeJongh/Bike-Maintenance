@@ -56,6 +56,14 @@ class Component < ApplicationRecord
       end
   end
 
+  UNDELETABLE_MESSAGE = "This component has installation or maintenance history, so it can't be deleted. Retire it instead.".freeze
+
+  # Only a component with no history can be deleted (ComponentsController#
+  # destroy): no assignment, ever, and no maintenance event.
+  def deletable?
+    !component_assignments.exists? && !maintenance_events.exists?
+  end
+
   # Lifetime sums across all this component's assignment windows, on the
   # bike it was mounted to for each one. Windows are half-open —
   # [started_at, ended_at) — so a component swapped mid-day is credited
