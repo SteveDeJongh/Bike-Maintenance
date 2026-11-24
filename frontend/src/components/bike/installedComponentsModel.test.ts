@@ -3,9 +3,11 @@ import {
   activeElsewhereByComponent,
   addableSlotOptions,
   installedRows,
+  installedFoldedSummary,
   installedSummaryLine,
   orderSlots,
   sortInstalledRows,
+  type InstalledRow,
 } from './installedComponentsModel'
 import type { BikeComponentSlot, ComponentAssignmentWithStats, DashboardMountedComponent } from '../../types/models'
 
@@ -127,5 +129,32 @@ describe('activeElsewhereByComponent', () => {
       1,
     )
     expect([...map.entries()]).toEqual([[1, ['indoor_only', 'indoor_only']]])
+  })
+})
+
+describe('installedFoldedSummary', () => {
+  const row = (id: number, status: 'ok' | 'warning' | 'due' | null, filled = true): InstalledRow => ({
+    slot: slot(id, `cat${id}`),
+    order: id,
+    assignment: filled ? ({ id } as ComponentAssignmentWithStats) : undefined,
+    wear: filled ? ({ assignment_id: id, service_status: status } as DashboardMountedComponent) : undefined,
+  })
+
+  it('counts installed, due, soon and empty slots', () => {
+    const rows = [row(1, 'due'), row(2, 'warning'), row(3, 'warning'), row(4, 'ok'), row(5, null), row(6, null, false)]
+    expect(installedFoldedSummary(rows)).toBe('5 installed · 1 due · 2 soon · 1 empty slot')
+  })
+
+  it('leaves out the parts that are zero', () => {
+    expect(installedFoldedSummary([row(1, 'ok'), row(2, null)])).toBe('2 installed')
+    expect(installedFoldedSummary([row(1, 'due'), row(2, 'due')])).toBe('2 installed · 2 due')
+  })
+
+  it('pluralises empty slots', () => {
+    expect(installedFoldedSummary([row(1, 'ok'), row(2, null, false), row(3, null, false)])).toBe('1 installed · 2 empty slots')
+  })
+
+  it('reads 0 installed when the bike has only empty slots', () => {
+    expect(installedFoldedSummary([row(1, null, false)])).toBe('0 installed · 1 empty slot')
   })
 })

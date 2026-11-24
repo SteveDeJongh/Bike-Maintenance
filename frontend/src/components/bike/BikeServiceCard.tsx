@@ -8,6 +8,7 @@ import { serviceChipLabels } from '../activity/activityListModel'
 import { activityUrl } from '../activity/activityUrl'
 import DataListRow from '../datalist/DataListRow'
 import ServiceSessionViewModal from '../forms/ServiceSessionViewModal'
+import { bikeServiceFeedParams } from './bikeSectionsModel'
 import type { ActivityItem } from '../../types/models'
 
 const SHOWN = 5
@@ -25,7 +26,7 @@ export default function BikeServiceCard({ bikeId }: { bikeId: number }) {
   const navigate = useNavigate()
   const [sessionId, setSessionId] = useState<number | null>(null)
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
-  const feed = useActivityFeed({ kinds: ['service'], bikeId, tz, order: 'desc', sort: 'date' })
+  const feed = useActivityFeed(bikeServiceFeedParams(bikeId, tz))
   const firstPage = feed.data?.pages[0]
   const items = firstPage?.items.slice(0, SHOWN) ?? []
   const total = firstPage?.meta.kind_counts.service ?? 0

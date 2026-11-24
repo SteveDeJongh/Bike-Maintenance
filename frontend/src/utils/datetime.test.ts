@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatHeaderDate, formatShortDate, isoWeekNumber } from './datetime'
+import { formatHeaderDate, formatShortDate, isoWeekNumber, relativeDay } from './datetime'
 
 describe('isoWeekNumber', () => {
   it('numbers an ordinary week', () => {
@@ -46,5 +46,26 @@ describe('formatShortDate', () => {
   it('compares years in local time, not UTC', () => {
     expect(formatShortDate(local(2026, 0, 1), now)).not.toMatch(/2026/)
     expect(formatShortDate(local(2025, 11, 31), now)).toMatch(/2025/)
+  })
+})
+
+describe('relativeDay', () => {
+  const now = new Date(2026, 10, 24, 9)
+  const at = (year: number, month: number, day: number, hour = 12) => new Date(year, month, day, hour).toISOString()
+
+  it('says today and yesterday by calendar day, not 24 hours', () => {
+    expect(relativeDay(at(2026, 10, 24, 0), now)).toBe('today')
+    expect(relativeDay(at(2026, 10, 23, 23), now)).toBe('yesterday')
+    expect(relativeDay(at(2026, 10, 23, 0), now)).toBe('yesterday')
+  })
+
+  it('falls back to the short date, with the year only before this year', () => {
+    expect(relativeDay(at(2026, 10, 22), now)).toBe(formatShortDate(at(2026, 10, 22), now))
+    expect(relativeDay(at(2026, 10, 22), now)).not.toMatch(/2026/)
+    expect(relativeDay(at(2025, 2, 2), now)).toMatch(/2025/)
+  })
+
+  it('handles yesterday across a month boundary', () => {
+    expect(relativeDay(at(2026, 10, 30), new Date(2026, 11, 1, 8))).toBe('yesterday')
   })
 })

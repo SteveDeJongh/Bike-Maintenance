@@ -12,12 +12,14 @@ import FieldsPicker from '../datalist/FieldsPicker'
 import { dataListMinWidth, dataListTemplate, fieldMinWidth } from '../datalist/dataListModel'
 import WearBar from '../dashboard/WearBar'
 import EmptySlotPill from './EmptySlotPill'
+import { BIKE_SECTION_STORAGE_KEYS } from './bikeSectionsModel'
 import { installedComponentRenderer } from './installedComponentColumns'
 import {
   activeElsewhereByComponent,
   addableSlotOptions,
   installedRows,
   orderSlots,
+  installedFoldedSummary,
   installedSummaryLine,
   sortInstalledRows,
   type AddableSlotOption,
@@ -98,7 +100,13 @@ export default function InstalledComponentsCard({ bike, onOpenAssignment }: Prop
   // useTableViewPreferences seeds from the preference once, on mount.
   if (isPending || !preferenceData || assignmentsPending) {
     return (
-      <PageSection id={SECTION_ID} title={TITLE} summary={installedSummaryLine(rows)}>
+      <PageSection
+        id={SECTION_ID}
+        title={TITLE}
+        summary={installedSummaryLine(rows)}
+        foldedSummary={installedFoldedSummary(rows)}
+        storageKey={BIKE_SECTION_STORAGE_KEYS.installed}
+      >
         <Loader />
       </PageSection>
     )
@@ -177,6 +185,8 @@ function InstalledComponentsCardInner({
       id={SECTION_ID}
       title={TITLE}
       summary={installedSummaryLine(rows)}
+      foldedSummary={installedFoldedSummary(rows)}
+      storageKey={BIKE_SECTION_STORAGE_KEYS.installed}
       actions={
         <>
           {!isMobile && (

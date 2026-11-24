@@ -36,6 +36,17 @@ export function formatShortDate(value: string, now: Date = new Date()): string {
   return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// "today", "yesterday", or formatShortDate's "Nov 16" / "Mar 2, 2025" --
+// calendar days in the browser's zone.
+export function relativeDay(value: string, now: Date = new Date()): string {
+  const date = new Date(value)
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (startOf(date) === startOf(now)) return 'today'
+  if (startOf(date) === startOf(yesterday)) return 'yesterday'
+  return formatShortDate(value, now)
+}
+
 export function formatDate(value: string | null): string {
   if (!value) return ''
   return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })

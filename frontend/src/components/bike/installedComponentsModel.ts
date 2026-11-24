@@ -94,6 +94,24 @@ export function installedSummaryLine(rows: InstalledRow[]): string {
   return empty > 0 ? `${head} · ${empty} empty ${empty === 1 ? 'slot' : 'slots'}` : head
 }
 
+// Folded: what the hidden list holds -- "13 installed · 1 due · 2 soon ·
+// 1 empty slot". Each mounted part counts once, by its worst status
+// ("soon" is warning, as on BikeStatusChip); zero parts are left out.
+export function installedFoldedSummary(rows: InstalledRow[]): string {
+  const installed = rows.filter((row) => row.assignment)
+  const due = installed.filter((row) => row.wear?.service_status === 'due').length
+  const soon = installed.filter((row) => row.wear?.service_status === 'warning').length
+  const empty = rows.length - installed.length
+  return [
+    `${installed.length} installed`,
+    due > 0 && `${due} due`,
+    soon > 0 && `${soon} soon`,
+    empty > 0 && `${empty} empty ${empty === 1 ? 'slot' : 'slots'}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 // Each sortable column's value; null (an empty slot, no requirement) sorts
 // last whichever the direction.
 export function installedSortValue(row: InstalledRow, column: InstalledComponentSortColumn): string | number | null {

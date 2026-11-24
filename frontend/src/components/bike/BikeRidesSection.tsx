@@ -8,19 +8,22 @@ import { effectiveGroupBy, readActivityView } from '../activity/activityListMode
 import { activityUrl } from '../activity/activityUrl'
 import type { ActivitySort, Order } from '../activity/useActivityFilters'
 import PageSection from '../PageSection'
+import { BIKE_SECTION_STORAGE_KEYS, ridesSummary } from './bikeSectionsModel'
 import RideDetailModal from '../ride/RideDetailModal'
 import type { ActivityItem, BikeDetail } from '../../types/models'
 
 // The bike's rides, as the Activity page's own list (ActivityList) with a
 // fixed filter -- this bike, rides only -- and no toolbar, under a
 // PageSection header with "Open in Activity →". The list lives in its own
-// component, so its feed query only runs while the body is rendered.
+// component, so its feed query only runs while the section is unfolded.
 export default function BikeRidesSection({ bike }: { bike: BikeDetail }) {
   return (
     <PageSection
       id="rides"
       title="Rides"
-      summary={`${bike.ride_count.toLocaleString()} on this bike`}
+      summary={ridesSummary(bike.ride_count, bike.last_ride_on, false)}
+      foldedSummary={ridesSummary(bike.ride_count, bike.last_ride_on, true)}
+      storageKey={BIKE_SECTION_STORAGE_KEYS.rides}
       actions={
         <Anchor component={Link} to={activityUrl({ bikeId: bike.id, kinds: ['ride'] })} size="sm">
           Open in Activity →
