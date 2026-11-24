@@ -250,8 +250,17 @@ function Isolated({ children }: { children: ReactNode }) {
   )
 }
 
-function ContextChip({ rideContext }: { rideContext: 'both' | 'outdoor_only' | 'indoor_only' }) {
-  if (rideContext === 'both') return null
+// Indoor-only and outdoor-only get a coloured chip. A both context is
+// plain dimmed "All rides" in the Ride context column (`showBoth`), and
+// nothing beside a pill, where it would only repeat the default.
+function ContextChip({ rideContext, showBoth = false }: { rideContext: 'both' | 'outdoor_only' | 'indoor_only'; showBoth?: boolean }) {
+  if (rideContext === 'both') {
+    return showBoth ? (
+      <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+        {RIDE_CONTEXT_LABELS.both}
+      </Text>
+    ) : null
+  }
   return (
     <Badge size="sm" color={rideContext === 'indoor_only' ? 'grape' : 'blue'}>
       {RIDE_CONTEXT_LABELS[rideContext]}
@@ -320,7 +329,7 @@ function GridRow(props: RowProps) {
         <ComponentSwapPill assignment={assignment} />
       </Isolated>
       <div>
-        <ContextChip rideContext={assignment.ride_context} />
+        <ContextChip rideContext={assignment.ride_context} showBoth />
       </div>
       <WearCell row={row} />
       {fields.map((column) => {

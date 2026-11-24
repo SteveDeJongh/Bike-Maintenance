@@ -70,7 +70,7 @@ export function categoryLabel(category: string): string {
 export const RIDE_CONTEXTS = ['both', 'outdoor_only', 'indoor_only'] as const
 
 export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string> = {
-  both: 'All',
+  both: 'All rides',
   outdoor_only: 'Outdoor only',
   indoor_only: 'Trainer only',
 }
