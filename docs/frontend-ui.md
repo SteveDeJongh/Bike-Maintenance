@@ -285,6 +285,47 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
   - **Lifetime totals** for parts with no requirement come from the batched
     `Maintenance::LifetimeDistanceQuery`.
 
+## Bike page
+
+`/bikes/:id` (`pages/BikeDetail.tsx`). The top half, in the Home look; the installed
+components and everything below them are unchanged for now (Bikes redesign part 4).
+
+- **`BikePageHeader`:**
+  - **Above it:** a dimmed "← Bikes" link.
+  - **Left:**
+    - the name, the type chip, and `BikeStatusChip` (`bikeStatusCounts` of
+      `overview.mounted`, Home's rule), or "Retired Mar 2025" for a retired bike;
+    - a dimmed line of make/model · `Linked to Strava gear "…"` (or "Not linked to
+      Strava gear", a link to the gear tab) · "Riding since …".
+  - **Right:** Log service (the batch service modal), Set up components, and a ⋯ menu
+    with Edit bike and Delete bike.
+  - **There's no separate retire action:** a bike is retired with Edit bike's "Retired
+    on" date, which doesn't end its assignments (unlike a component's Retire).
+- **`BikeStatTiles`:** a `TileRow` of Total distance, This year (from local Jan 1),
+  Moving time, Elevation, Avg power and Rides.
+- **`MaintenanceAlertBanners scope={{ bikeId }}`**, unchanged, under the tiles. They
+  partly duplicate Up next: same requirements, but banner-eligible ones only, with
+  dismiss actions.
+- **The card row:** a wrapping flex row.
+  - **`BikeUpNext`** (`flex: 2 1 520px`) is Home's `upNextItems` on
+    `overview.attention`/`upcoming`. Each row is laid out on the card's grid: the part
+    and requirement over "196 / 200 km" | `WearBar` | what's left, in the status colour
+    | an outline Log service (`LogServiceForItemButton`, shared with Home's
+    `UpNextRow`).
+  - **`RotationCard`** (`flex: 1 1 340px`): one per `rotationGroups(mounted, off_bike)`
+    group (a rotating category with a mounted part and an off-bike partner), stacked.
+    Each has the shared `RotationSplitBar` (also Home's strip), the
+    `rotationSummaryLine` and a hint to swap with the pill. With no rotation there's no
+    column, and Up next takes the full width.
+- **Data:** `GET /bikes/:id` (`?tz=`) computes statuses once and adds `ride_count`,
+  `distance_this_year`, `strava_gear` (`{ gear_id, name }`, the name from the gear
+  cache) and `overview`.
+  - **`overview.attention` and `overview.upcoming`** come from `Maintenance::UpNext`
+    with `bike_id:`: parts mounted on this bike only, and its own nearest five ok
+    items.
+  - **`overview.mounted` and `overview.off_bike`** come from `Bikes::CardComponents`.
+  - **Both builders** are the same ones Home's `GET /dashboard` uses.
+
 ## Theming
 
 Light/dark/system appearance lives entirely in the frontend, built on

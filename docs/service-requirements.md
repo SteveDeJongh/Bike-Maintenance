@@ -266,7 +266,7 @@ this bike" gets computed and how the batch logger itself works.
   validation can never disagree about what's offered vs. accepted.
 - **`.off_bike_components_by_bike(user, at: Time.current)`** is the
   class-level, whole-user, grouped-by-bike version of the same off-bike
-  computation — `Dashboard::Summary#off_bike_components_by_bike` is a one-line delegate to this at its default `at:`. A component retired on the same calendar
+  computation — `Bikes::CardComponents` (Home's bike cards and the bike page) calls it at its default `at:`. A component retired on the same calendar
   day as `at` still excludes correctly (compares `retired_on` cast to a
   timestamp against `at`, not a bare date, specifically so a same-day
   retirement reads as "before" any later moment that day). Each candidate's

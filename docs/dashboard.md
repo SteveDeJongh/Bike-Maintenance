@@ -30,7 +30,8 @@ distance/status computation happens here that doesn't already live elsewhere:
   failure (see "Frontend" below).
 - **`bikes`** — one entry per non-retired bike: `total_distance`/`ride_count`/
   `last_ride_on`/`distance_this_month` via the same grouped-query-per-stat pattern
-  `BikesController#index` already uses (no per-bike N+1), plus `mounted`
+  `BikesController#index` already uses (no per-bike N+1), plus (from
+  `Bikes::CardComponents`, shared with the bike page) `mounted`
   (currently-installed components, each with a `display_metric`:
   `{requirement_name, distance_meters, moving_time_seconds, days,
   since_service_type_name}`, meters/seconds/days only, same
@@ -55,7 +56,9 @@ distance/status computation happens here that doesn't already live elsewhere:
   off-bike component in a **rotating category** (`ComponentCategorySetting#rotates`,
   read once per request; chain by default) plus every mounted one of the same category
   on that bike — and `null` otherwise. Each `off_bike` entry carries `rotates`, so the
-  card knows which ones get a strip; it runs one query per assignment per paired component, fine for
+  card knows which ones get a strip, plus `service_status` and `last_service_at` (the
+  setting event's date), which the bike page's rotation card reads ("last wax Nov 20,
+  ready"). It runs one query per assignment per paired component, fine for
   the handful on a card and an open batching question if more of the page needs it.
   A component with no requirement already has its lifetime total in
   `display_metric.distance_meters`. **`last_ride_activity_type`** — the latest ride's
@@ -64,6 +67,11 @@ distance/status computation happens here that doesn't already live elsewhere:
   `Maintenance::RequirementStatus.for_user(user)`; `attention`, `upcoming` and the
   bikes' `worst_result_by_component(user, results:)` all derive from it (the
   dashboard used to compute every status twice).
+- **`attention`** and **`upcoming`** come from `Maintenance::UpNext`, which the bike
+  page also calls with `bike_id:` (see "Bike page" in `docs/frontend-ui.md`). It reads
+  `current_bikes_by_component` with `fetch`, never `[]`: that hash's default block
+  inserts an empty entry on any read, which once let an off-bike component's ok
+  requirement count as mounted in `upcoming`.
 - **`attention`** — every enabled, non-ok, non-retired requirement
   (`Maintenance::RequirementStatus.for_user`), deliberately broader than the alert
   banners' `Result#banner_eligible?`: a dismissed or notifications-off item, or one
@@ -79,7 +87,7 @@ distance/status computation happens here that doesn't already live elsewhere:
 - **`upcoming`** — the same item shape for the nearest **ok** requirements on
   non-retired, **currently mounted** components (checked against the
   `current_bikes_by_component` hash already loaded, not per-result `mounted?`
-  queries), ordered by `fraction_used` descending, capped at `UPCOMING_LIMIT` (5).
+  queries), ordered by `fraction_used` descending, capped at `UpNext::UPCOMING_LIMIT` (5).
   Up next shows these after the attention items.
 - **`recent_rides`** — a plain array of the user's `RECENT_LIMIT` (5) newest
   activities, newest first, whatever their age (no date window, no summary; ignored
