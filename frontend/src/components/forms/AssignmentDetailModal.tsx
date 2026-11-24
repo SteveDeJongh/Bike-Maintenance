@@ -6,6 +6,7 @@ import AppModal from '../AppModal'
 import ComponentIdentityStatus from '../ComponentIdentityStatus'
 import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
 import EditInstallationModal from './EditInstallationModal'
+import EndAssignmentModal from './EndAssignmentModal'
 import { RIDE_CONTEXT_LABELS } from '../../constants'
 import { formatDateTime } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
@@ -125,6 +126,7 @@ function AssignmentDetailContent({
   onSwapped: (id: number) => void
 }) {
   const [editOpened, setEditOpened] = useState(false)
+  const [removeOpened, setRemoveOpened] = useState(false)
 
   return (
     <Stack>
@@ -156,7 +158,16 @@ function AssignmentDetailContent({
         {assignment.ended_at && <Stat label="Uninstalled on" value={formatDateTime(assignment.ended_at)} />}
         <Stat label="Ride context" value={RIDE_CONTEXT_LABELS[assignment.ride_context]} />
       </Group>
+      {/* Remove from bike lives here (the bike page's rows have no
+          buttons): the same EndAssignmentModal flow as before -- an end
+          date defaulting to now, then the same update and invalidation.
+          Only an open installation can be removed. */}
       <Group justify="flex-end">
+        {!assignment.ended_at && (
+          <Button variant="outline" color="red" onClick={() => setRemoveOpened(true)}>
+            Remove from bike
+          </Button>
+        )}
         <Button variant="default" onClick={() => setEditOpened(true)}>
           Edit installation
         </Button>
@@ -166,6 +177,12 @@ function AssignmentDetailContent({
       <ComponentServiceAndHistory componentId={assignment.component_id} />
 
       <EditInstallationModal opened={editOpened} onClose={() => setEditOpened(false)} assignment={assignment} />
+      <EndAssignmentModal
+        opened={removeOpened}
+        onClose={() => setRemoveOpened(false)}
+        assignment={removeOpened ? assignment : null}
+        componentLabel={assignment.component.label}
+      />
     </Stack>
   )
 }
