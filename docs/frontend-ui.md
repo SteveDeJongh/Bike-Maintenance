@@ -156,7 +156,7 @@ note above) — this mechanism makes columns easy to add, but doesn't change the
 of computing what's behind them.
 
 **Non-configurable tables** (a plain `<Table>` with no `TableViewPreference` behind
-it — the Settings pages, `BikeSetup`, `ComponentServiceAndHistory`,
+it — the Settings pages, `BikeSetup`, the component page,
 `ServiceSessionViewModal`, the Strava page's gear tables) need the same phone-width
 consideration without any of this mechanism: wrap in Mantine's own
 `Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
@@ -384,6 +384,65 @@ Bikes/Activity look.
 
   "Ready" is decided on the frontend from these raw values and
   `last_bike.removed_at`.
+
+## Component page
+
+`/components/:id` (`pages/ComponentDetail.tsx`, `components/component/`): the one
+place for a part's whole life. Everything comes from `GET /components/:id`.
+
+- **Header** (`ComponentPageHeader`):
+  - a dimmed "← Components" link;
+  - the label with a category chip and a status chip: the worst *enabled* interval as
+    Due, Soon or OK (`worstRequirementStatus`), none without intervals, and "Retired
+    <date>" once retired;
+  - a dimmed line: brand/model · "Acquired <date>" · where it is
+    (`componentPlacement`/`placementText`). That reads "On Soloist since Oct 15 · All
+    rides", lists both bikes for a shared cassette, or says "Spare · last on <bike>",
+    "Never installed", or, once retired, "Last on <bike>". Bike names are links;
+  - the notes;
+  - **actions:** Log service (primary, no service type preselected), Edit, Retire or
+    Un-retire, and a ⋯ menu with **Delete**. Delete is enabled only when the payload
+    says `deletable`; otherwise the menu shows "Has history. Retire it instead."
+    (see "Deleting a component" in `docs/components-and-setup.md`). Confirming
+    deletes the component, then returns to `/components`.
+- **`MaintenanceAlertBanners`,** scoped to the component.
+- **Tiles** (`ComponentStatTiles`): Lifetime distance, Lifetime time, Total climb,
+  Avg power (from `lifetime_stats`), Installations and Services.
+- **Service intervals** (`ComponentIntervalsSection`, a `PageSection`):
+  - **Summary:** "2 intervals · 1 due" (`intervalsSummary`; due and soon among
+    enabled intervals).
+  - **Pills:** "+ Add from category defaults" opens the inline checklist, and
+    "+ Custom interval" opens `AddCustomServiceIntervalModal`.
+  - **Rows** (a grid, `.interval-row` in `index.css`; a phone stacks it): enabled
+    first, disabled ones muted with an "Off" chip. Each row shows:
+    - the name with a status chip, and the rule (`requirementRuleText`: "Every 200 km
+      or 90 days · Drip wax or Immersion wax");
+    - a wear bar with "196 / 200 km since Drip wax" (`requirementProgressText`);
+    - what's left in the status colour;
+    - "Last done Nov 14" / "Since install";
+    - an edit button (`EditServiceIntervalModal`, or the inline
+      `CustomRequirementEditor` for a custom interval);
+    - a ⋯ menu: Log <service> per satisfier (with the "also clears" confirm),
+      Enable/Disable, turn the **category's** notifications off or on, Dismiss until
+      next sync (warning/due only), and Delete.
+  - The editor pieces are in `components/serviceIntervals/`, shared with the
+    installation modal's older `ServiceIntervalsSection` until part 3 removes it.
+- **Maintenance history** and **Installation history:** side by side in a wrapping
+  flex (`1 1 520px` / `1 1 440px`), each a `PageSection`.
+  - **Maintenance** ("7 events"): date | a teal wrench | the service with a note line
+    (`eventNoteLine`: the notes, "Session with <others>", "Off the bike") | "at
+    1,160 km" (distance at service; see "Core logic" in `docs/data-model.md`). Newest
+    first, ten then "Show all". A row opens its session's `ServiceSessionViewModal`,
+    or else the event's edit form. **`?event=<id>`** (from Activity and the bike page)
+    shows that row: it unfolds the section (`PageSection`'s `openOnMount`), scrolls to
+    the row, highlights it (`DataListRow`'s `highlight` tone) and opens it.
+  - **Installations** ("3 installations · 2 bikes", `installationsSummary`): every
+    assignment, newest first. Each row has a bike icon (primary while current), the
+    bike with a "Current" chip and "Jun 2 → Sep 30, 2026 · Trainer only"
+    (`installationRangeText`), and the stint's distance. A row opens that
+    installation's `AssignmentDetailModal`.
+- **Collapse keys:** `componentPage.collapsed.intervals`, `.maintenance` and
+  `.installations`, remembered per device (`componentSections.ts`).
 
 ## Bike page
 

@@ -166,10 +166,14 @@ ride-filtered counting.
   custom-requirement editor below — "Custom requirements edit satisfiers inline
   with the same editor as Settings" is implemented literally as shared code, not a
   second copy.
-- **ComponentDetail → Service requirements**
+- **The component page's Service intervals** are `ComponentIntervalsSection`: a grid
+  row per interval, with the per-interval actions in a ⋯ menu ("Component page" in
+  `docs/frontend-ui.md`). The older table below is now only
+  `AssignmentDetailModal`'s, until part 3 of the components redesign removes it.
+- **AssignmentDetailModal → Service requirements**
   (`frontend/src/components/ServiceIntervalsSection.tsx`, rendered by
-  `ComponentServiceAndHistory.tsx`, shared by the standalone `ComponentDetail` page
-  and `BikeDetail`'s `AssignmentDetailModal`): one row per requirement (enabled or
+  `ComponentServiceAndHistory.tsx`, sharing `components/serviceIntervals/` with the
+  component page): one row per requirement (enabled or
   not, so its Switch can be flipped back on in place) — name + a dimmed secondary
   line (every satisfier's service type name joined with "or", a `· last: {setting
   event's service type} at {formatted setting_position}` clause once a real
@@ -329,7 +333,9 @@ this bike" gets computed and how the batch logger itself works.
   (`useCreateServiceSession`/`useUpdateServiceSession`/`useDeleteServiceSession`)
   invalidate the `history` and `serviceStatus` groups, same as single-event
   "Log service" (see "Cache invalidation" under Conventions)
-- **Showing a session**: `ComponentServiceAndHistory`'s history table marks
+- **Showing a session**: on the component page, a session event's history row reads
+  "Session with <other components>" and opens `ServiceSessionViewModal`.
+  `ComponentServiceAndHistory`'s history table, which is now only the modal's, marks
   any event with `service_session_id` set with a small "Part of a service
   session · N items" control (N counts every event in the session, not just
   this component's own — a session can span several components on one bike),

@@ -245,7 +245,7 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/auth.md` — **Authentication**. Sessions/CSRF/CORS, `Auth::ResolveIdentity`,
   Strava as a sign-in method, mail and tokens, deferred Google/Apple, deployment notes.
 - `docs/frontend-ui.md` — **Sortable, configurable tables**, **Shared building blocks**,
-  **Bikes page**, **Components page**, **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
+  **Bikes page**, **Components page**, **Component page**, **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
   config, `AppModal`, mobile date pickers, the manifest and icons.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
@@ -254,6 +254,7 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   `Activity::Feed`'s keyset/offset branches, week totals and metric sorts, the install/removal
   merge rule, the `/activity` page.
 - `docs/components-and-setup.md` — **One-step component swap**, **Installed, spare and
-  retired**, **Last bike and the Components list's Bike column**, **Retiring a component**, **Bike setup**,
+  retired**, **Last bike and the Components list's Bike column**, **Deleting a
+  component**, **Retiring a component**, **Bike setup**,
   **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
   component setup, suggestion sources and ranking.

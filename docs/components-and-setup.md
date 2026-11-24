@@ -116,8 +116,27 @@ isn't due. It reads "<Service> · ready".
   "Spare" in blue, then "Last on <bike>" or "Never installed". Retired shows
   "Retired <date>", then the last bike. Sort (`bikeSortKey`): installed by bike name,
   spares by last bike, never installed, then retired.
-- **Component detail**: `ComponentIdentityStatus` reads "Uninstalled · Last on
-  <bike>" when there's a `last_bike`.
+- **Component page**: the header line reads "Spare · last on <bike>" (or "Last on
+  <bike>" once retired), and `AssignmentDetailModal`'s `ComponentIdentityStatus`
+  reads "Uninstalled · Last on <bike>", whenever there's a `last_bike`.
+
+## Deleting a component
+
+Only a component with **no history** can be deleted: no assignment, ever (current
+or ended), and no maintenance event (`Component#deletable?`).
+
+- **The server** (`ComponentsController#destroy`) returns 422 with `{ base: ["This
+  component has installation or maintenance history, so it can't be deleted. Retire
+  it instead."] }` otherwise, and changes nothing. A deletable component still takes
+  its service requirements with it.
+- **`GET /components/:id`** returns `deletable`.
+- **The component page's ⋯ menu** enables Delete only when that's true. Otherwise it
+  shows "Has history. Retire it instead." It confirms, then returns to
+  `/components`.
+- **Elsewhere:** the Components list has no Delete.
+
+Anything that has been on a bike or serviced is retired instead ("Retiring a
+component" below), so its mileage and history are never lost.
 
 ## Retiring a component
 
