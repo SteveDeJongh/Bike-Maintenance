@@ -40,7 +40,7 @@ class Component < ApplicationRecord
   # add-only, never-removes rule.
   after_save :remember_brand, if: -> { brand.present? && (saved_change_to_brand? || saved_change_to_category?) }
 
-  # { component_id => [{id:, name:}, ...] } for every currently-installed
+  # { component_id => [{id:, name:, ride_context:, started_at:}, ...] } for every currently-installed
   # (ended_at: nil) bike per component, batched for a many-row list (the
   # Components list's current_bikes column, the dashboard's off_bike/
   # attention bike lookups) -- a component can have more than one at once
@@ -49,9 +49,10 @@ class Component < ApplicationRecord
   def self.current_bikes_by_component(user)
     ComponentAssignment.joins(:bike, :component)
       .where(ended_at: nil, components: { user_id: user.id })
-      .pluck("component_assignments.component_id", "bikes.id", "bikes.name", "component_assignments.ride_context")
-      .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(cid, bid, bname, ride_context), h|
-        h[cid] << { id: bid, name: bname, ride_context: ride_context }
+      .pluck("component_assignments.component_id", "bikes.id", "bikes.name", "component_assignments.ride_context",
+             "component_assignments.started_at")
+      .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(cid, bid, bname, ride_context, started_at), h|
+        h[cid] << { id: bid, name: bname, ride_context: ride_context, started_at: started_at }
       end
   end
 

@@ -219,12 +219,13 @@ RSpec.describe Component, type: :model do
       user = create(:user)
       component = create(:component, user: user)
       bike = create(:bike, user: user, name: "Soloist")
-      create(:component_assignment, component: component, bike: bike, ended_at: nil)
+      started = Time.zone.local(2026, 1, 1, 8)
+      create(:component_assignment, component: component, bike: bike, started_at: started, ended_at: nil)
       create(:component, user: user) # mounted nowhere -- no entry expected
 
       result = described_class.current_bikes_by_component(user)
 
-      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist", ride_context: "both" }])
+      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist", ride_context: "both", started_at: started }])
     end
 
     it "includes both bikes for a component concurrently shared indoor_only across two bikes" do

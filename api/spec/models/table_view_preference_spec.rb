@@ -34,4 +34,22 @@ RSpec.describe TableViewPreference, type: :model do
     expect(preference).not_to be_valid
     expect(preference.errors[:data]).to be_present
   end
+
+  describe "group_by" do
+    it "accepts each list's own values" do
+      expect(build(:table_view_preference, table_key: "activity_log", data: { "group_by" => "week" })).to be_valid
+      %w[category bike none].each do |value|
+        expect(build(:table_view_preference, table_key: "components", data: { "group_by" => value })).to be_valid
+      end
+    end
+
+    it "rejects another list's value" do
+      expect(build(:table_view_preference, table_key: "components", data: { "group_by" => "week" })).not_to be_valid
+      expect(build(:table_view_preference, table_key: "activity_log", data: { "group_by" => "category" })).not_to be_valid
+    end
+
+    it "doesn't check table keys that don't group" do
+      expect(build(:table_view_preference, table_key: "bikes", data: { "group_by" => "anything" })).to be_valid
+    end
+  end
 end

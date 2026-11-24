@@ -187,6 +187,103 @@ RSpec.describe "Components", type: :request do
       expect(by_id[bare_component.id]["current_bikes"]).to eq([])
     end
   end
+  describe "GET /components list fields" do
+    let!(:bike_a) { create(:bike, user: current_user, name: "Juan Solo") }
+    let!(:bike_b) { create(:bike, user: current_user, name: "Soloist") }
+
+    def entries
+      get "/components"
+      JSON.parse(response.body).index_by { |c| c["id"] }
+    end
+
+    it "gives an installed component its wear, lifetime distance and assigned_since" do
+      chain = create(:component, user: current_user, category: "chain")
+      wax = current_user.service_types.find_by!(name: "wax")
+      create(:component_service_requirement, component: chain, service_type: wax, distance_interval_meters: 4_000)
+      started = Time.zone.local(2026, 1, 1)
+      create(:component_assignment, component: chain, bike: bike_a, started_at: started, ended_at: nil)
+      create(:strava_activity, bike: bike_a, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+
+      entry = entries[chain.id]
+
+      expect(entry).to include(
+        "service_status" => "ok", "has_enabled_requirement" => true, "driving_dimension" => "distance",
+        "distance_remaining_meters" => 3_000, "lifetime_distance_meters" => 1_000,
+      )
+      expect(entry["fraction_used"]).to be_within(0.001).of(0.25)
+      expect(Time.zone.parse(entry["assigned_since"])).to eq(started)
+      expect(entry["current_bikes"].first).not_to have_key("started_at")
+    end
+
+    it "gives a component with no enabled requirement nil wear and has_enabled_requirement false" do
+      saddle = create(:component, user: current_user, category: "saddle")
+
+      expect(entries[saddle.id]).to include(
+        "has_enabled_requirement" => false, "service_status" => nil, "fraction_used" => nil,
+        "driving_dimension" => nil, "lifetime_distance_meters" => 0, "assigned_since" => nil,
+      )
+    end
+
+    it "uses a shared cassette's earliest open assignment for assigned_since" do
+      cassette = create(:component, user: current_user, category: "cassette")
+      create(:component_assignment, component: cassette, bike: bike_a, ride_context: "indoor_only", started_at: Time.zone.local(2026, 2, 1), ended_at: nil)
+      create(:component_assignment, component: cassette, bike: bike_b, ride_context: "indoor_only", started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
+
+      entry = entries[cassette.id]
+
+      expect(entry["current_bikes"].map { |b| b["name"] }).to contain_exactly("Juan Solo", "Soloist")
+      expect(Time.zone.parse(entry["assigned_since"])).to eq(Time.zone.local(2026, 1, 1))
+    end
+
+    it "gives a spare its last bike, lifetime distance, rotates and latest_service (the ready inputs)" do
+      chain = create(:component, user: current_user, category: "chain")
+      create(:component_assignment, component: chain, bike: bike_a, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      create(:strava_activity, bike: bike_a, moved_at: Time.zone.local(2026, 1, 10), distance_meters: 2_500)
+      wax = current_user.service_types.find_by!(name: "wax")
+      create(:maintenance_event, component: chain, service_type: wax, performed_at: Time.zone.local(2026, 2, 3))
+
+      entry = entries[chain.id]
+
+      expect(entry["current_bikes"]).to eq([])
+      expect(entry["last_bike"]).to include("name" => "Juan Solo")
+      expect(entry).to include("rotates" => true, "lifetime_distance_meters" => 2_500, "assigned_since" => nil)
+      expect(entry["latest_service"]["service_type_name"]).to eq("wax")
+      expect(Time.zone.parse(entry["latest_service"]["performed_at"])).to eq(Time.zone.local(2026, 2, 3))
+    end
+
+    it "marks a non-rotating category rotates false, and latest_service nil with no events" do
+      saddle = create(:component, user: current_user, category: "saddle")
+
+      expect(entries[saddle.id]).to include("rotates" => false, "latest_service" => nil)
+    end
+
+    it "keeps a retired component's lifetime distance and last bike" do
+      chain = create(:component, user: current_user, category: "chain", retired_on: Date.new(2026, 3, 1))
+      create(:component_assignment, component: chain, bike: bike_b, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 3, 1))
+      create(:strava_activity, bike: bike_b, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 5_000)
+
+      entry = entries[chain.id]
+
+      expect(entry).to include("retired_on" => "2026-03-01", "lifetime_distance_meters" => 5_000)
+      expect(entry["last_bike"]).to include("name" => "Soloist")
+    end
+
+    it "never leaks another user's rides, events or settings into these fields" do
+      mine = create(:component, user: current_user, category: "chain")
+      other_user = create(:user)
+      other_bike = create(:bike, user: other_user)
+      other_component = create(:component, user: other_user, category: "chain")
+      create(:component_assignment, component: other_component, bike: other_bike, ended_at: nil)
+      create(:strava_activity, bike: other_bike, distance_meters: 9_000)
+      create(:maintenance_event, component: other_component)
+
+      result = entries
+
+      expect(result.keys).to eq([ mine.id ])
+      expect(result[mine.id]).to include("lifetime_distance_meters" => 0, "latest_service" => nil, "current_bikes" => [])
+    end
+  end
+
   describe "last_bike" do
     let!(:juan) { create(:bike, user: current_user, name: "Juan Solo") }
     let!(:soloist) { create(:bike, user: current_user, name: "Soloist") }

@@ -1,19 +1,37 @@
 class ComponentsController < ApplicationController
   before_action :set_component, only: %i[ show update destroy retire ]
 
-  # GET /components
+  # GET /components -- every component, with its batched wear (the worst
+  # enabled requirement's WearFields), lifetime distance, current/last bike,
+  # and the raw inputs for the list's "ready" spare reading (rotates,
+  # latest_service). No per-component queries: each piece is one grouped
+  # query across the user's components.
   def index
-    @components = current_user.components
-    statuses = Maintenance::RequirementStatus.worst_status_by_component(current_user)
+    @components = current_user.components.to_a
+    ids = @components.map(&:id)
+    worst = Maintenance::RequirementStatus.worst_result_by_component(current_user)
     bikes_by_component = Component.current_bikes_by_component(current_user)
     last_ended = ComponentAssignment.last_ended_by_component(current_user)
+    lifetime = Maintenance::LifetimeDistanceQuery.call(current_user, component_ids: ids)
+    latest_service = Maintenance::LatestServiceQuery.call(current_user, component_ids: ids)
+    rotating = current_user.component_category_settings.where(rotates: true).pluck(:category).to_set
+
     render json: @components.map { |component|
       current_bikes = bikes_by_component[component.id] || []
-      component.as_json.merge(
-        service_status: statuses[component.id],
-        current_bikes: current_bikes,
-        last_bike: current_bikes.empty? ? last_bike_json(last_ended[component.id]) : nil,
-      )
+      result = worst[component.id]
+      component.as_json
+        .merge(Maintenance::WearFields.call(result))
+        .merge(
+          has_enabled_requirement: !result.nil?,
+          lifetime_distance_meters: lifetime[component.id] || 0,
+          current_bikes: current_bikes.map { |bike| bike.except(:started_at) },
+          # The earliest open assignment's start -- a shared indoor cassette
+          # has one per bike.
+          assigned_since: current_bikes.map { |bike| bike[:started_at] }.min,
+          last_bike: current_bikes.empty? ? last_bike_json(last_ended[component.id]) : nil,
+          rotates: rotating.include?(component.category),
+          latest_service: latest_service[component.id],
+        )
     }
   end
 

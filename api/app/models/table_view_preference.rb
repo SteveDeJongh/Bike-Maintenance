@@ -5,19 +5,27 @@ class TableViewPreference < ApplicationRecord
   validate :data_is_a_hash
   validate :group_by_is_known
 
-  # The activity log's list grouping. Absent means "week" (the frontend's
-  # default).
-  GROUP_BY_VALUES = %w[week none].freeze
+  # Each grouped list's allowed group_by values, per table_key. Absent means
+  # that list's frontend default ("week" for the activity log, "category"
+  # for the Components list). Other table keys don't group, so their
+  # group_by isn't checked.
+  GROUP_BY_VALUES = {
+    "activity_log" => %w[week none],
+    "components" => %w[category bike none],
+  }.freeze
 
   private
 
-  # The one data key validated here: group_by drives how the activity log
+  # The one data key validated here: group_by drives how a grouped list
   # renders at all, so a value the frontend can't handle is rejected rather
   # than stored.
   def group_by_is_known
     return unless data.is_a?(Hash) && data.key?("group_by")
 
-    errors.add(:data, "group_by must be one of: #{GROUP_BY_VALUES.join(', ')}") unless GROUP_BY_VALUES.include?(data["group_by"])
+    allowed = GROUP_BY_VALUES[table_key]
+    return if allowed.nil? || allowed.include?(data["group_by"])
+
+    errors.add(:data, "group_by must be one of: #{allowed.join(', ')}")
   end
 
   # Column keys and sort values are intentionally not enforced here, matching
