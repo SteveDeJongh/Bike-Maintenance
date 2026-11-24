@@ -807,17 +807,6 @@ export interface BikeRide {
   counted_toward: { component_id: number; label: string }[]
 }
 
-export interface BikeRidesResponse {
-  rides: BikeRide[]
-  meta: {
-    total_count: number
-    total_distance_meters: number
-    page: number
-    per_page: number
-    next_page: number | null
-  }
-}
-
 export type RideAttribution = 'attributed' | 'needs_attention' | 'ignored'
 export type RideAttentionReason = 'unmapped_gear' | 'no_gear' | 'ride' | 'gear'
 

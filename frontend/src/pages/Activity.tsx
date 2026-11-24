@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useActivityFeed, useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
 import RideDetailModal from '../components/ride/RideDetailModal'
 import { useActivityFilters } from '../components/activity/useActivityFilters'
+import { parseActivityUrl } from '../components/activity/activityUrl'
 import ActivityToolbar from '../components/activity/ActivityToolbar'
 import ActivitySummaryTiles from '../components/activity/ActivitySummaryTiles'
 import ActivityViewSheet from '../components/activity/ActivityViewSheet'
@@ -25,14 +26,17 @@ type OpenedItem =
 // from it once, on mount.
 export default function Activity() {
   const { data: preferenceData, isPending } = useTableViewPreference('activity_log')
+  const { search } = useLocation()
 
   if (isPending || !preferenceData) return <Loader />
 
-  return <ActivityInner initialData={preferenceData.data} />
+  // A link in (?bike_id=&kinds=, activityUrl) sets the starting filters;
+  // keyed on it so following another such link while here starts afresh.
+  return <ActivityInner key={search} initialData={preferenceData.data} search={search} />
 }
 
-function ActivityInner({ initialData }: { initialData: TableViewPreferenceData }) {
-  const filters = useActivityFilters(initialData)
+function ActivityInner({ initialData, search }: { initialData: TableViewPreferenceData; search: string }) {
+  const filters = useActivityFilters(initialData, parseActivityUrl(new URLSearchParams(search)))
   const { kinds, bikeId, componentId, tz, from, to, q, order, apiSort, fields, saveError, clearSaveError } = filters
 
   // What a clicked row opened -- each kind has its own modal (a

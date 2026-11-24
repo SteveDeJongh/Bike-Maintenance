@@ -5,7 +5,8 @@ import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from './dateRanges'
 import { ACTIVITY_UI_KINDS, DEFAULT_ACTIVITY_KINDS } from '../../constants'
 import { ACTIVITY_FIELDS, DEFAULT_ACTIVITY_FIELDS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
-import { effectiveGroupBy, type GroupBy } from './activityListModel'
+import { effectiveGroupBy, readActivityView, type GroupBy } from './activityListModel'
+import type { ActivityUrlFilters } from './activityUrl'
 import { canAddField } from '../datalist/dataListModel'
 import type { ActivityUiKind, TableViewPreferenceData } from '../../types/models'
 
@@ -20,18 +21,21 @@ function isActivityUiKind(value: string): value is ActivityUiKind {
 // All of Activity's filter, sort, grouping and field state and the derived
 // query params -- what the page (the feed query, the list) and the toolbar
 // need.
-export function useActivityFilters(initialData: TableViewPreferenceData) {
+// `fromUrl` (activityUrl's ?bike_id=&kinds=) only sets starting values: a
+// link's kinds are saved only if a pill is then toggled.
+export function useActivityFilters(initialData: TableViewPreferenceData, fromUrl: ActivityUrlFilters = {}) {
   const [kinds, setKinds] = useState<ActivityUiKind[]>(() => {
+    if (fromUrl.kinds) return fromUrl.kinds
     const stored = initialData.kinds?.filter(isActivityUiKind)
     return stored && stored.length > 0 ? stored : DEFAULT_ACTIVITY_KINDS
   })
-  const [bikeId, setBikeId] = useState<number | undefined>(undefined)
+  const [bikeId, setBikeId] = useState<number | undefined>(fromUrl.bikeId)
   const [componentId, setComponentId] = useState<number | undefined>(undefined)
   const [datePreset, setDatePreset] = useState<DatePreset | null>(null)
   const [customRange, setCustomRange] = useState<[string | null, string | null]>([null, null])
   const [qInput, setQInput] = useState('')
   const [q] = useDebouncedValue(qInput, 300)
-  const [groupBy, setGroupByState] = useState<GroupBy>(initialData.group_by === 'none' ? 'none' : 'week')
+  const [groupBy, setGroupByState] = useState<GroupBy>(() => readActivityView(initialData).groupBy)
 
   const updatePreference = useUpdateTableViewPreference('activity_log')
 

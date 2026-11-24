@@ -27,10 +27,10 @@ export const INVALIDATION_GROUPS = {
   setup: [['component_assignments']],
   // Strava gear lists and status (unmapped/mapped/ignored gear, sync status).
   gear: [['strava']],
-  // Ride lists -- the Strava Rides tab and each bike's Ride history -- and
-  // the ride details modal (GET /strava/rides/:id), which also reads wear
-  // (serviceStatus) and nearby sessions (history).
-  rides: [['strava_rides'], ['bike_rides'], ['ride_detail']],
+  // Ride lists -- the Strava Rides tab, and the activity feed behind the
+  // Activity page and each bike's Rides section -- and the ride details
+  // modal (GET /strava/rides/:id), which also reads wear (serviceStatus).
+  rides: [['strava_rides'], ['activity'], ['ride_detail']],
   // Category templates and per-component service requirement config --
   // plus service types: adding/switching a satisfier can auto-tag its type
   // with the requirement's category, and changes requirement_count.

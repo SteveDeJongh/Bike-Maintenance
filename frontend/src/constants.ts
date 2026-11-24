@@ -318,13 +318,11 @@ export const ASSIGNMENT_LIST_SORT_COLUMNS = [
 
 export type AssignmentListSortColumn = (typeof ASSIGNMENT_LIST_SORT_COLUMNS)[number]
 
-// The toggleable columns on the Bike detail page's Ride history table. Date
-// and Name are always-shown, leading (pinned) columns — not part of this
-// list. Unlike every other adopter, this table has no spread-in pinned-column
-// sort constant: the only sortable thing is the date order, driven by the
-// section's own order toggle (Newest/Oldest first), never by clicking a
-// column header — see RideHistorySection and DraggableHeaderCell's
-// `sortable` prop.
+// Ride columns: the set the Strava page's Rides tab draws from (through
+// SHARED_RIDE_COLUMN_RENDERERS, which every column but the odometer shares).
+// It began as the bike page's old Ride history table, since replaced by the
+// Activity list (BikeRidesSection); that table's bike_rides preference rows
+// are now unused.
 export const BIKE_RIDE_COLUMNS = [
   'ride_kind',
   'distance_meters',

@@ -1,9 +1,9 @@
-import { formatActivityField, type ActivityField } from './activityFields'
+import { DEFAULT_ACTIVITY_FIELDS, formatActivityField, isActivityField, type ActivityField } from './activityFields'
 import { dataListMinWidth, dataListTemplate } from '../datalist/dataListModel'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
-import type { ActivityItem, ActivityWeekTotals } from '../../types/models'
+import type { ActivityItem, ActivityWeekTotals, TableViewPreferenceData } from '../../types/models'
 
 export type GroupBy = 'week' | 'none'
 export type ActivitySortColumn = 'occurred_at' | string
@@ -184,4 +184,16 @@ export const MAX_VISIBLE_CHIPS = 3
 // A fixed cap rather than measuring widths.
 export function splitChips(chips: string[], max = MAX_VISIBLE_CHIPS): { visible: string[]; overflow: number } {
   return { visible: chips.slice(0, max), overflow: Math.max(0, chips.length - max) }
+}
+
+// The Activity page's saved Fields and Group by, read straight from its
+// activity_log preference -- the same rules useActivityFilters seeds with
+// (unknown columns dropped, defaults when unset). For lists that show the
+// Activity list elsewhere without editing its preference (the bike page's
+// Rides).
+export function readActivityView(data: TableViewPreferenceData): { fields: ActivityField[]; groupBy: GroupBy } {
+  return {
+    fields: data.columns?.filter(isActivityField) ?? DEFAULT_ACTIVITY_FIELDS,
+    groupBy: data.group_by === 'none' ? 'none' : 'week',
+  }
 }

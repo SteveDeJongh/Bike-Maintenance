@@ -10,7 +10,7 @@ import RotationCard from '../components/bike/RotationCard'
 import HistoryTable from '../components/bike/HistorySection'
 import InstalledComponentsCard from '../components/bike/InstalledComponentsCard'
 import { orderSlots } from '../components/bike/installedComponentsModel'
-import RideHistorySection from '../components/bike/RideHistorySection'
+import BikeRidesSection from '../components/bike/BikeRidesSection'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
@@ -113,7 +113,7 @@ export default function BikeDetail() {
         <HistoryTable historyAssignments={historyAssignments} onRowClick={(assignment) => setSelectedAssignmentId(assignment.id)} />
       )}
 
-      <RideHistorySection bike={bike} />
+      <BikeRidesSection bike={bike} />
 
       <AssignmentDetailModal
         opened={selectedAssignmentId !== null}

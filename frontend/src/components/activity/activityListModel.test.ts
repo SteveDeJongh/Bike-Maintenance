@@ -4,6 +4,7 @@ import {
   buildActivityRenderList,
   effectiveGroupBy,
   phoneMetricLine,
+  readActivityView,
   splitChips,
   weekBandTitle,
   weekStartKey,
@@ -141,5 +142,20 @@ describe('splitChips', () => {
 
   it('caps five chips at three plus an overflow of two', () => {
     expect(splitChips(chips)).toEqual({ visible: chips.slice(0, 3), overflow: 2 })
+  })
+})
+
+describe('readActivityView', () => {
+  it('reads saved fields and grouping, dropping unknown columns', () => {
+    expect(readActivityView({ columns: ['moving_time', 'bike', 'distance_meters'], group_by: 'none' })).toEqual({
+      fields: ['moving_time', 'distance_meters'],
+      groupBy: 'none',
+    })
+  })
+
+  it('falls back to the default fields and week grouping', () => {
+    const view = readActivityView({})
+    expect(view.groupBy).toBe('week')
+    expect(view.fields).toEqual(['distance_meters', 'moving_time', 'total_elevation_gain', 'average_watts'])
   })
 })

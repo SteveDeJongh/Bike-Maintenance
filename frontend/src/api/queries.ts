@@ -4,7 +4,6 @@ import type {
   ActivityFeedResponse,
   ActivityUiKind,
   BikeDetail,
-  BikeRidesResponse,
   BikeType,
   BikeWithStats,
   CategoryServiceRequirement,
@@ -63,19 +62,6 @@ export function useBike(id: number) {
     // tz: the viewer's zone, for distance_this_year's Jan 1 boundary.
     queryFn: () => apiGet<BikeDetail>(`/bikes/${id}?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
     enabled: Number.isFinite(id),
-  })
-}
-
-// Ride history's "Load more" pagination -- the query key includes type/order
-// so switching either discards stale pages automatically (react-query's own
-// behavior on a changed key), rather than this hook managing that itself.
-export function useBikeRides(bikeId: number, type: 'all' | 'outdoor' | 'indoor', order: 'asc' | 'desc') {
-  return useInfiniteQuery({
-    queryKey: ['bike_rides', bikeId, type, order],
-    queryFn: ({ pageParam }) =>
-      apiGet<BikeRidesResponse>(`/bikes/${bikeId}/rides?type=${type}&order=${order}&page=${pageParam}`),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => lastPage.meta.next_page,
   })
 }
 
@@ -154,7 +140,7 @@ export interface StravaRidesParams {
   order: 'asc' | 'desc'
 }
 
-// Same Load-more pagination shape as useBikeRides -- the query key includes
+// Load-more pagination -- the query key includes
 // every filter/sort param so changing any of them discards stale pages
 // automatically.
 export function useStravaRides({ status, bikeId, sort, order }: StravaRidesParams) {
@@ -289,7 +275,7 @@ export interface ActivityFeedFilters {
   sort: string
 }
 
-// Same Load-more pagination shape as useBikeRides/useStravaRides. pageParam
+// Same Load-more pagination shape as useStravaRides. pageParam
 // is opaque -- a keyset cursor string for sort=date, or a page number
 // string for a metric sort (Activity::Feed's own two branches) -- sent back
 // as whichever param each branch actually reads. The query key includes
