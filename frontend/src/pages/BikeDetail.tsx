@@ -4,7 +4,8 @@ import { Alert, Anchor, Button, Loader, Select, Stack, Text, Title } from '@mant
 import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponentCategorySettings, useComponents } from '../api/queries'
 import { useCreateBikeComponentSlot } from '../api/mutations'
-import BikeHeader, { BikeStatsRow } from '../components/bike/BikeHeader'
+import { BikeStatsRow } from '../components/bike/BikeHeader'
+import BikePageHeader from '../components/bike/BikePageHeader'
 import HistoryTable from '../components/bike/HistorySection'
 import InstalledComponentsTable from '../components/bike/InstalledComponentsSection'
 import RideHistorySection from '../components/bike/RideHistorySection'
@@ -130,7 +131,7 @@ export default function BikeDetail() {
 
   return (
     <Stack>
-      <BikeHeader bike={bike} onLogService={() => setBatchServiceOpened(true)} />
+      <BikePageHeader bike={bike} onLogService={() => setBatchServiceOpened(true)} />
 
       <MaintenanceAlertBanners scope={{ bikeId: bike.id }} />
 
