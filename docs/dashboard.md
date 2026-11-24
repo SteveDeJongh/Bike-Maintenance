@@ -195,7 +195,9 @@ genuine data-model change deliberately not made speculatively here.
   separate "clear" step: once a later sync succeeds, `last_synced_at` moves past
   `last_sync_failed_at` and the function starts returning `null` again on its own.
 - **`SummaryTiles`** — four `StatTile`s (uppercase dimmed label, large value, dimmed
-  secondary line) in a `repeat(auto-fit, minmax(260px, 1fr))` grid, all from
+  secondary line) in a `TileRow` with a 220px minimum (what "This week" needs beside
+  its bars), so they never wrap; below a window of about 1180px the row scrolls
+  sideways, and on a phone it's a snapping sideways row. All from
   `stats` plus `attention`:
   - **This week**: distance; moving time · elevation gain; `WeekBars`, seven plain
     divs (no chart library) scaled to the week's biggest day. Days after

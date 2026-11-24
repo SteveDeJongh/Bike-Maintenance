@@ -170,6 +170,10 @@ Frontend:
   search-param update that shouldn't jump to the top passes `preventScrollReset: true`
   (Strava's tabs); an in-page highlight uses `scrollIntoView` in an effect.
 - **New modals use `AppModal`**, never Mantine's `Modal` directly (it goes full-screen on mobile).
+- **Shared building blocks** (`docs/frontend-ui.md`): a row of summary tiles goes in
+  `TileRow`, never a hand-rolled flex or grid. A list whose rows open something is a
+  `DataList` (`components/datalist/`: header, whole-row `DataListRow`, bands,
+  `FieldsPicker`), not a new grid.
 - **Responsive:** prefer CSS (`hiddenFrom`/`visibleFrom`, per-breakpoint props) over JS.
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its
   `767.98px` boundary must stay in sync with `index.css`'s iOS-input-zoom rule.
@@ -237,8 +241,8 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   failure recording, rate limits.
 - `docs/auth.md` — **Authentication**. Sessions/CSRF/CORS, `Auth::ResolveIdentity`,
   Strava as a sign-in method, mail and tokens, deferred Google/Apple, deployment notes.
-- `docs/frontend-ui.md` — **Sortable, configurable tables**, **Theming**, **Layout and
-  navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
+- `docs/frontend-ui.md` — **Sortable, configurable tables**, **Shared building blocks**,
+  **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
   config, `AppModal`, mobile date pickers, the manifest and icons.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.

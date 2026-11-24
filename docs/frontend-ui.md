@@ -11,15 +11,18 @@ Components/Maintenance Events/Assignments lists (each its own `table_key`:
 `bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
 `strava_rides`, `components`, `maintenance_events`, `assignments`).
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
-  grouped list (`docs/rides-and-activity.md`), whose `activity_log` preference
+  grouped `DataList` (see "Shared building blocks" below and
+  `docs/rides-and-activity.md`), whose `activity_log` preference
   stores its Fields, header sort, `kinds` and `group_by` through
   `useTableViewPreferences`.
 - **`ColumnPicker`** splits into the popover and **`ColumnPickerPanel`**, the checklist
   itself, which also works inline. It takes two optional props:
   - `maxVisible`, a cap that disables further checkboxes with a hint;
-  - `renderTarget`, a custom trigger such as Activity's "Fields" button.
+  - `renderTarget`, a custom trigger such as Activity's "Fields" button;
+  - `lockedColumns`, always-shown fields listed first as checked, disabled rows with a
+    lock, never dragged and outside the cap.
 
-  Tables pass neither.
+  Tables pass none of them.
 A future page can adopt the same UX without rework:
 - `frontend/src/hooks/useTableViewPreferences.ts` — headless hook owning a table's
   column order/visibility and sort state, backed by `TableViewPreference` via
@@ -179,6 +182,51 @@ consideration without any of this mechanism: wrap in Mantine's own
 `Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
 horizontally instead of overflowing the page. Skip the wrapper only for a table
 genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs).
+
+## Shared building blocks
+
+Two pieces every page builds on, so summary rows and lists look and behave the same.
+
+- **`TileRow`** (`components/TileRow.tsx`): the row for summary tiles (Home, Activity,
+  the Bikes pages).
+  - `<TileRow label="Summary" minTileWidth={140}>{tiles}</TileRow>`. The tiles stay the
+    page's own; the layout is `.tile-row` in `index.css`.
+  - It never wraps. Tiles share the width (`flex: 1 1 0`) down to `minTileWidth`, so on
+    a laptop nothing scrolls. Only then does it scroll sideways: snapping tile to tile,
+    no scrollbar, and a body-coloured fade on each edge with more to see.
+  - The fades come from `useHorizontalOverflow`, whose edge maths is `overflowEdges`
+    (`utils/horizontalOverflow.ts`).
+  - The row is a `role="group"` named by `label`. Tiles aren't focus stops.
+  - Minimums today: Home 220px, Activity 140px.
+- **`DataList`** (`components/datalist/`): the list style for anything that isn't a
+  configurable `<Table>`. Activity uses it, and parts 2 and 4 of the Bikes redesign
+  will use it for the Bikes table and the bike page's installed components.
+  - **`DataList`** `({ template, minWidth, stacked })`: one CSS grid in a Paper, which
+    scrolls sideways inside itself below `minWidth`. `stacked` drops the grid for a
+    phone layout.
+  - **Columns:** `dataListTemplate({ leading, main, fields })` builds the template
+    (fixed leading tracks, one flexible main track, one per field), and
+    `dataListMinWidth` its minimum width.
+  - **`DataListHeader`** `({ columns, sortColumn, order, onSort })`: the darker band of
+    small dimmed labels. Each column is `{ key, label?, sortable?, align? }`, one per
+    track. Sortable ones show an arrow when active and call `onSort`; the caller
+    decides the first direction and the flip.
+  - **`DataListRow`** `({ ariaLabel, onOpen, tone, stacked })`: the whole row is a
+    button (Enter/Space, the caller's accessible name), styled by `.data-list-row`.
+    `tone` is `warning` (the no-bike orange) or `muted` (a retired row).
+  - **`DataListBand`** `({ title, aside })`: a full-width row between data rows, such as
+    Activity's week bands.
+  - **Alignment:** the header and every row are subgrids of the one parent grid, so a
+    field column is as wide as its widest value across all rows and cells always line
+    up. Each child of a row is one cell, and a cell may span tracks (`gridColumn`).
+  - **`FieldsPicker`**: the "Fields" pill over `ColumnPicker`, with a cap and optional
+    locked fields (`fieldPickerState`, `canToggleField`, `canAddField` in
+    `dataListModel.ts`). Saving stays with the caller's `useTableViewPreferences`.
+- **When to use which:**
+  - summary numbers go in a `TileRow`;
+  - a list whose rows open something goes on `DataList`;
+  - a dense, column-configurable management table with a mobile card view stays a
+    configurable `<Table>` ("Sortable, configurable tables" above).
 
 ## Theming
 

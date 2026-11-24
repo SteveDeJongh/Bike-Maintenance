@@ -274,8 +274,8 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
     wrapper/Inner split as before.
   - **Header:** "Activity", with the dimmed line "Rides, service and setup changes in one
     list".
-  - **`ActivitySummaryTiles`:** five compact tiles in one row that never wraps; it scrolls
-    sideways when narrow. They show Rides, Distance, Moving time, Elevation and "Service ·
+  - **`ActivitySummaryTiles`:** five compact tiles in a `TileRow` (140px minimum; see
+    "Shared building blocks" in `docs/frontend-ui.md`). They show Rides, Distance, Moving time, Elevation and "Service ·
     setup", from the latest page's `meta`.
     - They follow every filter **except** the kind toggles, because `ride_totals` and
       `kind_counts` ignore `kinds`.
@@ -297,8 +297,8 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
       Name, date and type are always shown. Bike and sport type live in a ride's
       sub-line, and Components and Commute in `RideDetailModal`.
     - At most 6 can be shown (`MAX_ACTIVITY_FIELDS`), with reordering by drag.
-    - The checklist is `ColumnPicker`, opened from the Fields button
-      (`renderTarget`, `maxVisible`), and `ColumnPickerPanel` inline in the phone sheet.
+    - The checklist is the shared `FieldsPicker` (`ColumnPicker` with `maxVisible`), and
+      `ColumnPickerPanel` inline in the phone sheet.
   - **`useActivityFilters`** owns the filters, `kinds` and `group_by` (both persisted in
     the same preference row through `useTableViewPreferences`' `extraData`), the fields,
     and the header sort.
@@ -309,11 +309,12 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
       without changing the saved Week/None. While a field sort is active, a dimmed
       "Sorted by {field}: showing rides only" note sits under the toolbar, driven by
       the feed's `rides_only`.
-  - **`ActivityList`:** one Paper, scrolling sideways inside itself
-    (`activityListMinWidth`).
-    - **The grid:** a dimmed column header band (`ActivityListHeader`: Date | icon |
-      Activity | fields, sortable by Date and each field, with an arrow on the active
-      one) and every row share one grid template (`activityGridTemplate`).
+  - **`ActivityList`:** a shared `DataList`, scrolling sideways inside its Paper, sized
+    by `activityListLayout` (the template and minimum width).
+    - **The grid:** `DataListHeader` (Date | icon | Activity | fields, sortable by Date
+      and each field, with an arrow on the active one), the week bands (`DataListBand`)
+      and every row (`DataListRow`; no-bike rides use the `warning` tone) sit on one
+      grid. The header and rows are subgrids of it, so the columns line up.
     - **`buildActivityRenderList`** (`activityListModel.ts`) turns the loaded pages into
       entries.
       - **Week mode** (date order) adds a band per local Monday-start week:
