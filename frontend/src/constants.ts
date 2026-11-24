@@ -73,45 +73,53 @@ export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string>
   indoor_only: 'Trainer only',
 }
 
-// The toggleable columns on the Bikes list. Canonical order (used both for display
-// order and the fixed order columns appear in regardless of toggle order). Name is
-// always shown (the link column) and isn't part of this list, but is still sortable
-// — see BIKE_LIST_SORT_COLUMNS. Not enforced server-side: the "bikes"
-// TableViewPreference stores whatever keys it's given, so this list is the
-// sole source of truth.
+// The Bikes table's Fields (a DataList; components/bikes/BikesTable.tsx).
+// Canonical order is the picker's order. The bike's name, with make/model
+// under it, is the always-shown main column and isn't part of this list,
+// but still sortable -- see BIKE_LIST_SORT_COLUMNS. Not enforced
+// server-side: the "bikes" TableViewPreference stores whatever keys it's
+// given, so this list is the sole source of truth (a saved column that's
+// no longer here, such as the old make_model, is dropped on load).
 export const BIKE_LIST_COLUMNS = [
-  'make_model',
   'bike_type',
-  'acquired_on',
+  'status',
   'total_distance',
-  'total_moving_time',
-  'first_ride_on',
+  'distance_this_year',
+  'ride_count',
   'last_ride_on',
   'average_power',
+  'total_moving_time',
   'total_elevation_gain',
+  'first_ride_on',
+  'acquired_on',
   'installed_components_count',
 ] as const
 
 export type BikeListColumn = (typeof BIKE_LIST_COLUMNS)[number]
 
 export const BIKE_LIST_COLUMN_LABELS: Record<BikeListColumn, string> = {
-  make_model: 'Make / Model',
   bike_type: 'Type',
-  acquired_on: 'Purchased On',
+  status: 'Status',
   total_distance: 'Distance',
+  distance_this_year: 'This year',
+  ride_count: 'Rides',
+  last_ride_on: 'Last ride',
+  average_power: 'Avg power',
   total_moving_time: 'Time',
-  first_ride_on: 'First Ride',
-  last_ride_on: 'Last Ride',
-  average_power: 'Avg Power',
   total_elevation_gain: 'Elevation',
-  installed_components_count: 'Installed Components',
+  first_ride_on: 'First ride',
+  acquired_on: 'Purchased on',
+  installed_components_count: 'Installed components',
 }
 
 export const DEFAULT_BIKE_LIST_COLUMNS: BikeListColumn[] = [
-  'make_model',
+  'bike_type',
+  'status',
   'total_distance',
-  'total_moving_time',
-  'first_ride_on',
+  'distance_this_year',
+  'ride_count',
+  'last_ride_on',
+  'average_power',
 ]
 
 export const BIKE_LIST_SORT_COLUMNS = ['name', ...BIKE_LIST_COLUMNS] as const
