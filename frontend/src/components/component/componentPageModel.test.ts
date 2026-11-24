@@ -55,7 +55,6 @@ function detail(overrides: Partial<ComponentDetail> = {}): ComponentDetail {
     brand: null,
     model: null,
     notes: null,
-    total_distance: 0,
     service_requirements: [],
     current_bikes: [],
     last_bike: null,

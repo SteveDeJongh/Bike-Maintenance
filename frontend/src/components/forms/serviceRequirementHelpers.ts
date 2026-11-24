@@ -5,8 +5,8 @@ import type { SatisfierInput } from '../../api/mutations'
 import type { CalendarUnit, RideFilter } from '../../types/models'
 
 // Shared by CategoryServiceRequirementsModal (the Settings page's template
-// editor) and ServiceIntervalsSection (a component's own custom requirement
-// editor) -- "Custom requirements edit satisfiers inline with same editor
+// editor) and the component page's CustomRequirementEditor (a component's
+// own custom requirement editor) -- "Custom requirements edit satisfiers inline with same editor
 // as Settings" per the plan, so this is the one place that editor's
 // constants/conversions/pure helpers live. The JSX components themselves
 // (SatisfiersEditor, DraftSatisfierRow) live in the sibling

@@ -169,8 +169,8 @@ export interface Component {
   brand: string | null
   model: string | null
   notes: string | null
-  // total_distance intentionally omitted: only present on GET /components/:id
-  // (see ComponentDetail below), not on the index list used here.
+  // No distance here: the list's is lifetime_distance_meters
+  // (ComponentListItem), the page's lifetime_stats (ComponentDetail).
 }
 
 // One bike a component currently has an active (ended_at: nil) assignment
@@ -235,7 +235,6 @@ export interface ComponentListItem extends ComponentWithServiceStatus {
 }
 
 export interface ComponentDetail extends Component {
-  total_distance: number
   service_requirements: ComponentServiceRequirementWithStatus[]
   current_bikes: ComponentCurrentBike[]
   last_bike: ComponentLastBike | null

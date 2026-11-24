@@ -1,7 +1,15 @@
 import { RIDE_CONTEXT_LABELS } from '../../constants'
-import { installationRange } from '../component/componentPageModel'
+import { installationRange, lastDoneText, requirementFraction } from '../component/componentPageModel'
 import { formatShortDate } from '../../utils/datetime'
-import type { ComponentAssignment, ComponentCurrentBike } from '../../types/models'
+import { formatDistance } from '../../utils/distance'
+import { formatDuration } from '../../utils/duration'
+import { formatDrivingRemaining } from '../../utils/serviceInterval'
+import type {
+  ComponentAssignment,
+  ComponentCurrentBike,
+  ComponentServiceRequirementWithStatus,
+  ServiceStatus,
+} from '../../types/models'
 
 // The installation modal's pure helpers (docs/frontend-ui.md, "Installation
 // modal"). Current = the assignment is still open; past = it has ended.
@@ -46,4 +54,42 @@ export type InstallationAction = 'log_service' | 'edit' | 'remove'
 // Edit installation (its dates and context can still be corrected).
 export function installationActions(assignment: Pick<ComponentAssignment, 'ended_at'>): InstallationAction[] {
   return assignment.ended_at ? ['edit'] : ['log_service', 'edit', 'remove']
+}
+
+// Under "This installation": the component's totals over every stint.
+export function lifetimeLine(component: { total_distance: number; total_moving_time: number }): string {
+  return `Lifetime across all installations: ${formatDistance(component.total_distance)} · ${formatDuration(component.total_moving_time)}`
+}
+
+export function intervalCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'interval' : 'intervals'}`
+}
+
+export interface ServiceStatusRow {
+  id: number
+  name: string
+  // "Last done Nov 14" / "Since install".
+  lastDone: string
+  fraction: number
+  status: ServiceStatus
+  // "4 km left" / "120 km over", in the status colour.
+  remaining: string
+}
+
+// The modal's read-only Service status: one compact row per enabled
+// interval, in the server's order. Editing is on the component page.
+export function serviceStatusRows(
+  requirements: readonly ComponentServiceRequirementWithStatus[],
+  now: Date = new Date(),
+): ServiceStatusRow[] {
+  return requirements
+    .filter((requirement) => requirement.enabled)
+    .map((requirement) => ({
+      id: requirement.id,
+      name: requirement.requirement_name,
+      lastDone: lastDoneText(requirement, now),
+      fraction: requirementFraction(requirement),
+      status: requirement.status,
+      remaining: formatDrivingRemaining(requirement),
+    }))
 }

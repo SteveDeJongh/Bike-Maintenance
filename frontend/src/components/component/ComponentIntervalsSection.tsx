@@ -47,7 +47,15 @@ const ROW_TEMPLATE = 'minmax(200px, 1.6fr) minmax(150px, 1fr) minmax(90px, auto)
 // requirement, enabled first and disabled ones muted. Each row's ⋯ menu
 // holds the per-interval actions; the header's pills add from the
 // category's defaults or a custom interval.
-export default function ComponentIntervalsSection({ component }: { component: ComponentDetail }) {
+// `openOnMount`: the page was opened at #intervals (the installation
+// modal's "No service intervals" link), so a folded section unfolds.
+export default function ComponentIntervalsSection({
+  component,
+  openOnMount = false,
+}: {
+  component: ComponentDetail
+  openOnMount?: boolean
+}) {
   const { data: categoryTemplates } = useCategoryServiceRequirements()
   const { data: allComponentRequirements } = useAllComponentServiceRequirements()
   const [customOpened, setCustomOpened] = useState(false)
@@ -82,6 +90,7 @@ export default function ComponentIntervalsSection({ component }: { component: Co
       foldedSummary={intervalsSummary(component.service_requirements)}
       actions={addButtons}
       storageKey={COMPONENT_SECTION_STORAGE_KEYS.intervals}
+      openOnMount={openOnMount}
     >
       <Stack gap="sm">
         {addDefaultsOpened && (

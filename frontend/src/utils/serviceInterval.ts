@@ -2,8 +2,8 @@ import { formatDistance } from './distance'
 import { formatDuration } from './duration'
 import type { RequirementDimension } from '../types/models'
 
-// Shared by ServiceIntervalsSection (the component page's own table) and
-// the dashboard's Needs attention list -- same "N km left" / "N km overdue"
+// Shared by the component page's intervals and the dashboard's Needs
+// attention list -- same "N km left" / "N km overdue"
 // sign convention either place a service interval's remaining amount shows.
 // movingTimeRemainingSeconds is optional (added for the three-dimension
 // requirement rewrite) so every existing two-arg call site keeps compiling

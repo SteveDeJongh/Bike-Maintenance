@@ -1,20 +1,18 @@
 import { useState } from 'react'
-import { Alert, Anchor, Button, Divider, Group, Loader, Stack, Text } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Alert, Anchor, Button, Group, Loader, Stack, Text } from '@mantine/core'
+import { Link, useNavigate } from 'react-router-dom'
 import { useBike, useComponent } from '../../api/queries'
 import AppModal from '../AppModal'
 import ComponentSwapPill from '../ComponentSwapPill'
 import WhereItIs from '../installation/WhereItIs'
 import { installationActions, whereItIs } from '../installation/installationModel'
 import MaintenanceEventFormModal from './MaintenanceEventFormModal'
-import ComponentServiceAndHistory from '../ComponentServiceAndHistory'
+import InstallationServiceStatus from '../installation/InstallationServiceStatus'
+import InstallationStats from '../installation/InstallationStats'
+import SmallLabel from '../installation/SmallLabel'
 import EditInstallationModal from './EditInstallationModal'
 import EndAssignmentModal from './EndAssignmentModal'
 import { categoryLabel } from '../../constants'
-import { formatDistance } from '../../utils/distance'
-import { formatDuration } from '../../utils/duration'
-import { formatElevation } from '../../utils/elevation'
-import { formatPower } from '../../utils/power'
 import type { ComponentAssignmentWithStats } from '../../types/models'
 
 interface AssignmentDetailModalProps {
@@ -42,13 +40,14 @@ export default function AssignmentDetailModal({ opened, onClose, bikeId, assignm
   }
 
   return (
-    <AppModal opened={opened} onClose={onClose} title={<ModalTitle bikeId={bikeId} assignmentId={currentId} opened={opened} />} size="xl">
+    <AppModal opened={opened} onClose={onClose} title={<ModalTitle bikeId={bikeId} assignmentId={currentId} opened={opened} />} size="lg">
       {opened && currentId != null && (
         <AssignmentLoader
           key={currentId}
           bikeId={bikeId}
           assignmentId={currentId}
           onSwapped={setCurrentId}
+          onClose={onClose}
           fallbackComponentId={fallbackComponentId}
         />
       )}
@@ -83,11 +82,13 @@ function AssignmentLoader({
   bikeId,
   assignmentId,
   onSwapped,
+  onClose,
   fallbackComponentId,
 }: {
   bikeId: number
   assignmentId: number
   onSwapped: (id: number) => void
+  onClose: () => void
   fallbackComponentId?: number
 }) {
   const { bike, assignment } = useAssignment(bikeId, assignmentId, true)
@@ -118,29 +119,26 @@ function AssignmentLoader({
     return <Loader />
   }
 
-  return <AssignmentDetailContent assignment={assignment} bikeName={bike.data?.name ?? ''} onSwapped={onSwapped} />
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <Text size="sm" c="dimmed">
-        {label}
-      </Text>
-      <Text fw={500}>{value}</Text>
-    </div>
-  )
+  return <AssignmentDetailContent assignment={assignment} bikeName={bike.data?.name ?? ''} onSwapped={onSwapped} onClose={onClose} />
 }
 
 function AssignmentDetailContent({
   assignment,
   bikeName,
   onSwapped,
+  onClose,
 }: {
   assignment: ComponentAssignmentWithStats
   bikeName: string
   onSwapped: (id: number) => void
+  onClose: () => void
 }) {
+  const navigate = useNavigate()
+  // Links out of the modal close it first, then go.
+  function leaveTo(to: string) {
+    onClose()
+    navigate(to)
+  }
   const { data: component } = useComponent(assignment.component_id)
   const [logOpened, setLogOpened] = useState(false)
   const [editOpened, setEditOpened] = useState(false)
@@ -154,9 +152,7 @@ function AssignmentDetailContent({
 
       {where.kind === 'current' && (
         <Group gap="xs" wrap="nowrap">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ letterSpacing: '0.04em' }}>
-            Swap
-          </Text>
+          <SmallLabel>Swap</SmallLabel>
           <ComponentSwapPill assignment={assignment} onSwapped={(newAssignment) => onSwapped(newAssignment.id)} />
         </Group>
       )}
@@ -182,25 +178,15 @@ function AssignmentDetailContent({
         )}
       </Group>
 
-      <Divider label="This installation" labelPosition="left" />
-      <Group gap="xl">
-        <Stat label="Distance" value={formatDistance(assignment.distance_meters)} />
-        <Stat label="Time" value={formatDuration(assignment.moving_time)} />
-        <Stat label="Elevation" value={formatElevation(assignment.elevation_gain)} />
-        <Stat label="Avg Power" value={formatPower(assignment.average_power)} />
+      <InstallationStats assignment={assignment} />
+
+      {where.kind === 'current' && component && <InstallationServiceStatus component={component} onNavigate={leaveTo} />}
+
+      <Group justify="flex-end">
+        <Anchor component="button" type="button" size="sm" fw={500} onClick={() => leaveTo(`/components/${assignment.component_id}`)}>
+          Open component page →
+        </Anchor>
       </Group>
-
-      <Divider label="Lifetime (all installations)" labelPosition="left" />
-      <Group gap="xl">
-        <Stat label="Total Distance" value={formatDistance(assignment.component.total_distance)} />
-        <Stat label="Total Time" value={formatDuration(assignment.component.total_moving_time)} />
-        <Stat label="Total Elevation" value={formatElevation(assignment.component.total_elevation_gain)} />
-        <Stat label="Total Avg Power" value={formatPower(assignment.component.average_power)} />
-      </Group>
-
-
-      <Divider label="Service intervals & maintenance history" labelPosition="left" />
-      <ComponentServiceAndHistory componentId={assignment.component_id} />
 
       <MaintenanceEventFormModal
         opened={logOpened}

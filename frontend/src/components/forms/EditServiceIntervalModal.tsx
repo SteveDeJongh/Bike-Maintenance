@@ -23,8 +23,8 @@ interface EditServiceIntervalModalProps {
   // Looked up by the caller (already has the templates list fetched for
   // "Add from category defaults") -- undefined if this requirement's
   // template has since been deleted. Only ever rendered for a linked
-  // requirement -- a custom row edits inline instead (see
-  // ServiceIntervalsSection), never through this modal.
+  // requirement -- a custom row edits inline instead (the component page's
+  // CustomRequirementEditor), never through this modal.
   template: CategoryServiceRequirement | undefined
   category: string
 }

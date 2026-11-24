@@ -5,8 +5,7 @@ import type {
   ComponentServiceRequirement,
 } from '../../types/models'
 
-// Shared by the component page's intervals section and the installation
-// modal's older ServiceIntervalsSection (until part 3 removes it).
+// The component page's intervals section's non-visual helpers.
 
 // The category templates this component doesn't have yet. "Already has" is
 // keyed by category_service_requirement_id, not service type -- a template

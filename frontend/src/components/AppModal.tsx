@@ -18,7 +18,7 @@ interface AppModalProps extends ModalProps {
 // Modal directly. On mobile (useIsMobile()) it goes fullScreen with a
 // slide-up transition, since every modal is easier to use that way on a
 // phone and the size="xl" ones (BatchServiceModal,
-// CategoryServiceRequirementsModal, AssignmentDetailModal) are cramped
+// CategoryServiceRequirementsModal) are cramped
 // otherwise. Desktop keeps each modal's own `size` exactly as before --
 // `fullScreen`/`transitionProps` are only ever set here, never passed in
 // by a caller.

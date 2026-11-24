@@ -15,8 +15,8 @@ interface ServiceSessionViewModalProps {
   sessionId: number
 }
 
-// Opened from the "Part of a service session" marker on a history row
-// (ComponentServiceAndHistory). Deliberately no per-event remove here --
+// Opened from a session event's row in the component page's maintenance
+// history (MaintenanceHistorySection). Deliberately no per-event remove here --
 // delete the event itself and re-log it instead, same as the rest of this
 // feature. Edit only ever touches the session's own date/note; every
 // event's own performed_at moves in step on the server (ServiceSession#sync_event_performed_at).

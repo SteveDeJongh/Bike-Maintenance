@@ -47,7 +47,7 @@ class ComponentsController < ApplicationController
 
     history = Components::LifeHistory.call(@component)
 
-    render json: @component.as_json(methods: %i[ total_distance ]).merge(
+    render json: @component.as_json.merge(
       service_requirements: service_requirements,
       current_bikes: current_bikes,
       last_bike: last_bike,

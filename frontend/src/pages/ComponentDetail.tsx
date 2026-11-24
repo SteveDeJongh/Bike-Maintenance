@@ -1,4 +1,5 @@
-import { useParams, Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useLocation, useParams, Link } from 'react-router-dom'
 import { Alert, Anchor, Box, Group, Loader, Stack, Text } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
@@ -17,6 +18,13 @@ export default function ComponentDetail() {
   const componentId = Number(id)
 
   const { data: component, isPending, error } = useComponent(componentId)
+  // #intervals (the installation modal's "No service intervals" link)
+  // scrolls to the Service intervals section once the page has loaded.
+  const { hash } = useLocation()
+  const toIntervals = hash === '#intervals'
+  useEffect(() => {
+    if (toIntervals && component) document.getElementById('intervals')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [toIntervals, component])
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -44,7 +52,9 @@ export default function ComponentDetail() {
       <ComponentPageHeader component={component} />
       <MaintenanceAlertBanners scope={{ componentId }} />
       <ComponentStatTiles component={component} />
-      <ComponentIntervalsSection component={component} />
+      <Box id="intervals" style={{ scrollMarginTop: 'calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-md))' }}>
+        <ComponentIntervalsSection component={component} openOnMount={toIntervals} />
+      </Box>
       <Group align="flex-start" gap="lg" wrap="wrap">
         <Box style={{ flex: '1 1 520px', minWidth: 0 }}>
           <MaintenanceHistorySection componentId={componentId} events={component.maintenance_events} />
