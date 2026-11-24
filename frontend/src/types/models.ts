@@ -47,7 +47,8 @@ export interface BikeComponentSlot {
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'
 }
 
-export interface BikeWithStats extends Bike {
+// The stats GET /bikes and GET /bikes/:id both return.
+export interface BikeStats {
   total_distance: number
   total_moving_time: number
   first_ride_on: string | null
@@ -57,6 +58,11 @@ export interface BikeWithStats extends Bike {
   average_power: number | null
   total_elevation_gain: number
   installed_components_count: number
+}
+
+// A GET /bikes row: the shared stats plus what the Bikes page's cards and
+// tiles need (list only; GET /bikes/:id doesn't return these).
+export interface BikeWithStats extends Bike, BikeStats {
   ride_count: number
   // Since local Jan 1 in the zone useBikes sends.
   distance_this_year: number
@@ -71,7 +77,7 @@ export interface BikeWithStats extends Bike {
 // component_assignments/bike_component_slots are only present on GET /bikes/:id
 // (see BikesController#show), not on the index list used by useBikes() — same
 // convention as ComponentDetail below.
-export interface BikeDetail extends BikeWithStats {
+export interface BikeDetail extends Bike, BikeStats {
   bike_component_slots: BikeComponentSlot[]
   component_assignments: ComponentAssignmentWithStats[]
 }
@@ -118,6 +124,12 @@ export interface TableViewPreferenceData {
   // Activity log's list grouping ("week" when absent) -- validated
   // server-side, the one key that is.
   group_by?: 'week' | 'none'
+  // Bikes page (table_key "bikes"): Cards | Table, the card sort and
+  // whether retired bikes show. Free-form like columns; useBikesView
+  // validates them on load.
+  view?: string
+  card_sort?: string
+  show_retired?: boolean
 }
 
 // null means no enabled service interval at all (not "ok") -- the Components

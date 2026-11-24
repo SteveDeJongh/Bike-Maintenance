@@ -76,8 +76,9 @@ export const RIDE_CONTEXT_LABELS: Record<(typeof RIDE_CONTEXTS)[number], string>
 // The toggleable columns on the Bikes list. Canonical order (used both for display
 // order and the fixed order columns appear in regardless of toggle order). Name is
 // always shown (the link column) and isn't part of this list, but is still sortable
-// — see BIKE_LIST_SORT_COLUMNS. Not enforced server-side: User#bike_list_preferences
-// stores whatever keys it's given, so this list is the sole source of truth.
+// — see BIKE_LIST_SORT_COLUMNS. Not enforced server-side: the "bikes"
+// TableViewPreference stores whatever keys it's given, so this list is the
+// sole source of truth.
 export const BIKE_LIST_COLUMNS = [
   'make_model',
   'bike_type',

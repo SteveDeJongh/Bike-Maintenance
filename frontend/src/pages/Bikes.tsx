@@ -1,5 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Anchor, Badge, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
+import BikesSummaryTiles from '../components/bikes/BikesSummaryTiles'
+import BikesToolbar from '../components/bikes/BikesToolbar'
+import { bikeTileTotals, bikesHeaderLine } from '../components/bikes/bikesList'
+import { useBikesView, type BikesViewState } from '../components/bikes/useBikesView'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Link, useNavigate } from 'react-router-dom'
@@ -14,12 +18,10 @@ import MobileSortControl from '../components/datatable/MobileSortControl'
 import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
 import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
 import {
   BIKE_LIST_COLUMNS,
   BIKE_LIST_COLUMN_LABELS,
   BIKE_LIST_SORT_COLUMNS,
-  DEFAULT_BIKE_LIST_COLUMNS,
   type BikeListColumn,
   type BikeListSortColumn,
 } from '../constants'
@@ -112,11 +114,20 @@ export default function Bikes() {
     })
   }
 
+  const totals = bikeTileTotals(data ?? [])
+
   return (
-    <>
-      <Group justify="space-between" mb="md">
-        <Title order={2}>Bikes</Title>
-        <Button onClick={openCreate}>+ New Bike</Button>
+    <Stack gap="md">
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <div>
+          <Title order={2}>Bikes</Title>
+          {data && (
+            <Text size="sm" c="dimmed">
+              {bikesHeaderLine(totals)}
+            </Text>
+          )}
+        </div>
+        <Button onClick={openCreate}>+ Add bike</Button>
       </Group>
 
       {(isPending || preferencePending) && <Loader />}
@@ -127,10 +138,9 @@ export default function Bikes() {
         </Alert>
       )}
 
-      {data && data.length === 0 && <Text c="dimmed">No bikes yet.</Text>}
-
-      {data && data.length > 0 && preferenceData && (
-        <BikesTable
+      {/* useBikesView seeds from the preference once, on mount. */}
+      {data && preferenceData && (
+        <BikesContent
           bikes={data}
           initialData={preferenceData.data}
           onEdit={openEdit}
@@ -144,11 +154,11 @@ export default function Bikes() {
         bike={editing ?? undefined}
         onCreateSuccess={(bike) => navigate(`/bikes/${bike.id}/setup`)}
       />
-    </>
+    </Stack>
   )
 }
 
-function BikesTable({
+function BikesContent({
   bikes,
   initialData,
   onEdit,
@@ -159,24 +169,39 @@ function BikesTable({
   onEdit: (bike: Bike) => void
   onDelete: (bike: Bike) => void
 }) {
-  const {
-    orderedColumns,
-    toggleColumn,
-    reorderColumn,
-    onHeaderDragEnd,
-    sortColumn,
-    sortDirection,
-    setSort,
-    saveError,
-    clearSaveError,
-  } = useTableViewPreferences<BikeListColumn, BikeListSortColumn>({
-    tableKey: 'bikes',
-    initialData,
-    allColumns: BIKE_LIST_COLUMNS,
-    defaultColumns: DEFAULT_BIKE_LIST_COLUMNS,
-    sortColumns: BIKE_LIST_SORT_COLUMNS,
-    defaultSort: { column: 'name', direction: 'asc' },
-  })
+  const state = useBikesView(initialData)
+  const visibleBikes = state.showRetired ? bikes : bikes.filter((bike) => !bike.retired_on)
+
+  return (
+    <>
+      <BikesSummaryTiles totals={bikeTileTotals(bikes)} />
+      <BikesToolbar state={state} fieldOptions={BIKE_LIST_COLUMN_OPTIONS} />
+      {state.table.saveError && (
+        <Alert color="red" withCloseButton onClose={state.table.clearSaveError}>
+          {state.table.saveError}
+        </Alert>
+      )}
+      {bikes.length === 0 ? (
+        <Text c="dimmed">No bikes yet.</Text>
+      ) : (
+        <BikesTable bikes={visibleBikes} table={state.table} onEdit={onEdit} onDelete={onDelete} />
+      )}
+    </>
+  )
+}
+
+function BikesTable({
+  bikes,
+  table,
+  onEdit,
+  onDelete,
+}: {
+  bikes: BikeWithStats[]
+  table: BikesViewState['table']
+  onEdit: (bike: Bike) => void
+  onDelete: (bike: Bike) => void
+}) {
+  const { orderedColumns, toggleColumn, reorderColumn, onHeaderDragEnd, sortColumn, sortDirection, setSort } = table
   const headerDragSensors = useColumnDragSensors()
   const isMobile = useIsMobile()
 
@@ -213,12 +238,6 @@ function BikesTable({
 
   return (
     <>
-      {saveError && (
-        <Alert color="red" mb="sm" withCloseButton onClose={clearSaveError}>
-          {saveError}
-        </Alert>
-      )}
-
       {isMobile ? (
         <Stack gap="sm">
           <MobileSortControl
