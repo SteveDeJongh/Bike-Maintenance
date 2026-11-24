@@ -141,6 +141,155 @@ RSpec.describe "Bikes", type: :request do
     end
   end
 
+  describe "GET /bikes/:id overview and header fields" do
+    let!(:bike) { create(:bike, user: current_user, name: "Soloist") }
+    let(:installed_on) { Time.zone.local(2026, 1, 1) }
+
+    def show_json(target = bike, **params)
+      get "/bikes/#{target.id}", params: params
+      JSON.parse(response.body)
+    end
+
+    # A component with one distance interval (none when interval is nil),
+    # mounted on `on` from `started_at`, or off the bike after a window that
+    # ended `ended_at`. Off-bike windows sit in December, before the mounted
+    # parts' Jan 1 start, since a slot holds one part at a time.
+    let(:shelf_start) { Time.zone.local(2025, 12, 1) }
+    let(:shelf_end) { Time.zone.local(2026, 1, 1) }
+
+    def part(label, category:, interval: nil, on: bike, started_at: installed_on, ended_at: nil)
+      component = create(:component, user: current_user, category: category, label: label)
+      component.component_service_requirements.destroy_all
+      if interval
+        create(:component_service_requirement, component: component,
+          service_type: current_user.service_types.find_by!(name: "inspect"), distance_interval_meters: interval)
+      end
+      create(:component_assignment, component: component, bike: on, started_at: started_at, ended_at: ended_at)
+      component
+    end
+
+    def ride(meters, on: bike, at: Time.zone.local(2026, 2, 1))
+      create(:strava_activity, user: current_user, bike: on, moved_at: at, distance_meters: meters)
+    end
+
+    describe "Up next" do
+      it "lists only this bike's mounted components, due and warning first, then ok" do
+        part("Chain", category: "chain", interval: 1_000)          # due
+        part("Cassette", category: "cassette", interval: 2_100)    # warning
+        part("Tire", category: "tire_front", interval: 100_000)    # ok
+        other_bike = create(:bike, user: current_user)
+        part("Other chain", category: "chain", interval: 10, on: other_bike)
+        part("Shelf chain", category: "chain", interval: 10, started_at: shelf_start, ended_at: shelf_end) # off the bike, due
+        ride(100, at: Time.zone.local(2025, 12, 15))
+        ride(2_000)
+        ride(50, on: other_bike)
+
+        overview = show_json["overview"]
+
+        expect(overview["attention"].map { |i| [ i["component_label"], i["status"] ] }).to eq([ %w[Chain due], %w[Cassette warning] ])
+        expect(overview["upcoming"].map { |i| i["component_label"] }).to eq([ "Tire" ])
+        expect(overview["attention"].first["bike"]).to eq("id" => bike.id, "name" => "Soloist")
+      end
+
+      it "excludes a retired component" do
+        chain = part("Chain", category: "chain", interval: 1_000)
+        ride(2_000)
+        chain.update_columns(retired_on: Date.new(2026, 3, 1))
+
+        expect(show_json["overview"]["attention"]).to eq([])
+      end
+
+      it "picks this bike's own nearest ok items, not a slice of the user-wide five" do
+        other_bike = create(:bike, user: current_user)
+        # Five nearly-due ok parts on another bike, nearer than any of this bike's.
+        %w[saddle handlebar_tape pedals seat_post power_meter].each do |category|
+          part("Other #{category}", category: category, interval: 1_100, on: other_bike)
+        end
+        ride(1_000, on: other_bike)
+        mine = part("Mine", category: "saddle", interval: 100_000)
+        ride(1_000)
+
+        expect(show_json["overview"]["upcoming"].map { |i| i["component_id"] }).to eq([ mine.id ])
+      end
+    end
+
+    describe "rotation data" do
+      it "includes an off-bike partner in a rotating category, with lifetime totals for the pair" do
+        mounted = part("Chain S1", category: "chain", interval: 100_000)
+        off = part("Chain S2", category: "chain", interval: 100_000, started_at: shelf_start, ended_at: shelf_end)
+        ride(3_000, at: Time.zone.local(2025, 12, 15)) # S2's window
+        ride(5_000)                                     # S1's
+
+        overview = show_json["overview"]
+
+        expect(overview["mounted"].map { |c| [ c["label"], c["total_distance_meters"] ] }).to include([ "Chain S1", mounted.total_distance ])
+        expect(overview["off_bike"]).to contain_exactly(
+          a_hash_including("component_id" => off.id, "rotates" => true, "service_status" => "ok", "total_distance_meters" => 3_000),
+        )
+        expect(overview["off_bike"].first).to have_key("last_service_at")
+      end
+
+      it "gives no pair totals without an off-bike partner, or for a category that doesn't rotate" do
+        part("Chain S1", category: "chain", interval: 100_000)
+        part("Old saddle", category: "saddle", started_at: shelf_start, ended_at: shelf_end)
+        part("Saddle", category: "saddle")
+        ride(1_000)
+
+        overview = show_json["overview"]
+
+        expect(overview["mounted"].map { |c| c["total_distance_meters"] }).to all(be_nil)
+        expect(overview["off_bike"]).to contain_exactly(a_hash_including("label" => "Old saddle", "rotates" => false, "total_distance_meters" => nil))
+      end
+    end
+
+    describe "header fields" do
+      it "counts rides and this year's distance from local Jan 1 in the viewer's zone" do
+        zone = ActiveSupport::TimeZone["America/Vancouver"]
+        travel_to(zone.parse("2026-06-01 12:00")) do
+          ride(1_000, at: zone.parse("2025-12-31 23:30"))
+          ride(5_000, at: zone.parse("2026-01-01 00:30"))
+
+          json = show_json(tz: "America/Vancouver")
+          expect(json["ride_count"]).to eq(2)
+          expect(json["distance_this_year"]).to eq(5_000)
+          expect(show_json(tz: "UTC")["distance_this_year"]).to eq(6_000)
+        end
+      end
+
+      it "names the linked Strava gear from the cache" do
+        bike.update!(strava_gear_id: "b42")
+        create(:strava_gear, user: current_user, strava_gear_id: "b42", name: "Soloist on Strava")
+
+        expect(show_json["strava_gear"]).to eq("gear_id" => "b42", "name" => "Soloist on Strava")
+      end
+
+      it "keeps a linked gear id whose name isn't cached, and is null when unlinked" do
+        expect(show_json["strava_gear"]).to be_nil
+
+        bike.update!(strava_gear_id: "b99")
+        expect(show_json["strava_gear"]).to eq("gear_id" => "b99", "name" => nil)
+      end
+    end
+
+    it "never shows another user's components, rides or gear" do
+      other_bike = create(:bike)
+      other_component = create(:component, user: other_bike.user, category: "chain")
+      create(:component_assignment, component: other_component, bike: other_bike, started_at: installed_on)
+      create(:strava_activity, user: other_bike.user, bike: other_bike, moved_at: Time.zone.local(2026, 2, 1))
+      create(:strava_gear, user: other_bike.user, strava_gear_id: "b7", name: "Theirs")
+      bike.update!(strava_gear_id: "b7")
+
+      json = show_json
+
+      expect(json["overview"].values_at("attention", "upcoming", "mounted", "off_bike")).to all(eq([]))
+      expect(json["ride_count"]).to eq(0)
+      expect(json["strava_gear"]).to eq("gear_id" => "b7", "name" => nil)
+
+      get "/bikes/#{other_bike.id}"
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "cross-account isolation" do
     it "404s on GET /bikes/:id for another user's bike" do
       other_bike = create(:bike)

@@ -27,7 +27,16 @@ function mounted(id: number, category: string, extra: Partial<DashboardMountedCo
 }
 
 function offBike(id: number, category: string, rotates = true): DashboardOffBikeComponent {
-  return { component_id: id, label: `${category} ${id}`, category, rotates, display_metric: metric, ...noWear }
+  return {
+    component_id: id,
+    label: `${category} ${id}`,
+    category,
+    rotates,
+    service_status: null,
+    last_service_at: null,
+    display_metric: metric,
+    ...noWear,
+  }
 }
 
 describe('bikeStatusCounts', () => {

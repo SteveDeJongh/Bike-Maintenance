@@ -19,9 +19,6 @@ module Dashboard
     # are filtered out.
     FEED_HEADROOM = 50
 
-    # Up next's ok rows: the nearest-to-due fine requirements on mounted parts.
-    UPCOMING_LIMIT = 5
-
     def call
       {
         sync: sync_section,
@@ -100,17 +97,11 @@ module Dashboard
       this_month_distances = user.strava_activities.where(moved_at: month_start..)
         .group(:bike_id).sum(:distance_meters)
 
+      bikes = user.bikes.where(retired_on: nil).to_a
       worst_results = Maintenance::RequirementStatus.worst_result_by_component(user, results: results)
-      off_bike_by_bike = off_bike_components_by_bike
-      # Categories set to rotate (ComponentCategorySetting#rotates); a
-      # category with no settings row behaves as the default, false.
-      rotating = user.component_category_settings.where(rotates: true).pluck(:category).to_set
+      card_components = Bikes::CardComponents.call(user, bikes: bikes, worst_results: worst_results)
 
-      user.bikes.where(retired_on: nil).map do |bike|
-        assignments = bike.component_assignments.where(ended_at: nil).includes(:component).to_a
-        off_bike = off_bike_by_bike[bike.id] || []
-        paired_ids = rotation_component_ids(assignments.map(&:component), off_bike, rotating)
-
+      bikes.map do |bike|
         {
           id: bike.id,
           name: bike.name,
@@ -119,173 +110,25 @@ module Dashboard
           last_ride_on: last_rides[bike.id],
           last_ride_activity_type: last_ride_types[bike.id],
           distance_this_month: this_month_distances[bike.id] || 0,
-          mounted: assignments.map { |assignment| mounted_payload(assignment, worst_results, paired_ids) },
-          off_bike: off_bike.map { |c| off_bike_payload(c, worst_results[c.id], paired_ids, rotating) },
-        }
+        }.merge(card_components[bike.id])
       end
     end
 
-    # Components in a rotation pair on this bike: every off-bike component
-    # in a rotating category that also has a mounted component, plus those
-    # mounted partners. Only these get total_distance_meters -- the card's
-    # rotation strip is the one place lifetime distance is needed for both
-    # sides.
-    def rotation_component_ids(mounted_components, off_bike, rotating)
-      paired_categories = (mounted_components.map(&:category) & off_bike.map(&:category)).select { |c| rotating.include?(c) }
-      (mounted_components + off_bike).select { |c| paired_categories.include?(c.category) }.map(&:id).to_set
+    def up_next
+      @up_next ||= Maintenance::UpNext.new(results: results, bikes_by_component: bikes_by_component, credential: credential)
     end
 
-    def mounted_payload(assignment, worst_results, paired_ids)
-      component = assignment.component
-      result = worst_results[component.id]
-
-      {
-        component_id: component.id,
-        assignment_id: assignment.id,
-        label: component.label,
-        category: component.category,
-        ride_context: assignment.ride_context,
-        service_status: result&.status,
-        display_metric: display_metric(component, result),
-      }.merge(wear_fields(component, result, paired_ids))
-    end
-
-    def off_bike_payload(component, result, paired_ids, rotating)
-      {
-        component_id: component.id,
-        label: component.label,
-        category: component.category,
-        rotates: rotating.include?(component.category),
-        display_metric: display_metric(component, result),
-      }.merge(wear_fields(component, result, paired_ids))
-    end
-
-    # The driving requirement's progress for the card's wear bar (all nil
-    # with no enabled requirement), plus lifetime distance for components in
-    # a rotation pair. Component#total_distance runs one query per
-    # assignment -- fine for the few paired components on a card, and an
-    # open batching question if more of the page ever needs it.
-    def wear_fields(component, result, paired_ids)
-      Maintenance::WearFields.call(result).except(:service_status).merge(
-        total_distance_meters: paired_ids.include?(component.id) ? component.total_distance : nil,
-      )
-    end
-
-    # The driving requirement's distance/moving-time/days-used since its
-    # setting event, with the requirement's own name and (separately) the
-    # setting event's own service type name -- or, with no enabled
-    # requirement at all, the component's plain lifetime total_distance
-    # (requirement_name: nil signals "this is just a total," not "since a
-    # service"). since_service_type_name is specifically the setting
-    # event's service type -- with multiple satisfiers this is no longer
-    # always the same string as the requirement's own name, so "N km since
-    # X" needs its own field rather than reusing requirement_name. Meters/
-    # seconds/days only -- formatting into "N km since wax" is the
-    # frontend's job, same as everywhere else in the app (see CLAUDE.md:
-    # the API always returns meters, the UI always converts via
-    # formatDistance).
-    def display_metric(component, result)
-      if result.nil?
-        return {
-          requirement_name: nil, distance_meters: component.total_distance,
-          moving_time_seconds: nil, days: nil, since_service_type_name: nil,
-        }
-      end
-
-      requirement_name = result.component_service_requirement.effective[:name]
-      since_service_type_name = result.setting_event&.service_type&.name
-
-      base = { requirement_name: requirement_name, since_service_type_name: since_service_type_name }
-      case result.driving_dimension
-      when :distance
-        base.merge(distance_meters: result.distance_used_meters, moving_time_seconds: nil, days: nil)
-      when :moving_time
-        base.merge(distance_meters: nil, moving_time_seconds: result.moving_time_used_seconds, days: nil)
-      else
-        base.merge(distance_meters: nil, moving_time_seconds: nil, days: result.days_used)
-      end
-    end
-
-    # { bike_id => [Component, ...] } for every non-retired component with
-    # no active assignment anywhere, grouped by the bike its most recent
-    # assignment was on -- the at: Time.current (the default) case of
-    # Bikes::ServiceableComponents.off_bike_components_by_bike, which the
-    # batch service logger also uses at an arbitrary point in time. One
-    # implementation, not two.
-    def off_bike_components_by_bike
-      Bikes::ServiceableComponents.off_bike_components_by_bike(user)
-    end
-
-    # Every enabled interval whose status isn't ok, for a non-retired
-    # component -- deliberately broader than the alert banners
-    # (Result#banner_eligible?), which also gates on mounted/notifications/
-    # dismissal. Those three are included here as flags instead, so the UI
-    # can label (not hide) a dismissed or notifications-off item.
+    # Every due and warning requirement on a non-retired component, and the
+    # nearest ok ones on mounted parts (Maintenance::UpNext, shared with the
+    # bike page). Deliberately broader than the alert banners
+    # (Result#banner_eligible?): mounted, notifications and dismissal are
+    # flags here, so the UI can label (not hide) those items.
     def attention_section
-      items = results.reject { |result| result.status == "ok" || result.retired? }
-        .map { |result| attention_item(result, bikes_by_component) }
-
-      items.sort_by { |item| [ -Maintenance::RequirementStatus::SEVERITY.fetch(item[:status]), -item[:fraction_used] ] }
+      up_next.attention
     end
 
-    # Up next's follow-on rows: ok requirements on non-retired, currently
-    # mounted components, nearest to due first, same item shape as
-    # attention. "Mounted" comes from the bikes_by_component hash already
-    # loaded, not a per-result query.
     def upcoming_section
-      results.select { |result| result.status == "ok" && !result.retired? && bikes_by_component.key?(result.component_service_requirement.component_id) }
-        .sort_by { |result| -result.fraction_used }
-        .first(UPCOMING_LIMIT)
-        .map { |result| attention_item(result, bikes_by_component) }
-    end
-
-    def attention_item(result, bikes_by_component)
-      requirement = result.component_service_requirement
-      component = requirement.component
-      effective = requirement.effective
-      # A component can (rarely) be mounted on more than one bike at once
-      # (the documented shared indoor_only-cassette case) -- picking the
-      # first is a deliberate display simplification, not a data gap.
-      bike = bikes_by_component[component.id]&.first&.slice(:id, :name)
-
-      {
-        component_id: component.id,
-        component_label: component.label,
-        requirement_id: requirement.id,
-        requirement_name: effective[:name],
-        satisfiers: effective[:satisfiers],
-        status: result.status,
-        driving_dimension: result.driving_dimension,
-        distance_used_meters: result.distance_used_meters,
-        effective_distance_meters: effective[:distance_meters],
-        moving_time_used_seconds: result.moving_time_used_seconds,
-        effective_moving_time_seconds: effective[:moving_time_seconds],
-        days_used: result.days_used,
-        effective_calendar_amount: effective[:calendar_amount],
-        effective_calendar_unit: effective[:calendar_unit],
-        distance_remaining_meters: result.distance_remaining_meters,
-        moving_time_remaining_seconds: result.moving_time_remaining_seconds,
-        days_remaining: result.days_remaining,
-        fraction_used: result.fraction_used,
-        setting_event: setting_event_json(result),
-        dismissed: result.dismissed?(credential: credential),
-        notifications_off: !result.notifications_enabled?,
-        mounted: result.mounted?,
-        bike: bike,
-      }
-    end
-
-    # Same shape/reasoning as MaintenanceAlertsController's own
-    # setting_event_json -- {id:, service_type_name:, performed_at:} | nil,
-    # nil in the synthetic-fallback case (no real satisfying service logged
-    # yet). No shared module for two three-line methods across a
-    # controller and a service object; duplication here is cheaper than
-    # the indirection.
-    def setting_event_json(result)
-      event = result.setting_event
-      return nil unless event
-
-      { id: event.id, service_type_name: event.service_type.name, performed_at: event.performed_at }
+      up_next.upcoming
     end
 
     # Riding totals for the summary tiles, in the viewer's tz. Every synced

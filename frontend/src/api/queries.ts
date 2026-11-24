@@ -60,7 +60,8 @@ export function useBikeTypes() {
 export function useBike(id: number) {
   return useQuery({
     queryKey: ['bikes', id],
-    queryFn: () => apiGet<BikeDetail>(`/bikes/${id}`),
+    // tz: the viewer's zone, for distance_this_year's Jan 1 boundary.
+    queryFn: () => apiGet<BikeDetail>(`/bikes/${id}?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
     enabled: Number.isFinite(id),
   })
 }

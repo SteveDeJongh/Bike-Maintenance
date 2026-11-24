@@ -23,8 +23,6 @@ class BikesController < ApplicationController
       .where(device_watts: true)
       .group(:bike_id)
       .average(:average_watts)
-    # Local Jan 1 from Ruby's zone data, passed to SQL as a UTC instant.
-    year_start = Time.current.in_time_zone(viewer_zone).beginning_of_year.utc
     this_year_distances = activities.where(moved_at: year_start..).group(:bike_id).sum(:distance_meters)
     last_ride_types = activities.where.not(bike_id: nil)
       .select("DISTINCT ON (bike_id) bike_id, activity_type").order(:bike_id, moved_at: :desc, id: :desc)
@@ -57,8 +55,16 @@ class BikesController < ApplicationController
     }
   end
 
-  # GET /bikes/1
+  # GET /bikes/1 -- the bike with its stats, slots and assignments, plus
+  # (?tz= the viewer's zone) ride_count, distance_this_year, the linked
+  # Strava gear and `overview`: the bike page's Up next (Maintenance::UpNext
+  # scoped to this bike) and its mounted/off-bike components for the
+  # rotation cards (Bikes::CardComponents) -- the same builders Home uses.
+  # Statuses are computed once for all of it.
   def show
+    results = Maintenance::RequirementStatus.for_user(current_user)
+    worst = Maintenance::RequirementStatus.worst_result_by_component(current_user, results: results)
+
     payload = @bike.as_json(
       methods: %i[ total_distance total_moving_time first_ride_on last_ride_on
                    average_power total_elevation_gain installed_components_count ],
@@ -75,12 +81,28 @@ class BikesController < ApplicationController
       },
     )
 
-    statuses = Maintenance::RequirementStatus.worst_status_by_component(current_user)
     payload["component_assignments"].each do |assignment|
-      assignment["component"]["service_status"] = statuses[assignment["component"]["id"]]
+      assignment["component"]["service_status"] = worst[assignment["component"]["id"]]&.status
     end
 
-    render json: payload
+    rides = current_user.strava_activities.where(bike_id: @bike.id)
+    gear = @bike.strava_gear_id.presence && current_user.strava_gears.find_by(strava_gear_id: @bike.strava_gear_id)
+    up_next = Maintenance::UpNext.new(
+      results: results,
+      bikes_by_component: Component.current_bikes_by_component(current_user),
+      credential: current_user.strava_credential,
+    )
+
+    render json: payload.merge(
+      ride_count: rides.count,
+      distance_this_year: rides.where(moved_at: year_start..).sum(:distance_meters),
+      strava_gear: @bike.strava_gear_id.presence && { gear_id: @bike.strava_gear_id, name: gear&.name },
+      overview: {
+        attention: up_next.attention(bike_id: @bike.id),
+        upcoming: up_next.upcoming(bike_id: @bike.id),
+        **Bikes::CardComponents.call(current_user, bikes: [ @bike ], worst_results: worst)[@bike.id],
+      },
+    )
   end
 
   # POST /bikes
@@ -216,6 +238,11 @@ class BikesController < ApplicationController
 
   def viewer_zone
     (params[:tz].present? && ActiveSupport::TimeZone[params[:tz]]) || Time.zone
+  end
+
+  # Local Jan 1 from Ruby's zone data, passed to SQL as a UTC instant.
+  def year_start
+    Time.current.in_time_zone(viewer_zone).beginning_of_year.utc
   end
 
   # Mounted components by their worst status, the same rule as the Home

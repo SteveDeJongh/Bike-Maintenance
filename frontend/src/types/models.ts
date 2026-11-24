@@ -78,6 +78,20 @@ export interface BikeWithStats extends Bike, BikeStats {
 // (see BikesController#show), not on the index list used by useBikes() — same
 // convention as ComponentDetail below.
 export interface BikeDetail extends Bike, BikeStats {
+  ride_count: number
+  // Since local Jan 1 in the zone useBike sends.
+  distance_this_year: number
+  // The linked gear (name from the gear cache; null if not cached), or
+  // null when the bike isn't linked to Strava gear.
+  strava_gear: { gear_id: string; name: string | null } | null
+  // The bike page's Up next (Home's lists, scoped to this bike's mounted
+  // components) and its mounted/off-bike components for the rotation cards.
+  overview: {
+    attention: DashboardAttentionItem[]
+    upcoming: DashboardRequirementItem[]
+    mounted: DashboardMountedComponent[]
+    off_bike: DashboardOffBikeComponent[]
+  }
   bike_component_slots: BikeComponentSlot[]
   component_assignments: ComponentAssignmentWithStats[]
 }
@@ -626,6 +640,10 @@ export type DashboardOffBikeComponent = {
   // The category's ComponentCategorySetting#rotates -- only a rotating
   // category gets a rotation strip; otherwise it's the plain off-bike line.
   rotates: boolean
+  // Its worst status and when its clock was last reset (the setting
+  // event), for the bike page's rotation card ("waxed Nov 20, ready").
+  service_status: ServiceStatus | null
+  last_service_at: string | null
   display_metric: DashboardDisplayMetric
 } & DashboardWearFields
 
