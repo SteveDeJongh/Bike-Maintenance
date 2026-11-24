@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  activityGridTemplate,
+  activityListLayout,
   buildActivityRenderList,
-  canAddField,
   effectiveGroupBy,
   phoneMetricLine,
   splitChips,
@@ -21,17 +20,14 @@ describe('effectiveGroupBy', () => {
   })
 })
 
-describe('canAddField', () => {
-  it('allows up to six fields', () => {
-    expect(canAddField(['a', 'b', 'c', 'd', 'e'])).toBe(true)
-    expect(canAddField(['a', 'b', 'c', 'd', 'e', 'f'])).toBe(false)
-  })
-})
-
-describe('activityGridTemplate', () => {
+describe('activityListLayout', () => {
   it('adds one column per field after the fixed three', () => {
-    expect(activityGridTemplate(0)).toBe('88px 32px minmax(220px, 1fr)')
-    expect(activityGridTemplate(2)).toBe('88px 32px minmax(220px, 1fr) repeat(2, minmax(84px, auto))')
+    expect(activityListLayout(0).template).toBe('88px 32px minmax(220px, 1fr)')
+    expect(activityListLayout(2).template).toBe('88px 32px minmax(220px, 1fr) minmax(84px, auto) minmax(84px, auto)')
+  })
+
+  it('keeps the old minimum width (tracks, gaps and padding)', () => {
+    expect(activityListLayout(4).minWidth).toBe(88 + 32 + 220 + 4 * 84 + 6 * 12 + 24)
   })
 })
 

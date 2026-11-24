@@ -1,8 +1,9 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Badge, Box, Group, Stack, Text, ThemeIcon, Tooltip } from '@mantine/core'
 import { IconArrowsExchange, IconBike, IconTool } from '@tabler/icons-react'
 import { formatActivityField, type ActivityField } from './activityFields'
-import { activityGridTemplate, dayLabel, phoneMetricLine, splitChips, timeLabel } from './activityListModel'
+import { dayLabel, phoneMetricLine, splitChips, timeLabel } from './activityListModel'
+import DataListRow from '../datalist/DataListRow'
 import { rideSportLabel } from '../../utils/recentActivity'
 import type { ActivityItem } from '../../types/models'
 
@@ -172,10 +173,11 @@ function DateCell({ value }: { value: string | null }) {
   )
 }
 
-// One list row, any kind: the whole row is the click target (and a
-// keyboard button: Enter/Space). Desktop lays it out on the list's shared
-// grid template so the cells line up with the column header; the phone
-// variant stacks the chosen fields into one dimmed line under the title.
+// One list row, any kind, on the shared DataListRow (the whole row is the
+// click target and a keyboard button: Enter/Space). Desktop puts one cell
+// per DataList column -- Date, icon, Activity, each field -- so they line
+// up with the header; the phone variant stacks the chosen fields into one
+// dimmed line under the title.
 export default function ActivityRow({
   item,
   fields,
@@ -195,35 +197,12 @@ export default function ActivityRow({
   // Service sessions and events have no metric values, so on desktop their
   // Activity cell spans the metric columns to give the chips room.
   const spansMetrics = item.kind === 'service_session' || item.kind === 'maintenance_event'
-
-  function handleKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onOpen()
-    }
-  }
-
-  const rowProps = {
-    role: 'button',
-    tabIndex: 0,
-    'aria-label': accessibleName(item),
-    className: 'activity-row',
-    onClick: onOpen,
-    onKeyDown: handleKeyDown,
-  } as const
+  const rowProps = { ariaLabel: accessibleName(item), onOpen, tone: noBike ? ('warning' as const) : undefined }
 
   if (phone) {
     const metrics = phoneMetricLine(item, fields)
     return (
-      <Box
-        {...rowProps}
-        style={{
-          padding: '10px 12px',
-          borderTop: '1px solid var(--mantine-color-default-border)',
-          background: noBike ? 'var(--mantine-color-orange-light)' : undefined,
-          cursor: 'pointer',
-        }}
-      >
+      <DataListRow {...rowProps} stacked>
         <Group gap="sm" wrap="nowrap" align="flex-start">
           <KindIcon item={item} />
           <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
@@ -235,24 +214,12 @@ export default function ActivityRow({
             )}
           </Stack>
         </Group>
-      </Box>
+      </DataListRow>
     )
   }
 
   return (
-    <Box
-      {...rowProps}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: activityGridTemplate(fields.length),
-        columnGap: 'var(--mantine-spacing-sm)',
-        alignItems: 'center',
-        padding: '8px 12px',
-        borderTop: '1px solid var(--mantine-color-default-border)',
-        background: noBike ? 'var(--mantine-color-orange-light)' : undefined,
-        cursor: 'pointer',
-      }}
-    >
+    <DataListRow {...rowProps}>
       <DateCell value={showDate ? item.occurred_at : null} />
       <KindIcon item={item} />
       {spansMetrics ? (
@@ -279,7 +246,7 @@ export default function ActivityRow({
           })}
         </>
       )}
-    </Box>
+    </DataListRow>
   )
 }
 

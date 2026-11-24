@@ -70,11 +70,12 @@ body {
   }
 }
 
-/* The Activity list's rows are whole-row click targets (role="button"). */
-.activity-row:hover {
+/* DataList rows (DataListRow) are whole-row click targets (role="button").
+   !important beats a row's inline tone background (no-bike, retired). */
+.data-list-row:hover {
   background-color: var(--mantine-color-default-hover) !important;
 }
-.activity-row:focus-visible {
+.data-list-row:focus-visible {
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: -2px;
 }

@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { Box, Button, Group, Menu, Paper, Popover, SegmentedControl, Text, TextInput } from '@mantine/core'
 import { DatePicker } from '@mantine/dates'
-import { IconAdjustmentsHorizontal, IconChevronDown, IconColumns, IconSearch } from '@tabler/icons-react'
-import ColumnPicker from '../datatable/ColumnPicker'
+import { IconAdjustmentsHorizontal, IconChevronDown, IconSearch } from '@tabler/icons-react'
+import FieldsPicker from '../datalist/FieldsPicker'
 import { ACTIVITY_KIND_LABELS, ACTIVITY_UI_KINDS } from '../../constants'
 import { ACTIVITY_KIND_COLOR, FIELD_OPTIONS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
 import type { GroupBy } from './activityListModel'
@@ -68,17 +68,12 @@ export default function ActivityToolbar({
               { label: 'None', value: 'none' },
             ]}
           />
-          <ColumnPicker
-            allColumns={FIELD_OPTIONS}
-            orderedVisible={filters.fields}
+          <FieldsPicker
+            all={FIELD_OPTIONS}
+            visible={filters.fields}
+            cap={MAX_ACTIVITY_FIELDS}
             onToggle={(key) => filters.toggleField(key as ActivityField)}
             onReorder={(activeKey, overKey) => filters.reorderColumn(activeKey as ActivityField, overKey as ActivityField)}
-            maxVisible={MAX_ACTIVITY_FIELDS}
-            renderTarget={(toggle) => (
-              <Button size="xs" radius="xl" variant="default" leftSection={<IconColumns size={14} />} onClick={toggle}>
-                Fields
-              </Button>
-            )}
           />
         </Group>
 

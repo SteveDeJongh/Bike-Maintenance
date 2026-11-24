@@ -1,4 +1,5 @@
-import { formatActivityField, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
+import { formatActivityField, type ActivityField } from './activityFields'
+import { dataListMinWidth, dataListTemplate } from '../datalist/dataListModel'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatElevation } from '../../utils/elevation'
@@ -14,26 +15,18 @@ export function effectiveGroupBy(sortColumn: ActivitySortColumn, saved: GroupBy)
   return sortColumn === 'occurred_at' ? saved : 'none'
 }
 
-// Whether another field can be shown (the Fields picker's cap).
-export function canAddField(visible: readonly string[], cap: number = MAX_ACTIVITY_FIELDS): boolean {
-  return visible.length < cap
-}
-
-// The one grid template the column header and every row share, so their
-// columns line up: Date | icon | Activity | one per shown field.
-export function activityGridTemplate(fieldCount: number): string {
-  const fields = fieldCount > 0 ? ` repeat(${fieldCount}, minmax(84px, auto))` : ''
-  return `88px 32px minmax(220px, 1fr)${fields}`
+// The Activity DataList's columns: Date | icon | Activity | one per shown
+// field. The narrowest it gets before scrolling sideways is every track's
+// minimum plus the gaps and padding.
+export function activityListLayout(fieldCount: number): { template: string; minWidth: number } {
+  return {
+    template: dataListTemplate({ leading: ['88px', '32px'], fields: Array(fieldCount).fill('minmax(84px, auto)') }),
+    minWidth: dataListMinWidth({ leading: [88, 32], main: 220, fields: Array(fieldCount).fill(84) }),
+  }
 }
 
 function sameLocalDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
-// The narrowest the grid can get before the list scrolls sideways: the
-// fixed columns' minimums, each field's, the gaps and the row padding.
-export function activityListMinWidth(fieldCount: number): number {
-  return 88 + 32 + 220 + fieldCount * 84 + (2 + fieldCount) * 12 + 24
 }
 
 // The Date column's two lines: "Today" or a weekday, over "Nov 20".

@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react'
 import { ActionIcon, Checkbox, Divider, Group, Popover, Stack, Text, Tooltip } from '@mantine/core'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { IconLock } from '@tabler/icons-react'
+import { fieldPickerState } from '../datalist/dataListModel'
 import { useColumnDragHandle } from './useColumnDragHandle'
 import { useColumnDragSensors } from './useColumnDragSensors'
 
@@ -18,6 +20,10 @@ interface ColumnPickerPanelProps {
   // At most this many visible; further "Available" checkboxes disable,
   // with a hint. Omitted: no cap (every configurable table today).
   maxVisible?: number
+  // Always-shown fields (a DataList's), listed first as checked, disabled
+  // rows with a lock -- never dragged, never counted toward maxVisible.
+  // Omitted: none (every configurable table today).
+  lockedColumns?: ColumnOption[]
 }
 
 interface ColumnPickerProps extends ColumnPickerPanelProps {
@@ -58,13 +64,22 @@ export default function ColumnPicker({ renderTarget, ...panelProps }: ColumnPick
 // The checklist itself -- a draggable "Visible" section (current order) and
 // a static "Available" section -- usable outside the popover too (the
 // Activity page's phone "View" sheet).
-export function ColumnPickerPanel({ allColumns, orderedVisible, onToggle, onReorder, maxVisible }: ColumnPickerPanelProps) {
+export function ColumnPickerPanel({
+  allColumns,
+  orderedVisible,
+  onToggle,
+  onReorder,
+  maxVisible,
+  lockedColumns,
+}: ColumnPickerPanelProps) {
   const sensors = useColumnDragSensors()
 
-  const labelByKey = new Map(allColumns.map((column) => [column.key, column.label]))
-  const visible = orderedVisible.map((key) => ({ key, label: labelByKey.get(key) ?? key }))
-  const available = allColumns.filter((column) => !orderedVisible.includes(column.key))
-  const atCap = maxVisible != null && orderedVisible.length >= maxVisible
+  const { locked, visible, available, atCap } = fieldPickerState({
+    all: allColumns,
+    visible: orderedVisible,
+    locked: lockedColumns,
+    cap: maxVisible,
+  })
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -78,6 +93,17 @@ export function ColumnPickerPanel({ allColumns, orderedVisible, onToggle, onReor
       <Text size="xs" fw={600} c="dimmed">
         Visible
       </Text>
+
+      {locked.length > 0 && (
+        <Stack gap={4}>
+          {locked.map((column) => (
+            <Group key={column.key} gap="xs" wrap="nowrap">
+              <IconLock size={14} aria-label="Always shown" style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />
+              <Checkbox label={column.label} checked disabled readOnly style={{ flex: 1 }} />
+            </Group>
+          ))}
+        </Stack>
+      )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={visible.map((column) => column.key)} strategy={verticalListSortingStrategy}>
