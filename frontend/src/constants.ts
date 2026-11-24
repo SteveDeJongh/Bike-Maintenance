@@ -149,29 +149,34 @@ export const INSTALLED_COMPONENT_COLUMNS = [
 
 export type InstalledComponentColumn = (typeof INSTALLED_COMPONENT_COLUMNS)[number]
 
+// "This install" is this stint on this bike; "Lifetime" is the component
+// across every bike it's been on.
 export const INSTALLED_COMPONENT_COLUMN_LABELS: Record<InstalledComponentColumn, string> = {
-  period_distance: 'Distance',
+  period_distance: 'This install',
   period_time: 'Time',
   period_elevation: 'Elevation',
-  period_avg_power: 'Avg Power',
-  component_total_distance: 'Total Distance',
-  component_total_time: 'Total Time',
-  component_total_elevation: 'Total Elevation',
-  component_avg_power: 'Total Avg Power',
-  service_status: 'Service Status',
-  installed_on: 'Installed On',
+  period_avg_power: 'Avg power',
+  component_total_distance: 'Lifetime',
+  component_total_time: 'Lifetime time',
+  component_total_elevation: 'Lifetime elevation',
+  component_avg_power: 'Lifetime avg power',
+  service_status: 'Service status',
+  installed_on: 'Installed on',
 }
 
 export const DEFAULT_INSTALLED_COMPONENT_COLUMNS: InstalledComponentColumn[] = [
   'period_distance',
+  'component_total_distance',
   'installed_on',
-  'service_status',
 ]
 
+// Category sorts by the bike page's category order (orderSlots), not the
+// key's spelling; wear by the worst requirement's fraction used.
 export const INSTALLED_COMPONENT_SORT_COLUMNS = [
   'category',
   'ride_context',
   'component_label',
+  'wear',
   ...INSTALLED_COMPONENT_COLUMNS,
 ] as const
 

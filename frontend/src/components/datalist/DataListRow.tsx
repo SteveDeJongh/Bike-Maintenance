@@ -12,7 +12,8 @@ const TONE_BACKGROUND = {
 // a subgrid spanning every column, so its children are the cells, one per
 // track (a cell may span several, e.g. gridColumn: '3 / -1'). `stacked`
 // (a phone layout) makes it a plain block instead. Hover and focus styling
-// is .data-list-row in index.css.
+// is .data-list-row in index.css. Without onOpen it's a plain row (no
+// button, no hover) -- e.g. an empty slot whose own control is the target.
 export default function DataListRow({
   ariaLabel,
   onOpen,
@@ -20,8 +21,8 @@ export default function DataListRow({
   stacked = false,
   children,
 }: {
-  ariaLabel: string
-  onOpen: () => void
+  ariaLabel?: string
+  onOpen?: () => void
   tone?: keyof typeof TONE_BACKGROUND
   stacked?: boolean
   children: ReactNode
@@ -29,7 +30,7 @@ export default function DataListRow({
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      onOpen()
+      onOpen?.()
     }
   }
 
@@ -37,7 +38,7 @@ export default function DataListRow({
     borderTop: '1px solid var(--mantine-color-default-border)',
     background: tone ? TONE_BACKGROUND[tone] : undefined,
     color: tone === 'muted' ? 'var(--mantine-color-dimmed)' : undefined,
-    cursor: 'pointer',
+    cursor: onOpen ? 'pointer' : undefined,
   }
 
   const style: CSSProperties = stacked
@@ -50,6 +51,8 @@ export default function DataListRow({
         alignItems: 'center',
         padding: '8px 12px',
       }
+
+  if (!onOpen) return <div style={style}>{children}</div>
 
   return (
     <div role="button" tabIndex={0} aria-label={ariaLabel} className="data-list-row" onClick={onOpen} onKeyDown={handleKeyDown} style={style}>

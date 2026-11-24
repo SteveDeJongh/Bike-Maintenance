@@ -1,24 +1,21 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Alert, Anchor, Button, Loader, Select, Stack, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Loader, Stack, Text, Title } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponentCategorySettings, useComponents } from '../api/queries'
-import { useCreateBikeComponentSlot } from '../api/mutations'
 import BikePageHeader from '../components/bike/BikePageHeader'
 import BikeStatTiles from '../components/bike/BikeStatTiles'
 import BikeUpNext from '../components/bike/BikeUpNext'
 import RotationCard from '../components/bike/RotationCard'
 import HistoryTable from '../components/bike/HistorySection'
-import InstalledComponentsTable from '../components/bike/InstalledComponentsSection'
+import InstalledComponentsCard from '../components/bike/InstalledComponentsCard'
+import { orderSlots } from '../components/bike/installedComponentsModel'
 import RideHistorySection from '../components/bike/RideHistorySection'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
-import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import { useAllCategories } from '../hooks/useAllCategories'
-import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { rotationGroups } from '../utils/bikeCard'
-import type { ComponentAssignmentWithStats } from '../types/models'
 
 export default function BikeDetail() {
   const { id } = useParams<{ id: string }>()
@@ -30,11 +27,8 @@ export default function BikeDetail() {
   const { data: categorySettings } = useComponentCategorySettings()
   const allCategories = useAllCategories()
 
-  const [endingAssignment, setEndingAssignment] = useState<ComponentAssignmentWithStats | null>(null)
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null)
-  const [addCategory, setAddCategory] = useState<string | null>(null)
   const [batchServiceOpened, setBatchServiceOpened] = useState(false)
-  const createSlot = useCreateBikeComponentSlot()
 
   if (!Number.isFinite(bikeId) || (bikeError instanceof ApiError && bikeError.status === 404)) {
     return (
@@ -75,63 +69,10 @@ export default function BikeDetail() {
     activeAssignmentsElsewhereByComponentId.set(a.component_id, rideContexts)
   }
 
-  const RIDE_CONTEXT_SORT_ORDER = { both: 0, outdoor_only: 1, indoor_only: 2 } as const
-
-  // A category can now have more than one independent slot (an
-  // outdoor_only one and an indoor_only one), so this is a flatMap over all
-  // of a category's slots rather than finding just one.
-  const orderedSlots = allCategories.flatMap((category) =>
-    bike.bike_component_slots
-      .filter((slot) => slot.category === category)
-      .sort((a, b) => RIDE_CONTEXT_SORT_ORDER[a.ride_context] - RIDE_CONTEXT_SORT_ORDER[b.ride_context]),
-  )
-
-  // What's left to offer in "+ Track a new component type": a category with
-  // no slot yet offers a plain entry, plus (when its
-  // ComponentCategorySetting#allows_multiple_assignments) separate
-  // "(Outdoor only)"/"(Indoor only)" entries so the user can start with just
-  // the one they actually want -- e.g. only the shared trainer cassette,
-  // with no complementary outdoor row attached. A category with an existing
-  // "both" slot offers nothing further (mixing an unsplit slot with split
-  // ones isn't a sensible state); one with existing split slot(s) offers
-  // only whichever variant(s) aren't tracked yet.
-  const addableSlotOptions = allCategories.flatMap((category) => {
-    if (!(categorySettings?.find((setting) => setting.category === category)?.trackable ?? true)) return []
-
-    const existing = bike.bike_component_slots.filter((slot) => slot.category === category)
-    const allowsMultiple =
-      categorySettings?.find((setting) => setting.category === category)?.allows_multiple_assignments ?? false
-
-    if (existing.length === 0) {
-      const rideContexts: ('both' | 'outdoor_only' | 'indoor_only')[] = allowsMultiple
-        ? ['both', 'outdoor_only', 'indoor_only']
-        : ['both']
-      return rideContexts.map((rideContext) => ({ category, rideContext }))
-    }
-
-    if (existing.some((slot) => slot.ride_context === 'both')) return []
-
-    const existingContexts = new Set(existing.map((slot) => slot.ride_context))
-    return (['outdoor_only', 'indoor_only'] as const)
-      .filter((rideContext) => !existingContexts.has(rideContext))
-      .map((rideContext) => ({ category, rideContext }))
-  })
+  const orderedSlots = orderSlots(bike.bike_component_slots, allCategories)
 
   const historyAssignments = bike.component_assignments.filter((a) => a.ended_at !== null)
   const rotations = rotationGroups(bike.overview.mounted, bike.overview.off_bike).groups
-
-  const confirmedBikeId = bike.id
-
-  function handleAddSlot(value: string | null) {
-    setAddCategory(value)
-    if (value) {
-      const [category, rideContext] = value.split('::') as [string, 'both' | 'outdoor_only' | 'indoor_only']
-      createSlot.mutate(
-        { bike_id: confirmedBikeId, category, ride_context: rideContext },
-        { onSuccess: () => setAddCategory(null) },
-      )
-    }
-  }
 
   return (
     <Stack>
@@ -154,43 +95,15 @@ export default function BikeDetail() {
         )}
       </div>
 
-      <Title order={3}>Installed components</Title>
-
-      {orderedSlots.length === 0 && (
-        <Stack gap="xs">
-          <Text c="dimmed">No component types tracked yet.</Text>
-          <Button component={Link} to={`/bikes/${bike.id}/setup`} variant="default" w="fit-content">
-            Set up components
-          </Button>
-        </Stack>
-      )}
-
-      {orderedSlots.length > 0 && (
-        <InstalledComponentsTable
-          bike={bike}
-          orderedSlots={orderedSlots}
-          components={components ?? []}
-          activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
-          onEndAssignment={setEndingAssignment}
-          onRowClick={(assignment) => setSelectedAssignmentId(assignment.id)}
-        />
-      )}
-
-      {addableSlotOptions.length > 0 && (
-        <Select
-          placeholder="+ Track a new component type"
-          data={addableSlotOptions.map(({ category, rideContext }) => ({
-            value: `${category}::${rideContext}`,
-            label:
-              rideContext === 'both'
-                ? categoryLabel(category)
-                : `${categoryLabel(category)} (${RIDE_CONTEXT_LABELS[rideContext]})`,
-          }))}
-          value={addCategory}
-          onChange={handleAddSlot}
-          disabled={createSlot.isPending}
-        />
-      )}
+      <InstalledComponentsCard
+        bike={bike}
+        orderedSlots={orderedSlots}
+        allCategories={allCategories}
+        categorySettings={categorySettings}
+        components={components ?? []}
+        activeAssignmentsElsewhereByComponentId={activeAssignmentsElsewhereByComponentId}
+        onOpenAssignment={(assignment) => setSelectedAssignmentId(assignment.id)}
+      />
 
       <Title order={3}>Component History</Title>
 
@@ -201,13 +114,6 @@ export default function BikeDetail() {
       )}
 
       <RideHistorySection bike={bike} />
-
-      <EndAssignmentModal
-        opened={endingAssignment !== null}
-        onClose={() => setEndingAssignment(null)}
-        assignment={endingAssignment}
-        componentLabel={endingAssignment?.component.label ?? ''}
-      />
 
       <AssignmentDetailModal
         opened={selectedAssignmentId !== null}

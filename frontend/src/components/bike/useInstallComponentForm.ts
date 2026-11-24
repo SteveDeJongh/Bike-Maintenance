@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { notifications } from '@mantine/notifications'
 import { useComponentCategorySettings } from '../../api/queries'
 import { useCreateComponentAssignment, useDeleteBikeComponentSlot } from '../../api/mutations'
 import { parseApiError } from '../../api/errors'
@@ -6,12 +7,18 @@ import { categoryLabel } from '../../constants'
 import { nowIsoUtc } from '../../utils/datetime'
 import type { BikeComponentSlot, BikeDetail as BikeDetailData, Component } from '../../types/models'
 
-export const CREATE_NEW_COMPONENT = '__create_new__'
+function showError(title: string, error: unknown) {
+  const messages = parseApiError(error).baseErrors
+  notifications.show({ color: 'red', title, message: messages.join(' ') || 'Something went wrong. Try again.' })
+}
 
-// EmptySlotRow's own state and submit logic, pulled out of its markup --
-// everything the row needs to let a user pick (or create) a component,
-// set a start date/ride context, install it, or stop tracking the slot
-// entirely. The only thing EmptySlotRow itself still owns is the JSX.
+// An empty slot's install logic (EmptySlotPill): which components it can
+// take, installing one straight away, creating a new one, and stopping
+// tracking the slot. Installs use the defaults the old inline form
+// pre-filled -- the bike's created_at for a slot with no history (it was
+// presumably already on the bike), otherwise now; a split slot's own ride
+// context, else the category's default. Both can be changed afterwards with
+// the installation modal's Edit installation.
 export function useInstallComponentForm({
   bike,
   slot,
@@ -25,27 +32,14 @@ export function useInstallComponentForm({
   components: Component[]
   activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
 }) {
-  const [componentId, setComponentId] = useState<string | null>(null)
-  // A slot being assigned for the first time defaults to the bike's own
-  // created_at (it was presumably already mounted when the bike was added
-  // to the tracker); a slot with prior history defaults to now.
-  const [startedAt, setStartedAt] = useState<string | null>(
-    hasHistory ? nowIsoUtc() : bike.created_at,
-  )
   const { data: categorySettings } = useComponentCategorySettings()
-  const defaultRideContext =
-    categorySettings?.find((setting) => setting.category === slot.category)?.default_ride_context ?? 'both'
-  // Only meaningful for a "both" slot -- a split slot's ride_context is
-  // fixed by the slot itself, not a user choice.
-  const [rideContext, setRideContext] = useState<'both' | 'outdoor_only' | 'indoor_only'>(defaultRideContext)
+  const setting = categorySettings?.find((s) => s.category === slot.category)
+  const rideContext = slot.ride_context === 'both' ? (setting?.default_ride_context ?? 'both') : slot.ride_context
+  const categoryAllowsMultiple = setting?.allows_multiple_assignments ?? false
 
   const [createOpened, setCreateOpened] = useState(false)
-  const [baseErrors, setBaseErrors] = useState<string[]>([])
   const createAssignment = useCreateComponentAssignment()
   const deleteSlot = useDeleteBikeComponentSlot()
-
-  const categoryAllowsMultiple =
-    categorySettings?.find((setting) => setting.category === slot.category)?.allows_multiple_assignments ?? false
 
   // A component already active on a different bike is normally excluded --
   // unless this slot is indoor_only, the category allows sharing, and every
@@ -53,74 +47,45 @@ export function useInstallComponentForm({
   // indoor_only (e.g. a cassette that physically lives on the trainer, not
   // on any one bike's frame).
   const availableComponents = components
-    .filter((component) => component.category === slot.category)
+    .filter((component) => component.category === slot.category && !component.retired_on)
     .filter((component) => {
       const elsewhere = activeAssignmentsElsewhereByComponentId.get(component.id) ?? []
       if (elsewhere.length === 0) return true
-
-      return (
-        slot.ride_context === 'indoor_only' &&
-        categoryAllowsMultiple &&
-        elsewhere.every((context) => context === 'indoor_only')
-      )
+      return slot.ride_context === 'indoor_only' && categoryAllowsMultiple && elsewhere.every((context) => context === 'indoor_only')
     })
 
-  function assign(targetComponentId: number) {
-    setBaseErrors([])
+  function install(componentId: number) {
     createAssignment.mutate(
       {
-        component_id: targetComponentId,
+        component_id: componentId,
         bike_id: bike.id,
-        started_at: startedAt ?? nowIsoUtc(),
+        started_at: hasHistory ? nowIsoUtc() : bike.created_at,
         ended_at: null,
-        ride_context: slot.ride_context === 'both' ? rideContext : slot.ride_context,
+        ride_context: rideContext,
       },
-      {
-        onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
-      },
+      { onError: (error) => showError("Couldn't install the component", error) },
     )
   }
 
-  function handleChange(value: string | null) {
-    if (value === CREATE_NEW_COMPONENT) {
-      setCreateOpened(true)
-      return
-    }
-    setComponentId(value)
-  }
-
   function stopTracking() {
-    setBaseErrors([])
-    deleteSlot.mutate(slot.id, {
-      onError: (error) => setBaseErrors(parseApiError(error).baseErrors),
-    })
+    deleteSlot.mutate(slot.id, { onError: (error) => showError("Couldn't stop tracking this slot", error) })
   }
 
-  const options = [
-    ...availableComponents.map((component) => ({
-      value: String(component.id),
-      label:
-        (activeAssignmentsElsewhereByComponentId.get(component.id)?.length ?? 0) > 0
-          ? `${component.label} — shared, indoor only`
-          : component.label,
-    })),
-    { value: CREATE_NEW_COMPONENT, label: `+ Create new ${categoryLabel(slot.category)}` },
-  ]
+  const options = availableComponents.map((component) => ({
+    value: String(component.id),
+    label:
+      (activeAssignmentsElsewhereByComponentId.get(component.id)?.length ?? 0) > 0
+        ? `${component.label} — shared, indoor only`
+        : component.label,
+  }))
 
   return {
-    componentId,
-    setComponentId,
-    startedAt,
-    setStartedAt,
-    rideContext,
-    setRideContext,
+    options,
+    createLabel: `+ Create new ${categoryLabel(slot.category)}`,
+    install,
+    isInstalling: createAssignment.isPending,
     createOpened,
     setCreateOpened,
-    baseErrors,
-    options,
-    handleChange,
-    assign,
-    isAssigning: createAssignment.isPending,
     stopTracking,
     isStoppingTracking: deleteSlot.isPending,
   }
