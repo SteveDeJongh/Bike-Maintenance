@@ -91,3 +91,11 @@ export function retiredLabel(retiredOn: string): string {
   const [year, month] = retiredOn.split('-').map(Number)
   return `Retired ${new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
 }
+
+// A bike card's line under its Components rows: the installed components
+// the rows don't show. Null when there are none left over.
+export function moreComponentsLine(installedCount: number, shownCount: number): string | null {
+  const more = installedCount - shownCount
+  if (more <= 0) return null
+  return `And ${more} more ${more === 1 ? 'component' : 'components'}…`
+}

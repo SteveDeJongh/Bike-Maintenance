@@ -2,12 +2,12 @@ class BikesController < ApplicationController
   before_action :set_bike, only: %i[ show update destroy component_setup rides serviceable_components ]
 
   # Mounted components shown on a Bikes-list card.
-  MOST_WORN_LIMIT = 3
+  NEXT_SERVICE_LIMIT = 3
 
   # GET /bikes -- every bike with its stats, plus what the Bikes page's
   # cards and tiles need: rides, this year's distance (?tz= the viewer's
-  # zone), the last ride's sport type, status counts and the most worn
-  # mounted components. Every stat is one grouped query across all bikes
+  # zone), the last ride's sport type, status counts and the mounted
+  # components closest to service. Every stat is one grouped query across all bikes
   # and statuses are computed once (worst_result_by_component), so the
   # query count doesn't grow with the number of bikes.
   def index
@@ -30,11 +30,7 @@ class BikesController < ApplicationController
 
     open_assignments = current_user.component_assignments.where(ended_at: nil).includes(:component).group_by(&:bike_id)
     worst = Maintenance::RequirementStatus.worst_result_by_component(current_user)
-    most_worn_by_bike = open_assignments.transform_values { |assignments| most_worn(assignments, worst) }
-    lifetime = Maintenance::LifetimeDistanceQuery.call(
-      current_user,
-      component_ids: most_worn_by_bike.values.flatten.reject { |a| worst[a.component_id] }.map(&:component_id),
-    )
+    next_service_by_bike = open_assignments.transform_values { |assignments| next_service(assignments, worst) }
 
     render json: @bikes.map { |bike|
       assignments = open_assignments[bike.id] || []
@@ -50,7 +46,7 @@ class BikesController < ApplicationController
         distance_this_year: this_year_distances[bike.id] || 0,
         last_ride_activity_type: last_ride_types[bike.id],
         status_counts: status_counts(assignments, worst),
-        most_worn: (most_worn_by_bike[bike.id] || []).map { |assignment| worn_json(assignment, worst, lifetime) },
+        next_service: (next_service_by_bike[bike.id] || []).map { |assignment| next_service_json(assignment, worst) },
       )
     }
   end
@@ -252,22 +248,20 @@ class BikesController < ApplicationController
     { due: statuses.count("due"), warning: statuses.count("warning") }
   end
 
-  # The most worn first; a component with no enabled requirement sorts
-  # after every one that has one, then by label.
-  def most_worn(assignments, worst)
+  # Only components with an enabled requirement (worst_result_by_component
+  # has a result for nothing else), most due first, then by label.
+  def next_service(assignments, worst)
     assignments
-      .sort_by { |a| [ -(worst[a.component_id]&.fraction_used || -1), a.component.label.to_s ] }
-      .first(MOST_WORN_LIMIT)
+      .select { |a| worst[a.component_id] }
+      .sort_by { |a| [ -worst[a.component_id].fraction_used, a.component.label.to_s ] }
+      .first(NEXT_SERVICE_LIMIT)
   end
 
-  # Maintenance::WearFields (the shape the ride modal uses), plus the
-  # lifetime distance only when there's no requirement to show wear for.
-  def worn_json(assignment, worst, lifetime)
+  # Maintenance::WearFields, the shape the ride modal uses.
+  def next_service_json(assignment, worst)
     component = assignment.component
-    result = worst[component.id]
     { component_id: component.id, label: component.label, category: component.category }
-      .merge(Maintenance::WearFields.call(result))
-      .merge(total_distance_meters: result ? nil : lifetime[component.id])
+      .merge(Maintenance::WearFields.call(worst[component.id]))
   end
     def set_bike
       @bike = current_user.bikes.find(params[:id])

@@ -35,36 +35,32 @@ RSpec.describe "Bikes", type: :request do
         component
       end
 
-      it "counts mounted components by worst status and lists the three most worn, no-requirement last" do
+      it "counts mounted components by worst status and lists the three closest to service" do
         mounted("Chain", category: "chain", interval: 1_000)         # 2,000 / 1,000: due
         mounted("Cassette", category: "cassette", interval: 2_100)   # warning
         mounted("Tire", category: "tire_front", interval: 100_000)   # ok, barely worn
+        tube = mounted("Tube", category: "tube", interval: 1_000_000) # ok, fourth
         saddle = mounted("Saddle", category: "saddle")               # no requirement
         create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 2_000)
 
         json = bike_json
 
         expect(json["status_counts"]).to eq("due" => 1, "warning" => 1)
-        expect(json["installed_components_count"]).to eq(4)
-        expect(json["most_worn"].map { |c| c["label"] }).to eq(%w[Chain Cassette Tire])
-        expect(json["most_worn"].first).to include(
+        expect(json["installed_components_count"]).to eq(5)
+        expect(json["next_service"].map { |c| c["label"] }).to eq(%w[Chain Cassette Tire])
+        expect(json["next_service"].first).to include(
           "service_status" => "due", "driving_dimension" => "distance", "distance_remaining_meters" => -1_000,
-          "total_distance_meters" => nil,
         )
-        expect(json["most_worn"].map { |c| c["component_id"] }).not_to include(saddle.id)
+        expect(json["next_service"].map { |c| c["component_id"] }).not_to include(tube.id, saddle.id)
       end
 
-      it "shows a no-requirement component with its lifetime distance when it makes the top three" do
+      it "leaves out components with no enabled requirement, even with room to spare" do
         mounted("Chain", category: "chain", interval: 10_000)
-        saddle = mounted("Saddle", category: "saddle")
-        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 2_140)
+        mounted("Saddle", category: "saddle")
+        disabled = mounted("Tire", category: "tire_front", interval: 5_000)
+        disabled.component_service_requirements.update_all(enabled: false)
 
-        worn = bike_json["most_worn"]
-
-        expect(worn.map { |c| c["label"] }).to eq(%w[Chain Saddle])
-        expect(worn.last).to include(
-          "component_id" => saddle.id, "service_status" => nil, "fraction_used" => nil, "total_distance_meters" => 2_140,
-        )
+        expect(bike_json["next_service"].map { |c| c["label"] }).to eq(%w[Chain])
       end
 
       it "counts this year's distance from local Jan 1 in the viewer's zone" do
@@ -96,7 +92,7 @@ RSpec.describe "Bikes", type: :request do
         json = bike_json(retired.id)
 
         expect(json["retired_on"]).to eq("2025-03-01")
-        expect(json).to include("total_distance" => 3_000, "ride_count" => 1, "status_counts" => { "due" => 0, "warning" => 0 }, "most_worn" => [])
+        expect(json).to include("total_distance" => 3_000, "ride_count" => 1, "status_counts" => { "due" => 0, "warning" => 0 }, "next_service" => [])
       end
 
       it "never counts another user's rides or components" do
@@ -109,7 +105,7 @@ RSpec.describe "Bikes", type: :request do
         body = JSON.parse(response.body)
 
         expect(body.map { |b| b["id"] }).to eq([ bike.id ])
-        expect(body.first).to include("ride_count" => 0, "total_distance" => 0, "most_worn" => [], "installed_components_count" => 0)
+        expect(body.first).to include("ride_count" => 0, "total_distance" => 0, "next_service" => [], "installed_components_count" => 0)
       end
 
       # Every stat is grouped across bikes, so adding bikes (with rides and

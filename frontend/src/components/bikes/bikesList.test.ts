@@ -4,6 +4,7 @@ import {
   bikesHeaderLine,
   isBikeCardSort,
   isBikesView,
+  moreComponentsLine,
   retiredLabel,
   retiredYearRange,
   sortBikeCards,
@@ -114,5 +115,24 @@ describe('retiredYearRange', () => {
 describe('retiredLabel', () => {
   it('reads the retirement month and year', () => {
     expect(retiredLabel('2025-03-01')).toBe('Retired Mar 2025')
+  })
+})
+
+describe('moreComponentsLine', () => {
+  it('counts the installed components the rows leave out', () => {
+    expect(moreComponentsLine(13, 3)).toBe('And 10 more components…')
+  })
+
+  it('is singular for one', () => {
+    expect(moreComponentsLine(4, 3)).toBe('And 1 more component…')
+  })
+
+  it('is null when every installed component is shown', () => {
+    expect(moreComponentsLine(3, 3)).toBeNull()
+    expect(moreComponentsLine(0, 0)).toBeNull()
+  })
+
+  it('counts them all when no row is shown', () => {
+    expect(moreComponentsLine(5, 0)).toBe('And 5 more components…')
   })
 })

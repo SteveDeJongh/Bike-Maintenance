@@ -1,4 +1,5 @@
 import { categoryLabel } from '../constants'
+import { formatShortDate } from './datetime'
 import { formatDistance } from './distance'
 import { formatDuration } from './duration'
 import { formatDrivingRemaining } from './serviceInterval'
@@ -109,11 +110,12 @@ export function sortByUrgency<T extends { name: string; last_ride_on: string | n
   return keyed.map(({ bike }) => bike)
 }
 
-// A bike card's footer: "Last ride Nov 16 · Gravel Ride", or "No rides
-// yet". Shared by Home's cards and the Bikes list's.
+// A bike card's footer: "Last ride Nov 16 · Gravel Ride" ("Mar 2, 2025"
+// before this year), or "No rides yet". Shared by Home's cards and the
+// Bikes list's.
 export function lastRideLine(bike: { last_ride_on: string | null; last_ride_activity_type: string | null }): string {
   if (!bike.last_ride_on) return 'No rides yet'
-  const date = new Date(bike.last_ride_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const date = formatShortDate(bike.last_ride_on)
   return bike.last_ride_activity_type ? `Last ride ${date} · ${formatSportType(bike.last_ride_activity_type)}` : `Last ride ${date}`
 }
 

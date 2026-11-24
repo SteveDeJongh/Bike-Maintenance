@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { bikeStatusCounts, rotationGroups, sortBikesByUrgency, sortByWear, wearMetricLabel } from './bikeCard'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { bikeStatusCounts, lastRideLine, rotationGroups, sortBikesByUrgency, sortByWear, wearMetricLabel } from './bikeCard'
 import type { DashboardMountedComponent, DashboardOffBikeComponent } from '../types/models'
 
 const metric = { requirement_name: null, distance_meters: null, moving_time_seconds: null, days: null, since_service_type_name: null }
@@ -136,5 +136,38 @@ describe('sortBikesByUrgency', () => {
       bike('Also recent', [], '2026-11-19T10:00:00Z'),
     ])
     expect(sorted.map((b) => b.name)).toEqual(['One due', 'Two warnings', 'One warning', 'Also recent', 'Recent', 'Older', 'Never ridden'])
+  })
+})
+
+describe('lastRideLine', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 10, 24, 12))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const ride = (year: number, month: number, day: number, type: string | null) => ({
+    last_ride_on: new Date(year, month, day, 12).toISOString(),
+    last_ride_activity_type: type,
+  })
+
+  it('leaves the year out for a ride this year', () => {
+    const line = lastRideLine(ride(2026, 10, 16, 'GravelRide'))
+    expect(line).toMatch(/^Last ride .*16 · Gravel Ride$/)
+    expect(line).not.toMatch(/2026/)
+  })
+
+  it('includes the year for a ride last year', () => {
+    expect(lastRideLine(ride(2025, 2, 2, 'Ride'))).toMatch(/^Last ride .*2025 · Ride$/)
+  })
+
+  it('drops the sport when Strava gave none', () => {
+    expect(lastRideLine(ride(2026, 10, 16, null))).toMatch(/^Last ride [^·]*16$/)
+  })
+
+  it('says so when there are no rides', () => {
+    expect(lastRideLine({ last_ride_on: null, last_ride_activity_type: null })).toBe('No rides yet')
   })
 })

@@ -441,10 +441,7 @@ date-bounded query per assignment — unlike `Bike`'s stats, which batch into a 
 grouped query per stat in `BikesController#index`. This is still fine today because
 every current caller of these two specific methods (`ComponentDetail`, and a bike's
 own small "Installed components" table) only ever renders a handful of components at
-once; neither is used to back a many-row table column. For lifetime distance across
-many components, use `Maintenance::LifetimeDistanceQuery.call(user, component_ids:)`:
-the same windows and ride-context rules in one grouped query, with a parity spec
-against `#total_distance`. The Bikes list's cards use it. For a many-row table, use the batched pattern instead: `Maintenance::BatchedPositionQuery` (see "Service intervals and maintenance
+once; neither is used to back a many-row table column. For a many-row table, use the batched pattern instead: `Maintenance::BatchedPositionQuery` (see "Service intervals and maintenance
 alerts" below) implements the batched join — a
 `component_assignments` ⨝ `strava_activities` join on `bike_id` with a `moved_at`
 range condition, `GROUP BY` the thing being measured — for service-requirement

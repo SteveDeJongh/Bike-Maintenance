@@ -69,9 +69,9 @@ export interface BikeWithStats extends Bike, BikeStats {
   last_ride_activity_type: string | null
   // Mounted components by their worst status (each counts once).
   status_counts: { due: number; warning: number }
-  // Up to three mounted components, most worn first (no requirement last,
-  // with its lifetime total_distance_meters). The ride modal's shape.
-  most_worn: RideDetailComponent[]
+  // Up to three mounted components with an enabled service requirement,
+  // most due first. The ride modal's wear shape, minus the lifetime total.
+  next_service: Omit<RideDetailComponent, 'total_distance_meters'>[]
 }
 
 // component_assignments/bike_component_slots are only present on GET /bikes/:id

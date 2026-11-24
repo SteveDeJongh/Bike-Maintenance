@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import BikeStatusChip from '../bike/BikeStatusChip'
 import WearBar from '../dashboard/WearBar'
 import { lastRideLine } from '../../utils/bikeCard'
+import { moreComponentsLine } from './bikesList'
 import { formatDistance } from '../../utils/distance'
 import { formatPower } from '../../utils/power'
 import { componentWearValue } from '../../utils/wear'
@@ -22,11 +23,13 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 // One bike on the Bikes page: the whole card links to the bike. Header
-// (name, type chip, make/model, status chip), the stats line, its three
-// most worn mounted components and the last ride. Unlike Home's BikeCard
+// (name, type chip, make/model, status chip), the stats line, the three
+// mounted components closest to service and the last ride. Unlike Home's BikeCard
 // it has nothing clickable inside, so the whole card can be one link.
 export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; typeName: string | null }) {
   const makeModel = [bike.make, bike.model].filter(Boolean).join(' ')
+  // Plain text, not a link: the whole card is already one.
+  const more = moreComponentsLine(bike.installed_components_count, bike.next_service.length)
 
   return (
     <Paper component={Link} to={`/bikes/${bike.id}`} withBorder radius="md" p="md" className="bike-list-card">
@@ -62,17 +65,16 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
         <Divider />
 
         <Stack gap={6}>
-          <Group justify="space-between" gap="sm">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600} style={{ letterSpacing: '0.04em' }}>
-              Most worn
-            </Text>
-            <Text size="xs" c="dimmed">
-              {bike.installed_components_count} installed
-            </Text>
-          </Group>
-          {bike.most_worn.length === 0 ? (
+          <Text size="xs" c="dimmed" tt="uppercase" fw={600} style={{ letterSpacing: '0.04em' }}>
+            Components
+          </Text>
+          {bike.installed_components_count === 0 ? (
             <Text size="sm" c="dimmed">
               No components installed.
+            </Text>
+          ) : bike.next_service.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No service intervals set up
             </Text>
           ) : (
             <Box
@@ -84,17 +86,12 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
                 rowGap: 6,
               }}
             >
-              {bike.most_worn.map((component) => (
+              {bike.next_service.map((component) => (
                 <Box key={component.component_id} style={{ display: 'contents' }}>
                   <Text size="sm" truncate>
                     {component.label}
                   </Text>
-                  {/* No requirement: a faint empty track, so bars line up. */}
-                  <WearBar
-                    fraction={component.fraction_used}
-                    status={component.service_status}
-                    style={component.driving_dimension ? undefined : { opacity: 0.5 }}
-                  />
+                  <WearBar fraction={component.fraction_used} status={component.service_status} />
                   <Text
                     size="sm"
                     ta="right"
@@ -106,6 +103,11 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
                 </Box>
               ))}
             </Box>
+          )}
+          {more && (
+            <Text size="sm" c="dimmed">
+              {more}
+            </Text>
           )}
         </Stack>
 

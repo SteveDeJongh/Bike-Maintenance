@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatHeaderDate, isoWeekNumber } from './datetime'
+import { formatHeaderDate, formatShortDate, isoWeekNumber } from './datetime'
 
 describe('isoWeekNumber', () => {
   it('numbers an ordinary week', () => {
@@ -24,5 +24,27 @@ describe('isoWeekNumber', () => {
 describe('formatHeaderDate', () => {
   it('reads weekday, short month and day, then the week', () => {
     expect(formatHeaderDate(new Date(2026, 10, 20), 'en-US')).toBe('Friday, Nov 20 · week 47')
+  })
+})
+
+// Assertions look for the year, not exact text: formatShortDate uses the
+// browser's locale. Dates are local noon so no zone shifts the day.
+describe('formatShortDate', () => {
+  const now = new Date(2026, 10, 24, 12)
+  const local = (year: number, month: number, day: number) => new Date(year, month, day, 12).toISOString()
+
+  it('leaves the year out for this year', () => {
+    const text = formatShortDate(local(2026, 10, 16), now)
+    expect(text).toMatch(/16/)
+    expect(text).not.toMatch(/2026/)
+  })
+
+  it('includes the year for an earlier year', () => {
+    expect(formatShortDate(local(2025, 2, 2), now)).toMatch(/2025/)
+  })
+
+  it('compares years in local time, not UTC', () => {
+    expect(formatShortDate(local(2026, 0, 1), now)).not.toMatch(/2026/)
+    expect(formatShortDate(local(2025, 11, 31), now)).toMatch(/2025/)
   })
 })

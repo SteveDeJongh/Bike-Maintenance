@@ -28,6 +28,14 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+// "Nov 16" this year, "Mar 2, 2025" otherwise -- the compact date of the
+// Home panels and bike cards. The year compares in the browser's zone.
+export function formatShortDate(value: string, now: Date = new Date()): string {
+  const date = new Date(value)
+  const sameYear = date.getFullYear() === now.getFullYear()
+  return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export function formatDate(value: string | null): string {
   if (!value) return ''
   return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })

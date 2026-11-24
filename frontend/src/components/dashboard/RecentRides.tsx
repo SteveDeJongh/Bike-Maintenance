@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom'
 import RideDetailModal from '../ride/RideDetailModal'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
-import { formatShortDate, rideSportLabel } from '../../utils/recentActivity'
+import { formatShortDate } from '../../utils/datetime'
+import { rideSportLabel } from '../../utils/recentActivity'
 import type { DashboardRecentRide } from '../../types/models'
 
 // The five newest rides as compact grid rows: date | name over "{sport} ·

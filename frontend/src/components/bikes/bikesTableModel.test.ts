@@ -21,7 +21,7 @@ function bike(name: string, overrides: Partial<BikeWithStats> = {}): BikeWithSta
     distance_this_year: 0,
     last_ride_activity_type: null,
     status_counts: { due: 0, warning: 0 },
-    most_worn: [],
+    next_service: [],
     ...overrides,
   } as BikeWithStats
 }

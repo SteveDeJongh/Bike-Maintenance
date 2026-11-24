@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Anchor, Box, Group, Paper, Stack, Text, Title } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import ServiceSessionViewModal from '../forms/ServiceSessionViewModal'
-import { formatShortDate } from '../../utils/recentActivity'
+import { formatShortDate } from '../../utils/datetime'
 import type { DashboardSummary } from '../../types/models'
 
 type RecentServiceItem = DashboardSummary['recent_service'][number]
