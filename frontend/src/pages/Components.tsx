@@ -1,14 +1,17 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
+import { IconAdjustmentsHorizontal } from '@tabler/icons-react'
 import { useBikes, useComponents, useTableViewPreference } from '../api/queries'
 import ComponentsList from '../components/componentList/ComponentsList'
 import ComponentsSummaryTiles from '../components/componentList/ComponentsSummaryTiles'
 import ComponentsToolbar from '../components/componentList/ComponentsToolbar'
+import ComponentsViewSheet from '../components/componentList/ComponentsViewSheet'
 import { compareCategory, componentTileCounts, filterComponents } from '../components/componentList/componentListModel'
 import { useComponentsView } from '../components/componentList/useComponentsView'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import RetireComponentModal from '../components/forms/RetireComponentModal'
 import { useAllCategories } from '../hooks/useAllCategories'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { categoryLabel, COMPONENT_LIST_FIELD_LABELS, COMPONENT_LIST_FIELDS } from '../constants'
 import type { ComponentListItem, TableViewPreferenceData } from '../types/models'
 
@@ -66,6 +69,10 @@ function ComponentsContent({
   const { data: bikes } = useBikes()
   const categoryOrder = useAllCategories()
   const [retiringId, setRetiringId] = useState<number | null>(null)
+  const [viewSheetOpened, setViewSheetOpened] = useState(false)
+  // A phone gets stacked rows; it has no headers, so sort moves to the
+  // View sheet.
+  const isMobile = useIsMobile()
 
   const counts = componentTileCounts(components)
 
@@ -105,6 +112,18 @@ function ComponentsContent({
         categoryOptions={categoryOptions}
         bikeOptions={bikeOptions}
         fieldOptions={FIELD_OPTIONS}
+        phoneViewButton={
+          <Button
+            size="xs"
+            radius="xl"
+            variant="default"
+            leftSection={<IconAdjustmentsHorizontal size={14} />}
+            onClick={() => setViewSheetOpened(true)}
+            hiddenFrom="sm"
+          >
+            View
+          </Button>
+        }
       />
       {view.table.saveError && (
         <Alert color="red" withCloseButton onClose={view.table.clearSaveError}>
@@ -135,9 +154,12 @@ function ComponentsContent({
           view={view}
           groupBy={view.groupBy}
           categoryOrder={categoryOrder}
+          stacked={isMobile}
           onRetire={(component) => setRetiringId(component.id)}
         />
       )}
+
+      <ComponentsViewSheet opened={viewSheetOpened} onClose={() => setViewSheetOpened(false)} view={view} />
 
       {retiringId !== null && (
         <RetireComponentModal opened onClose={() => setRetiringId(null)} componentId={retiringId} />

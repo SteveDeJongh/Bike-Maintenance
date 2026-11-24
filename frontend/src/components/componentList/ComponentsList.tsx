@@ -15,6 +15,7 @@ import {
 } from '../../constants'
 import { componentState, spareReadyLabel } from '../../utils/componentState'
 import { formatShortDate } from '../../utils/datetime'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import { formatDistance } from '../../utils/distance'
 import { componentWearValue } from '../../utils/wear'
 import {
@@ -82,7 +83,16 @@ function BikeLink({ id, children }: { id: number; children: ReactNode }) {
 // Installed: the bike (linked), "since <date>" -- or, for a shared indoor
 // cassette, "Juan Solo +1" and "Trainer only, shared". Spare: "Spare" in
 // blue, then where it was last. Retired: when, then where it was last.
-export function ComponentBikeCell({ component, bikeId }: { component: ComponentListItem; bikeId: number | null }) {
+// `inline` (the phone row) puts both parts on one line.
+export function ComponentBikeCell({
+  component,
+  bikeId,
+  inline = false,
+}: {
+  component: ComponentListItem
+  bikeId: number | null
+  inline?: boolean
+}) {
   const state = componentState(component)
   let main: ReactNode
   let sub: string
@@ -115,6 +125,19 @@ export function ComponentBikeCell({ component, bikeId }: { component: ComponentL
   } else {
     main = <Text size="sm">Retired {component.retired_on ? formatShortDate(component.retired_on) : ''}</Text>
     sub = component.last_bike ? `Last on ${component.last_bike.name}` : 'Never installed'
+  }
+
+  if (inline) {
+    return (
+      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        <Box style={{ flexShrink: 0 }}>{main}</Box>
+        {sub && (
+          <Text size="xs" c="dimmed" truncate>
+            · {sub}
+          </Text>
+        )}
+      </Group>
+    )
   }
 
   return (
@@ -156,9 +179,10 @@ export function ComponentServiceCell({ component }: { component: ComponentListIt
   )
 }
 
-function RetireButton({ onRetire }: { onRetire: () => void }) {
+// On a phone the wrapper grows to a 44px tap target; the pill keeps its size.
+function RetireButton({ onRetire, phone = false }: { onRetire: () => void; phone?: boolean }) {
   return (
-    <Box onClick={stop} onKeyDown={stop}>
+    <Box onClick={stop} onKeyDown={stop} style={phone ? MOBILE_TAP_TARGET_STYLE : undefined}>
       <Button size="compact-xs" radius="xl" variant="default" onClick={onRetire}>
         Retire
       </Button>
@@ -191,12 +215,16 @@ export default function ComponentsList({
   view,
   groupBy,
   categoryOrder,
+  stacked = false,
   onRetire,
 }: {
   components: ComponentListItem[]
   view: ComponentsView
   groupBy: ComponentGroupBy
   categoryOrder: readonly string[]
+  // The phone layout: no header, each row stacks the name (and Retire),
+  // the bike line and the wear; bands stay.
+  stacked?: boolean
   onRetire: (component: ComponentListItem) => void
 }) {
   const navigate = useNavigate()
@@ -242,13 +270,29 @@ export default function ComponentsList({
 
   function renderRow({ key, component, bikeId }: ComponentRow) {
     const retired = componentState(component) === 'retired'
+    const rowProps = {
+      ariaLabel: `${component.label}${retired ? ', retired' : ''}, open component`,
+      onOpen: () => navigate(`/components/${component.id}`),
+      tone: retired ? ('muted' as const) : undefined,
+    }
+
+    if (stacked) {
+      return (
+        <DataListRow key={key} {...rowProps} stacked>
+          <Stack gap={4}>
+            <Group justify="space-between" wrap="nowrap" gap="sm">
+              <ComponentTitle component={component} />
+              {!retired && <RetireButton onRetire={() => onRetire(component)} phone />}
+            </Group>
+            <ComponentBikeCell component={component} bikeId={bikeId} inline />
+            <ComponentServiceCell component={component} />
+          </Stack>
+        </DataListRow>
+      )
+    }
+
     return (
-      <DataListRow
-        key={key}
-        ariaLabel={`${component.label}${retired ? ', retired' : ''}, open component`}
-        onOpen={() => navigate(`/components/${component.id}`)}
-        tone={retired ? 'muted' : undefined}
-      >
+      <DataListRow key={key} {...rowProps}>
         <ComponentTitle component={component} />
         <ComponentBikeCell component={component} bikeId={bikeId} />
         <ComponentServiceCell component={component} />
@@ -274,8 +318,8 @@ export default function ComponentsList({
   }
 
   return (
-    <DataList template={template} minWidth={minWidth}>
-      <DataListHeader columns={columns} sortColumn={sortColumn} order={sortDirection} onSort={onSort} />
+    <DataList template={template} minWidth={minWidth} stacked={stacked}>
+      {!stacked && <DataListHeader columns={columns} sortColumn={sortColumn} order={sortDirection} onSort={onSort} />}
       {groups.map((group) => (
         <Fragment key={group.key}>
           {group.title != null && (

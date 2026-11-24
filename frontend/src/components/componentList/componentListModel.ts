@@ -214,6 +214,34 @@ export function firstSortDirection(column: ComponentListSort): 'asc' | 'desc' {
   return column === 'lifetime_distance' || column === 'acquired_on' || column === 'retired_on' ? 'desc' : 'asc'
 }
 
+// The phone View sheet's two direction choices for a sort, first-click
+// direction first: "Most urgent first" for Service, "Highest first" for
+// Lifetime, "Newest first" for dates, "A–Z" otherwise.
+export function sortDirectionOptions(column: ComponentListSort): { value: 'asc' | 'desc'; label: string }[] {
+  if (column === 'service') {
+    return [
+      { value: 'asc', label: 'Most urgent first' },
+      { value: 'desc', label: 'Least urgent first' },
+    ]
+  }
+  if (column === 'lifetime_distance') {
+    return [
+      { value: 'desc', label: 'Highest first' },
+      { value: 'asc', label: 'Lowest first' },
+    ]
+  }
+  if (column === 'acquired_on' || column === 'retired_on') {
+    return [
+      { value: 'desc', label: 'Newest first' },
+      { value: 'asc', label: 'Oldest first' },
+    ]
+  }
+  return [
+    { value: 'asc', label: 'A–Z' },
+    { value: 'desc', label: 'Z–A' },
+  ]
+}
+
 // One rendered row. A shared indoor cassette is one component on two
 // bikes, so under Group by Bike it's a row in each bike's band: the key
 // carries the band's bike, and bikeId says which bike to name first.

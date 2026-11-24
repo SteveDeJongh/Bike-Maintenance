@@ -10,6 +10,7 @@ import {
   installedBikeParts,
   serviceFilterOf,
   sortComponents,
+  sortDirectionOptions,
   type ComponentFilters,
 } from './componentListModel'
 import type { ComponentListItem } from '../../types/models'
@@ -242,5 +243,14 @@ describe('componentListPreferenceData', () => {
   it('keeps columns saved by the new list', () => {
     const data = { columns: ['lifetime_distance', 'brand'] }
     expect(componentListPreferenceData(data)).toBe(data)
+  })
+})
+
+describe('sortDirectionOptions', () => {
+  it('leads with the first-click direction, in words that fit the column', () => {
+    expect(sortDirectionOptions('service').map((o) => o.label)).toEqual(['Most urgent first', 'Least urgent first'])
+    expect(sortDirectionOptions('lifetime_distance')[0]).toEqual({ value: 'desc', label: 'Highest first' })
+    expect(sortDirectionOptions('acquired_on')[0]).toEqual({ value: 'desc', label: 'Newest first' })
+    expect(sortDirectionOptions('component')[0]).toEqual({ value: 'asc', label: 'A–Z' })
   })
 })
