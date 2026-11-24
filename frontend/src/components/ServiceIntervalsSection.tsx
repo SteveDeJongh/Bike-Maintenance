@@ -1,59 +1,23 @@
 import { useState } from 'react'
-import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Button,
-  Checkbox,
-  Group,
-  Menu,
-  NumberInput,
-  Progress,
-  SegmentedControl,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from '@mantine/core'
+import { ActionIcon, Badge, Button, Group, Menu, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core'
 import { useElementSize } from '@mantine/hooks'
-import { modals } from '@mantine/modals'
-import { useAllComponentServiceRequirements, useCategoryServiceRequirements, useComponentServiceRequirements } from '../api/queries'
+import { useAllComponentServiceRequirements, useCategoryServiceRequirements } from '../api/queries'
 import { SERVICE_STATUS_COLORS } from '../constants'
-import {
-  useApplyDefaultComponentServiceRequirements,
-  useDeleteComponentServiceRequirement,
-  useUpdateComponentServiceRequirement,
-} from '../api/mutations'
+import { useDeleteComponentServiceRequirement, useUpdateComponentServiceRequirement } from '../api/mutations'
 import { formatApiError } from '../api/errors'
 import { confirmDelete } from './confirmDelete'
 import ServiceStatusBadge from './ServiceStatusBadge'
+import AddFromCategoryDefaults from './serviceIntervals/AddFromCategoryDefaults'
+import CustomRequirementEditor from './serviceIntervals/CustomRequirementEditor'
+import { availableTemplatesFor, confirmLogService } from './serviceIntervals/serviceIntervalsShared'
 import AddCustomServiceIntervalModal from './forms/AddCustomServiceIntervalModal'
 import EditServiceIntervalModal from './forms/EditServiceIntervalModal'
 import MaintenanceEventFormModal from './forms/MaintenanceEventFormModal'
-import { SatisfiersEditor } from './forms/serviceRequirementShared'
-import {
-  CALENDAR_UNIT_OPTIONS,
-  RIDE_FILTER_OPTIONS,
-  activeDimensionsOf,
-  hoursToSeconds,
-  kmToMeters,
-  metersToKm,
-  secondsToHours,
-} from './forms/serviceRequirementHelpers'
 import { formatRemaining } from '../utils/serviceInterval'
 import { formatDate } from '../utils/datetime'
 import { formatDistance } from '../utils/distance'
 import { formatDuration } from '../utils/duration'
-import type {
-  CalendarUnit,
-  CategoryServiceRequirement,
-  ComponentDetail,
-  ComponentServiceRequirementWithStatus,
-  RideFilter,
-} from '../types/models'
+import type { CategoryServiceRequirement, ComponentDetail, ComponentServiceRequirementWithStatus } from '../types/models'
 
 interface ServiceIntervalsSectionProps {
   component: ComponentDetail
@@ -79,35 +43,14 @@ export default function ServiceIntervalsSection({ component }: ServiceIntervalsS
   // now, not by service_type_id -- a template can have more than one
   // satisfier, so "already has this service type" is no longer the right
   // dedup key (see CategoryServiceRequirementsController#apply's own check).
-  const linkedTemplateIds = new Set(
-    (allComponentRequirements ?? [])
-      .filter((r) => r.component_id === component.id && r.category_service_requirement_id !== null)
-      .map((r) => r.category_service_requirement_id),
-  )
-  const availableTemplates = (categoryTemplates ?? []).filter(
-    (template) => template.category === component.category && !linkedTemplateIds.has(template.id),
-  )
+  const availableTemplates = availableTemplatesFor(component, categoryTemplates, allComponentRequirements)
 
   // Before actually opening the log form, check whether this service type
   // also clears any OTHER requirement on this component -- if so, confirm
   // first ("Also clears: ..."), otherwise go straight to logging (today's
   // one-click behavior, unchanged when there's nothing else to call out).
   function handleLogService(requirementId: number, serviceTypeId: number) {
-    const alsoClears = component.service_requirements
-      .filter((r) => r.id !== requirementId && r.satisfiers.some((s) => s.service_type_id === serviceTypeId))
-      .map((r) => r.requirement_name)
-
-    if (alsoClears.length === 0) {
-      setLogTarget({ serviceTypeId })
-      return
-    }
-
-    modals.openConfirmModal({
-      title: 'Log service',
-      children: <Text size="sm">This also clears: {alsoClears.join(', ')}</Text>,
-      labels: { confirm: 'Log service', cancel: 'Cancel' },
-      onConfirm: () => setLogTarget({ serviceTypeId }),
-    })
+    confirmLogService(component, requirementId, serviceTypeId, () => setLogTarget({ serviceTypeId }))
   }
 
   return (
@@ -408,178 +351,5 @@ function ServiceRequirementRow({
         />
       )}
     </>
-  )
-}
-
-// A custom row's own name/thresholds/ride_filter/satisfiers, edited inline
-// -- same shared editor pieces (SatisfiersEditor + the plain
-// constants/conversion helpers) CategoryServiceRequirementsModal uses for a
-// template, per the plan's "Custom requirements edit satisfiers inline with
-// same editor as Settings." A custom row has no inheritance of its own, so
-// its effective values already ARE its raw ones -- no override concept.
-function CustomRequirementEditor({
-  requirement,
-  componentId,
-  category,
-}: {
-  requirement: ComponentServiceRequirementWithStatus
-  componentId: number
-  category: string
-}) {
-  const updateRequirement = useUpdateComponentServiceRequirement(requirement.id)
-  // requirement.satisfiers (from GET /components/:id) is already resolved
-  // (nil allowance -> this requirement's own threshold) -- fine for display
-  // elsewhere, but wrong here: the editor needs the RAW, possibly-null
-  // allowance columns so an unset override shows its "same as requirement"
-  // placeholder instead of a resolved number that looks like someone typed
-  // it in. The raw CRUD endpoint is the one source of truth for that.
-  const { data: rawRequirements } = useComponentServiceRequirements(componentId)
-  const rawSatisfiers = rawRequirements?.find((r) => r.id === requirement.id)?.satisfiers ?? []
-
-  const [name, setName] = useState(requirement.requirement_name)
-  const [km, setKm] = useState<number | ''>(metersToKm(requirement.distance_meters))
-  const [hours, setHours] = useState<number | ''>(secondsToHours(requirement.moving_time_seconds))
-  const [calendarAmount, setCalendarAmount] = useState<number | ''>(requirement.calendar_amount ?? '')
-  const [calendarUnit, setCalendarUnit] = useState<CalendarUnit>(requirement.calendar_unit ?? 'month')
-  const [rideFilter, setRideFilter] = useState<RideFilter>(requirement.ride_filter)
-
-  function commitName() {
-    const trimmed = name.trim()
-    if (trimmed && trimmed !== requirement.requirement_name) updateRequirement.mutate({ name: trimmed })
-  }
-
-  return (
-    <Stack gap="xs">
-      <TextInput label="Name" value={name} onChange={(event) => setName(event.currentTarget.value)} onBlur={commitName} w={300} />
-      <Group align="flex-end" wrap="wrap">
-        <NumberInput
-          label="Every (km)"
-          placeholder="not used"
-          value={km}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setKm(next)
-            updateRequirement.mutate({ distance_meters: kmToMeters(next) })
-          }}
-          min={0}
-          w={120}
-        />
-        <NumberInput
-          label="Every (hours)"
-          placeholder="not used"
-          value={hours}
-          onChange={(v) => {
-            const next = v === '' ? '' : Number(v)
-            setHours(next)
-            updateRequirement.mutate({ moving_time_seconds: hoursToSeconds(next) })
-          }}
-          min={0}
-          w={120}
-        />
-        <Group gap={4} align="flex-end" wrap="nowrap">
-          <NumberInput
-            label="Every"
-            placeholder="not used"
-            value={calendarAmount}
-            onChange={(v) => {
-              const next = v === '' ? '' : Number(v)
-              setCalendarAmount(next)
-              updateRequirement.mutate({
-                calendar_amount: next === '' ? null : next,
-                calendar_unit: next === '' ? null : calendarUnit,
-              })
-            }}
-            min={0}
-            w={90}
-          />
-          <Select
-            data={CALENDAR_UNIT_OPTIONS}
-            value={calendarUnit}
-            onChange={(v) => {
-              const next = (v as CalendarUnit | null) ?? 'month'
-              setCalendarUnit(next)
-              if (calendarAmount !== '') updateRequirement.mutate({ calendar_unit: next })
-            }}
-            w={100}
-            allowDeselect={false}
-          />
-        </Group>
-      </Group>
-
-      <div>
-        <Text size="sm" fw={500} mb={4}>
-          Counts
-        </Text>
-        <SegmentedControl
-          data={RIDE_FILTER_OPTIONS}
-          value={rideFilter}
-          onChange={(v) => {
-            const next = v as RideFilter
-            setRideFilter(next)
-            updateRequirement.mutate({ ride_filter: next })
-          }}
-        />
-        {rideFilter !== 'all' && calendarAmount !== '' && (
-          <Text size="xs" c="dimmed" mt={4}>
-            Calendar time keeps counting on indoor rides.
-          </Text>
-        )}
-      </div>
-
-      {updateRequirement.isError && <Alert color="red">{formatApiError(updateRequirement.error)}</Alert>}
-
-      <SatisfiersEditor
-        owner={{ type: 'component', id: requirement.id }}
-        category={category}
-        satisfiers={rawSatisfiers}
-        activeDimensions={activeDimensionsOf(requirement)}
-      />
-    </Stack>
-  )
-}
-
-function AddFromCategoryDefaults({
-  componentId,
-  templates,
-  onDone,
-}: {
-  componentId: number
-  templates: CategoryServiceRequirement[]
-  onDone: () => void
-}) {
-  const applyDefaults = useApplyDefaultComponentServiceRequirements()
-  const [checked, setChecked] = useState<Set<number>>(new Set(templates.map((t) => t.id)))
-
-  function toggle(id: number) {
-    setChecked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function handleApply() {
-    applyDefaults.mutate({ componentId, categoryServiceRequirementIds: Array.from(checked) }, { onSuccess: onDone })
-  }
-
-  return (
-    <Stack gap="xs" p="sm" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
-      <Text fw={500} size="sm">
-        Add from category defaults
-      </Text>
-      {templates.map((template) => (
-        <Checkbox key={template.id} label={template.name} checked={checked.has(template.id)} onChange={() => toggle(template.id)} />
-      ))}
-      {applyDefaults.isError && <Alert color="red">{formatApiError(applyDefaults.error)}</Alert>}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button onClick={handleApply} disabled={checked.size === 0} loading={applyDefaults.isPending}>
-          Add selected
-        </Button>
-      </Group>
-    </Stack>
   )
 }

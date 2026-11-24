@@ -14,7 +14,9 @@ import type { MaintenanceEvent } from '../types/models'
 // own "+ Log maintenance event" button. Fetches its own data from just a
 // componentId so either caller can drop it in without threading props
 // through.
-export default function ComponentServiceAndHistory({ componentId }: { componentId: number }) {
+// `intervals` (default true): the component page passes false while its
+// own intervals section replaces this one's.
+export default function ComponentServiceAndHistory({ componentId, intervals = true }: { componentId: number; intervals?: boolean }) {
   const { data: component, isPending, error } = useComponent(componentId)
   const { data: events } = useMaintenanceEvents()
   const { data: serviceTypes } = useServiceTypes()
@@ -58,7 +60,7 @@ export default function ComponentServiceAndHistory({ componentId }: { componentI
 
   return (
     <Stack>
-      <ServiceIntervalsSection component={component} />
+      {intervals && <ServiceIntervalsSection component={component} />}
 
       <Group justify="space-between">
         <Title order={4}>Maintenance history</Title>

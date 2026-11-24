@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { componentPlacement, identityParts, placementText, worstRequirementStatus } from './componentPageModel'
+import {
+  componentPlacement,
+  identityParts,
+  intervalsSummary,
+  lastDoneText,
+  orderRequirements,
+  placementText,
+  requirementProgressText,
+  requirementRuleText,
+  worstRequirementStatus,
+} from './componentPageModel'
 import type { ComponentDetail, ComponentServiceRequirementWithStatus } from '../../types/models'
 
 const now = new Date(2026, 10, 24, 12)
@@ -113,5 +123,86 @@ describe('identityParts', () => {
   it('leads with brand and model, then the acquired date', () => {
     expect(identityParts(detail({ brand: 'KMC', model: 'X11' }), now)).toEqual(['KMC X11', `Acquired ${new Date(2026, 2, 2).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`])
     expect(identityParts(detail(), now)).toHaveLength(1)
+  })
+})
+
+const satisfier = (id: number, name: string, position: number) => ({
+  id,
+  service_type_id: id,
+  service_type_name: name,
+  position,
+  allowance_distance_meters: null,
+  allowance_moving_time_seconds: null,
+  allowance_calendar_amount: null,
+  allowance_calendar_unit: null,
+})
+
+describe('requirementRuleText', () => {
+  it('reads "Every 200 km · Drip wax or Immersion wax", satisfiers in position order', () => {
+    const rule = requirementRuleText(
+      requirement({ satisfiers: [satisfier(2, 'Immersion wax', 2), satisfier(1, 'Drip wax', 1)] }),
+    )
+    expect(rule).toBe('Every 200 km · Drip wax or Immersion wax')
+  })
+
+  it('joins every threshold with "or", and names a ride filter', () => {
+    const rule = requirementRuleText(
+      requirement({
+        distance_meters: 3_000_000,
+        moving_time_seconds: 36_000,
+        calendar_amount: 90,
+        calendar_unit: 'day',
+        ride_filter: 'outdoor',
+        satisfiers: [satisfier(1, 'Replace', 1)],
+      }),
+    )
+    expect(rule).toBe('Every 3,000 km or 10 hrs or 90 days · Replace · outdoor rides only')
+  })
+
+  it('uses the singular for one calendar unit, and skips what is missing', () => {
+    expect(requirementRuleText(requirement({ distance_meters: null, calendar_amount: 1, calendar_unit: 'year' }))).toBe('Every 1 year')
+    expect(requirementRuleText(requirement({ distance_meters: null }))).toBe('')
+  })
+})
+
+describe('requirementProgressText', () => {
+  it('reads "used / total" on the driving dimension, since the setting service', () => {
+    const r = requirement({
+      distance_used_meters: 196_000,
+      distance_remaining_meters: 4_000,
+      setting_event: { id: 1, service_type_name: 'Drip wax', performed_at: '2026-11-14T10:00:00Z' },
+    })
+    expect(requirementProgressText(r)).toBe('196 / 200 km since Drip wax')
+  })
+
+  it('reads "since install" before any service, and handles days and overdue', () => {
+    const days = requirement({ driving_dimension: 'days', days_used: 100, days_remaining: -10 })
+    expect(requirementProgressText(days)).toBe('100 / 90 days since install')
+  })
+})
+
+describe('lastDoneText', () => {
+  it('reads "Last done <date>" or "Since install"', () => {
+    const done = requirement({ setting_event: { id: 1, service_type_name: 'Wax', performed_at: new Date(2026, 10, 14, 12).toISOString() } })
+    expect(lastDoneText(done, now)).toMatch(/^Last done .*14$/)
+    expect(lastDoneText(requirement(), now)).toBe('Since install')
+  })
+})
+
+describe('intervalsSummary / orderRequirements', () => {
+  it('counts every interval, and due/soon among enabled ones', () => {
+    const list = [
+      requirement({ id: 1, status: 'due' }),
+      requirement({ id: 2, status: 'warning' }),
+      requirement({ id: 3, status: 'due', enabled: false }),
+    ]
+    expect(intervalsSummary(list)).toBe('3 intervals · 1 due · 1 soon')
+    expect(intervalsSummary([requirement()])).toBe('1 interval')
+    expect(intervalsSummary([])).toBe('No intervals')
+  })
+
+  it('puts enabled intervals before disabled ones', () => {
+    const list = [requirement({ id: 1, enabled: false }), requirement({ id: 2 }), requirement({ id: 3 })]
+    expect(orderRequirements(list).map((r) => r.id)).toEqual([2, 3, 1])
   })
 })

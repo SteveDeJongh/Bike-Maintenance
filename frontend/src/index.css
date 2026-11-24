@@ -113,3 +113,35 @@ body {
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: 2px;
 }
+
+/* The component page's Service intervals rows (ComponentIntervalsSection):
+   name | wear | left | last done | actions on a grid; on a phone the name
+   and actions share the first line and the rest stacks under it. The
+   767.98px boundary is useIsMobile's, like the input-zoom rule above. */
+.interval-row {
+  display: grid;
+  grid-template-columns: var(--interval-template);
+  align-items: center;
+  column-gap: var(--mantine-spacing-md);
+  row-gap: 6px;
+  padding: 10px 12px;
+}
+.interval-row__end {
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 767.98px) {
+  .interval-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .interval-row > :nth-child(5) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .interval-row > :nth-child(2) {
+    grid-column: 1 / -1;
+  }
+  .interval-row__end {
+    text-align: left;
+  }
+}

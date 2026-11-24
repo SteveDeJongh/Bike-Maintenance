@@ -90,3 +90,67 @@ export function identityParts(component: ComponentDetail, now: Date = new Date()
   const brandModel = [component.brand, component.model].filter(Boolean).join(' ')
   return [brandModel, `Acquired ${formatShortDate(component.acquired_on, now)}`].filter(Boolean)
 }
+
+const number = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+const plural = (count: number, one: string, many: string) => `${number(count)} ${count === 1 ? one : many}`
+
+// An interval's rule, dimmed under its name: "Every 200 km or 10 hrs or 90
+// days · Drip wax or Immersion wax · outdoor rides only". Thresholds come
+// from the requirement's effective values; the service types are its
+// satisfiers, in position order.
+export function requirementRuleText(requirement: ComponentServiceRequirementWithStatus): string {
+  const thresholds: string[] = []
+  if (requirement.distance_meters != null) thresholds.push(`${number(requirement.distance_meters / 1000)} km`)
+  if (requirement.moving_time_seconds != null) thresholds.push(`${number(requirement.moving_time_seconds / 3600)} hrs`)
+  if (requirement.calendar_amount != null && requirement.calendar_unit) {
+    thresholds.push(plural(requirement.calendar_amount, requirement.calendar_unit, `${requirement.calendar_unit}s`))
+  }
+  const services = [...requirement.satisfiers]
+    .sort((a, b) => a.position - b.position)
+    .map((satisfier) => satisfier.service_type_name)
+    .join(' or ')
+  const filter =
+    requirement.ride_filter === 'outdoor' ? 'outdoor rides only' : requirement.ride_filter === 'indoor' ? 'indoor rides only' : null
+  return [thresholds.length ? `Every ${thresholds.join(' or ')}` : null, services || null, filter].filter(Boolean).join(' · ')
+}
+
+// Under the wear bar: "196 / 200 km since Drip wax" on the driving
+// dimension, or "since install" before any satisfying service.
+export function requirementProgressText(requirement: ComponentServiceRequirementWithStatus): string {
+  const { used, remaining } = drivingAmounts(requirement)
+  const since = requirement.setting_event ? `since ${requirement.setting_event.service_type_name}` : 'since install'
+  if (used == null || remaining == null) return since
+  const total = used + remaining
+  switch (requirement.driving_dimension) {
+    case 'distance':
+      return `${number(used / 1000)} / ${number(total / 1000)} km ${since}`
+    case 'moving_time':
+      return `${number(used / 3600)} / ${number(total / 3600)} hrs ${since}`
+    default:
+      return `${number(used)} / ${plural(total, 'day', 'days')} ${since}`
+  }
+}
+
+// "Last done Nov 14" from the setting event, else "Since install".
+export function lastDoneText(requirement: ComponentServiceRequirementWithStatus, now: Date = new Date()): string {
+  return requirement.setting_event ? `Last done ${formatShortDate(requirement.setting_event.performed_at, now)}` : 'Since install'
+}
+
+// The Service intervals section's summary: "2 intervals · 1 due · 1 soon"
+// (due/soon over enabled ones, zero parts left out), or "No intervals".
+export function intervalsSummary(requirements: readonly ComponentServiceRequirementWithStatus[]): string {
+  if (requirements.length === 0) return 'No intervals'
+  const enabled = requirements.filter((requirement) => requirement.enabled)
+  const due = enabled.filter((requirement) => requirement.status === 'due').length
+  const soon = enabled.filter((requirement) => requirement.status === 'warning').length
+  return [plural(requirements.length, 'interval', 'intervals'), due ? `${due} due` : null, soon ? `${soon} soon` : null]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+// Enabled first, then disabled; each group keeps the server's order.
+export function orderRequirements(
+  requirements: readonly ComponentServiceRequirementWithStatus[],
+): ComponentServiceRequirementWithStatus[] {
+  return [...requirements.filter((r) => r.enabled), ...requirements.filter((r) => !r.enabled)]
+}

@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Alert, Anchor, Loader, Stack, Text } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
+import ComponentIntervalsSection from '../components/component/ComponentIntervalsSection'
 import ComponentPageHeader from '../components/component/ComponentPageHeader'
 import ComponentStatTiles from '../components/component/ComponentStatTiles'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
@@ -42,7 +43,8 @@ export default function ComponentDetail() {
       <ComponentPageHeader component={component} />
       <MaintenanceAlertBanners scope={{ componentId }} />
       <ComponentStatTiles component={component} />
-      <ComponentServiceAndHistory componentId={componentId} />
+      <ComponentIntervalsSection component={component} />
+      <ComponentServiceAndHistory componentId={componentId} intervals={false} />
     </Stack>
   )
 }
