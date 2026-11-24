@@ -200,24 +200,6 @@ export const INSTALLED_COMPONENT_SORT_COLUMNS = [
 
 export type InstalledComponentSortColumn = (typeof INSTALLED_COMPONENT_SORT_COLUMNS)[number]
 
-// The toggleable columns on the Components list. Label is the always-shown,
-// leading (pinned) linked column — not part of this list, but still sortable.
-export const COMPONENT_LIST_COLUMNS = [
-  'category', 'acquired_on', 'retired_on', 'brand', 'model', 'service_status', 'current_bikes',
-] as const
-
-export type ComponentListColumn = (typeof COMPONENT_LIST_COLUMNS)[number]
-
-export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> = {
-  category: 'Category',
-  acquired_on: 'Acquired',
-  retired_on: 'Retired',
-  brand: 'Brand',
-  model: 'Model',
-  service_status: 'Service Status',
-  current_bikes: 'Bike',
-}
-
 // The Components list's Fields (DataList field columns). Component, Bike
 // and Service are fixed columns, always shown; these are toggleable.
 // lifetime_distance is the component's lifetime_distance_meters.
@@ -256,18 +238,6 @@ export const SERVICE_STATUS_SEVERITY: Record<'ok' | 'warning' | 'due', number> =
   warning: 1,
   due: 2,
 }
-
-export const DEFAULT_COMPONENT_LIST_COLUMNS: ComponentListColumn[] = [
-  'category',
-  'acquired_on',
-  'retired_on',
-  'service_status',
-  'current_bikes',
-]
-
-export const COMPONENT_LIST_SORT_COLUMNS = ['label', ...COMPONENT_LIST_COLUMNS] as const
-
-export type ComponentListSortColumn = (typeof COMPONENT_LIST_SORT_COLUMNS)[number]
 
 // The toggleable columns on the Maintenance Events list. Component is the
 // always-shown, leading (pinned) linked column — there's no other natural

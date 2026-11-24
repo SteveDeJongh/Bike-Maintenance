@@ -7,7 +7,7 @@ import {
   filterComponents,
   groupComponents,
   hasActiveFilters,
-  installedBikeLine,
+  installedBikeParts,
   serviceFilterOf,
   sortComponents,
   type ComponentFilters,
@@ -223,12 +223,12 @@ describe('bandSummary', () => {
   })
 })
 
-describe('installedBikeLine', () => {
-  it('names one bike, or the band bike (else the first A-Z) plus the others', () => {
-    expect(installedBikeLine(component({ current_bikes: [soloist] }), null)).toBe('Soloist')
+describe('installedBikeParts', () => {
+  it('names the band bike (else the first A-Z) and counts the others', () => {
+    expect(installedBikeParts(component({ current_bikes: [soloist] }), null)).toEqual({ bike: soloist, others: 0 })
     const shared = component({ current_bikes: [soloist, juan] })
-    expect(installedBikeLine(shared, null)).toBe('Juan Solo +1')
-    expect(installedBikeLine(shared, 2)).toBe('Soloist +1')
+    expect(installedBikeParts(shared, null)).toEqual({ bike: juan, others: 1 })
+    expect(installedBikeParts(shared, 2)).toEqual({ bike: soloist, others: 1 })
   })
 })
 

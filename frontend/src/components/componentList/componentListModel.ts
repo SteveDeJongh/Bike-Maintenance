@@ -1,6 +1,6 @@
 import { categoryLabel, SERVICE_STATUS_SEVERITY, type ComponentListField, type ComponentListSort } from '../../constants'
 import { componentState, type ComponentState } from '../../utils/componentState'
-import type { ComponentListItem, TableViewPreferenceData } from '../../types/models'
+import type { ComponentCurrentBike, ComponentListItem, TableViewPreferenceData } from '../../types/models'
 
 // The Components list's pure helpers (docs/frontend-ui.md, "Components
 // page"): state pills, tiles, filters, sort, grouping and band summaries.
@@ -24,6 +24,12 @@ export const COMPONENT_STATE_COLORS: Record<ComponentState, string> = {
 
 export const COMPONENT_GROUP_BYS = ['category', 'bike', 'none'] as const
 export type ComponentGroupBy = (typeof COMPONENT_GROUP_BYS)[number]
+
+export const GROUP_BY_OPTIONS: { label: string; value: ComponentGroupBy }[] = [
+  { label: 'Category', value: 'category' },
+  { label: 'Bike', value: 'bike' },
+  { label: 'None', value: 'none' },
+]
 
 export function isComponentGroupBy(value: unknown): value is ComponentGroupBy {
   return typeof value === 'string' && (COMPONENT_GROUP_BYS as readonly string[]).includes(value)
@@ -127,7 +133,7 @@ export function categoryRank(category: string, categoryOrder: readonly string[])
   return [index === -1 ? categoryOrder.length : index, category]
 }
 
-function compareCategory(a: string, b: string, categoryOrder: readonly string[]): number {
+export function compareCategory(a: string, b: string, categoryOrder: readonly string[]): number {
   const [ai, an] = categoryRank(a, categoryOrder)
   const [bi, bn] = categoryRank(b, categoryOrder)
   return ai - bi || an.localeCompare(bn)
@@ -287,11 +293,13 @@ export function bandSummary(rows: readonly ComponentRow[]): string {
 }
 
 // The Bike cell's main line for an installed component: the band's bike
-// (or the first A-Z) and "+N" for the others -- "Juan Solo +1".
-export function installedBikeLine(component: ComponentListItem, preferBikeId: number | null): string {
+// (or the first A-Z), plus how many others -- "Juan Solo +1".
+export function installedBikeParts(
+  component: ComponentListItem,
+  preferBikeId: number | null,
+): { bike: ComponentCurrentBike; others: number } {
   const bikes = [...component.current_bikes].sort((a, b) => a.name.localeCompare(b.name))
-  const first = bikes.find((bike) => bike.id === preferBikeId) ?? bikes[0]
-  return bikes.length > 1 ? `${first.name} +${bikes.length - 1}` : first.name
+  return { bike: bikes.find((bike) => bike.id === preferBikeId) ?? bikes[0], others: bikes.length - 1 }
 }
 
 // Old saved views (before the redesign) stored the table's old column

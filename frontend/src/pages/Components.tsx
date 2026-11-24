@@ -1,139 +1,38 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Alert, Anchor, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
-import { Link } from 'react-router-dom'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
-import { useComponents, useTableViewPreference } from '../api/queries'
-import { useDeleteComponent } from '../api/mutations'
-import { confirmDelete } from '../components/confirmDelete'
+import { Alert, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
+import { useBikes, useComponents, useTableViewPreference } from '../api/queries'
+import ComponentsList from '../components/componentList/ComponentsList'
+import ComponentsSummaryTiles from '../components/componentList/ComponentsSummaryTiles'
+import ComponentsToolbar from '../components/componentList/ComponentsToolbar'
+import { compareCategory, componentTileCounts, filterComponents } from '../components/componentList/componentListModel'
+import { useComponentsView } from '../components/componentList/useComponentsView'
 import ComponentFormModal from '../components/forms/ComponentFormModal'
 import RetireComponentModal from '../components/forms/RetireComponentModal'
-import ServiceStatusBadge from '../components/ServiceStatusBadge'
-import ColumnPicker from '../components/datatable/ColumnPicker'
-import DataCardList from '../components/datatable/DataCardList'
-import DraggableHeaderCell from '../components/datatable/DraggableHeaderCell'
-import MobileSortControl from '../components/datatable/MobileSortControl'
-import SortableHeaderCell from '../components/datatable/SortableHeaderCell'
-import { useColumnDragSensors } from '../components/datatable/useColumnDragSensors'
-import { useIsMobile } from '../hooks/useIsMobile'
-import { useTableViewPreferences } from '../hooks/useTableViewPreferences'
-import {
-  categoryLabel,
-  COMPONENT_LIST_COLUMN_LABELS,
-  COMPONENT_LIST_COLUMNS,
-  COMPONENT_LIST_SORT_COLUMNS,
-  DEFAULT_COMPONENT_LIST_COLUMNS,
-  SERVICE_STATUS_SEVERITY,
-  type ComponentListColumn,
-  type ComponentListSortColumn,
-} from '../constants'
-import { bikeColumnSortKey, bikeColumnState } from '../utils/componentBike'
-import { formatDate } from '../utils/datetime'
-import type { Component, ComponentWithServiceStatus, TableViewPreferenceData } from '../types/models'
+import { useAllCategories } from '../hooks/useAllCategories'
+import { categoryLabel, COMPONENT_LIST_FIELD_LABELS, COMPONENT_LIST_FIELDS } from '../constants'
+import type { ComponentListItem, TableViewPreferenceData } from '../types/models'
 
-const COMPONENT_LIST_COLUMN_OPTIONS = COMPONENT_LIST_COLUMNS.map((column) => ({
-  key: column,
-  label: COMPONENT_LIST_COLUMN_LABELS[column],
-}))
+const FIELD_OPTIONS = COMPONENT_LIST_FIELDS.map((field) => ({ key: field, label: COMPONENT_LIST_FIELD_LABELS[field] }))
 
-// MobileSortControl needs a label for every sortable column, including the
-// pinned "label" column -- which COMPONENT_LIST_COLUMN_LABELS doesn't carry,
-// since it's not one of the toggleable columns.
-const COMPONENT_LIST_SORT_COLUMN_LABELS: Record<ComponentListSortColumn, string> = {
-  label: 'Label',
-  ...COMPONENT_LIST_COLUMN_LABELS,
-}
-
-// Mounted: the bike(s), linked. Otherwise "Last on <bike>" (removed or
-// retired) or "Never installed", dimmed. The mobile card view shares this
-// renderer.
-function BikeCell({ component }: { component: ComponentWithServiceStatus }) {
-  const state = bikeColumnState(component)
-  if (state === 'mounted') {
-    return (
-      <>
-        {component.current_bikes.map((bike, index) => (
-          <span key={bike.id}>
-            {index > 0 && ', '}
-            <Anchor component={Link} to={`/bikes/${bike.id}`}>
-              {bike.name}
-            </Anchor>
-          </span>
-        ))}
-      </>
-    )
-  }
-  if (state === 'last_on') {
-    const bike = component.last_bike!
-    return (
-      <Text span size="sm" c="dimmed">
-        Last on{' '}
-        <Anchor component={Link} to={`/bikes/${bike.id}`} size="sm">
-          {bike.name}
-        </Anchor>
-      </Text>
-    )
-  }
-  return (
-    <Text span size="sm" c="dimmed">
-      Never installed
-    </Text>
-  )
-}
-
-const componentRenderer: Record<ComponentListColumn, (c: ComponentWithServiceStatus) => ReactNode> = {
-  category: (c) => categoryLabel(c.category),
-  acquired_on: (c) => formatDate(c.acquired_on),
-  retired_on: (c) => (c.retired_on ? formatDate(c.retired_on) : 'Active'),
-  brand: (c) => c.brand ?? '—',
-  model: (c) => c.model ?? '—',
-  service_status: (c) => <ServiceStatusBadge status={c.service_status} />,
-  current_bikes: (c) => <BikeCell component={c} />,
-}
-
-const componentValue: Record<ComponentListSortColumn, (c: ComponentWithServiceStatus) => string | number | null> = {
-  label: (c) => c.label,
-  category: (c) => c.category,
-  acquired_on: (c) => c.acquired_on,
-  retired_on: (c) => c.retired_on,
-  brand: (c) => c.brand,
-  model: (c) => c.model,
-  service_status: (c) => (c.service_status ? SERVICE_STATUS_SEVERITY[c.service_status] : null),
-  current_bikes: bikeColumnSortKey,
-}
-
+// The Components list (docs/frontend-ui.md, "Components page"): a header
+// with + New component, a TileRow of counts, the toolbar (state pills,
+// Group by, Fields, search and filters), then the DataList. Rows open the
+// component; Retire stays on each row, Edit and Delete are on its page.
 export default function Components() {
   const { data, isPending, isError, error } = useComponents()
   const { data: preferenceData, isPending: preferencePending } = useTableViewPreference('components')
-  const deleteComponent = useDeleteComponent()
-
-  const [modalOpened, setModalOpened] = useState(false)
-  const [editing, setEditing] = useState<Component | null>(null)
-  const [retiringId, setRetiringId] = useState<number | null>(null)
-
-  function openCreate() {
-    setEditing(null)
-    setModalOpened(true)
-  }
-
-  function openEdit(component: Component) {
-    setEditing(component)
-    setModalOpened(true)
-  }
-
-  function handleDelete(component: Component) {
-    confirmDelete({
-      title: 'Delete component',
-      message: `Delete "${component.label}"? This also deletes its assignment and maintenance event history.`,
-      onConfirm: () => deleteComponent.mutate(component.id),
-    })
-  }
+  const [createOpened, setCreateOpened] = useState(false)
 
   return (
-    <>
-      <Group justify="space-between" mb="md">
-        <Title order={2}>Components</Title>
-        <Button onClick={openCreate}>+ New Component</Button>
+    <Stack gap="md">
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <div>
+          <Title order={2}>Components</Title>
+          <Text size="sm" c="dimmed">
+            Every part you track, on a bike or on the shelf
+          </Text>
+        </div>
+        <Button onClick={() => setCreateOpened(true)}>+ New component</Button>
       </Group>
 
       {(isPending || preferencePending) && <Loader />}
@@ -144,191 +43,116 @@ export default function Components() {
         </Alert>
       )}
 
-      {data && data.length === 0 && <Text c="dimmed">No components yet.</Text>}
+      {/* useComponentsView seeds from the preference once, on mount. */}
+      {data && preferenceData && (
+        <ComponentsContent components={data} initialData={preferenceData.data} onCreate={() => setCreateOpened(true)} />
+      )}
 
-      {data && data.length > 0 && preferenceData && (
-        <ComponentsTable
-          components={data}
-          initialData={preferenceData.data}
-          onEdit={openEdit}
+      <ComponentFormModal opened={createOpened} onClose={() => setCreateOpened(false)} />
+    </Stack>
+  )
+}
+
+function ComponentsContent({
+  components,
+  initialData,
+  onCreate,
+}: {
+  components: ComponentListItem[]
+  initialData: TableViewPreferenceData
+  onCreate: () => void
+}) {
+  const view = useComponentsView(initialData)
+  const { data: bikes } = useBikes()
+  const categoryOrder = useAllCategories()
+  const [retiringId, setRetiringId] = useState<number | null>(null)
+
+  const counts = componentTileCounts(components)
+
+  // Filter options: categories in use, in the app's order; every bike A-Z.
+  // A saved category or bike that no longer exists reads as unset.
+  const categoryOptions = useMemo(() => {
+    const used = [...new Set(components.map((component) => component.category))]
+    used.sort((a, b) => compareCategory(a, b, categoryOrder))
+    return used.map((category) => ({ value: category, label: categoryLabel(category) }))
+  }, [components, categoryOrder])
+  const bikeOptions = useMemo(
+    () =>
+      (bikes ?? [])
+        .map((bike) => ({ value: bike.id, label: bike.name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [bikes],
+  )
+  const category = categoryOptions.some((option) => option.value === view.category) ? view.category : null
+  const bikeId = bikeOptions.some((option) => option.value === view.bikeId) ? view.bikeId : null
+
+  const filtered = filterComponents(components, {
+    states: view.states,
+    q: view.q,
+    category,
+    bikeId,
+    service: view.service,
+  })
+
+  return (
+    <>
+      <ComponentsSummaryTiles counts={counts} />
+      <ComponentsToolbar
+        view={view}
+        counts={counts}
+        category={category}
+        bikeId={bikeId}
+        categoryOptions={categoryOptions}
+        bikeOptions={bikeOptions}
+        fieldOptions={FIELD_OPTIONS}
+      />
+      {view.table.saveError && (
+        <Alert color="red" withCloseButton onClose={view.table.clearSaveError}>
+          {view.table.saveError}
+        </Alert>
+      )}
+
+      {components.length === 0 ? (
+        <EmptyState title="No components yet" action={<Button onClick={onCreate}>+ New component</Button>} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="No components match these filters"
+          action={
+            view.hasActiveFilters ? (
+              <Button variant="default" radius="xl" onClick={view.clearFilters}>
+                Clear filters
+              </Button>
+            ) : (
+              <Text size="sm" c="dimmed">
+                Turn on Installed, Spare or Retired above.
+              </Text>
+            )
+          }
+        />
+      ) : (
+        <ComponentsList
+          components={filtered}
+          view={view}
+          groupBy={view.groupBy}
+          categoryOrder={categoryOrder}
           onRetire={(component) => setRetiringId(component.id)}
-          onDelete={handleDelete}
         />
       )}
 
       {retiringId !== null && (
         <RetireComponentModal opened onClose={() => setRetiringId(null)} componentId={retiringId} />
       )}
-
-      <ComponentFormModal
-        opened={modalOpened}
-        onClose={() => setModalOpened(false)}
-        component={editing ?? undefined}
-      />
     </>
   )
 }
 
-function ComponentsTable({
-  components,
-  initialData,
-  onEdit,
-  onRetire,
-  onDelete,
-}: {
-  components: ComponentWithServiceStatus[]
-  initialData: TableViewPreferenceData
-  onEdit: (component: Component) => void
-  onRetire: (component: Component) => void
-  onDelete: (component: Component) => void
-}) {
-  const {
-    orderedColumns,
-    toggleColumn,
-    reorderColumn,
-    onHeaderDragEnd,
-    sortColumn,
-    sortDirection,
-    setSort,
-    saveError,
-    clearSaveError,
-  } = useTableViewPreferences<ComponentListColumn, ComponentListSortColumn>({
-    tableKey: 'components',
-    initialData,
-    allColumns: COMPONENT_LIST_COLUMNS,
-    defaultColumns: DEFAULT_COMPONENT_LIST_COLUMNS,
-    sortColumns: COMPONENT_LIST_SORT_COLUMNS,
-    defaultSort: { column: 'label', direction: 'asc' },
-  })
-  const headerDragSensors = useColumnDragSensors()
-  const isMobile = useIsMobile()
-
-  const sortedComponents = useMemo(() => {
-    const accessor = componentValue[sortColumn]
-    return components
-      .map((component, index) => ({ component, index }))
-      .sort((a, b) => {
-        const av = accessor(a.component)
-        const bv = accessor(b.component)
-        if (av === null && bv === null) return a.index - b.index
-        if (av === null) return 1
-        if (bv === null) return -1
-        const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number)
-        return sortDirection === 'asc' ? cmp : -cmp
-      })
-      .map(({ component }) => component)
-  }, [components, sortColumn, sortDirection])
-
+function EmptyState({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <>
-      {saveError && (
-        <Alert color="red" mb="sm" withCloseButton onClose={clearSaveError}>
-          {saveError}
-        </Alert>
-      )}
-
-      {isMobile ? (
-        <Stack gap="sm">
-          <MobileSortControl
-            sortColumns={COMPONENT_LIST_SORT_COLUMNS}
-            columnLabels={COMPONENT_LIST_SORT_COLUMN_LABELS}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onChange={setSort}
-          />
-          <DataCardList
-            rows={sortedComponents}
-            getKey={(component) => component.id}
-            renderTitle={(component) => (
-              <Anchor component={Link} to={`/components/${component.id}`} fw={500}>
-                {component.label}
-              </Anchor>
-            )}
-            orderedColumns={orderedColumns}
-            columnLabels={COMPONENT_LIST_COLUMN_LABELS}
-            columnRenderer={componentRenderer}
-            renderActions={(component) => (
-              <>
-                <Menu.Item onClick={() => onEdit(component)}>Edit</Menu.Item>
-                {!component.retired_on && <Menu.Item onClick={() => onRetire(component)}>Retire</Menu.Item>}
-                <Menu.Item color="red" onClick={() => onDelete(component)}>
-                  Delete
-                </Menu.Item>
-              </>
-            )}
-          />
-        </Stack>
-      ) : (
-        <Table.ScrollContainer minWidth={700}>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <DndContext sensors={headerDragSensors} collisionDetection={closestCenter} onDragEnd={onHeaderDragEnd}>
-                <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
-                  <Table.Tr>
-                    <SortableHeaderCell
-                      label="Label"
-                      active={sortColumn === 'label'}
-                      direction={sortDirection}
-                      onClick={() => setSort('label')}
-                    />
-                    {orderedColumns.map((column) => (
-                      <DraggableHeaderCell
-                        key={column}
-                        columnKey={column}
-                        label={COMPONENT_LIST_COLUMN_LABELS[column]}
-                        active={sortColumn === column}
-                        direction={sortDirection}
-                        onSort={() => setSort(column)}
-                      />
-                    ))}
-                    <Table.Th />
-                    <Table.Th>
-                      <ColumnPicker
-                        allColumns={COMPONENT_LIST_COLUMN_OPTIONS}
-                        orderedVisible={orderedColumns}
-                        onToggle={(key) => toggleColumn(key as ComponentListColumn)}
-                        onReorder={(activeKey, overKey) =>
-                          reorderColumn(activeKey as ComponentListColumn, overKey as ComponentListColumn)
-                        }
-                      />
-                    </Table.Th>
-                  </Table.Tr>
-                </SortableContext>
-              </DndContext>
-            </Table.Thead>
-            <Table.Tbody>
-              {sortedComponents.map((component) => (
-                <Table.Tr key={component.id}>
-                  <Table.Td>
-                    <Anchor component={Link} to={`/components/${component.id}`}>
-                      {component.label}
-                    </Anchor>
-                  </Table.Td>
-                  {orderedColumns.map((column) => (
-                    <Table.Td key={column}>{componentRenderer[column](component)}</Table.Td>
-                  ))}
-                  <Table.Td>
-                    <Group justify="flex-end" gap="xs">
-                      <Button size="xs" variant="subtle" onClick={() => onEdit(component)}>
-                        Edit
-                      </Button>
-                      {!component.retired_on && (
-                        <Button size="xs" variant="subtle" color="red" onClick={() => onRetire(component)}>
-                          Retire
-                        </Button>
-                      )}
-                      <Button size="xs" variant="subtle" color="red" onClick={() => onDelete(component)}>
-                        Delete
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                  <Table.Td />
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      )}
-    </>
+    <Paper withBorder radius="md" p="xl">
+      <Stack align="center" gap="sm">
+        <Text fw={500}>{title}</Text>
+        {action}
+      </Stack>
+    </Paper>
   )
 }

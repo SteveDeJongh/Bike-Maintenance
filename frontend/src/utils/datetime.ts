@@ -28,10 +28,18 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+// A date-only value ("2026-03-01", the API's _on columns) is that day in
+// the browser's zone -- new Date() alone reads it as UTC midnight, which is
+// the day before anywhere west of UTC. Timestamps parse as usual.
+function parseDay(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value)
+}
+
 // "Nov 16" this year, "Mar 2, 2025" otherwise -- the compact date of the
-// Home panels and bike cards. The year compares in the browser's zone.
+// Home panels, bike cards and the Components list. Takes a timestamp or a
+// date-only value; the year compares in the browser's zone.
 export function formatShortDate(value: string, now: Date = new Date()): string {
-  const date = new Date(value)
+  const date = parseDay(value)
   const sameYear = date.getFullYear() === now.getFullYear()
   return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }

@@ -43,6 +43,11 @@ describe('formatShortDate', () => {
     expect(formatShortDate(local(2025, 2, 2), now)).toMatch(/2025/)
   })
 
+  it('reads a date-only value as that local day', () => {
+    expect(formatShortDate('2026-03-01', now)).toBe(new Date(2026, 2, 1).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))
+    expect(formatShortDate('2025-01-01', now)).toMatch(/2025/)
+  })
+
   it('compares years in local time, not UTC', () => {
     expect(formatShortDate(local(2026, 0, 1), now)).not.toMatch(/2026/)
     expect(formatShortDate(local(2025, 11, 31), now)).toMatch(/2025/)
