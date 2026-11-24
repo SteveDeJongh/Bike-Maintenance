@@ -11,7 +11,7 @@ import type {
   ComponentCategorySetting,
   ComponentDetail,
   ComponentServiceRequirement,
-  ComponentWithServiceStatus,
+  ComponentListItem,
   DashboardSummary,
   MaintenanceAlert,
   MaintenanceAlertScope,
@@ -87,7 +87,7 @@ export function useServiceSession(id: number) {
 export function useComponents() {
   return useQuery({
     queryKey: ['components'],
-    queryFn: () => apiGet<ComponentWithServiceStatus[]>('/components'),
+    queryFn: () => apiGet<ComponentListItem[]>('/components'),
   })
 }
 

@@ -136,15 +136,23 @@ export interface TableViewPreferenceData {
   // option) rather than a second preference row, since the backend already
   // treats this whole value as free-form per-table JSON.
   kinds?: string[]
-  // Activity log's list grouping ("week" when absent) -- validated
-  // server-side, the one key that is.
-  group_by?: 'week' | 'none'
+  // A grouped list's grouping, validated server-side per table_key (the
+  // one key that is): Activity log "week" | "none" ("week" when absent);
+  // Components list "category" | "bike" | "none" ("category" when absent).
+  group_by?: string
   // Bikes page (table_key "bikes"): Cards | Table, the card sort and
   // whether retired bikes show. Free-form like columns; useBikesView
   // validates them on load.
   view?: string
   card_sort?: string
   show_retired?: boolean
+  // Components list (table_key "components"): the state pills and the
+  // Category / Bike / Service status filters. useComponentsView validates
+  // them on load.
+  states?: string[]
+  category?: string | null
+  bike_id?: number | null
+  service?: string | null
 }
 
 // null means no enabled service interval at all (not "ok") -- the Components
@@ -203,6 +211,27 @@ export interface ComponentWithServiceStatus extends Component {
   service_status: ServiceStatus | null
   current_bikes: ComponentCurrentBike[]
   last_bike: ComponentLastBike | null
+}
+
+// One row of GET /components: the list fields above plus, all batched
+// server-side, the worst enabled requirement's wear (Maintenance::WearFields;
+// all null with none), lifetime distance, when it went on its bike(s), and
+// the raw inputs for a rotating spare's "<service> · ready" reading
+// (spareReadyLabel). Installed / spare / retired: componentState.
+export interface ComponentListItem extends ComponentWithServiceStatus {
+  fraction_used: number | null
+  driving_dimension: RequirementDimension | null
+  distance_remaining_meters: number | null
+  moving_time_remaining_seconds: number | null
+  days_remaining: number | null
+  has_enabled_requirement: boolean
+  lifetime_distance_meters: number
+  // The earliest open assignment's started_at (a shared indoor cassette has
+  // one per bike); null when not installed.
+  assigned_since: string | null
+  // The category rotates (ComponentCategorySetting#rotates).
+  rotates: boolean
+  latest_service: { service_type_name: string; performed_at: string } | null
 }
 
 export interface ComponentDetail extends Component {

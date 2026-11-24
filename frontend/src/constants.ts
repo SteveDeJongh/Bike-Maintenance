@@ -218,6 +218,28 @@ export const COMPONENT_LIST_COLUMN_LABELS: Record<ComponentListColumn, string> =
   current_bikes: 'Bike',
 }
 
+// The Components list's Fields (DataList field columns). Component, Bike
+// and Service are fixed columns, always shown; these are toggleable.
+// lifetime_distance is the component's lifetime_distance_meters.
+export const COMPONENT_LIST_FIELDS = ['lifetime_distance', 'acquired_on', 'brand', 'model', 'category', 'retired_on'] as const
+
+export type ComponentListField = (typeof COMPONENT_LIST_FIELDS)[number]
+
+export const COMPONENT_LIST_FIELD_LABELS: Record<ComponentListField, string> = {
+  lifetime_distance: 'Lifetime',
+  acquired_on: 'Acquired',
+  brand: 'Brand',
+  model: 'Model',
+  category: 'Category',
+  retired_on: 'Retired on',
+}
+
+export const DEFAULT_COMPONENT_LIST_FIELDS: ComponentListField[] = ['lifetime_distance', 'acquired_on']
+
+export const COMPONENT_LIST_SORTS = ['component', 'bike', 'service', ...COMPONENT_LIST_FIELDS] as const
+
+export type ComponentListSort = (typeof COMPONENT_LIST_SORTS)[number]
+
 // Shared by every table/badge rendering a component's service_status --
 // color for the badge, numeric priority (due > warning > ok) for sorting a
 // column of them, same severity order the backend's
