@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { Alert, Badge, Box, Button, Group, Loader, Menu, Paper, Stack, Text, Title } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
-import { useTableViewPreference } from '../../api/queries'
+import { useComponentAssignments, useComponentCategorySettings, useComponents, useTableViewPreference } from '../../api/queries'
 import { useCreateBikeComponentSlot } from '../../api/mutations'
 import ComponentSwapPill from '../ComponentSwapPill'
 import DataList from '../datalist/DataList'
@@ -13,13 +13,16 @@ import WearBar from '../dashboard/WearBar'
 import EmptySlotPill from './EmptySlotPill'
 import { installedComponentRenderer } from './installedComponentColumns'
 import {
+  activeElsewhereByComponent,
   addableSlotOptions,
   installedRows,
+  orderSlots,
   installedSummaryLine,
   sortInstalledRows,
   type AddableSlotOption,
   type InstalledRow,
 } from './installedComponentsModel'
+import { useAllCategories } from '../../hooks/useAllCategories'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
 import {
@@ -51,12 +54,16 @@ const FIELD_MIN = 84
 
 interface Props {
   bike: BikeDetail
+  onOpenAssignment: (assignment: ComponentAssignmentWithStats) => void
+}
+
+interface InnerProps extends Props {
   orderedSlots: BikeComponentSlot[]
   allCategories: readonly string[]
   categorySettings: ComponentCategorySetting[] | undefined
   components: Component[]
   activeAssignmentsElsewhereByComponentId: Map<number, ('both' | 'outdoor_only' | 'indoor_only')[]>
-  onOpenAssignment: (assignment: ComponentAssignmentWithStats) => void
+  initialData: TableViewPreferenceData
 }
 
 // The bike's slots as one DataList: Category | the swap pill | ride
@@ -64,11 +71,31 @@ interface Props {
 // A filled row opens the installation modal (Remove lives there now); an
 // empty slot stays in place, muted, with a dashed pill to fill it. A phone
 // gets the same rows stacked.
-export default function InstalledComponentsCard(props: Props) {
+export default function InstalledComponentsCard({ bike, onOpenAssignment }: Props) {
   const { data: preferenceData, isPending } = useTableViewPreference('bike_installed_components')
+  // Every assignment of the user's: what's mounted on other bikes decides
+  // which components an empty slot may take.
+  const { data: assignments, isPending: assignmentsPending } = useComponentAssignments()
+  const { data: components } = useComponents()
+  const { data: categorySettings } = useComponentCategorySettings()
+  const allCategories = useAllCategories()
+  const orderedSlots = useMemo(() => orderSlots(bike.bike_component_slots, allCategories), [bike.bike_component_slots, allCategories])
+  const elsewhere = useMemo(() => activeElsewhereByComponent(assignments ?? [], bike.id), [assignments, bike.id])
+
   // useTableViewPreferences seeds from the preference once, on mount.
-  if (isPending || !preferenceData) return <Loader />
-  return <InstalledComponentsCardInner {...props} initialData={preferenceData.data} />
+  if (isPending || !preferenceData || assignmentsPending) return <Loader />
+  return (
+    <InstalledComponentsCardInner
+      bike={bike}
+      onOpenAssignment={onOpenAssignment}
+      orderedSlots={orderedSlots}
+      allCategories={allCategories}
+      categorySettings={categorySettings}
+      components={components ?? []}
+      activeAssignmentsElsewhereByComponentId={elsewhere}
+      initialData={preferenceData.data}
+    />
+  )
 }
 
 function InstalledComponentsCardInner({
@@ -80,7 +107,7 @@ function InstalledComponentsCardInner({
   activeAssignmentsElsewhereByComponentId,
   onOpenAssignment,
   initialData,
-}: Props & { initialData: TableViewPreferenceData }) {
+}: InnerProps) {
   const isMobile = useIsMobile()
   const table = useTableViewPreferences<InstalledComponentColumn, InstalledComponentSortColumn>({
     tableKey: 'bike_installed_components',

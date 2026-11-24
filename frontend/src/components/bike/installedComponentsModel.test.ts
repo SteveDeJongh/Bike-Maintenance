@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activeElsewhereByComponent,
   addableSlotOptions,
   installedRows,
   installedSummaryLine,
@@ -111,5 +112,20 @@ describe('addableSlotOptions', () => {
       { category: 'cassette', rideContext: 'outdoor_only' },
     ])
     expect(addableSlotOptions(['chain'], [slot(1, 'chain')], settings)).toEqual([])
+  })
+})
+
+describe('activeElsewhereByComponent', () => {
+  it("collects other bikes' open installations per component, ignoring this bike's and ended ones", () => {
+    const map = activeElsewhereByComponent(
+      [
+        { component_id: 1, bike_id: 2, ended_at: null, ride_context: 'indoor_only' },
+        { component_id: 1, bike_id: 3, ended_at: null, ride_context: 'indoor_only' },
+        { component_id: 2, bike_id: 1, ended_at: null, ride_context: 'both' },
+        { component_id: 3, bike_id: 2, ended_at: '2026-01-01T00:00:00Z', ride_context: 'both' },
+      ],
+      1,
+    )
+    expect([...map.entries()]).toEqual([[1, ['indoor_only', 'indoor_only']]])
   })
 })

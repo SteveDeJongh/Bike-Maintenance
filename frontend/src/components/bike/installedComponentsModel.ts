@@ -1,6 +1,7 @@
 import { SERVICE_STATUS_SEVERITY, type InstalledComponentSortColumn } from '../../constants'
 import type {
   BikeComponentSlot,
+  ComponentAssignment,
   ComponentAssignmentWithStats,
   ComponentCategorySetting,
   DashboardMountedComponent,
@@ -137,4 +138,21 @@ export function sortInstalledRows(rows: InstalledRow[], column: InstalledCompone
     const cmp = typeof xv === 'string' ? xv.localeCompare(yv as string) : xv - (yv as number)
     return (direction === 'asc' ? cmp : -cmp) || x.order - y.order
   })
+}
+
+// For each component actively mounted on some *other* bike, the ride
+// contexts it's mounted with there. An empty slot normally can't take such
+// a component -- unless the slot is indoor-only, the category allows
+// sharing, and every one of those is indoor-only (a cassette that lives on
+// the trainer, not on any one bike).
+export function activeElsewhereByComponent(
+  assignments: Pick<ComponentAssignment, 'component_id' | 'bike_id' | 'ended_at' | 'ride_context'>[],
+  bikeId: number,
+): Map<number, RideContext[]> {
+  const byComponent = new Map<number, RideContext[]>()
+  for (const a of assignments) {
+    if (a.ended_at !== null || a.bike_id === bikeId) continue
+    byComponent.set(a.component_id, [...(byComponent.get(a.component_id) ?? []), a.ride_context])
+  }
+  return byComponent
 }

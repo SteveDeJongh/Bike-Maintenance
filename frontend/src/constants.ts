@@ -182,40 +182,6 @@ export const INSTALLED_COMPONENT_SORT_COLUMNS = [
 
 export type InstalledComponentSortColumn = (typeof INSTALLED_COMPONENT_SORT_COLUMNS)[number]
 
-export const HISTORY_COLUMNS = [
-  'period_distance',
-  'period_time',
-  'period_elevation',
-  'period_avg_power',
-  'component_total_distance',
-  'component_total_time',
-  'component_total_elevation',
-  'component_avg_power',
-  'started_on',
-  'ended_on',
-] as const
-
-export type HistoryColumn = (typeof HISTORY_COLUMNS)[number]
-
-export const HISTORY_COLUMN_LABELS: Record<HistoryColumn, string> = {
-  period_distance: 'Distance',
-  period_time: 'Time',
-  period_elevation: 'Elevation',
-  period_avg_power: 'Avg Power',
-  component_total_distance: 'Total Distance',
-  component_total_time: 'Total Time',
-  component_total_elevation: 'Total Elevation',
-  component_avg_power: 'Total Avg Power',
-  started_on: 'Installed',
-  ended_on: 'Uninstalled',
-}
-
-export const DEFAULT_HISTORY_COLUMNS: HistoryColumn[] = ['started_on', 'ended_on', 'period_distance']
-
-export const HISTORY_SORT_COLUMNS = ['category', 'component_label', ...HISTORY_COLUMNS] as const
-
-export type HistorySortColumn = (typeof HISTORY_SORT_COLUMNS)[number]
-
 // The toggleable columns on the Components list. Label is the always-shown,
 // leading (pinned) linked column — not part of this list, but still sortable.
 export const COMPONENT_LIST_COLUMNS = [

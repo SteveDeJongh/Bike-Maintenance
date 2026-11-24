@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
-import { Badge, Box, Group, Stack, Text, ThemeIcon, Tooltip } from '@mantine/core'
+import { Box, Group, Stack, Text, ThemeIcon } from '@mantine/core'
 import { IconArrowsExchange, IconBike, IconTool } from '@tabler/icons-react'
 import { formatActivityField, type ActivityField } from './activityFields'
-import { dayLabel, phoneMetricLine, splitChips, timeLabel } from './activityListModel'
+import { dayLabel, phoneMetricLine, serviceChipLabels, timeLabel } from './activityListModel'
+import ServiceChips from './ServiceChips'
 import DataListRow from '../datalist/DataListRow'
 import { rideSportLabel } from '../../utils/recentActivity'
 import type { ActivityItem } from '../../types/models'
@@ -44,54 +45,6 @@ function KindIcon({ item }: { item: ActivityItem }) {
   )
 }
 
-function Chip({ children }: { children: string }) {
-  return (
-    <Badge size="sm" variant="light" color="teal" tt="none" fw={500} style={{ flexShrink: 0 }}>
-      {children}
-    </Badge>
-  )
-}
-
-// Phone: every chip, wrapping under the sub-line. Desktop (inline): one
-// line of up to three chips, then a gray "+N" whose tooltip lists them all.
-function ServiceChips({ chips, inline }: { chips: string[]; inline: boolean }) {
-  if (!inline) {
-    return (
-      <Group gap={4} wrap="wrap">
-        {chips.map((chip, index) => (
-          <Chip key={`${chip}-${index}`}>{chip}</Chip>
-        ))}
-      </Group>
-    )
-  }
-
-  const { visible, overflow } = splitChips(chips)
-  return (
-    <Group gap={4} wrap="nowrap" style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
-      {visible.map((chip, index) => (
-        <Chip key={`${chip}-${index}`}>{chip}</Chip>
-      ))}
-      {overflow > 0 && (
-        <Tooltip
-          multiline
-          withinPortal
-          label={
-            <Stack gap={2}>
-              {chips.map((chip, index) => (
-                <span key={`${chip}-${index}`}>{chip}</span>
-              ))}
-            </Stack>
-          }
-        >
-          <Badge size="sm" variant="light" color="gray" tt="none" fw={500} style={{ flexShrink: 0 }}>
-            +{overflow}
-          </Badge>
-        </Tooltip>
-      )}
-    </Group>
-  )
-}
-
 // The title (with the time dimmed beside it) and the kind's sub-line.
 // "stacked" (phone) puts any service chips on their own line below;
 // "inline" (desktop) puts them to the right, so service rows stay the
@@ -112,11 +65,11 @@ function ActivityCell({ item, layout = 'stacked' }: { item: ActivityItem; layout
       break
     case 'service_session':
       subLine = `${item.bike?.name ?? 'Off bike'} · ${item.item_count} ${item.item_count === 1 ? 'item' : 'items'}`
-      chips = item.items.map((entry) => `${entry.label} · ${entry.service_type_name}`)
+      chips = serviceChipLabels(item)
       break
     case 'maintenance_event':
       subLine = item.bike?.name ?? 'Off bike'
-      chips = [`${item.label} · ${item.service_type_name}`]
+      chips = serviceChipLabels(item)
       break
     case 'setup_change':
       subLine = [item.bike?.name, item.ride_context && RIDE_CONTEXT_TEXT[item.ride_context]].filter(Boolean).join(' · ')

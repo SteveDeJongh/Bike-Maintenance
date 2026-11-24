@@ -197,3 +197,11 @@ export function readActivityView(data: TableViewPreferenceData): { fields: Activ
     groupBy: data.group_by === 'none' ? 'none' : 'week',
   }
 }
+
+// A service row's chips: one per item of a session, or the one item of a
+// session-less event ("Chain S1 · Drip wax").
+export function serviceChipLabels(item: ActivityItem): string[] {
+  if (item.kind === 'service_session') return item.items.map((entry) => `${entry.label} · ${entry.service_type_name}`)
+  if (item.kind === 'maintenance_event') return [`${item.label} · ${item.service_type_name}`]
+  return []
+}
