@@ -5,6 +5,8 @@ const TONE_BACKGROUND = {
   warning: 'var(--mantine-color-orange-light)',
   // A retired bike or component.
   muted: 'var(--mantine-color-gray-light)',
+  // A deep-linked row, briefly (the component page's ?event=<id>).
+  highlight: 'var(--mantine-color-yellow-light)',
 } as const
 
 // One DataList row: the whole row is the click target and a keyboard
@@ -15,12 +17,15 @@ const TONE_BACKGROUND = {
 // is .data-list-row in index.css. Without onOpen it's a plain row (no
 // button, no hover) -- e.g. an empty slot whose own control is the target.
 export default function DataListRow({
+  id,
   ariaLabel,
   onOpen,
   tone,
   stacked = false,
   children,
 }: {
+  // A DOM id, e.g. for scrolling a deep-linked row into view.
+  id?: string
   ariaLabel?: string
   onOpen?: () => void
   tone?: keyof typeof TONE_BACKGROUND
@@ -52,10 +57,15 @@ export default function DataListRow({
         padding: '8px 12px',
       }
 
-  if (!onOpen) return <div style={style}>{children}</div>
+  if (!onOpen)
+    return (
+      <div id={id} style={style}>
+        {children}
+      </div>
+    )
 
   return (
-    <div role="button" tabIndex={0} aria-label={ariaLabel} className="data-list-row" onClick={onOpen} onKeyDown={handleKeyDown} style={style}>
+    <div id={id} role="button" tabIndex={0} aria-label={ariaLabel} className="data-list-row" onClick={onOpen} onKeyDown={handleKeyDown} style={style}>
       {children}
     </div>
   )

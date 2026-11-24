@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { ActionIcon, Collapse, Group, Stack, Text, Title } from '@mantine/core'
 import { useReducedMotion } from '@mantine/hooks'
 import { IconChevronDown } from '@tabler/icons-react'
@@ -14,7 +14,9 @@ import { useCollapsed } from '../hooks/useCollapsed'
 // rendered at all (so its queries don't run) and the summary switches to
 // `foldedSummary`, which says what's hidden. The state is remembered per
 // device under `storageKey` (bikePage.collapsed.<section>); without one it
-// starts open and isn't remembered.
+// starts open and isn't remembered. `openOnMount` unfolds a folded section
+// once, on mount (and remembers that) -- for a deep link into its body,
+// e.g. the component page's ?event=<id>.
 export default function PageSection({
   id,
   title,
@@ -22,6 +24,7 @@ export default function PageSection({
   foldedSummary,
   actions,
   storageKey,
+  openOnMount = false,
   children,
 }: {
   // The body's DOM id is `${id}-body` (aria-controls).
@@ -31,9 +34,15 @@ export default function PageSection({
   foldedSummary?: ReactNode
   actions?: ReactNode
   storageKey?: string
+  openOnMount?: boolean
   children: ReactNode
 }) {
   const [folded, toggle] = useCollapsed(storageKey)
+  useEffect(() => {
+    if (openOnMount && folded) toggle()
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const reduceMotion = useReducedMotion()
   const bodyId = `${id}-body`
   const line = folded ? (foldedSummary ?? summary) : summary

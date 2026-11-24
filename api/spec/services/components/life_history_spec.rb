@@ -124,7 +124,7 @@ RSpec.describe Components::LifeHistory do
       events = described_class.call(chain).maintenance_events
 
       expect(events.map { |e| e[:id] }).to eq([ in_session.id, older.id ])
-      expect(events.first).to include(mounted_at_event: true, service_type_name: "Drip wax",
+      expect(events.first).to include(component_id: chain.id, mounted_at_event: true, service_type_name: "Drip wax",
                                       session_components: [ { id: cassette.id, label: "Cassette" } ])
       expect(events.last[:session_components]).to eq([])
     end

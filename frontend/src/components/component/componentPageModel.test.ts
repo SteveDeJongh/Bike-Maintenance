@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   componentPlacement,
+  eventNoteLine,
   identityParts,
+  installationRangeText,
+  installationsSummary,
+  maintenanceSummary,
   intervalsSummary,
   lastDoneText,
   orderRequirements,
@@ -10,7 +14,7 @@ import {
   requirementRuleText,
   worstRequirementStatus,
 } from './componentPageModel'
-import type { ComponentDetail, ComponentServiceRequirementWithStatus } from '../../types/models'
+import type { ComponentDetail, ComponentMaintenanceEvent, ComponentServiceRequirementWithStatus } from '../../types/models'
 
 const now = new Date(2026, 10, 24, 12)
 const sameYearDay = (month: number, day: number) => new Date(2026, month, day, 12).toISOString()
@@ -204,5 +208,73 @@ describe('intervalsSummary / orderRequirements', () => {
   it('puts enabled intervals before disabled ones', () => {
     const list = [requirement({ id: 1, enabled: false }), requirement({ id: 2 }), requirement({ id: 3 })]
     expect(orderRequirements(list).map((r) => r.id)).toEqual([2, 3, 1])
+  })
+})
+
+describe('installationRangeText', () => {
+  const day = (year: number, month: number, date: number) => new Date(year, month, date, 12).toISOString()
+  const fmt = (iso: string, withYear: boolean) =>
+    new Date(iso).toLocaleDateString(undefined, withYear ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' })
+
+  it('reads "<start, year> → now · <context>" for the current stint', () => {
+    const started = day(2026, 9, 15)
+    expect(installationRangeText(install(1, 2, 'Soloist', started))).toBe(`${fmt(started, true)} → now · All rides`)
+  })
+
+  it('leaves the start year off when the stint ends the same year', () => {
+    const started = day(2026, 5, 2)
+    const ended = day(2026, 8, 30)
+    expect(installationRangeText(install(1, 2, 'Soloist', started, ended, 'indoor_only'))).toBe(
+      `${fmt(started, false)} → ${fmt(ended, true)} · Trainer only`,
+    )
+  })
+
+  it('keeps both years across a new year', () => {
+    const started = day(2025, 11, 1)
+    const ended = day(2026, 1, 1)
+    expect(installationRangeText(install(1, 2, 'Soloist', started, ended))).toBe(`${fmt(started, true)} → ${fmt(ended, true)} · All rides`)
+  })
+})
+
+describe('installationsSummary / maintenanceSummary', () => {
+  it('counts installations and distinct bikes', () => {
+    const list = [install(1, 2, 'Soloist', day0()), install(2, 3, 'Juan Solo', day0()), install(3, 2, 'Soloist', day0())]
+    expect(installationsSummary(list)).toBe('3 installations · 2 bikes')
+    expect(installationsSummary(list.slice(0, 1))).toBe('1 installation · 1 bike')
+    expect(installationsSummary([])).toBe('Never installed')
+  })
+
+  it('counts events', () => {
+    expect(maintenanceSummary(7)).toBe('7 events')
+    expect(maintenanceSummary(1)).toBe('1 event')
+    expect(maintenanceSummary(0)).toBe('No events')
+  })
+})
+
+function day0() {
+  return new Date(2026, 0, 1, 12).toISOString()
+}
+
+describe('eventNoteLine', () => {
+  const event = (overrides: Partial<ComponentMaintenanceEvent> = {}): ComponentMaintenanceEvent => ({
+    id: 1,
+    component_id: 1,
+    service_type_id: 1,
+    service_type_name: 'Drip wax',
+    performed_at: '2026-11-14T10:00:00Z',
+    notes: null,
+    service_session_id: null,
+    component_distance_at_event_meters: 0,
+    mounted_at_event: true,
+    session_components: [],
+    ...overrides,
+  })
+
+  it('joins the notes, the session and "Off the bike"', () => {
+    expect(
+      eventNoteLine(event({ notes: ' Two coats ', service_session_id: 4, session_components: [{ id: 2, label: 'Cassette' }, { id: 3, label: 'Chain B' }] })),
+    ).toBe('Two coats · Session with Cassette, Chain B')
+    expect(eventNoteLine(event({ mounted_at_event: false }))).toBe('Off the bike')
+    expect(eventNoteLine(event())).toBe('')
   })
 })

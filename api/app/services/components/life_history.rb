@@ -114,6 +114,7 @@ module Components
       events.map do |event|
         {
           id: event.id,
+          component_id: event.component_id,
           service_type_id: event.service_type_id,
           service_type_name: event.service_type.name,
           performed_at: event.performed_at,

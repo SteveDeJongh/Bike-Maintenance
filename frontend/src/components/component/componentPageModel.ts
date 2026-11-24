@@ -1,7 +1,13 @@
 import { RIDE_CONTEXT_LABELS, SERVICE_STATUS_SEVERITY } from '../../constants'
 import { componentState } from '../../utils/componentState'
 import { formatShortDate } from '../../utils/datetime'
-import type { ComponentDetail, ComponentServiceRequirementWithStatus, ServiceStatus } from '../../types/models'
+import type {
+  ComponentDetail,
+  ComponentInstallation,
+  ComponentMaintenanceEvent,
+  ComponentServiceRequirementWithStatus,
+  ServiceStatus,
+} from '../../types/models'
 
 // The component page's pure helpers (docs/frontend-ui.md, "Component page").
 
@@ -153,4 +159,43 @@ export function orderRequirements(
   requirements: readonly ComponentServiceRequirementWithStatus[],
 ): ComponentServiceRequirementWithStatus[] {
   return [...requirements.filter((r) => r.enabled), ...requirements.filter((r) => !r.enabled)]
+}
+
+// A maintenance row's dimmed note line: the event's notes, then "Session
+// with Chain B, Cassette" for a batch service, and "Off the bike" when the
+// component wasn't installed at the time -- joined with " · ".
+export function eventNoteLine(event: ComponentMaintenanceEvent): string {
+  return [
+    event.notes?.trim() || null,
+    event.session_components.length ? `Session with ${event.session_components.map((c) => c.label).join(', ')}` : null,
+    event.mounted_at_event ? null : 'Off the bike',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+export function maintenanceSummary(count: number): string {
+  return count === 0 ? 'No events' : plural(count, 'event', 'events')
+}
+
+// "3 installations · 2 bikes", or "Never installed".
+export function installationsSummary(installations: readonly ComponentInstallation[]): string {
+  if (installations.length === 0) return 'Never installed'
+  const bikes = new Set(installations.map((installation) => installation.bike.id)).size
+  return `${plural(installations.length, 'installation', 'installations')} · ${plural(bikes, 'bike', 'bikes')}`
+}
+
+const dayWithYear = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const dayOnly = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+// Under the bike name: "Oct 15, 2026 → now · All rides" for the current
+// stint, "Jun 2 → Sep 30, 2026 · Trainer only" for a past one (the start's
+// year only when it differs from the end's). Days in the browser's zone.
+export function installationRangeText(installation: ComponentInstallation): string {
+  const context = RIDE_CONTEXT_LABELS[installation.ride_context]
+  if (!installation.ended_at) return `${dayWithYear(installation.started_at)} → now · ${context}`
+  const sameYear = new Date(installation.started_at).getFullYear() === new Date(installation.ended_at).getFullYear()
+  const start = sameYear ? dayOnly(installation.started_at) : dayWithYear(installation.started_at)
+  return `${start} → ${dayWithYear(installation.ended_at)} · ${context}`
 }

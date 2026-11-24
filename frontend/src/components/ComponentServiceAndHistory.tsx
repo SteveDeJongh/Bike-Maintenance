@@ -8,15 +8,14 @@ import ServiceIntervalsSection from './ServiceIntervalsSection'
 import { formatDateTime } from '../utils/datetime'
 import type { MaintenanceEvent } from '../types/models'
 
-// Shared by the standalone ComponentDetail page and the Bike page's
-// AssignmentDetailModal -- service intervals (add/edit/remove/log a
+// The Bike page's AssignmentDetailModal's service intervals (add/edit/remove/log a
 // service against any of them) and the full maintenance history with its
 // own "+ Log maintenance event" button. Fetches its own data from just a
 // componentId so either caller can drop it in without threading props
 // through.
-// `intervals` (default true): the component page passes false while its
-// own intervals section replaces this one's.
-export default function ComponentServiceAndHistory({ componentId, intervals = true }: { componentId: number; intervals?: boolean }) {
+// Now only AssignmentDetailModal's (the component page has its own
+// sections); part 3 removes it.
+export default function ComponentServiceAndHistory({ componentId }: { componentId: number }) {
   const { data: component, isPending, error } = useComponent(componentId)
   const { data: events } = useMaintenanceEvents()
   const { data: serviceTypes } = useServiceTypes()
@@ -60,7 +59,7 @@ export default function ComponentServiceAndHistory({ componentId, intervals = tr
 
   return (
     <Stack>
-      {intervals && <ServiceIntervalsSection component={component} />}
+      <ServiceIntervalsSection component={component} />
 
       <Group justify="space-between">
         <Title order={4}>Maintenance history</Title>
