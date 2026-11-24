@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, Anchor, Group, Loader, Text } from '@mantine/core'
 import { useComponent } from '../api/queries'
@@ -6,27 +5,21 @@ import { categoryLabel } from '../constants'
 import ComponentSwapPill, { type SwapPillAssignment } from './ComponentSwapPill'
 import type { ComponentAssignment } from '../types/models'
 
-// Shared by the standalone ComponentDetail page and the Bike page's
-// AssignmentDetailModal -- the leading identity row: Category, Component
+// The Bike page's AssignmentDetailModal's leading identity row: Category, Component
 // (linked), and Status ("Uninstalled", plus "Last on <bike>" when it has
 // been on one, or "Installed - " each current
 // bike linked -- a component can be on more than one at once, see
 // ComponentAssignment's documented indoor_only-on-two-bikes exception).
-// `extra` lets a caller fold its own fields into the same Group (e.g. the
-// component page's own "Total distance" stat) rather than duplicating the
-// Group wrapper.
 // swapAssignment (AssignmentDetailModal only, for a still-open
 // installation) turns the Component field into ComponentSwapPill;
 // onSwapped then reports the new assignment so the modal can follow the
-// slot. ComponentDetail passes neither and keeps the plain link.
+// slot. Without them it's the plain link.
 export default function ComponentIdentityStatus({
   componentId,
-  extra,
   swapAssignment,
   onSwapped,
 }: {
   componentId: number
-  extra?: ReactNode
   swapAssignment?: SwapPillAssignment
   onSwapped?: (newAssignment: ComponentAssignment) => void
 }) {
@@ -96,7 +89,6 @@ export default function ComponentIdentityStatus({
           </Text>
         )}
       </div>
-      {extra}
     </Group>
   )
 }

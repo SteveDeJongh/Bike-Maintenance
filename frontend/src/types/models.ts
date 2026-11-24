@@ -239,6 +239,45 @@ export interface ComponentDetail extends Component {
   service_requirements: ComponentServiceRequirementWithStatus[]
   current_bikes: ComponentCurrentBike[]
   last_bike: ComponentLastBike | null
+  // The component page's history (Components::LifeHistory), all batched.
+  assignments: ComponentInstallation[]
+  lifetime_stats: ComponentLifetimeStats
+  maintenance_events: ComponentMaintenanceEvent[]
+  maintenance_events_count: number
+  // No assignment and no maintenance event: DELETE is allowed. Otherwise
+  // it 422s ("Retire it instead").
+  deletable: boolean
+}
+
+// One installation of a component (every assignment, newest first), with
+// the distance attributed to that stint.
+export interface ComponentInstallation {
+  id: number
+  bike: { id: number; name: string }
+  started_at: string
+  ended_at: string | null
+  ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+  distance_meters: number
+}
+
+export interface ComponentLifetimeStats {
+  distance_meters: number
+  moving_time_seconds: number
+  elevation_gain_meters: number
+  // null without power-meter rides.
+  average_power: number | null
+}
+
+// A maintenance event as the component page lists it.
+// component_distance_at_event_meters: the component's lifetime distance
+// from rides strictly before performed_at. mounted_at_event: on a bike at
+// the time (false shows "Off the bike"). session_components: the other
+// components logged in the same service session.
+export interface ComponentMaintenanceEvent extends MaintenanceEvent {
+  service_type_name: string
+  component_distance_at_event_meters: number
+  mounted_at_event: boolean
+  session_components: { id: number; label: string }[]
 }
 
 // Fields suffixed _at are ISO-8601 timestamps; _on fields are date-only

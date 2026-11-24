@@ -1,40 +1,20 @@
-import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Loader, Stack, Text } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useComponent } from '../api/queries'
-import { useUnretireComponent } from '../api/mutations'
-import { modals } from '@mantine/modals'
-import ComponentFormModal from '../components/forms/ComponentFormModal'
-import RetireComponentModal from '../components/forms/RetireComponentModal'
-import ComponentIdentityStatus from '../components/ComponentIdentityStatus'
+import ComponentPageHeader from '../components/component/ComponentPageHeader'
+import ComponentStatTiles from '../components/component/ComponentStatTiles'
 import ComponentServiceAndHistory from '../components/ComponentServiceAndHistory'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
-import { categoryLabel } from '../constants'
-import { formatDistance } from '../utils/distance'
 
+// The component page (docs/frontend-ui.md, "Component page"): the one place
+// for a part's whole life -- header and actions, alert banners, lifetime
+// tiles, then its service intervals, maintenance and installations.
 export default function ComponentDetail() {
   const { id } = useParams<{ id: string }>()
   const componentId = Number(id)
 
   const { data: component, isPending, error } = useComponent(componentId)
-
-  const [editOpened, setEditOpened] = useState(false)
-  const [retireOpened, setRetireOpened] = useState(false)
-  const unretire = useUnretireComponent(componentId)
-
-  function confirmUnretire() {
-    modals.openConfirmModal({
-      title: 'Un-retire component',
-      children: (
-        <Text size="sm">
-          Un-retire this component? It won't be put back on a bike — install it again from the bike page if needed.
-        </Text>
-      ),
-      labels: { confirm: 'Un-retire', cancel: 'Cancel' },
-      onConfirm: () => unretire.mutate(),
-    })
-  }
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -57,66 +37,12 @@ export default function ComponentDetail() {
     )
   }
 
-  if (!component) return null
-
   return (
     <Stack>
-      <Group justify="space-between">
-        <div>
-          <Group gap="sm">
-            <Title order={2}>{component.label}</Title>
-            {component.retired_on && <Badge color="gray">Retired</Badge>}
-          </Group>
-          <Text c="dimmed">
-            {categoryLabel(component.category)} · Acquired {component.acquired_on}
-            {[component.brand, component.model].filter(Boolean).length > 0 &&
-              ` · ${[component.brand, component.model].filter(Boolean).join(' ')}`}
-          </Text>
-          {component.notes && (
-            <Text c="dimmed" size="sm" mt="xs">
-              {component.notes}
-            </Text>
-          )}
-        </div>
-        <Group gap="xs" align="flex-start">
-          {component.retired_on ? (
-            <Button variant="default" onClick={confirmUnretire} loading={unretire.isPending}>
-              Un-retire
-            </Button>
-          ) : (
-            <Button variant="default" onClick={() => setRetireOpened(true)}>
-              Retire
-            </Button>
-          )}
-          <Button variant="default" onClick={() => setEditOpened(true)}>
-            Edit
-          </Button>
-        </Group>
-      </Group>
-
-      <MaintenanceAlertBanners scope={{ componentId: componentId }} />
-
-      <ComponentIdentityStatus
-        componentId={componentId}
-        extra={
-          <div>
-            <Text size="sm" c="dimmed">
-              Total distance
-            </Text>
-            <Text fw={500}>{formatDistance(component.total_distance)}</Text>
-          </div>
-        }
-      />
-
+      <ComponentPageHeader component={component} />
+      <MaintenanceAlertBanners scope={{ componentId }} />
+      <ComponentStatTiles component={component} />
       <ComponentServiceAndHistory componentId={componentId} />
-
-      <ComponentFormModal
-        opened={editOpened}
-        onClose={() => setEditOpened(false)}
-        component={component}
-      />
-
-      <RetireComponentModal opened={retireOpened} onClose={() => setRetireOpened(false)} componentId={componentId} />
     </Stack>
   )
 }
