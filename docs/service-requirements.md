@@ -201,10 +201,10 @@ ride-filtered counting.
   requirement" (`AddCustomServiceIntervalModal.tsx`) mirrors the Settings "new
   template" flow — name/thresholds/ride_filter/draft satisfiers collected locally,
   submitted together in one transactional create. "+ Add from category defaults" is deduped by linked template, not by service type.
-  `ServiceStatusBadge`/`SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY` back the
-  `service_status` column on the Components list and Bike detail's Installed
-  Components table (through the existing configurable-table system), and the
-  Service requirements table's own Status column too.
+  `SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY` back the Components list's Service
+  column (a wear bar, sorted most urgent first), Bike detail's Installed components
+  wear, and, with `ServiceStatusBadge`, the Service requirements table's own Status
+  column.
 - **`BatchServiceModal`** (see "Batch service logging" below): rows are one per
   service type across a component's requirements, not one per requirement — see
   that section for the full redesign.

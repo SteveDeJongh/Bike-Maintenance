@@ -5,12 +5,12 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on four tables: the Strava page's Rides tab and the Components/Maintenance
-Events/Assignments lists (each its own `table_key`: `strava_rides`, `components`,
-`maintenance_events`, `assignments`). The Bikes list and the bike page's installed
-components were tables too; they're now `DataList`s ("Bikes page" and "Bike page"
-below), still saving through `useTableViewPreferences` (`bikes`,
-`bike_installed_components`). The bike page's old History and Ride history tables are
+on three tables: the Strava page's Rides tab and the Maintenance Events/Assignments
+lists (each its own `table_key`: `strava_rides`, `maintenance_events`,
+`assignments`). The Bikes list, the Components list and the bike page's installed
+components were tables too; they're now `DataList`s ("Bikes page", "Components page"
+and "Bike page" below), still saving through `useTableViewPreferences` (`bikes`,
+`components`, `bike_installed_components`). The bike page's old History and Ride history tables are
 gone; their `bike_history`/`bike_rides` preference rows are unused.
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
   grouped `DataList` (see "Shared building blocks" below and
@@ -36,7 +36,7 @@ A future page can adopt the same UX without rework:
   hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
   `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
   the preferences query's data **once**, on mount — the calling page must not render
-  the component that calls this hook until that query has resolved (`Components.tsx`
+  the component that calls this hook until that query has resolved (`MaintenanceEvents.tsx`
   gates on its preference query before rendering its table). If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
   force a remount via `key={tableKey}` rather than relying on the hook to notice the
@@ -74,7 +74,7 @@ A future page can adopt the same UX without rework:
   hand-coded around the generic, hook-driven columns, rather than the reusable
   pieces trying to support every possible column type generically. A pinned
   column is specifically one with a real navigation target (consistently true
-  across every adopter so far: Bikes' Name, Components' Label, the Bike detail
+  across every adopter so far: Bikes' Name, the Bike detail
   tables' Category+Component, Maintenance Events' Component, Assignments'
   Component+Bike) — not just "the most important field." A row can have more than
   one pinned column when its identity genuinely needs more than one coordinate
@@ -108,16 +108,16 @@ A future page can adopt the same UX without rework:
   but still saves through the exact same `PATCH` path as a desktop header
   click, so a sort chosen on the phone is the one desktop sees next. A table
   with no click-to-sort at all would render no `MobileSortControl`, matching having
-  no sortable `DraggableHeaderCell`s on desktop. `Components.tsx` is the reference implementation for both pieces, the
+  no sortable `DraggableHeaderCell`s on desktop. `MaintenanceEvents.tsx` is the reference implementation for both pieces, the
   same role it already plays for the table/column-picker side — it reuses the
-  exact sorted array the desktop table already computes (including the
-  retired-sorts-last rule) rather than duplicating the sort logic for cards.
+  exact sorted array the desktop table already computes rather than duplicating
+  the sort logic for cards.
   Card view's own breakpoint (`useIsMobile()`) and the nav shell's CSS
   breakpoint (`sm`) land on the same side at exactly 768px wide — see
   "Layout and navigation" below for why that boundary had to be made exact,
   rather than relying on two independently-resolved breakpoints to agree by
   coincidence.
-- **Tables with card view**: `components`, `maintenance_events`, `assignments`.
+- **Tables with card view**: `maintenance_events`, `assignments`.
   `assignments`' card uses a two-line title (Component, then Bike dimmed underneath,
   both independently tappable) for its two pinned columns: a card's title slot
   always carries every pinned column, arranged to read naturally for that table.
@@ -142,14 +142,14 @@ sort-keys constant if any pinned column should be sortable too (mirroring
 `BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
 `columnValue` map (comparable value per sortable column, `null` for "not
 applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
-column) keyed the same way `Components.tsx` does. Call `useTableViewPreferences` with
+column) keyed the same way `MaintenanceEvents.tsx` does. Call `useTableViewPreferences` with
 those constants, then render pinned columns by hand and map the configurable ones
 through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
-header cell — `Components.tsx` is the reference implementation to copy the shape from.
+header cell — `MaintenanceEvents.tsx` is the reference implementation to copy the shape from.
 **A new adopter must render both views** — the desktop `<Table>` and, below
 `useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
 `<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
-not just the table; `Components.tsx` is the reference shape for both. Don't add new
+not just the table; `MaintenanceEvents.tsx` is the reference shape for both. Don't add new
 per-row computed/aggregated columns to a list page without checking whether the
 underlying data is already batched for that scale (see `Component#total_distance`'s
 note above) — this mechanism makes columns easy to add, but doesn't change the cost
@@ -302,6 +302,88 @@ the same.
     `worst_result_by_component` call, so adding bikes adds no queries (a spec checks).
   - **Lifetime totals** for parts with no requirement come from the batched
     `Maintenance::LifetimeDistanceQuery`.
+
+## Components page
+
+`/components` (`pages/Components.tsx`, `components/componentList/`), in the
+Bikes/Activity look.
+
+- **Terms** (`componentState`, `utils/componentState.ts`; see
+  `docs/components-and-setup.md`, "Installed, spare and retired"): every count, pill,
+  band and Bike cell goes through it.
+- **Header:** "Components" with the dimmed "Every part you track, on a bike or on the
+  shelf", and a primary **+ New component** (`ComponentFormModal`).
+- **Tiles** (`ComponentsSummaryTiles`, a `TileRow` at 150px, `componentTileCounts`):
+  Installed, Spares, "Service due · soon" (orange when either is non-zero), With
+  intervals ("9 of 37") and Retired. They count the whole list, whatever the filters.
+  Due, soon and With intervals count non-retired components, spares included, so a
+  spare chain that needs waxing shows. With intervals means at least one enabled
+  requirement.
+- **Toolbar** (`ComponentsToolbar`, Activity's shape; `Dot`, `Pill` and `FilterMenu`
+  are shared from `components/toolbar/ToolbarPills.tsx`):
+  - **Row 1, left:** Installed / Spare / Retired toggles, with a dot (primary, blue,
+    grey) and a count. The default is Installed + Spare.
+  - **Row 1, right** (from `sm`): Group by Category | Bike | None, then
+    `FieldsPicker`. On a phone a **View** button opens `ComponentsViewSheet` (Group
+    by and Sort) instead, and Fields is hidden.
+  - **Row 2:** search ("Search name, brand or model", over label, brand and model),
+    then single-select Category, Bike and Service status (Due, Soon, OK, No interval)
+    pills, then Clear filters when any of those is set. The Bike filter matches
+    installed components on that bike plus spares and retired components last on it.
+    "Soon" is the warning status.
+- **Saved view** (`useComponentsView`): the `components` `TableViewPreference` holds
+  `columns`/`sort_column`/`sort_direction` plus `states`, `group_by`, `category`,
+  `bike_id` and `service`, each save sending the full object. The search text isn't
+  saved, as on Activity. Unknown saved values fall back to the defaults, and a saved
+  category or bike that no longer exists reads as unset. Columns saved by the old
+  table (`service_status`, `current_bikes`) fall back to the default Fields
+  (`componentListPreferenceData`). The server checks `group_by` per table key.
+- **List** (`ComponentsList`, a `DataList`):
+  - **Component** (main): the label, with brand · model dimmed under it.
+  - **Bike** (`ComponentBikeCell`):
+    - **Installed:** the bike, linked, and "since Nov 2". A shared indoor cassette
+      reads "Juan Solo +1" (the band's bike first under Group by Bike) and "Trainer
+      only, shared".
+    - **Spare:** "Spare" in blue, then "Last on <bike>" or "Never installed".
+    - **Retired:** "Retired Mar 2", then "Last on <bike>".
+  - **Service** (`ComponentServiceCell`): the worst enabled requirement's `WearBar`
+    plus `componentWearValue` ("4 km left", "16 days left", "120 km over"). With no
+    requirement it shows a faint bar and "No interval". A rotating spare serviced since
+    it came off reads "Wax · ready" in teal (`spareReadyLabel`).
+  - **Fields** (`COMPONENT_LIST_FIELDS`): Lifetime (bold) and Acquired by default,
+    then Brand, Model, Category and Retired on, sized with `fieldMinWidth`.
+  - **Retire** stays as a small pill at the end of each non-retired row (kept on
+    purpose) and opens `RetireComponentModal`. The row opens `/components/:id`. Edit
+    and Delete aren't on the list.
+  - **Sorting** (`sortComponents`): header click on every column. **Service** is most
+    urgent first (due, warning, then ok, highest `fraction_used` first), with no
+    interval always last. **Bike** goes installed by bike, then spares by last bike,
+    then never installed, then retired. Lifetime and the dates start biggest/newest
+    first; clicking again flips it. Ties go A–Z by label.
+  - **Grouping** (`groupComponents`, `DataListBand`s; sorting applies within each):
+    - **Category** (default): one band per category in the app's order
+      (`useAllCategories`).
+    - **Bike:** one band per bike with installed components, A–Z. A shared cassette
+      appears under each bike it's on. Then Spare, then Retired (when that pill is
+      on).
+    - **None:** a flat list.
+
+    Bands read "Chain · 4 · 1 due · 2 soon" (`bandSummary`), with zero parts left out.
+    Grouping is done in the browser from the payload.
+  - **Empty states:** "No components yet" with + New component, and "No components
+    match these filters" with Clear filters (or a hint when every state pill is off).
+  - **Phone:** stacked rows, each with the name and Retire, the bike line on one row,
+    and the wear. The bands stay.
+- **Data:** `GET /components` (`ComponentsController#index`) adds, batched:
+  - `WearFields` from one `worst_result_by_component`;
+  - `has_enabled_requirement`;
+  - `lifetime_distance_meters` (`Maintenance::LifetimeDistanceQuery`);
+  - `assigned_since` (the earliest open assignment's `started_at`);
+  - `rotates`;
+  - `latest_service` (`Maintenance::LatestServiceQuery`, one `DISTINCT ON`).
+
+  "Ready" is decided on the frontend from these raw values and
+  `last_bike.removed_at`.
 
 ## Bike page
 

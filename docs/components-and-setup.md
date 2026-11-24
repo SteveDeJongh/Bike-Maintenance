@@ -81,6 +81,24 @@ Swapping one component for another in the same slot (the main use case: rotating
   `assignment_id`. `ComponentCurrentBike`'s is optional, since only
   `GET /components/:id` sets it.
 
+## Installed, spare and retired
+
+The one classification of a component's state, `componentState` in
+`frontend/src/utils/componentState.ts`. Every count, pill, band and cell uses it, and
+nothing re-derives it inline. The three states are mutually exclusive:
+
+- **Retired:** `retired_on` is set. This wins even if an assignment is somehow
+  still open; `components:audit_retired_mounted` finds those.
+- **Installed:** not retired, with an open assignment (`ended_at: nil`) on any bike.
+  A shared indoor cassette is one installed component on two bikes.
+- **Spare:** neither; on the shelf.
+
+The Components list's counts are computed on the frontend from the full, unpaged
+`GET /components` list, so there's no backend twin. **Ready** (`spareReadyLabel`) is
+a spare in a rotating category (`ComponentCategorySetting#rotates`) whose
+`latest_service` is after `last_bike.removed_at`, or that was never installed, and
+isn't due. It reads "<Service> · ready".
+
 ## Last bike and the Components list's Bike column
 
 - **`ComponentAssignment.last_ended_by_component(user, at: Time.current, component_ids: nil)`**
@@ -92,14 +110,12 @@ Swapping one component for another in the same slot (the main use case: rotating
 - **`last_bike: {id, name, removed_at} | null`** on `GET /components` and
   `GET /components/:id` — set only when `current_bikes` is empty, retired components
   included; `null` when mounted or never installed.
-- **Bike column** (key still `current_bikes`, so saved preferences keep working;
-  label "Bike"), now in `DEFAULT_COMPONENT_LIST_COLUMNS`. Mounted: the bike(s),
-  linked. Otherwise a dimmed "Last on <bike>" (linked) or "Never installed". Sort
-  (`bikeColumnSortKey`, `utils/componentBike.ts`): mounted by bike name, then
-  last-on by bike name, then never installed. The mobile cards share the renderer.
-  Saved column preferences **replace** the defaults, with no merge
-  (`useTableViewPreferences`), and every save, even a sort change, writes `columns`.
-  So anyone who has ever touched the table turns the column on from the picker.
+- **Bike column** on the Components list (`ComponentBikeCell`; "Components page" in
+  `docs/frontend-ui.md`): installed shows the bike, linked, and "since <date>" (a
+  shared cassette reads "Juan Solo +1" with "Trainer only, shared"). A spare shows
+  "Spare" in blue, then "Last on <bike>" or "Never installed". Retired shows
+  "Retired <date>", then the last bike. Sort (`bikeSortKey`): installed by bike name,
+  spares by last bike, never installed, then retired.
 - **Component detail**: `ComponentIdentityStatus` reads "Uninstalled · Last on
   <bike>" when there's a `last_bike`.
 
@@ -143,7 +159,7 @@ can't keep reading as mounted or accruing mileage.
   same swap.
 - **Entry points:**
   - ComponentDetail's header ("Retire");
-  - the Components list's row actions, on desktop and mobile, hidden when retired.
+  - the Components list's Retire pill, on each non-retired row (desktop and phone).
 
   The bike page's rows no longer offer it.
 

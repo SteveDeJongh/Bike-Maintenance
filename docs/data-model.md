@@ -20,8 +20,10 @@
   sortable/configurable-column table in the app (see "Sortable, configurable tables"
   below), not Bikes-specific — a second list page gets its own `table_key`, reusing the
   same model/endpoint. `data` holds `{ columns: [...], sort_column, sort_direction }`;
-  validated as "must be a Hash", plus one per-key rule: `group_by` (the activity log's
-  grouping) must be `week` or `none` when present. Otherwise, like `Component#category`, the actual allowed
+  validated as "must be a Hash", plus one per-table-key rule
+  (`TableViewPreference::GROUP_BY_VALUES`): `group_by`, when present, must be `week`
+  or `none` for `activity_log` and `category`, `bike` or `none` for `components`.
+  Other keys don't group, so it isn't checked there. Otherwise, like `Component#category`, the actual allowed
   column keys live only on each page's own frontend constant (e.g. `constants.ts`'s
   `BIKE_LIST_COLUMNS`), not enforced server-side. Exposed via `GET/PATCH
   /table_view_preferences/:table_key` — `update` upserts (a user may not have a row for
@@ -449,7 +451,7 @@ alerts" below) implements the batched join — a
 `component_assignments` ⨝ `strava_activities` join on `bike_id` with a `moved_at`
 range condition, `GROUP BY` the thing being measured — for service-requirement
 distance/moving-time-since-baseline instead of `total_distance`, since that's what
-actually needed to show on a many-row table (the Components list's and Bike detail's
-`service_status` columns). If `total_distance`/`distance_since` themselves ever need
+actually needed to show on a many-row table (the Components list's Service column and
+Bike detail's `service_status` column). If `total_distance`/`distance_since` themselves ever need
 to back a many-row column too, the same pattern is ready to reuse.
 

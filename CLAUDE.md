@@ -105,7 +105,8 @@ Domain and backend:
 - **Shared classifications are shared.** "Needs attention" vs "ignored" rides:
   `StravaActivity.needs_attention_for`/`.ignored_for`. Every raw Strava payload write goes
   through `Strava::ActivityUpsert` (it clears `ignored_at` on attribution). Serviceable
-  components: `Bikes::ServiceableComponents`.
+  components: `Bikes::ServiceableComponents`. Installed / spare / retired:
+  `componentState` (`utils/componentState.ts`), never re-derived inline.
 - **Check batching before adding a per-row column.** `Component#total_distance`/
   `#distance_since` run one query per assignment — fine for a handful of components, not
   for a list. Many-row tables need a grouped/batched query like `BikesController#index`
@@ -180,7 +181,7 @@ Frontend:
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its
   `767.98px` boundary must stay in sync with `index.css`'s iOS-input-zoom rule.
 - **A configurable table renders both views** — the desktop `<Table>` and, on mobile,
-  `MobileSortControl` + `DataCardList`. `Components.tsx` is the reference implementation.
+  `MobileSortControl` + `DataCardList`. `MaintenanceEvents.tsx` is the reference implementation.
   A pinned column always links somewhere. Non-configurable tables wrap in
   `Table.ScrollContainer` unless they genuinely fit at 390px.
 - Gate rendering of any component calling `useTableViewPreferences` on its preference
@@ -244,7 +245,7 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/auth.md` — **Authentication**. Sessions/CSRF/CORS, `Auth::ResolveIdentity`,
   Strava as a sign-in method, mail and tokens, deferred Google/Apple, deployment notes.
 - `docs/frontend-ui.md` — **Sortable, configurable tables**, **Shared building blocks**,
-  **Bikes page**, **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
+  **Bikes page**, **Components page**, **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
   config, `AppModal`, mobile date pickers, the manifest and icons.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
@@ -252,7 +253,7 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   bike rides endpoint and odometer, Activity's link-in URL params, the ride details modal (`RideDetailModal`, `GET /strava/rides/:id`),
   `Activity::Feed`'s keyset/offset branches, week totals and metric sorts, the install/removal
   merge rule, the `/activity` page.
-- `docs/components-and-setup.md` — **One-step component swap**, **Last bike and the
-  Components list's Bike column**, **Retiring a component**, **Bike setup**,
+- `docs/components-and-setup.md` — **One-step component swap**, **Installed, spare and
+  retired**, **Last bike and the Components list's Bike column**, **Retiring a component**, **Bike setup**,
   **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
   component setup, suggestion sources and ranking.
