@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Anchor, Button, Group, Loader, Stack, Text } from '@mantine/core'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useBike, useComponent } from '../../api/queries'
 import AppModal from '../AppModal'
 import ComponentSwapPill from '../ComponentSwapPill'
@@ -92,6 +92,7 @@ function AssignmentLoader({
   fallbackComponentId?: number
 }) {
   const { bike, assignment } = useAssignment(bikeId, assignmentId, true)
+  const navigate = useNavigate()
 
   if (bike.error) {
     return (
@@ -109,7 +110,14 @@ function AssignmentLoader({
         <Stack gap="xs">
           <Text c="dimmed">This installation isn't available.</Text>
           {fallbackComponentId != null && (
-            <Anchor component={Link} to={`/components/${fallbackComponentId}`}>
+            <Anchor
+              component="button"
+              type="button"
+              onClick={() => {
+                onClose()
+                navigate(`/components/${fallbackComponentId}`)
+              }}
+            >
               Open the component
             </Anchor>
           )}
