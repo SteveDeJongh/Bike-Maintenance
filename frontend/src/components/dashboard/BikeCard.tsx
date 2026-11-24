@@ -1,21 +1,22 @@
 import { useState, type CSSProperties } from 'react'
-import { Badge, Box, Button, Card, Divider, Group, Stack, Text } from '@mantine/core'
+import { Box, Button, Card, Divider, Group, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
 import AssignmentDetailModal from '../forms/AssignmentDetailModal'
 import WearBar from './WearBar'
+import BikeStatusChip from '../bike/BikeStatusChip'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { categoryLabel, SERVICE_STATUS_COLORS } from '../../constants'
+import { categoryLabel } from '../../constants'
 import {
   bikeStatusCounts,
   formatDisplayMetric,
+  lastRideLine,
   rotationGroups,
   sortByWear,
   wearMetricLabel,
   type RotationGroup,
 } from '../../utils/bikeCard'
 import { formatDistance } from '../../utils/distance'
-import { formatSportType } from '../../utils/strava'
 import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { DashboardBike, DashboardMountedComponent } from '../../types/models'
 
@@ -29,31 +30,6 @@ function Stat({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </Stack>
-  )
-}
-
-function StatusChip({ bike }: { bike: DashboardBike }) {
-  const { due, warning } = bikeStatusCounts(bike.mounted)
-  if (due === 0 && warning === 0) {
-    return (
-      <Badge color={SERVICE_STATUS_COLORS.ok} variant="light">
-        All OK
-      </Badge>
-    )
-  }
-  return (
-    <Group gap={4} wrap="nowrap">
-      {due > 0 && (
-        <Badge color={SERVICE_STATUS_COLORS.due} variant="light">
-          {due} due
-        </Badge>
-      )}
-      {warning > 0 && (
-        <Badge color={SERVICE_STATUS_COLORS.warning} variant="light">
-          {warning} soon
-        </Badge>
-      )}
-    </Group>
   )
 }
 
@@ -133,12 +109,6 @@ function RotationStrip({ group }: { group: RotationGroup }) {
   )
 }
 
-function lastRideLine(bike: DashboardBike): string {
-  if (!bike.last_ride_on) return 'No rides yet'
-  const date = new Date(bike.last_ride_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  return bike.last_ride_activity_type ? `Last ride ${date} · ${formatSportType(bike.last_ride_activity_type)}` : `Last ride ${date}`
-}
-
 export default function BikeCard({ bike, style }: { bike: DashboardBike; style?: CSSProperties }) {
   const [batchServiceOpened, setBatchServiceOpened] = useState(false)
   const isMobile = useIsMobile()
@@ -164,7 +134,7 @@ export default function BikeCard({ bike, style }: { bike: DashboardBike; style?:
               {lastRideLine(bike)}
             </Text>
           </Stack>
-          <StatusChip bike={bike} />
+          <BikeStatusChip {...bikeStatusCounts(bike.mounted)} />
         </Group>
 
         <Stack gap="xs">

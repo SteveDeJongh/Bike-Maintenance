@@ -1,3 +1,4 @@
+import { sortByUrgency } from '../../utils/bikeCard'
 import type { BikeWithStats } from '../../types/models'
 
 export const BIKES_VIEWS = ['cards', 'table'] as const
@@ -53,4 +54,40 @@ export function bikeTileTotals(
 // "3 active · 1 retired" (the retired part only when there are any).
 export function bikesHeaderLine({ active, retired }: Pick<BikeTileTotals, 'active' | 'retired'>): string {
   return retired > 0 ? `${active} active · ${retired} retired` : `${active} active`
+}
+
+type SortableBike = Pick<BikeWithStats, 'name' | 'last_ride_on' | 'total_distance' | 'status_counts'>
+
+function ridden(bike: SortableBike): number {
+  return bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity
+}
+
+// The card grid's order. Most urgent is Home's ordering (sortByUrgency) on
+// the list's status_counts; Last ridden is newest first (never ridden
+// last); Distance is highest first; Name is A-Z. Ties fall back to name.
+export function sortBikeCards<T extends SortableBike>(bikes: T[], sort: BikeCardSort): T[] {
+  if (sort === 'urgent') return sortByUrgency(bikes, (bike) => bike.status_counts)
+
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name)
+  const compare: Record<Exclude<BikeCardSort, 'urgent'>, (a: T, b: T) => number> = {
+    last_ridden: (a, b) => (ridden(a) === ridden(b) ? 0 : ridden(b) > ridden(a) ? 1 : -1) || byName(a, b),
+    distance: (a, b) => b.total_distance - a.total_distance || byName(a, b),
+    name: byName,
+  }
+  return [...bikes].sort(compare[sort])
+}
+
+// A retired row's years ridden: "2019–2024", one year when they match, ''
+// when the bike was never ridden.
+export function retiredYearRange(bike: Pick<BikeWithStats, 'first_ride_on' | 'last_ride_on'>): string {
+  if (!bike.first_ride_on || !bike.last_ride_on) return ''
+  const first = new Date(bike.first_ride_on).getFullYear()
+  const last = new Date(bike.last_ride_on).getFullYear()
+  return first === last ? String(first) : `${first}–${last}`
+}
+
+// "Retired Mar 2025" (retired_on is a plain date, read as a local one).
+export function retiredLabel(retiredOn: string): string {
+  const [year, month] = retiredOn.split('-').map(Number)
+  return `Retired ${new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
 }

@@ -2,6 +2,7 @@ import { categoryLabel } from '../constants'
 import { formatDistance } from './distance'
 import { formatDuration } from './duration'
 import { formatDrivingRemaining } from './serviceInterval'
+import { formatSportType } from './strava'
 import type { DashboardDisplayMetric, DashboardMountedComponent, DashboardOffBikeComponent } from '../types/models'
 
 // since_service_type_name is specifically the setting event's own service
@@ -90,11 +91,14 @@ export function rotationGroups(
 }
 
 // Most urgent first: most due components, then most warning components,
-// then the most recent ride (bikes never ridden last), then name.
-export function sortBikesByUrgency<T extends { name: string; last_ride_on: string | null; mounted: Pick<DashboardMountedComponent, 'service_status'>[] }>(
+// then the most recent ride (bikes never ridden last), then name. The one
+// ordering Home's bike row and the Bikes page's "Most urgent" share;
+// countsOf supplies each bike's { due, warning }.
+export function sortByUrgency<T extends { name: string; last_ride_on: string | null }>(
   bikes: T[],
+  countsOf: (bike: T) => { due: number; warning: number },
 ): T[] {
-  const keyed = bikes.map((bike) => ({ bike, counts: bikeStatusCounts(bike.mounted), ridden: bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity }))
+  const keyed = bikes.map((bike) => ({ bike, counts: countsOf(bike), ridden: bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity }))
   keyed.sort(
     (a, b) =>
       b.counts.due - a.counts.due ||
@@ -103,4 +107,19 @@ export function sortBikesByUrgency<T extends { name: string; last_ride_on: strin
       a.bike.name.localeCompare(b.bike.name),
   )
   return keyed.map(({ bike }) => bike)
+}
+
+// A bike card's footer: "Last ride Nov 16 · Gravel Ride", or "No rides
+// yet". Shared by Home's cards and the Bikes list's.
+export function lastRideLine(bike: { last_ride_on: string | null; last_ride_activity_type: string | null }): string {
+  if (!bike.last_ride_on) return 'No rides yet'
+  const date = new Date(bike.last_ride_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return bike.last_ride_activity_type ? `Last ride ${date} · ${formatSportType(bike.last_ride_activity_type)}` : `Last ride ${date}`
+}
+
+// Home's bikes, counted from their mounted components.
+export function sortBikesByUrgency<T extends { name: string; last_ride_on: string | null; mounted: Pick<DashboardMountedComponent, 'service_status'>[] }>(
+  bikes: T[],
+): T[] {
+  return sortByUrgency(bikes, (bike) => bikeStatusCounts(bike.mounted))
 }

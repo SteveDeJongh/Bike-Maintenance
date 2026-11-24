@@ -99,3 +99,17 @@ body {
   min-width: var(--tile-min);
   scroll-snap-align: start;
 }
+
+/* Bikes page cards and retired rows: whole-card links. */
+.bike-list-card {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 120ms ease;
+}
+.bike-list-card:hover {
+  border-color: var(--mantine-primary-color-filled);
+}
+.bike-list-card:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}

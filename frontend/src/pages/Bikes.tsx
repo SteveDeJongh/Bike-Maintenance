@@ -2,7 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Anchor, Badge, Button, Group, Loader, Menu, Stack, Table, Text, Title } from '@mantine/core'
 import BikesSummaryTiles from '../components/bikes/BikesSummaryTiles'
 import BikesToolbar from '../components/bikes/BikesToolbar'
-import { bikeTileTotals, bikesHeaderLine } from '../components/bikes/bikesList'
+import AddBikeCard from '../components/bikes/AddBikeCard'
+import BikeListCard from '../components/bikes/BikeListCard'
+import RetiredBikeRows from '../components/bikes/RetiredBikeRows'
+import { bikeTileTotals, bikesHeaderLine, sortBikeCards } from '../components/bikes/bikesList'
 import { useBikesView, type BikesViewState } from '../components/bikes/useBikesView'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
@@ -143,6 +146,7 @@ export default function Bikes() {
         <BikesContent
           bikes={data}
           initialData={preferenceData.data}
+          onAdd={openCreate}
           onEdit={openEdit}
           onDelete={handleDelete}
         />
@@ -161,16 +165,23 @@ export default function Bikes() {
 function BikesContent({
   bikes,
   initialData,
+  onAdd,
   onEdit,
   onDelete,
 }: {
   bikes: BikeWithStats[]
   initialData: TableViewPreferenceData
+  onAdd: () => void
   onEdit: (bike: Bike) => void
   onDelete: (bike: Bike) => void
 }) {
   const state = useBikesView(initialData)
+  const isMobile = useIsMobile()
+  const { data: bikeTypes } = useBikeTypes()
+  const typeNameById = useMemo(() => new Map((bikeTypes ?? []).map((type) => [type.id, type.name])), [bikeTypes])
   const visibleBikes = state.showRetired ? bikes : bikes.filter((bike) => !bike.retired_on)
+  // A phone always gets cards: the table needs width it doesn't have.
+  const showCards = state.view === 'cards' || isMobile
 
   return (
     <>
@@ -181,12 +192,65 @@ function BikesContent({
           {state.table.saveError}
         </Alert>
       )}
-      {bikes.length === 0 ? (
+      {showCards ? (
+        <BikeCardGrid
+          bikes={bikes}
+          sort={state.cardSort}
+          showRetired={state.showRetired}
+          typeNameById={typeNameById}
+          onAdd={onAdd}
+        />
+      ) : bikes.length === 0 ? (
         <Text c="dimmed">No bikes yet.</Text>
       ) : (
         <BikesTable bikes={visibleBikes} table={state.table} onEdit={onEdit} onDelete={onDelete} />
       )}
     </>
+  )
+}
+
+// Active bikes as cards in the chosen order, closed by the "Add a bike"
+// card (also the empty state), then retired bikes as slim rows when shown.
+function BikeCardGrid({
+  bikes,
+  sort,
+  showRetired,
+  typeNameById,
+  onAdd,
+}: {
+  bikes: BikeWithStats[]
+  sort: BikesViewState['cardSort']
+  showRetired: boolean
+  typeNameById: Map<number, string>
+  onAdd: () => void
+}) {
+  const active = sortBikeCards(
+    bikes.filter((bike) => !bike.retired_on),
+    sort,
+  )
+  const retired = bikes.filter((bike) => bike.retired_on).sort((a, b) => (b.retired_on ?? '').localeCompare(a.retired_on ?? ''))
+
+  return (
+    <Stack gap="lg">
+      <div
+        style={{
+          display: 'grid',
+          // min(): a 380px minimum alone would overflow a phone.
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(380px, 100%), 1fr))',
+          gap: 'var(--mantine-spacing-md)',
+        }}
+      >
+        {active.map((bike) => (
+          <BikeListCard
+            key={bike.id}
+            bike={bike}
+            typeName={bike.bike_type_id === null ? null : (typeNameById.get(bike.bike_type_id) ?? null)}
+          />
+        ))}
+        <AddBikeCard onAdd={onAdd} />
+      </div>
+      {showRetired && <RetiredBikeRows bikes={retired} />}
+    </Stack>
   )
 }
 

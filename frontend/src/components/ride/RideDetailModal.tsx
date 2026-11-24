@@ -9,9 +9,9 @@ import WearBar from '../dashboard/WearBar'
 import LogServiceAfterRideButton from './LogServiceAfterRideButton'
 import ResyncRideButton from './ResyncRideButton'
 import { formatDistance } from '../../utils/distance'
-import { formatDrivingRemaining } from '../../utils/serviceInterval'
+import { componentWearValue } from '../../utils/wear'
 import { rideHeaderParts, rideStatLines, sortRideComponents, type RideStat } from '../../utils/rideDetail'
-import type { RideDetail, RideDetailComponent } from '../../types/models'
+import type { RideDetail } from '../../types/models'
 
 // Everything about one ride (GET /strava/rides/:id): the icon and name in
 // the modal's own header (beside the close button, so pinned on mobile),
@@ -188,13 +188,6 @@ function RideStats({ ride }: { ride: RideDetail }) {
   )
 }
 
-function componentValue(component: RideDetailComponent): string {
-  if (component.driving_dimension) {
-    return formatDrivingRemaining({ ...component, driving_dimension: component.driving_dimension })
-  }
-  return component.total_distance_meters != null ? `${formatDistance(component.total_distance_meters)} total` : '—'
-}
-
 // Category | name | wear bar | metric, in the bike page's category order.
 // A component with no enabled requirement still gets the bar's empty track
 // (faint), so every row's bar and metric line up.
@@ -265,7 +258,7 @@ function RideComponents({ ride, gearUnmapped }: { ride: RideDetail; gearUnmapped
                 c={component.service_status === 'due' ? 'red' : 'dimmed'}
                 style={{ whiteSpace: 'nowrap' }}
               >
-                {componentValue(component)}
+                {componentWearValue(component)}
               </Text>
             </Box>
           ))}
