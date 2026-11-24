@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Alert, Anchor, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, Loader, Paper, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import { useActivityFeed, useTableViewPreference } from '../../api/queries'
 import ActivityList from '../activity/ActivityList'
@@ -7,15 +7,35 @@ import { ACTIVITY_FIELD_LABELS } from '../activity/activityFields'
 import { effectiveGroupBy, readActivityView } from '../activity/activityListModel'
 import { activityUrl } from '../activity/activityUrl'
 import type { ActivitySort, Order } from '../activity/useActivityFilters'
+import PageSection from '../PageSection'
 import RideDetailModal from '../ride/RideDetailModal'
 import type { ActivityItem, BikeDetail } from '../../types/models'
 
 // The bike's rides, as the Activity page's own list (ActivityList) with a
-// fixed filter -- this bike, rides only -- and no toolbar. Fields and Group
-// by follow the Activity page's saved choices (read, never written); the
-// header sort is this section's own and isn't saved. A row opens the ride
-// details modal.
+// fixed filter -- this bike, rides only -- and no toolbar, under a
+// PageSection header with "Open in Activity →". The list lives in its own
+// component, so its feed query only runs while the body is rendered.
 export default function BikeRidesSection({ bike }: { bike: BikeDetail }) {
+  return (
+    <PageSection
+      id="rides"
+      title="Rides"
+      summary={`${bike.ride_count.toLocaleString()} on this bike`}
+      actions={
+        <Anchor component={Link} to={activityUrl({ bikeId: bike.id, kinds: ['ride'] })} size="sm">
+          Open in Activity →
+        </Anchor>
+      }
+    >
+      <BikeRidesList bikeId={bike.id} />
+    </PageSection>
+  )
+}
+
+// Fields and Group by follow the Activity page's saved choices (read, never
+// written); the header sort is this list's own and isn't saved. A row opens
+// the ride details modal.
+function BikeRidesList({ bikeId }: { bikeId: number }) {
   const { data: preferenceData, isPending } = useTableViewPreference('activity_log')
   const view = useMemo(() => (preferenceData ? readActivityView(preferenceData.data) : null), [preferenceData])
   const [sortColumn, setSortColumn] = useState<ActivitySort>('occurred_at')
@@ -25,7 +45,7 @@ export default function BikeRidesSection({ bike }: { bike: BikeDetail }) {
 
   const feed = useActivityFeed({
     kinds: ['ride'],
-    bikeId: bike.id,
+    bikeId,
     tz,
     order,
     sort: sortColumn === 'occurred_at' ? 'date' : sortColumn,
@@ -48,18 +68,6 @@ export default function BikeRidesSection({ bike }: { bike: BikeDetail }) {
 
   return (
     <Stack gap="sm">
-      <Group justify="space-between" align="flex-end" wrap="wrap" gap="xs">
-        <div>
-          <Title order={3}>Rides</Title>
-          <Text size="sm" c="dimmed">
-            {bike.ride_count.toLocaleString()} on this bike
-          </Text>
-        </div>
-        <Anchor component={Link} to={activityUrl({ bikeId: bike.id, kinds: ['ride'] })} size="sm">
-          Open in Activity →
-        </Anchor>
-      </Group>
-
       {sortColumn !== 'occurred_at' && (
         <Text size="xs" c="dimmed">
           Sorted by {ACTIVITY_FIELD_LABELS[sortColumn]}

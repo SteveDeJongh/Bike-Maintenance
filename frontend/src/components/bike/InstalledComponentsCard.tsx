@@ -1,9 +1,10 @@
 import { useMemo, type ReactNode } from 'react'
-import { Alert, Badge, Box, Button, Group, Loader, Menu, Paper, Stack, Text, Title } from '@mantine/core'
+import { Alert, Badge, Box, Button, Group, Loader, Menu, Stack, Text } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
 import { useComponentAssignments, useComponentCategorySettings, useComponents, useTableViewPreference } from '../../api/queries'
 import { useCreateBikeComponentSlot } from '../../api/mutations'
 import ComponentSwapPill from '../ComponentSwapPill'
+import PageSection from '../PageSection'
 import DataList from '../datalist/DataList'
 import DataListHeader, { type DataListColumn } from '../datalist/DataListHeader'
 import DataListRow from '../datalist/DataListRow'
@@ -38,7 +39,6 @@ import {
 } from '../../constants'
 import { componentWearValue } from '../../utils/wear'
 import type {
-  BikeComponentSlot,
   BikeDetail,
   Component,
   ComponentAssignmentWithStats,
@@ -46,6 +46,8 @@ import type {
   TableViewPreferenceData,
 } from '../../types/models'
 
+const SECTION_ID = 'installed'
+const TITLE = 'Installed components'
 const FIELD_OPTIONS = INSTALLED_COMPONENT_COLUMNS.map((column) => ({
   key: column,
   label: INSTALLED_COMPONENT_COLUMN_LABELS[column],
@@ -64,7 +66,7 @@ interface Props {
 }
 
 interface InnerProps extends Props {
-  orderedSlots: BikeComponentSlot[]
+  rows: InstalledRow[]
   allCategories: readonly string[]
   categorySettings: ComponentCategorySetting[] | undefined
   components: Component[]
@@ -72,11 +74,12 @@ interface InnerProps extends Props {
   initialData: TableViewPreferenceData
 }
 
-// The bike's slots as one DataList: Category | the swap pill | ride
-// context | wear | the chosen Fields (saved in bike_installed_components).
-// A filled row opens the installation modal (Remove lives there now); an
-// empty slot stays in place, muted, with a dashed pill to fill it. A phone
-// gets the same rows stacked.
+// The bike's slots as one DataList under a PageSection header (title,
+// "13 installed · 1 empty slot", Fields and + Track component type):
+// Category | the swap pill | ride context | wear | the chosen Fields
+// (saved in bike_installed_components). A filled row opens the
+// installation modal (Remove lives there); an empty slot stays in place,
+// muted, with a dashed pill to fill it. A phone gets the same rows stacked.
 export default function InstalledComponentsCard({ bike, onOpenAssignment }: Props) {
   const { data: preferenceData, isPending } = useTableViewPreference('bike_installed_components')
   // Every assignment of the user's: what's mounted on other bikes decides
@@ -87,14 +90,24 @@ export default function InstalledComponentsCard({ bike, onOpenAssignment }: Prop
   const allCategories = useAllCategories()
   const orderedSlots = useMemo(() => orderSlots(bike.bike_component_slots, allCategories), [bike.bike_component_slots, allCategories])
   const elsewhere = useMemo(() => activeElsewhereByComponent(assignments ?? [], bike.id), [assignments, bike.id])
+  const rows = useMemo(
+    () => installedRows(orderedSlots, bike.component_assignments, bike.overview.mounted),
+    [orderedSlots, bike.component_assignments, bike.overview.mounted],
+  )
 
   // useTableViewPreferences seeds from the preference once, on mount.
-  if (isPending || !preferenceData || assignmentsPending) return <Loader />
+  if (isPending || !preferenceData || assignmentsPending) {
+    return (
+      <PageSection id={SECTION_ID} title={TITLE} summary={installedSummaryLine(rows)}>
+        <Loader />
+      </PageSection>
+    )
+  }
   return (
     <InstalledComponentsCardInner
       bike={bike}
       onOpenAssignment={onOpenAssignment}
-      orderedSlots={orderedSlots}
+      rows={rows}
       allCategories={allCategories}
       categorySettings={categorySettings}
       components={components ?? []}
@@ -106,7 +119,7 @@ export default function InstalledComponentsCard({ bike, onOpenAssignment }: Prop
 
 function InstalledComponentsCardInner({
   bike,
-  orderedSlots,
+  rows,
   allCategories,
   categorySettings,
   components,
@@ -125,10 +138,6 @@ function InstalledComponentsCardInner({
   })
   const { orderedColumns: fields, sortColumn, sortDirection, setSort } = table
 
-  const rows = useMemo(
-    () => installedRows(orderedSlots, bike.component_assignments, bike.overview.mounted),
-    [orderedSlots, bike.component_assignments, bike.overview.mounted],
-  )
   const sorted = useMemo(() => sortInstalledRows(rows, sortColumn, sortDirection), [rows, sortColumn, sortDirection])
   const addable = addableSlotOptions(allCategories, bike.bike_component_slots, categorySettings)
 
@@ -164,30 +173,27 @@ function InstalledComponentsCardInner({
   const rowProps = { bike, components, activeAssignmentsElsewhereByComponentId, fields, onOpenAssignment }
 
   return (
-    <Paper withBorder radius="md" p="md">
+    <PageSection
+      id={SECTION_ID}
+      title={TITLE}
+      summary={installedSummaryLine(rows)}
+      actions={
+        <>
+          {!isMobile && (
+            <FieldsPicker
+              all={FIELD_OPTIONS}
+              visible={fields}
+              onToggle={(key) => table.toggleColumn(key as InstalledComponentColumn)}
+              onReorder={(activeKey, overKey) =>
+                table.reorderColumn(activeKey as InstalledComponentColumn, overKey as InstalledComponentColumn)
+              }
+            />
+          )}
+          <TrackComponentTypeMenu bikeId={bike.id} options={addable} />
+        </>
+      }
+    >
       <Stack gap="sm">
-        <Group justify="space-between" wrap="wrap" gap="sm">
-          <div>
-            <Title order={3}>Installed components</Title>
-            <Text size="sm" c="dimmed">
-              {installedSummaryLine(rows)}
-            </Text>
-          </div>
-          <Group gap="xs" wrap="nowrap">
-            {!isMobile && (
-              <FieldsPicker
-                all={FIELD_OPTIONS}
-                visible={fields}
-                onToggle={(key) => table.toggleColumn(key as InstalledComponentColumn)}
-                onReorder={(activeKey, overKey) =>
-                  table.reorderColumn(activeKey as InstalledComponentColumn, overKey as InstalledComponentColumn)
-                }
-              />
-            )}
-            <TrackComponentTypeMenu bikeId={bike.id} options={addable} />
-          </Group>
-        </Group>
-
         {table.saveError && (
           <Alert color="red" withCloseButton onClose={table.clearSaveError}>
             {table.saveError}
@@ -211,7 +217,7 @@ function InstalledComponentsCardInner({
           </DataList>
         )}
       </Stack>
-    </Paper>
+    </PageSection>
   )
 }
 

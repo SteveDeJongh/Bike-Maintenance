@@ -6,18 +6,18 @@ import { useBike } from '../api/queries'
 import BikeOverviewRow from '../components/bike/BikeOverviewRow'
 import BikePageHeader from '../components/bike/BikePageHeader'
 import BikeRidesSection from '../components/bike/BikeRidesSection'
-import BikeServiceCard from '../components/bike/BikeServiceCard'
+import BikeServiceHistorySection from '../components/bike/BikeServiceHistorySection'
 import BikeStatTiles from '../components/bike/BikeStatTiles'
-import ComponentHistoryCard from '../components/bike/ComponentHistoryCard'
 import InstalledComponentsCard from '../components/bike/InstalledComponentsCard'
 import AssignmentDetailModal from '../components/forms/AssignmentDetailModal'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 
 // The bike page (docs/frontend-ui.md, "Bike page"): header, stat tiles,
-// banners, Up next and rotation, installed components, rides, then service
-// and component history side by side. Each section owns its own data and
-// layout; this page holds the two modals more than one section opens.
+// banners, Up next and rotation, then three PageSections -- installed
+// components, service & component history, rides. Each section owns its
+// own data and layout; this page holds the two modals more than one
+// section opens.
 export default function BikeDetail() {
   const { id } = useParams<{ id: string }>()
   const bikeId = Number(id)
@@ -56,12 +56,8 @@ export default function BikeDetail() {
       <MaintenanceAlertBanners scope={{ bikeId: bike.id }} />
       <BikeOverviewRow overview={bike.overview} />
       <InstalledComponentsCard bike={bike} onOpenAssignment={openAssignment} />
+      <BikeServiceHistorySection bike={bike} onOpenAssignment={openAssignment} />
       <BikeRidesSection bike={bike} />
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mantine-spacing-md)', alignItems: 'flex-start' }}>
-        <BikeServiceCard bikeId={bike.id} />
-        <ComponentHistoryCard assignments={bike.component_assignments} onOpen={openAssignment} />
-      </div>
 
       <AssignmentDetailModal
         opened={selectedAssignmentId !== null}
