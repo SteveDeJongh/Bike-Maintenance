@@ -173,7 +173,9 @@ Frontend:
 - **Shared building blocks** (`docs/frontend-ui.md`): a row of summary tiles goes in
   `TileRow`, never a hand-rolled flex or grid. A list whose rows open something is a
   `DataList` (`components/datalist/`: header, whole-row `DataListRow`, bands,
-  `FieldsPicker`), not a new grid.
+  `FieldsPicker`), not a new grid; size its field columns with `fieldMinWidth` so
+  headers never overlap. A bike page section's heading is a `PageSection` (collapsible,
+  remembered per device in localStorage, never per account).
 - **Responsive:** prefer CSS (`hiddenFrom`/`visibleFrom`, per-breakpoint props) over JS.
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its
   `767.98px` boundary must stay in sync with `index.css`'s iOS-input-zoom rule.

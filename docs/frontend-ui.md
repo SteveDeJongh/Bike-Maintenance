@@ -165,7 +165,8 @@ genuinely short enough to fit at 390px wide (2–3 short text columns, no inputs
 
 ## Shared building blocks
 
-Two pieces every page builds on, so summary rows and lists look and behave the same.
+Three pieces pages build on, so summary rows, lists and section headings look and behave
+the same.
 
 - **`TileRow`** (`components/TileRow.tsx`): the row for summary tiles (Home, Activity,
   the Bikes pages).
@@ -179,18 +180,27 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
   - The row is a `role="group"` named by `label`. Tiles aren't focus stops.
   - Minimums today: Home 220px, Activity 140px.
 - **`DataList`** (`components/datalist/`): the list style for anything that isn't a
-  configurable `<Table>`. Activity and the Bikes table use it, and the bike page's
-  installed components will (part 4 of the Bikes redesign).
+  configurable `<Table>`. Activity, the Bikes table, and the bike page's installed
+  components and Rides use it.
   - **`DataList`** `({ template, minWidth, stacked })`: one CSS grid in a Paper, which
     scrolls sideways inside itself below `minWidth`. `stacked` drops the grid for a
     phone layout.
   - **Columns:** `dataListTemplate({ leading, main, fields })` builds the template
     (fixed leading tracks, one flexible main track, one per field), and
     `dataListMinWidth` its minimum width.
+  - **Field widths:** `fieldMinWidth(label, valueMin = 84)` is a field column's
+    minimum: wide enough for its values and for its header label (estimated at 6.5px a
+    character plus the sort arrow). Every DataList uses it both for the field's
+    `minmax(<min>px, auto)` track and in `dataListMinWidth`, so a narrow page scrolls
+    the list sideways instead of squeezing the headers together.
   - **`DataListHeader`** `({ columns, sortColumn, order, onSort })`: the darker band of
-    small dimmed labels. Each column is `{ key, label?, sortable?, align? }`, one per
-    track. Sortable ones show an arrow when active and call `onSort`; the caller
-    decides the first direction and the flip.
+    small dimmed labels. Each column is `{ key, label?, sortable?, align?,
+    description? }`, one per track. Sortable ones show an arrow when active and call
+    `onSort`; the caller decides the first direction and the flip.
+    - **Labels never overlap:** each stays on one line and truncates with an ellipsis
+      (the text, never the arrow). The full label shows in a tooltip when it's cut off.
+      A column with a `description` always gets a tooltip ("Total time · Over the
+      component's whole life").
   - **`DataListRow`** `({ ariaLabel, onOpen, tone, stacked })`: the whole row is a
     button (Enter/Space, the caller's accessible name), styled by `.data-list-row`.
     `tone` is `warning` (the no-bike orange) or `muted` (a retired row).
@@ -201,10 +211,29 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
     up. Each child of a row is one cell, and a cell may span tracks (`gridColumn`).
   - **`FieldsPicker`**: the "Fields" pill over `ColumnPicker`, with a cap and optional
     locked fields (`fieldPickerState`, `canToggleField`, `canAddField` in
-    `dataListModel.ts`). Saving stays with the caller's `useTableViewPreferences`.
+    `dataListModel.ts`). A `ColumnOption`'s optional `description` shows under its
+    checkbox. Saving stays with the caller's `useTableViewPreferences`.
+- **`PageSection`** (`components/PageSection.tsx`): a section heading on the page
+  background, used by the bike page's sections.
+  - `<PageSection id title summary foldedSummary actions storageKey>{body}</PageSection>`.
+  - **Left:** a chevron button (rotated −90° when folded; `aria-expanded`,
+    `aria-controls` the body, "Collapse/Expand <title>"), then the title (`Title
+    order={3}`; a click on it folds too, as a mouse shortcut) over a dimmed summary.
+  - **Right:** the section's actions, wrapping under the title on a phone.
+  - **Body:** the content, usually its own Paper panel, in Mantine `Collapse` with
+    `keepMounted={false}`. A folded body isn't rendered, so its queries don't run until
+    it's opened. Reduced motion gets a 1ms transition, not 0: a 0ms one fires no
+    `transitionend` and `Collapse` would never finish.
+  - **Folded,** the summary switches to `foldedSummary`, which says what's hidden.
+  - **Remembered per device** in localStorage (`utils/collapseState`, `useCollapsed`),
+    keyed per section and shared across bikes: `bikePage.collapsed.installed`,
+    `.serviceHistory` and `.rides` (`BIKE_SECTION_STORAGE_KEYS`). Not per account: Rides
+    may be folded on a phone and not on a desktop. Every read and write is guarded, and
+    anything unreadable means open. Without a `storageKey` a section starts open.
 - **When to use which:**
   - summary numbers go in a `TileRow`;
   - a list whose rows open something goes on `DataList`;
+  - a bike page section's heading is a `PageSection`;
   - a dense, column-configurable management table with a mobile card view stays a
     configurable `<Table>` ("Sortable, configurable tables" above).
 
@@ -278,8 +307,8 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
 
 `/bikes/:id` (`pages/BikeDetail.tsx`), in the Home look. The page only assembles
 sections; each one loads its own data. Top to bottom: header, tiles, banners, Up next
-and rotation (`BikeOverviewRow`), installed components, rides, then Service and
-Component history side by side.
+and rotation (`BikeOverviewRow`), then three collapsible `PageSection`s: Installed
+components, Service & component history, and Rides.
 
 - **`BikePageHeader`:**
   - **Above it:** a dimmed "← Bikes" link.
@@ -310,13 +339,21 @@ Component history side by side.
     column, and Up next takes the full width.
 - **`InstalledComponentsCard`** (a `DataList`; columns and sort in the
   `bike_installed_components` preference):
-  - **Header:** "Installed components" with "13 installed · 1 empty slot", Fields, and
-    "+ Track component type" (`addableSlotOptions`).
+  - **Section header:** "Installed components" with "13 installed · 1 empty slot", and
+    the Fields and "+ Track component type" (`addableSlotOptions`) pills as actions.
+    Folded: "13 installed · 1 due · 2 soon · 1 empty slot" (`installedFoldedSummary`;
+    soon is warning, zero parts dropped). The panel holds only the DataList. The part
+    that renders it stays mounted while folded (Fields needs its preference state); only
+    the list is skipped.
   - **Columns:** Category (the default sort, by the bike page's category order:
-    `orderSlots`) | `ComponentSwapPill` | the ride-context chip for split slots | Wear
+    `orderSlots`) | `ComponentSwapPill` | Ride context (a chip for indoor-only or
+    outdoor-only, dimmed "All rides" for both) | Wear
     (`WearBar` plus `componentWearValue`, from `overview.mounted`; a faint bar and "No
     interval" without one) | Fields (defaults: This install, Lifetime in bold,
-    Installed on).
+    Installed on). The whole-life metrics are labelled Lifetime, Total time, Total
+    climb and Avg power, and this install's are This install, Time, Elevation and Avg
+    power. `INSTALLED_COMPONENT_COLUMN_DESCRIPTIONS` tells the two spans apart in the
+    header tooltip and the Fields picker.
   - **Rows:** built by `installedRows` (an unsplit slot takes any open assignment of its
     category; a split slot only its own context). A filled row opens
     `AssignmentDetailModal` and has no buttons. **Remove from bike** lives in that
@@ -330,8 +367,16 @@ Component history side by side.
     with Edit installation.
   - **Phone:** the same rows stacked: category, pill, wear, and the fields on one
     dimmed line.
+- **Service & component history** (`BikeServiceHistorySection`): "Latest 5 of each",
+  with the two cards below side by side (each `flex: 1 1 460px`, wrapping).
+  - **Folded:** "18 services · 22 component changes" (`serviceHistoryFoldedSummary`).
+    Services is the service feed's `kind_counts.service`. The section and
+    `BikeServiceCard` both use `bikeServiceFeedParams`, so it's one cached request,
+    which still runs while folded. Changes is `historyRows(...).length`.
 - **`BikeRidesSection`:** "Rides", "N on this bike", and "Open in Activity →"
-  (`activityUrl`). The body is the Activity page's `ActivityList` on the activity feed
+  (`activityUrl`). Folded: "214 on this bike · last ride today" (`ridesSummary`;
+  today, yesterday, or `formatShortDate`). The list is a child component, so a folded
+  Rides never fetches the feed. The body is the Activity page's `ActivityList` on the activity feed
   (this bike, rides), with the saved Fields and Group by (`readActivityView`, read
   only), a header sort of its own that isn't saved, Load more, and `RideDetailModal`.
   There's no odometer column and no indoor/outdoor filter; the feed has neither.
