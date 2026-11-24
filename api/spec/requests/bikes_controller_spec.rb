@@ -35,32 +35,80 @@ RSpec.describe "Bikes", type: :request do
         component
       end
 
-      it "counts mounted components by worst status and lists the three closest to service" do
-        mounted("Chain", category: "chain", interval: 1_000)         # 2,000 / 1,000: due
-        mounted("Cassette", category: "cassette", interval: 2_100)   # warning
-        mounted("Tire", category: "tire_front", interval: 100_000)   # ok, barely worn
-        tube = mounted("Tube", category: "tube", interval: 1_000_000) # ok, fourth
-        saddle = mounted("Saddle", category: "saddle")               # no requirement
-        create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 2_000)
+      describe "next_service" do
+        def ride(distance)
+          create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: distance)
+        end
 
-        json = bike_json
+        it "lists three with intervals, due then warning then ok, before any without" do
+          mounted("Tire", category: "tire_front", interval: 100_000)   # ok, barely worn
+          mounted("Chain", category: "chain", interval: 1_000)         # 2,000 / 1,000: due
+          mounted("Cassette", category: "cassette", interval: 2_100)   # warning
+          tube = mounted("Tube", category: "tube", interval: 1_000_000) # ok, fourth
+          saddle = mounted("Saddle", category: "saddle")               # no requirement
+          ride(2_000)
 
-        expect(json["status_counts"]).to eq("due" => 1, "warning" => 1)
-        expect(json["installed_components_count"]).to eq(5)
-        expect(json["next_service"].map { |c| c["label"] }).to eq(%w[Chain Cassette Tire])
-        expect(json["next_service"].first).to include(
-          "service_status" => "due", "driving_dimension" => "distance", "distance_remaining_meters" => -1_000,
-        )
-        expect(json["next_service"].map { |c| c["component_id"] }).not_to include(tube.id, saddle.id)
-      end
+          json = bike_json
 
-      it "leaves out components with no enabled requirement, even with room to spare" do
-        mounted("Chain", category: "chain", interval: 10_000)
-        mounted("Saddle", category: "saddle")
-        disabled = mounted("Tire", category: "tire_front", interval: 5_000)
-        disabled.component_service_requirements.update_all(enabled: false)
+          expect(json["status_counts"]).to eq("due" => 1, "warning" => 1)
+          expect(json["installed_components_count"]).to eq(5)
+          expect(json["next_service"].map { |c| c["label"] }).to eq(%w[Chain Cassette Tire])
+          expect(json["next_service"].first).to include(
+            "service_status" => "due", "driving_dimension" => "distance", "distance_remaining_meters" => -1_000,
+            "total_distance_meters" => nil,
+          )
+          expect(json["next_service"].map { |c| c["component_id"] }).not_to include(tube.id, saddle.id)
+        end
 
-        expect(bike_json["next_service"].map { |c| c["label"] }).to eq(%w[Chain])
+        it "fills with components that have no interval, in category order then by label, with their lifetime distance" do
+          mounted("Saddle", category: "saddle")
+          mounted("Bar tape", category: "handlebar_tape")
+          mounted("Front tire", category: "tire_front")
+          mounted("Chain", category: "chain", interval: 10_000)
+          disabled = mounted("Cassette", category: "cassette", interval: 5_000)
+          disabled.component_service_requirements.update_all(enabled: false)
+          ride(2_140)
+
+          worn = bike_json["next_service"]
+
+          # tire_front, cassette and saddle all precede handlebar_tape in
+          # Component::CATEGORY_ORDER; a disabled requirement counts as none.
+          expect(worn.map { |c| c["label"] }).to eq(["Chain", "Cassette", "Front tire"])
+          expect(worn.first).to include("service_status" => "ok", "total_distance_meters" => nil)
+          expect(worn.last).to include(
+            "service_status" => nil, "fraction_used" => nil, "driving_dimension" => nil, "total_distance_meters" => 2_140,
+          )
+        end
+
+        it "lists components without intervals when none have one" do
+          mounted("Frame", category: "frame")
+          mounted("Pedals", category: "pedals")
+          mounted("Saddle", category: "saddle")
+          mounted("Chain", category: "chain")
+          ride(500)
+
+          worn = bike_json["next_service"]
+
+          expect(worn.map { |c| c["label"] }).to eq(%w[Chain Saddle Pedals])
+          expect(worn.map { |c| c["total_distance_meters"] }).to eq([ 500, 500, 500 ])
+        end
+
+        it "lists every component when fewer than three are installed" do
+          mounted("Chain", category: "chain", interval: 10_000)
+          mounted("Saddle", category: "saddle")
+
+          json = bike_json
+
+          expect(json["installed_components_count"]).to eq(2)
+          expect(json["next_service"].map { |c| c["label"] }).to eq(%w[Chain Saddle])
+        end
+
+        it "puts custom categories after the built-in ones" do
+          mounted("Bell", category: "bell")
+          mounted("Power meter", category: "power_meter")
+
+          expect(bike_json["next_service"].map { |c| c["label"] }).to eq(["Power meter", "Bell"])
+        end
       end
 
       it "counts this year's distance from local Jan 1 in the viewer's zone" do

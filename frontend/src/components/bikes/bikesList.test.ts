@@ -120,11 +120,11 @@ describe('retiredLabel', () => {
 
 describe('moreComponentsLine', () => {
   it('counts the installed components the rows leave out', () => {
-    expect(moreComponentsLine(13, 3)).toBe('And 10 more components…')
+    expect(moreComponentsLine(13, 3)).toBe('+10 more components…')
   })
 
   it('is singular for one', () => {
-    expect(moreComponentsLine(4, 3)).toBe('And 1 more component…')
+    expect(moreComponentsLine(4, 3)).toBe('+1 more component…')
   })
 
   it('is null when every installed component is shown', () => {
@@ -133,6 +133,6 @@ describe('moreComponentsLine', () => {
   })
 
   it('counts them all when no row is shown', () => {
-    expect(moreComponentsLine(5, 0)).toBe('And 5 more components…')
+    expect(moreComponentsLine(5, 0)).toBe('+5 more components…')
   })
 })

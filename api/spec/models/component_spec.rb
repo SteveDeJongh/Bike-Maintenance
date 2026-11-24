@@ -294,4 +294,12 @@ RSpec.describe Component, type: :model do
       component.update!(label: "Front Fender")
     end
   end
+
+  describe ".category_sort_key" do
+    it "orders built-in categories by CATEGORY_ORDER, then custom ones A-Z" do
+      categories = %w[bell saddle anchor chain power_meter]
+
+      expect(categories.sort_by { |c| described_class.category_sort_key(c) }).to eq(%w[chain saddle power_meter anchor bell])
+    end
+  end
 end

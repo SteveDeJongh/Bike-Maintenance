@@ -1,5 +1,7 @@
 // Picker order: drivetrain, wheels and tires, brakes, contact points, frame
 // and suspension, power meter -- not alphabetical, not insertion order.
+// The display order of the built-in categories. The API keeps a copy,
+// Component::CATEGORY_ORDER (api/app/models/component.rb): keep them in sync.
 export const COMPONENT_CATEGORIES = [
   'chain',
   'cassette',

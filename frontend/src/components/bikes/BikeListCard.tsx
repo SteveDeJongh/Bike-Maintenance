@@ -23,8 +23,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 // One bike on the Bikes page: the whole card links to the bike. Header
-// (name, type chip, make/model, status chip), the stats line, the three
-// mounted components closest to service and the last ride. Unlike Home's BikeCard
+// (name, type chip, make/model, status chip), the stats line, up to three
+// mounted components (next_service) and the last ride, pinned to the bottom
+// so it lines up across a row of cards (the grid stretches each card). Unlike Home's BikeCard
 // it has nothing clickable inside, so the whole card can be one link.
 export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; typeName: string | null }) {
   const makeModel = [bike.make, bike.model].filter(Boolean).join(' ')
@@ -32,8 +33,16 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
   const more = moreComponentsLine(bike.installed_components_count, bike.next_service.length)
 
   return (
-    <Paper component={Link} to={`/bikes/${bike.id}`} withBorder radius="md" p="md" className="bike-list-card">
-      <Stack gap="sm">
+    <Paper
+      component={Link}
+      to={`/bikes/${bike.id}`}
+      withBorder
+      radius="md"
+      p="md"
+      className="bike-list-card"
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
+      <Stack gap="sm" style={{ flex: 1 }}>
         <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
           <Stack gap={2} style={{ minWidth: 0 }}>
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -72,10 +81,6 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
             <Text size="sm" c="dimmed">
               No components installed.
             </Text>
-          ) : bike.next_service.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              No service intervals set up
-            </Text>
           ) : (
             <Box
               style={{
@@ -91,7 +96,12 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
                   <Text size="sm" truncate>
                     {component.label}
                   </Text>
-                  <WearBar fraction={component.fraction_used} status={component.service_status} />
+                  {/* No requirement: a faint empty track, so bars line up. */}
+                  <WearBar
+                    fraction={component.fraction_used}
+                    status={component.service_status}
+                    style={component.driving_dimension ? undefined : { opacity: 0.5 }}
+                  />
                   <Text
                     size="sm"
                     ta="right"
@@ -111,7 +121,7 @@ export default function BikeListCard({ bike, typeName }: { bike: BikeWithStats; 
           )}
         </Stack>
 
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="dimmed" style={{ marginTop: 'auto' }}>
           {lastRideLine(bike)}
         </Text>
       </Stack>

@@ -232,13 +232,15 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
   - **Each card** is one link to the bike, with nothing clickable inside. It shows:
     - the name, a type chip, make/model and `BikeStatusChip`;
     - Total, This year, Rides and Avg power;
-    - **Components:** the three mounted parts closest to service (`WearBar`, then
-      `componentWearValue`: what's left or over), then a dimmed "And X more
-      components…" (`moreComponentsLine`), plain text since the card is a link. Parts
-      with no service interval never get a row. Empty states: "No components
-      installed.", or "No service intervals set up" above the "And X more" line;
+    - **Components:** up to three mounted parts (`next_service`), each a `WearBar`
+      and `componentWearValue`: what's left or over, or, for a part with no interval,
+      "7,744 km total" over a faint empty track. Then a dimmed "+X more components…"
+      (`moreComponentsLine`), plain text since the card is a link. With nothing
+      installed: "No components installed.";
     - the last ride (`lastRideLine`; the year only when it isn't this year, via
-      `formatShortDate`, which Home's panels share).
+      `formatShortDate`, which Home's panels share), pinned to the card's bottom.
+      Grid items stretch, so cards in a row match in height and their last-ride
+      lines line up.
   - **Sorts** (`sortBikeCards`): Most urgent is Home's `sortByUrgency` on
     `status_counts`; Last ridden is newest first; Distance is highest first; Name is
     A–Z.
@@ -263,10 +265,14 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
 - **Data:** `GET /bikes` (`BikesController#index`, `?tz=`) adds `ride_count`,
   `distance_this_year` (from local Jan 1), `last_ride_activity_type`,
   `status_counts` and `next_service` to the stats it already returned. `next_service`
-  is up to three mounted components with an enabled requirement, highest
-  `fraction_used` first.
+  is up to three mounted components: those with an enabled requirement first (due,
+  warning, then ok; highest `fraction_used` first), then, to fill the three, those
+  with none, in category order (`Component::CATEGORY_ORDER`, a copy of the
+  frontend's `COMPONENT_CATEGORIES`; custom categories after) and then by label.
   - **Batching:** every stat is one grouped query, and statuses come from one
     `worst_result_by_component` call, so adding bikes adds no queries (a spec checks).
+  - **Lifetime totals** for parts with no requirement come from the batched
+    `Maintenance::LifetimeDistanceQuery`.
 
 ## Bike page
 

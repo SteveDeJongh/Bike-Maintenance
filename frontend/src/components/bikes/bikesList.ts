@@ -97,5 +97,5 @@ export function retiredLabel(retiredOn: string): string {
 export function moreComponentsLine(installedCount: number, shownCount: number): string | null {
   const more = installedCount - shownCount
   if (more <= 0) return null
-  return `And ${more} more ${more === 1 ? 'component' : 'components'}…`
+  return `+${more} more ${more === 1 ? 'component' : 'components'}…`
 }

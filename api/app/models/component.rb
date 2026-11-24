@@ -1,4 +1,18 @@
 class Component < ApplicationRecord
+  # The built-in categories in display order -- a copy of the frontend's
+  # COMPONENT_CATEGORIES (frontend/src/constants.ts); keep the two in sync.
+  # Custom categories sort after these (category_sort_key).
+  CATEGORY_ORDER = %w[
+    chain cassette chainring bottom_bracket wheel_front wheel_rear tire_front tire_rear
+    brake_pads_front brake_pads_rear saddle handlebar_tape pedals frame
+    front_suspension rear_suspension seat_post power_meter
+  ].freeze
+
+  # [position, category]: built-ins in CATEGORY_ORDER, then custom ones A-Z.
+  def self.category_sort_key(category)
+    [ CATEGORY_ORDER.index(category) || CATEGORY_ORDER.size, category.to_s ]
+  end
+
   belongs_to :user
   has_many :component_assignments, dependent: :destroy
   has_many :bikes, through: :component_assignments
