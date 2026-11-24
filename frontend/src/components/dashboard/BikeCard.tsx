@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import BatchServiceModal from '../forms/BatchServiceModal'
 import AssignmentDetailModal from '../forms/AssignmentDetailModal'
 import WearBar from './WearBar'
+import RotationSplitBar from './RotationSplitBar'
 import BikeStatusChip from '../bike/BikeStatusChip'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { categoryLabel } from '../../constants'
@@ -64,15 +65,9 @@ function WearRow({ component, bikeId }: { component: DashboardMountedComponent; 
   )
 }
 
-// Lifetime distance of each component in a same-category rotation, side
-// by side: mounted in the primary colour, off-bike in a darker shade.
+// A same-category rotation: what's off the bike, over the shared split bar
+// of lifetime distances.
 function RotationStrip({ group }: { group: RotationGroup }) {
-  const segments = [
-    ...group.mounted.map((component) => ({ ...component, onBike: true })),
-    ...group.offBike.map((component) => ({ ...component, onBike: false })),
-  ]
-  const total = segments.reduce((sum, segment) => sum + (segment.total_distance_meters ?? 0), 0)
-
   return (
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap" gap="xs">
@@ -83,28 +78,7 @@ function RotationStrip({ group }: { group: RotationGroup }) {
           Off: {group.offBike.map((component) => `${component.label} · ${formatDisplayMetric(component.display_metric)}`).join(', ')}
         </Text>
       </Group>
-      <Group gap={2} wrap="nowrap" h={6}>
-        {segments.map((segment) => (
-          <Box
-            key={segment.component_id}
-            h="100%"
-            style={{
-              // An all-zero rotation still draws, as equal parts.
-              flex: total > 0 ? `${segment.total_distance_meters ?? 0} 1 0` : '1 1 0',
-              minWidth: 2,
-              borderRadius: 3,
-              background: segment.onBike ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-primary-color-9)',
-            }}
-          />
-        ))}
-      </Group>
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        {segments.map((segment) => (
-          <Text key={segment.component_id} size="xs" c="dimmed">
-            {segment.label} · {formatDistance(segment.total_distance_meters ?? 0)}
-          </Text>
-        ))}
-      </Group>
+      <RotationSplitBar group={group} />
     </Stack>
   )
 }

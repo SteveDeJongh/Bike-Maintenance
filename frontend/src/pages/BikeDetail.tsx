@@ -4,8 +4,10 @@ import { Alert, Anchor, Button, Loader, Select, Stack, Text, Title } from '@mant
 import { ApiError } from '../api/client'
 import { useBike, useComponentAssignments, useComponentCategorySettings, useComponents } from '../api/queries'
 import { useCreateBikeComponentSlot } from '../api/mutations'
-import { BikeStatsRow } from '../components/bike/BikeHeader'
 import BikePageHeader from '../components/bike/BikePageHeader'
+import BikeStatTiles from '../components/bike/BikeStatTiles'
+import BikeUpNext from '../components/bike/BikeUpNext'
+import RotationCard from '../components/bike/RotationCard'
 import HistoryTable from '../components/bike/HistorySection'
 import InstalledComponentsTable from '../components/bike/InstalledComponentsSection'
 import RideHistorySection from '../components/bike/RideHistorySection'
@@ -15,6 +17,7 @@ import EndAssignmentModal from '../components/forms/EndAssignmentModal'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
+import { rotationGroups } from '../utils/bikeCard'
 import type { ComponentAssignmentWithStats } from '../types/models'
 
 export default function BikeDetail() {
@@ -115,6 +118,7 @@ export default function BikeDetail() {
   })
 
   const historyAssignments = bike.component_assignments.filter((a) => a.ended_at !== null)
+  const rotations = rotationGroups(bike.overview.mounted, bike.overview.off_bike).groups
 
   const confirmedBikeId = bike.id
 
@@ -133,9 +137,22 @@ export default function BikeDetail() {
     <Stack>
       <BikePageHeader bike={bike} onLogService={() => setBatchServiceOpened(true)} />
 
+      <BikeStatTiles bike={bike} />
+
       <MaintenanceAlertBanners scope={{ bikeId: bike.id }} />
 
-      <BikeStatsRow bike={bike} />
+      {/* Up next, with one rotation card per rotating category stacked in a
+          right-hand column; with none, Up next takes the full width. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--mantine-spacing-md)', alignItems: 'flex-start' }}>
+        <BikeUpNext overview={bike.overview} />
+        {rotations.length > 0 && (
+          <Stack gap="md" style={{ flex: '1 1 340px', minWidth: 0 }}>
+            {rotations.map((group) => (
+              <RotationCard key={group.category} group={group} />
+            ))}
+          </Stack>
+        )}
+      </div>
 
       <Title order={3}>Installed components</Title>
 

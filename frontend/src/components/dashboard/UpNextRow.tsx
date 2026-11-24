@@ -1,10 +1,9 @@
-import { useState } from 'react'
-import { Badge, Button, Group, Progress, Stack, Text } from '@mantine/core'
+import { Badge, Group, Progress, Stack, Text } from '@mantine/core'
 import { Link } from 'react-router-dom'
-import MaintenanceEventFormModal from '../forms/MaintenanceEventFormModal'
+import LogServiceForItemButton from './LogServiceForItemButton'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { SERVICE_STATUS_COLORS } from '../../constants'
-import { formatDrivingRemaining, primarySatisfier } from '../../utils/serviceInterval'
+import { formatDrivingRemaining } from '../../utils/serviceInterval'
 import { formatUsedOfTotal } from '../../utils/upNext'
 import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import type { DashboardRequirementItem } from '../../types/models'
@@ -13,7 +12,6 @@ import type { DashboardRequirementItem } from '../../types/models'
 // date), a thin bar on the same dimension, and where the part is. "Log
 // service" opens MaintenanceEventFormModal with the position-1 satisfier.
 export default function UpNextRow({ item }: { item: DashboardRequirementItem }) {
-  const [logOpened, setLogOpened] = useState(false)
   const isMobile = useIsMobile()
   const color = SERVICE_STATUS_COLORS[item.status]
   const alerting = item.status !== 'ok'
@@ -58,23 +56,14 @@ export default function UpNextRow({ item }: { item: DashboardRequirementItem }) 
           <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
             {formatUsedOfTotal(item)}
           </Text>
-          <Button
+          <LogServiceForItemButton
+            item={item}
             size="compact-xs"
             variant="subtle"
-            onClick={() => setLogOpened(true)}
             style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
-          >
-            Log service
-          </Button>
+          />
         </Group>
       </Group>
-
-      <MaintenanceEventFormModal
-        opened={logOpened}
-        onClose={() => setLogOpened(false)}
-        defaultComponentId={item.component_id}
-        defaultServiceTypeId={primarySatisfier(item.satisfiers)?.service_type_id}
-      />
     </Stack>
   )
 }
