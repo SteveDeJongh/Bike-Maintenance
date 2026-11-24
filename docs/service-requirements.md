@@ -166,49 +166,31 @@ ride-filtered counting.
   custom-requirement editor below — "Custom requirements edit satisfiers inline
   with the same editor as Settings" is implemented literally as shared code, not a
   second copy.
-- **The component page's Service intervals** are `ComponentIntervalsSection`: a grid
-  row per interval, with the per-interval actions in a ⋯ menu ("Component page" in
-  `docs/frontend-ui.md`). The older table below is now only
-  `AssignmentDetailModal`'s, until part 3 of the components redesign removes it.
-- **AssignmentDetailModal → Service requirements**
-  (`frontend/src/components/ServiceIntervalsSection.tsx`, rendered by
-  `ComponentServiceAndHistory.tsx`, sharing `components/serviceIntervals/` with the
-  component page): one row per requirement (enabled or
-  not, so its Switch can be flipped back on in place) — name + a dimmed secondary
-  line (every satisfier's service type name joined with "or", a `· last: {setting
-  event's service type} at {formatted setting_position}` clause once a real
-  service has been logged — omitted, not shown blank, in the synthetic-fallback
-  case — and a `· outdoor/indoor rides only` note when `ride_filter` narrows
-  counting), a progress bar on the driving dimension, a "Default"/"Custom" marker,
-  remaining/overdue text across every *active* dimension at once (`formatRemaining`
-  in `utils/serviceInterval.ts`, with an optional third, moving-time argument — a requirement can now have more than one dimension counting
-  down simultaneously, e.g. "50h or 1 year"), a
-  status badge, an enable `Switch`, and Remove. "Log service" is a **split
-  button**: the primary action logs the requirement's position-1 satisfier; a
-  dropdown (hidden entirely for a single-satisfier requirement — nothing to pick)
-  lists the rest. Before opening `MaintenanceEventFormModal`, it checks whether
-  the chosen service type also clears any **other** requirement on the same
-  component (the same satisfier service type appearing in more than one
-  requirement's list) and, if so, confirms first ("This also clears: Fork 50h")
-  via a non-destructive `modals.openConfirmModal` — skipped entirely when there's
-  nothing else to name, so a plain single-requirement log stays the one-click
-  action it always was. A **linked** row's overrides (three thresholds +
-  `ride_filter`, "Reset to default" nulling all of them at once) go through
-  `EditServiceIntervalModal`, showing the template's own effective values as
-  context . A **custom** row expands inline instead (an "Edit"/"Done"
-  toggle, mirroring the Settings template editor's own `editing` state) into its
-  own name/threshold/ride-filter fields plus the shared `SatisfiersEditor` — fed
-  the **raw** satisfiers from `GET /component_service_requirements?component_id=`
-  (not the already-resolved ones on `GET /components/:id`'s payload), specifically
-  so an unset allowance shows its "same as requirement" placeholder instead of a
-  resolved number that would look like someone had typed it in. "+ Add custom
-  requirement" (`AddCustomServiceIntervalModal.tsx`) mirrors the Settings "new
-  template" flow — name/thresholds/ride_filter/draft satisfiers collected locally,
-  submitted together in one transactional create. "+ Add from category defaults" is deduped by linked template, not by service type.
-  `SERVICE_STATUS_COLORS`/`SERVICE_STATUS_SEVERITY` back the Components list's Service
-  column (a wear bar, sorted most urgent first), Bike detail's Installed components
-  wear, and, with `ServiceStatusBadge`, the Service requirements table's own Status
-  column.
+- **The component page's Service intervals** (`ComponentIntervalsSection`, "Component
+  page" in `docs/frontend-ui.md`) are the one place a component's intervals are edited.
+  It has a grid row per interval (enabled or not, so one can be re-enabled in place):
+  - the name, a status chip and a "Custom" tag;
+  - the rule (`requirementRuleText`: thresholds joined with "or", the satisfiers'
+    service types joined with "or", and "outdoor/indoor rides only" when `ride_filter`
+    narrows counting);
+  - a wear bar on the driving dimension with "196 / 200 km since Drip wax";
+  - what's left (`formatDrivingRemaining`) and "Last done …".
+
+  The edit button opens `EditServiceIntervalModal` for a **linked** row (overrides of
+  the three thresholds and `ride_filter`, with "Reset to default"), or expands the
+  inline `CustomRequirementEditor` for a **custom** one (name, thresholds,
+  `ride_filter`, plus the shared `SatisfiersEditor`). The ⋯ menu holds:
+  - **Log <service>** for each satisfier. Before opening `MaintenanceEventFormModal`,
+    `confirmLogService` checks whether that service type also clears another of the
+    component's requirements and, if so, confirms first ("This also clears: Fork
+    50h"). With nothing else to name, it logs straight away.
+  - Enable/Disable;
+  - the category's notifications on/off;
+  - Dismiss until next sync;
+  - Delete.
+
+  The installation modal (`AssignmentDetailModal`) only *shows* a current
+  installation's enabled intervals, read-only, and links to the component page.
 - **`BatchServiceModal`** (see "Batch service logging" below): rows are one per
   service type across a component's requirements, not one per requirement — see
   that section for the full redesign.
@@ -231,7 +213,7 @@ new type (tagged <category>)", and `useServiceTypeIdResolver`'s
 context per site: `MaintenanceEventFormModal` — the form's currently selected
 component; `BatchServiceModal`'s "Add other…" rows — each row's own chosen
 component; `SatisfiersEditor`/`DraftSatisfierRow` — a template's own category
-(Settings) or a custom requirement's component category (`ServiceIntervalsSection`,
+(Settings) or a custom requirement's component category (`CustomRequirementEditor`,
 `AddCustomServiceIntervalModal`). The "Log service" split button lists a
 requirement's satisfiers, not a general picker, and is unaffected.
 **Settings → Service types** lists each type with its tag pills
@@ -335,12 +317,8 @@ this bike" gets computed and how the batch logger itself works.
   "Log service" (see "Cache invalidation" under Conventions)
 - **Showing a session**: on the component page, a session event's history row reads
   "Session with <other components>" and opens `ServiceSessionViewModal`.
-  `ComponentServiceAndHistory`'s history table, which is now only the modal's, marks
-  any event with `service_session_id` set with a small "Part of a service
-  session · N items" control (N counts every event in the session, not just
-  this component's own — a session can span several components on one bike),
-  opening `ServiceSessionViewModal` (date, note, every event, Edit
-  date/note, Delete session via `confirmDelete` naming the event count).
+  `ServiceSessionViewModal` shows the date, the note and every event, with Edit
+  date/note and Delete session (`confirmDelete` naming the event count).
   `MaintenanceEventFormModal`'s date field is `disabled` with explanatory text
   whenever the event being edited is session-bound, matching the backend
   validation up front rather than only surfacing it as a 422 after the fact.

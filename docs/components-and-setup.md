@@ -38,9 +38,7 @@ Swapping one component for another in the same slot (the main use case: rotating
   - **Where it appears:**
     - the bike page's installed-components list (`InstalledComponentsCard`, on desktop
       and phone);
-    - `AssignmentDetailModal`'s Component field, through `ComponentIdentityStatus`'s
-      optional `swapAssignment`. That's passed only for a still-open installation, so
-      ended ones keep the plain link, as ComponentDetail does.
+    - `AssignmentDetailModal`'s "Swap" row, for a still-open installation only.
   - **There's no other swap entry point.** ComponentDetail has no Swap button, and the
     bike page's rows have no buttons at all. **Remove from bike** is in
     `AssignmentDetailModal`, for an open installation, opening `EndAssignmentModal`.
@@ -117,8 +115,7 @@ isn't due. It reads "<Service> · ready".
   "Retired <date>", then the last bike. Sort (`bikeSortKey`): installed by bike name,
   spares by last bike, never installed, then retired.
 - **Component page**: the header line reads "Spare · last on <bike>" (or "Last on
-  <bike>" once retired), and `AssignmentDetailModal`'s `ComponentIdentityStatus`
-  reads "Uninstalled · Last on <bike>", whenever there's a `last_bike`.
+  <bike>" once retired) whenever there's a `last_bike`.
 
 ## Deleting a component
 

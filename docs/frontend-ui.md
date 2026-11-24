@@ -425,8 +425,7 @@ place for a part's whole life. Everything comes from `GET /components/:id`.
     - a ⋯ menu: Log <service> per satisfier (with the "also clears" confirm),
       Enable/Disable, turn the **category's** notifications off or on, Dismiss until
       next sync (warning/due only), and Delete.
-  - The editor pieces are in `components/serviceIntervals/`, shared with the
-    installation modal's older `ServiceIntervalsSection` until part 3 removes it.
+  - The editor pieces are in `components/serviceIntervals/`.
 - **Maintenance history** and **Installation history:** side by side in a wrapping
   flex (`1 1 520px` / `1 1 440px`), each a `PageSection`.
   - **Maintenance** ("7 events"): date | a teal wrench | the service with a note line
@@ -443,6 +442,41 @@ place for a part's whole life. Everything comes from `GET /components/:id`.
     installation's `AssignmentDetailModal`.
 - **Collapse keys:** `componentPage.collapsed.intervals`, `.maintenance` and
   `.installations`, remembered per device (`componentSections.ts`).
+- **`#intervals`** (the installation modal's "No service intervals" link) scrolls to
+  Service intervals and unfolds it.
+
+### Installation modal
+
+`AssignmentDetailModal` (`components/forms/`, pieces in `components/installation/`)
+is a **quick look at one installation**. The component page is the home for
+everything else: editing intervals, maintenance history and every installation.
+- **Opened from:**
+  - the bike page's installed components and component history rows;
+  - Home's bike cards;
+  - Activity's setup rows;
+  - the component page's Installation history.
+
+  It reads the assignment from the bike's `GET /bikes/:id` (all assignments, current
+  and ended) and the component's `GET /components/:id`, and follows the slot after a
+  swap.
+- **Title:** "INSTALLATION · <CATEGORY>" over the label, like the ride modal.
+- **Where it is** (`whereItIs`):
+  - current: "On <bike> since <date>", the `RideContextChip` ("All rides" as text),
+    and "· also on <bikes>" for a shared cassette;
+  - past: "Was on <bike> · <start> → <end>" and the chip.
+- **Current installations** also get:
+  - the **Swap** pill;
+  - Log service, Edit installation and Remove from bike (`installationActions`);
+  - a read-only **Service status**: one row per enabled interval with "Last done …",
+    a wear bar and what's left (`serviceStatusRows`), or "No service intervals"
+    linking to the component page's `#intervals`.
+
+  **Past** ones get only Edit installation and no service status, since the intervals
+  describe the component now, not that stint.
+- **Both** show **This installation** (Distance, Time, Elevation, Avg power when
+  metered) with "Lifetime across all installations: <km> · <hrs>" under it.
+- **Footer:** "Open component page →".
+- **Links out** close the modal first.
 
 ## Bike page
 
@@ -683,8 +717,8 @@ sidebar and a mobile bottom tab bar at Mantine's `sm` breakpoint (48em /
 - **`frontend/src/components/AppModal.tsx`** is the one shared wrapper every form modal renders through — **new modals must
   use this instead of Mantine's `Modal` directly.** On mobile it goes
   `fullScreen` with a slide-up transition (every modal is easier to use
-  that way on a phone, and the `size="xl"` ones — `BatchServiceModal`,
-  `CategoryServiceRequirementsModal`, `AssignmentDetailModal` — are
+  that way on a phone, and the `size="xl"` ones — `BatchServiceModal` and
+  `CategoryServiceRequirementsModal` — are
   cramped otherwise); desktop keeps each modal's own `size` exactly as
   before. Mantine's own Modal header is already `position: sticky; top:
   0` unconditionally, so close stays reachable above a long scroll with

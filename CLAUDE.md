@@ -245,7 +245,8 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
 - `docs/auth.md` — **Authentication**. Sessions/CSRF/CORS, `Auth::ResolveIdentity`,
   Strava as a sign-in method, mail and tokens, deferred Google/Apple, deployment notes.
 - `docs/frontend-ui.md` — **Sortable, configurable tables**, **Shared building blocks**,
-  **Bikes page**, **Components page**, **Component page**, **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
+  **Bikes page**, **Components page**, **Component page** (incl. the installation
+  modal), **Bike page**, **Theming**, **Layout and navigation**, **PWA**. How to adopt the table system, card view, breakpoints, nav
   config, `AppModal`, mobile date pickers, the manifest and icons.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
