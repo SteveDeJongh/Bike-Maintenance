@@ -5,12 +5,13 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on seven tables: the Bike detail page's Installed components, History, and Ride
-history tables, the Strava page's Rides tab, and the Components/Maintenance
-Events/Assignments lists (each its own `table_key`: `bike_installed_components`,
-`bike_history`, `bike_rides`, `strava_rides`, `components`, `maintenance_events`,
-`assignments`). The Bikes list was one; it's now cards plus a `DataList` table
-("Bikes page" below), still saving through `useTableViewPreferences` (`bikes`).
+on four tables: the Strava page's Rides tab and the Components/Maintenance
+Events/Assignments lists (each its own `table_key`: `strava_rides`, `components`,
+`maintenance_events`, `assignments`). The Bikes list and the bike page's installed
+components were tables too; they're now `DataList`s ("Bikes page" and "Bike page"
+below), still saving through `useTableViewPreferences` (`bikes`,
+`bike_installed_components`). The bike page's old History and Ride history tables are
+gone; their `bike_history`/`bike_rides` preference rows are unused.
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
   grouped `DataList` (see "Shared building blocks" below and
   `docs/rides-and-activity.md`), whose `activity_log` preference
@@ -59,9 +60,8 @@ A future page can adopt the same UX without rework:
   `columns` in `TableViewPreference#data` is one ordered array: presence means
   visible, position means display order (no separate unordered "visible" list).
   `DraggableHeaderCell`'s `sortable` prop (default `true`) renders the label as
-  plain, non-clickable text when `false` — for a table like `bike_rides` whose
-  configurable columns are drag-to-reorder only, never click-to-sort (see "Ride
-  history" below).
+  plain, non-clickable text when `false`, for a table whose configurable columns are
+  drag-to-reorder only, never click-to-sort (no current table uses it).
 - `frontend/src/components/datatable/useColumnDragHandle.ts` /
   `useColumnDragSensors.ts` — small shared pieces behind both drag surfaces (the
   popover rows and the live headers): a `useSortable` wrapper returning ref/style/
@@ -107,9 +107,8 @@ A future page can adopt the same UX without rework:
   instead of resetting it, and the toggle button keeps the current column —
   but still saves through the exact same `PATCH` path as a desktop header
   click, so a sort chosen on the phone is the one desktop sees next. A table
-  with no click-to-sort at all (`bike_rides`) renders no
-  `MobileSortControl`, same as it has no sortable `DraggableHeaderCell`s on
-  desktop. `Components.tsx` is the reference implementation for both pieces, the
+  with no click-to-sort at all would render no `MobileSortControl`, matching having
+  no sortable `DraggableHeaderCell`s on desktop. `Components.tsx` is the reference implementation for both pieces, the
   same role it already plays for the table/column-picker side — it reuses the
   exact sorted array the desktop table already computes (including the
   retired-sorts-last rule) rather than duplicating the sort logic for cards.
@@ -118,29 +117,12 @@ A future page can adopt the same UX without rework:
   "Layout and navigation" below for why that boundary had to be made exact,
   rather than relying on two independently-resolved breakpoints to agree by
   coincidence.
-- **Tables with card view**: `bikes`, `components`, `maintenance_events`,
-  `assignments`, `bike_installed_components`, `bike_history`, `bike_rides`
-  (the last two on the Bike detail page; `bike_rides`'s own card has no
-  `MobileSortControl`, matching its desktop table having no click-to-sort at
-  all — see "Ride history" below). `assignments`' card uses a two-line title
-  (Component, then Bike dimmed underneath, both independently tappable) for
-  its two pinned columns, same convention
-  `bike_installed_components`/`bike_history` use the other way around
-  (Category dimmed *above* Component) — a card's title slot always carries
-  every pinned column, just arranged to read naturally for that table.
-  `bike_installed_components`'s card
-  (`frontend/src/components/bike/InstalledComponentsCardList.tsx`) and
-  `bike_history`'s (`.../ComponentHistoryCardList.tsx`) were pulled into their
-  own files next to `BikeDetail.tsx` rather than grown inline on that page —
-  `InstalledComponentsCardList` in particular is deliberately *not* built on
-  the shared `DataCardList`: a row there is one of two unrelated UI shapes (a
-  real assignment, or an empty slot's own inline install form — see
-  `components/bike/SlotRow.tsx`/`EmptySlotRow.tsx`), which doesn't fit a single
-  generic column-renderer component. A filled card's title is `ComponentSwapPill`, as is
-  the desktop row's component cell. The card's "⋯" menu has only Remove. `DataCardList` itself carries an
-  optional `onRowClick` prop (used by `bike_history`'s card, which — like its
-  desktop row — opens `AssignmentDetailModal` on tap, not only via its
-  pinned link) as a small, generally useful addition, not a one-off.
+- **Tables with card view**: `components`, `maintenance_events`, `assignments`.
+  `assignments`' card uses a two-line title (Component, then Bike dimmed underneath,
+  both independently tappable) for its two pinned columns: a card's title slot
+  always carries every pinned column, arranged to read naturally for that table.
+  `DataCardList` carries an optional `onRowClick` prop for a card that opens
+  something on tap.
 - **`strava_rides` (the Strava page's Rides tab) deliberately has no card
   view** — it has per-row bulk-select checkboxes, a "select all"/"select all
   matching" toolbar, and conditional row actions (Ignore/Un-ignore/Resolve gear),
@@ -148,11 +130,8 @@ A future page can adopt the same UX without rework:
   supports; it still only scrolls horizontally on mobile (`Table.ScrollContainer`).
   Giving it a real card view needs a deliberate design decision first (most
   likely either a selection-aware extension of `DataCardList`, or its own
-  bespoke card component, same precedent as `NarrowActivityCard`/
-  `InstalledComponentsCardList`) — revisit if this is genuinely painful on a
+  bespoke card component) — revisit if this is genuinely painful on a
   phone in practice, rather than guessing at an interaction now.
-  `components/bike/RideHistorySection.tsx`'s cards have no actions: tapping one
-  opens `RideDetailModal`, as on every ride list.
 
 **To adopt this on a new or existing table**, define on the frontend (nothing to
 build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
@@ -287,8 +266,10 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
 
 ## Bike page
 
-`/bikes/:id` (`pages/BikeDetail.tsx`). The top half, in the Home look; the installed
-components and everything below them are unchanged for now (Bikes redesign part 4).
+`/bikes/:id` (`pages/BikeDetail.tsx`), in the Home look. The page only assembles
+sections; each one loads its own data. Top to bottom: header, tiles, banners, Up next
+and rotation (`BikeOverviewRow`), installed components, rides, then Service and
+Component history side by side.
 
 - **`BikePageHeader`:**
   - **Above it:** a dimmed "← Bikes" link.
@@ -317,6 +298,44 @@ components and everything below them are unchanged for now (Bikes redesign part 
     Each has the shared `RotationSplitBar` (also Home's strip), the
     `rotationSummaryLine` and a hint to swap with the pill. With no rotation there's no
     column, and Up next takes the full width.
+- **`InstalledComponentsCard`** (a `DataList`; columns and sort in the
+  `bike_installed_components` preference):
+  - **Header:** "Installed components" with "13 installed · 1 empty slot", Fields, and
+    "+ Track component type" (`addableSlotOptions`).
+  - **Columns:** Category (the default sort, by the bike page's category order:
+    `orderSlots`) | `ComponentSwapPill` | the ride-context chip for split slots | Wear
+    (`WearBar` plus `componentWearValue`, from `overview.mounted`; a faint bar and "No
+    interval" without one) | Fields (defaults: This install, Lifetime in bold,
+    Installed on).
+  - **Rows:** built by `installedRows` (an unsplit slot takes any open assignment of its
+    category; a split slot only its own context). A filled row opens
+    `AssignmentDetailModal` and has no buttons. **Remove from bike** lives in that
+    modal.
+  - **Empty slots** stay in place, muted, with `EmptySlotPill`: a dashed menu that
+    installs a component immediately (`useInstallComponentForm`'s defaults: the bike's
+    `created_at` for a slot with no history, else now; the category's default ride
+    context for an unsplit slot), creates one, or stops tracking the slot.
+    Eligibility is `activeElsewhereByComponent` plus the shared-indoor rule; retired
+    components aren't offered. Start date and ride context can be changed afterwards
+    with Edit installation.
+  - **Phone:** the same rows stacked: category, pill, wear, and the fields on one
+    dimmed line.
+- **`BikeRidesSection`:** "Rides", "N on this bike", and "Open in Activity →"
+  (`activityUrl`). The body is the Activity page's `ActivityList` on the activity feed
+  (this bike, rides), with the saved Fields and Group by (`readActivityView`, read
+  only), a header sort of its own that isn't saved, Load more, and `RideDetailModal`.
+  There's no odometer column and no indoor/outdoor filter; the feed has neither.
+- **`BikeServiceCard`:** the bike's latest 5 service items from the activity feed
+  (date | wrench | `ServiceChips`), and "All N →" to Activity filtered the same way. A
+  session opens `ServiceSessionViewModal`; a session-less event opens its component.
+- **`ComponentHistoryCard`:** ended installations, latest first (`historyRows`).
+  - **Wording:** "Chain S2 → Chain S1" when another installation in the same category
+    and ride context starts at the instant this one ended (how the one-step swap
+    writes it), else "Removed …".
+  - **Each row:** the category and distance ran underneath, and the lifetime distance
+    on the right.
+  - **Five show;** "All N →" expands in place, then "Show less". A row opens its
+    installation modal.
 - **Data:** `GET /bikes/:id` (`?tz=`) computes statuses once and adds `ride_count`,
   `distance_this_year`, `strava_gear` (`{ gear_id, name }`, the name from the gear
   cache) and `overview`.
@@ -516,10 +535,8 @@ sidebar and a mobile bottom tab bar at Mantine's `sm` breakpoint (48em /
   the element's own visual size) — gated behind `useIsMobile()` wherever
   the same element also renders on desktop (the dashboard `BikeCard`'s
   bike-name link and "Log service" button, `UpNextRow`'s "Log
-  service" button), or applied unconditionally in a component that only
-  ever renders on mobile in the first place
-  (`InstalledComponentsCardList`'s `EmptySlotCard` — "Install"/"Stop
-  tracking", the two row actions there that sit outside its "⋯" menu).
+  service" button, the bike page's Up next Log service), or applied
+  unconditionally in a component that only ever renders on mobile.
 - Every route under `Layout` either is a top-level `NAV_DESTINATIONS`
   entry, a settings sub-page reachable from `SettingsLayout`'s own
   always-visible sub-nav, or already has a visible "Back to…" link

@@ -36,13 +36,15 @@ Swapping one component for another in the same slot (the main use case: rotating
   loader and the pill is disabled. The root stops click propagation, so the label,
   the chevron and the portaled dropdown never trigger a row's own click.
   - **Where it appears:**
-    - the bike page's installed-components table (`SlotRow`'s component cell);
-    - its mobile cards (`InstalledComponentsCardList`);
+    - the bike page's installed-components list (`InstalledComponentsCard`, on desktop
+      and phone);
     - `AssignmentDetailModal`'s Component field, through `ComponentIdentityStatus`'s
       optional `swapAssignment`. That's passed only for a still-open installation, so
       ended ones keep the plain link, as ComponentDetail does.
   - **There's no other swap entry point.** ComponentDetail has no Swap button, and the
-    bike rows offer only Remove. Retire is on ComponentDetail only.
+    bike page's rows have no buttons at all. **Remove from bike** is in
+    `AssignmentDetailModal`, for an open installation, opening `EndAssignmentModal`.
+    Retire is on ComponentDetail only.
   - **Invalidation:** `useSwapComponentAssignment` invalidates `setup`, `serviceStatus`
     and `history`. `serviceStatus` covers `['bikes']`, `['components']` and
     `['dashboard']`.

@@ -85,7 +85,7 @@ of their own.
 - **Where it opens.** Each list holds one `rideId` and renders one modal, outside its
   table:
   - **Home, Recent rides:** the whole row.
-  - **Bike page, Ride history:** the row or the name, on desktop and mobile.
+  - **Bike page, Rides:** the whole row (the Activity list's).
   - **Strava page, Rides tab:** the name only, so the selection checkboxes keep their
     clicks. Its own cleanup actions (Ignore, Un-ignore, Resolve gear) stay per row.
   - **Activity page:** the ride name, in the table and the narrow cards.
@@ -108,29 +108,23 @@ Details:
 - An empty cell reads "No bike" for a ride without one, and "None" otherwise
   (`componentsCellState`).
 
-Frontend: `components/bike/RideHistorySection.tsx`, mounted on `BikeDetail.tsx`
-directly after Component History, at the same heading level. Adopts the
-configurable-table system (`table_key: "bike_rides"`) the same way as `Components.tsx`;
-`useBikeRides` is a `useInfiniteQuery` with a "Load
-more" button (not infinite scroll) plus "Showing N of M". The Name column
-(`RideNameButton`) and the row both open `RideDetailModal` (above). `formatSpeed`
-(`utils/speed.ts`) matches `formatDistance`'s own hardcoded-km convention (no
-metric/imperial setting exists anywhere in this app to plug into). The Avg power
-column reuses `formatPower`, dimmed with an "Estimated" tooltip when `device_watts`
-is `false`, and renders a literal `'—'` for `null` — distinct from `formatPower`'s
-own `'N/A'`, which stays unchanged for the Bike cards that already rely on it
-elsewhere. Every column renderer a ride-ish row could share with the Rides tab
-(ride-kind badge, distance/duration/elevation/speed/power formatting,
-`counted_toward` badges) lives in `components/ride/rideColumnRenderers.tsx`'s
-`SHARED_RIDE_COLUMN_RENDERERS`, typed over the fields common to `BikeRide` and
-`StravaRide` — this section's own `COLUMN_RENDERER` just spreads that in and adds
-its own `cumulative_distance_meters` column.
+Frontend: **nothing reads this endpoint any more.** The bike page's Rides section
+(`components/bike/BikeRidesSection.tsx`, see "Bike page" in `docs/frontend-ui.md`)
+replaced the `bike_rides` table. It's the Activity list on the activity feed, filtered
+to the bike and rides, so the odometer column and the All/Outdoor/Indoor filter went
+with the old table. `GET /bikes/:id/rides` stays until someone decides whether to
+remove it or bring the odometer to the feed. The `bike_rides` preference rows are
+unused.
+
+The ride column renderers the Strava page's Rides tab uses live in
+`components/ride/rideColumnRenderers.tsx` (`SHARED_RIDE_COLUMN_RENDERERS`), typed over
+the fields common to `BikeRide` and `StravaRide`.
 
 ## Activity log
 
 A bike's whole story in order — rides, the service done between them, and setup
 changes — on one timeline, at `/activity`. Rides already showed up on the Dashboard
-(14 days), per bike (Ride history), and the Strava page's Rides tab (built for
+(14 days), per bike (the bike page's Rides), and the Strava page's Rides tab (built for
 cleanup, not browsing); maintenance and component swaps were only ever visible per
 component. This page is purely for browsing — the Rides tab keeps its own job of
 fixing attribution/ignoring, untouched by this feature.
@@ -267,6 +261,17 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   at current scale (true for a personal, near-single-tenant app) — added as cheap,
   defensively reasonable indexes for the filtered-`WHERE` case, not because the
   evidence demanded them.
+- **Linking in:** `activityUrl({ bikeId, kinds })` (`components/activity/activityUrl.ts`)
+  builds `/activity?bike_id=12&kinds=ride`. The page reads both once, on mount, as
+  starting filters (`parseActivityUrl`, passed to `useActivityFilters`), and is keyed
+  on the query string so another such link starts afresh. A link's kinds aren't saved
+  unless a pill is then toggled. The bike page's "Open in Activity →" and "All N →"
+  use it.
+- **Reused elsewhere:** the bike page's Rides section renders `ActivityList` on the
+  same feed, with the saved Fields and Group by read through `readActivityView`, and its
+  own unsaved header sort. Its Service card uses `ServiceChips`/`serviceChipLabels`.
+  The `rides` invalidation group includes `['activity']`, so a ride change refreshes
+  both.
 - **Frontend**: `pages/Activity.tsx` (`/activity`, nav item "Activity") is **one grouped
   list** in the Home page's style. There is no configurable `<Table>` and no separate phone
   cards.

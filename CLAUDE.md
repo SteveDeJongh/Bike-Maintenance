@@ -246,8 +246,8 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   config, `AppModal`, mobile date pickers, the manifest and icons.
 - `docs/dashboard.md` — **Dashboard**. `Dashboard::Summary` (incl. `stats`), the
   header and tiles, `useStravaSyncRunner`, the `tz` param, `RideContextSql`.
-- `docs/rides-and-activity.md` — **Ride history**, **Activity log**. Bike ride
-  pagination and odometer, the ride details modal (`RideDetailModal`, `GET /strava/rides/:id`),
+- `docs/rides-and-activity.md` — **Ride history**, **Activity log**. The (now unread)
+  bike rides endpoint and odometer, Activity's link-in URL params, the ride details modal (`RideDetailModal`, `GET /strava/rides/:id`),
   `Activity::Feed`'s keyset/offset branches, week totals and metric sorts, the install/removal
   merge rule, the `/activity` page.
 - `docs/components-and-setup.md` — **One-step component swap**, **Last bike and the
