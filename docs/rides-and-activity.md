@@ -110,7 +110,7 @@ Details:
 
 Frontend: `components/bike/RideHistorySection.tsx`, mounted on `BikeDetail.tsx`
 directly after Component History, at the same heading level. Adopts the
-configurable-table system (`table_key: "bike_rides"`) the same way as `Bikes.tsx`;
+configurable-table system (`table_key: "bike_rides"`) the same way as `Components.tsx`;
 `useBikeRides` is a `useInfiniteQuery` with a "Load
 more" button (not infinite scroll) plus "Showing N of M". The Name column
 (`RideNameButton`) and the row both open `RideDetailModal` (above). `formatSpeed`

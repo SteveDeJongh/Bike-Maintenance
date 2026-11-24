@@ -5,11 +5,12 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on eight tables: the Bikes list, the Bike detail page's Installed components,
-History, and Ride history tables, the Strava page's Rides tab, and the
-Components/Maintenance Events/Assignments lists (each its own `table_key`:
-`bikes`, `bike_installed_components`, `bike_history`, `bike_rides`,
-`strava_rides`, `components`, `maintenance_events`, `assignments`).
+on seven tables: the Bike detail page's Installed components, History, and Ride
+history tables, the Strava page's Rides tab, and the Components/Maintenance
+Events/Assignments lists (each its own `table_key`: `bike_installed_components`,
+`bike_history`, `bike_rides`, `strava_rides`, `components`, `maintenance_events`,
+`assignments`). The Bikes list was one; it's now cards plus a `DataList` table
+("Bikes page" below), still saving through `useTableViewPreferences` (`bikes`).
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
   grouped `DataList` (see "Shared building blocks" below and
   `docs/rides-and-activity.md`), whose `activity_log` preference
@@ -34,8 +35,8 @@ A future page can adopt the same UX without rework:
   hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
   `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
   the preferences query's data **once**, on mount — the calling page must not render
-  the component that calls this hook until that query has resolved (`Bikes.tsx` gates
-  on `preferencePending` before rendering `BikesTable`). If a page ever needs to swap
+  the component that calls this hook until that query has resolved (`Components.tsx`
+  gates on its preference query before rendering its table). If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
   force a remount via `key={tableKey}` rather than relying on the hook to notice the
   change. An optional `extraData` getter lets a page keep one more piece of state in
@@ -108,7 +109,7 @@ A future page can adopt the same UX without rework:
   click, so a sort chosen on the phone is the one desktop sees next. A table
   with no click-to-sort at all (`bike_rides`) renders no
   `MobileSortControl`, same as it has no sortable `DraggableHeaderCell`s on
-  desktop. `Bikes.tsx` is the reference implementation for both pieces, the
+  desktop. `Components.tsx` is the reference implementation for both pieces, the
   same role it already plays for the table/column-picker side — it reuses the
   exact sorted array the desktop table already computes (including the
   retired-sorts-last rule) rather than duplicating the sort logic for cards.
@@ -162,14 +163,14 @@ sort-keys constant if any pinned column should be sortable too (mirroring
 `BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
 `columnValue` map (comparable value per sortable column, `null` for "not
 applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
-column) keyed the same way `Bikes.tsx` does. Call `useTableViewPreferences` with
+column) keyed the same way `Components.tsx` does. Call `useTableViewPreferences` with
 those constants, then render pinned columns by hand and map the configurable ones
 through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
-header cell — `Bikes.tsx` is the reference implementation to copy the shape from.
+header cell — `Components.tsx` is the reference implementation to copy the shape from.
 **A new adopter must render both views** — the desktop `<Table>` and, below
 `useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
 `<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
-not just the table; `Bikes.tsx` is the reference shape for both. Don't add new
+not just the table; `Components.tsx` is the reference shape for both. Don't add new
 per-row computed/aggregated columns to a list page without checking whether the
 underlying data is already batched for that scale (see `Component#total_distance`'s
 note above) — this mechanism makes columns easy to add, but doesn't change the cost
@@ -199,8 +200,8 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
   - The row is a `role="group"` named by `label`. Tiles aren't focus stops.
   - Minimums today: Home 220px, Activity 140px.
 - **`DataList`** (`components/datalist/`): the list style for anything that isn't a
-  configurable `<Table>`. Activity uses it, and parts 2 and 4 of the Bikes redesign
-  will use it for the Bikes table and the bike page's installed components.
+  configurable `<Table>`. Activity and the Bikes table use it, and the bike page's
+  installed components will (part 4 of the Bikes redesign).
   - **`DataList`** `({ template, minWidth, stacked })`: one CSS grid in a Paper, which
     scrolls sideways inside itself below `minWidth`. `stacked` drops the grid for a
     phone layout.
@@ -227,6 +228,62 @@ Two pieces every page builds on, so summary rows and lists look and behave the s
   - a list whose rows open something goes on `DataList`;
   - a dense, column-configurable management table with a mobile card view stays a
     configurable `<Table>` ("Sortable, configurable tables" above).
+
+## Bikes page
+
+`/bikes` (`pages/Bikes.tsx`, `components/bikes/`), in the Home/Activity look.
+
+- **Header:** "Bikes" with a dimmed "3 active · 1 retired" (`bikesHeaderLine`), and a
+  primary **+ Add bike** (`BikeFormModal`, then `/bikes/:id/setup`).
+- **Tiles** (`BikesSummaryTiles`, a `TileRow` at 160px): Active bikes, Total distance,
+  This year, Components tracked, and "Service due · soon" (orange when non-zero).
+  `bikeTileTotals` sums them over active bikes.
+- **Toolbar** (`BikesToolbar`):
+  - **Left:** Cards | Table, then (cards) the card sort: Most urgent, Last ridden,
+    Distance, Name.
+  - **Right:** "Show retired bikes", plus (table) `FieldsPicker`.
+  - **Phone:** always cards, so the switch and Fields are hidden and the sort always
+    shows. The saved view is untouched.
+- **Saved view** (`useBikesView`): the `bikes` `TableViewPreference` holds the table's
+  `columns`/`sort_column`/`sort_direction`, plus `view` (`cards`/`table`), `card_sort`
+  and `show_retired`, each save sending the full object. Unknown saved values fall back
+  to cards, Most urgent and retired hidden.
+- **Cards** (`BikeListCard`): an auto-fill grid,
+  `minmax(min(380px, 100%), 1fr)`, so a phone doesn't overflow.
+  - **Each card** is one link to the bike, with nothing clickable inside. It shows:
+    - the name, a type chip, make/model and `BikeStatusChip`;
+    - Total, This year, Rides and Avg power;
+    - the three most worn mounted parts (`WearBar`, then `componentWearValue`: what's
+      left or over, or the lifetime total over a faint empty track), with "N installed";
+    - the last ride (`lastRideLine`).
+  - **Sorts** (`sortBikeCards`): Most urgent is Home's `sortByUrgency` on
+    `status_counts`; Last ridden is newest first; Distance is highest first; Name is
+    A–Z.
+  - **`AddBikeCard`** closes the grid: a button that opens the new-bike modal, with a
+    separate link to the Strava gear tab.
+  - **Retired bikes,** when shown, follow as slim muted rows (`RetiredBikeRows`): the
+    name, "Retired Mar 2025", the total distance, rides, and the years ridden
+    (`retiredYearRange`).
+- **Table** (`BikesTable`, a `DataList`):
+  - **Columns:** the name in bold over make/model, then the chosen Fields
+    (`BIKE_LIST_COLUMNS`: Type, Status, Distance, This year, Rides, Last ride, Avg
+    power, Time, Elevation, First ride, Purchased on, Installed components; the first
+    seven are the default).
+  - **Cells:** Status is a chip. Distance is bold, and other metrics are dimmed and
+    right-aligned.
+  - **Sorting:** header click sorts, starting A–Z for text and biggest-first for
+    numbers and dates; clicking again flips it. Status sorts by urgency.
+  - **Order** (`sortBikesTable`): retired bikes last with a muted row, whatever the
+    sort; nulls last.
+  - **No row actions:** the row opens the bike, and Edit/Delete are in the bike page
+    header's "⋯" menu.
+- **Data:** `GET /bikes` (`BikesController#index`, `?tz=`) adds `ride_count`,
+  `distance_this_year` (from local Jan 1), `last_ride_activity_type`,
+  `status_counts` and `most_worn` to the stats it already returned.
+  - **Batching:** every stat is one grouped query, and statuses come from one
+    `worst_result_by_component` call, so adding bikes adds no queries (a spec checks).
+  - **Lifetime totals** for parts with no requirement come from the batched
+    `Maintenance::LifetimeDistanceQuery`.
 
 ## Theming
 

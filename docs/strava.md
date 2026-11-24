@@ -273,7 +273,8 @@
   but restricted to `device_watts: true` activities (real power meter, not Strava's
   estimate) and **nil** (not 0) when the bike has none, so the UI can show "N/A"
   instead of a misleading "0 W". `BikesController#index` computes all of these via
-  grouped queries (one per stat) to avoid per-bike N+1 on the list.
+  grouped queries (one per stat) to avoid per-bike N+1 on the list, plus the Bikes
+  page's card fields (see "Bikes page" in `docs/frontend-ui.md`).
    `BikesController#show` merges each
   installed component's batched `service_status` into the response the same way
   `#index` merges its own grouped stats.
