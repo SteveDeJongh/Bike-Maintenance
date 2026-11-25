@@ -244,50 +244,74 @@ from a user-editable **bike type** preset.
   synthetic-fallback baseline date relies on when it falls back to `acquired_on` (see
   "Service intervals and maintenance alerts" below), so this reuses that convention
   rather than inventing a new one.
-- **`/bikes/:id/setup`** (`BikeSetup.tsx`) is a page, not a step inside
-  `BikeFormModal` — the checklist can run to 18 rows. One row per `trackable`
-  category from `useAllCategories()` not already fully slotted; a category already
-  tracked (every valid `ride_context` for it already has a slot) shows as a
-  disabled "Already tracked" row instead of being hidden. A fresh
-  `allows_multiple_assignments` category's sole starting row has an editable
-  ride-context `Select`; picking `outdoor_only`/`indoor_only` there reveals a
-  "+ Add outdoor/indoor too" action that appends the complementary row (context
-  fixed, not re-selectable, since `"both"` and a split pairing can't coexist). A
-  category with one context already slotted (e.g. `outdoor_only` tracked
-  elsewhere) offers only the missing one, pre-labeled with what's already tracked.
-  Checked-row fields (label, brand/model, notes collapsed by default behind
-  a toggle) and un-checked rows
-  render the exact same row height — every input is always rendered, and an
-  unchecked row's inputs are **dimmed (reduced opacity), not disabled**, so
-  toggling a checkbox never reflows the table. **Entered values decide
-  what's tracked**: typing in an unchecked row's Label, Brand, Model or Notes
-  checks it (picking a Brand/Model suggestion counts as typing; the check is
-  merged into the same change). Clicking or tabbing into an input just
-  focuses it, and "+ Notes" just opens the notes. A row checked by typing is
-  `autoChecked`, and unchecks itself when focus leaves one of those four
-  inputs and all four are empty (trimmed) — on blur, not on every change, so
-  select-all-and-retype doesn't flicker. The checkbox, "Check all"/"Clear
-  all" and a bike type preset are deliberate (`autoChecked: false`): they're
-  how to track a part without details (its label falls back to `"{bike name}
-  {category label}"`), and those rows stay checked when emptied. Unchecking
-  keeps whatever was typed; submit sends every checked row, empty or not.
-  Brand/Model's on-blur casing fix reports itself as `'blur'` to
-  `ComponentBrandModelInputs`' `onChange`, so it never checks a row
-  (`utils/setupRowActivation.ts`). **Label starts blank** on every row
-  (the complementary split row too); left empty, it saves a fallback that the
-  input shows live as its placeholder: `"{brand} {model}"` (whichever exist),
-  else `"{bike name} {category label}"`, plus `" (Outdoor only)"`/`" (Trainer
-  only)"` (`RIDE_CONTEXT_LABELS`) on a split row so two rows of one category
-  don't read the same. A typed label is sent as typed, trimmed. One pure
-  helper, `setupRowLabel` (`utils/setupRowLabel.ts`), feeds both the
-  placeholder and the submit, so they can't drift. Frontend only: the
-  endpoint still requires a label (`Component` validates presence) and always
-  gets one. One shared "Installed since" `DateInput`
-  (default `bike.acquired_on`, else today) applies to every checked row; its helper
-  text calls out that Strava rides before that date won't count toward these
-  components (existing attribution behavior, not new logic — see "Core logic"
-  above). "Check all"/"Clear all" and "Skip for now" (navigates to `/bikes/:id`
-  with no request sent, leaving the bike exactly as-is) round it out.
+- **`/bikes/:id/setup`** (`BikeSetup.tsx`, pieces in `components/bikeSetup/`, pure
+  helpers in `bikeSetupModel.ts`) is a page, not a step inside `BikeFormModal` — the
+  checklist can run to 18 rows. Top to bottom:
+  - **Back link and header** (`BikeSetupHeader`): "‹ {bike}" to `/bikes/:id`;
+    "Set up components" with the bike type's chip; a dimmed "{bike} · Fill in a part to
+    track it, or tick it to track it without details." (plus "The {type} preset ticks
+    its usual parts." with a type); Skip for now and Set up N components on the right
+    (from `sm` up; `setupButtonLabel`, disabled at 0).
+  - **Toolbar card** (`BikeSetupToolbar`): "Installed since" — one shared pill
+    `DateInput` (default `bike.acquired_on`, else today) for every checked row, with its
+    hint that rides before that date won't count (existing attribution behavior, see
+    "Core logic") — then "8 of 14 ticked" (`tickedCount`: checked rows of every row that
+    can be tracked) and Check all / Clear all. It wraps, and stacks on a phone.
+  - **The checklist** (`SetupChecklistList`, a `DataList`): checkbox | Category | Label |
+    Brand | Model | Notes. Rows are plain `DataListRow`s (no `onOpen` — they're full of
+    inputs), memoized (`SetupRowItem`). One row per `trackable` category from
+    `useAllCategories()` not already fully slotted; a fully tracked category (every
+    valid `ride_context` already has a slot) is a muted "Already tracked" row
+    (`AlreadyTrackedRow`) with the installed part's label, from the same `GET
+    /bikes/:id` payload's open `component_assignments` (`trackedLabel`). A fresh
+    `allows_multiple_assignments` category's sole starting row has an editable
+    ride-context `Select`; picking `outdoor_only`/`indoor_only` there reveals "+ Add
+    outdoor/indoor too", which appends the complementary row (context fixed, shown as a
+    chip, with "Remove"), since `"both"` and a split pairing can't coexist. A category
+    with one context already slotted offers only the missing one, with a dimmed line
+    saying what's tracked. Brand and Model are separate cells
+    (`ComponentBrandModelInputs layout="cells"`); inputs carry `aria-label`s ("Chain
+    label") instead of visible labels.
+  - **Sticky action bar** (`BikeSetupActionBar`, `actionBarSummary`): "8 components
+    will be created and installed on {bike}" over "From Apr 4, 2026 · 5 with details ·
+    3 ticked without details · 1 row needs a fix" (zero parts left out; "with details" is
+    any of Label, Brand, Model or Notes filled in), or "Nothing to set up yet", with the
+    same two buttons. `position: sticky` at `bottom: var(--app-shell-footer-offset)`, so
+    on a phone it sits above the tab bar and the home-indicator inset, and as an in-flow
+    element it never hides the last row. A phone shows "8 will be installed from …"
+    over Skip and a full-width primary, and the header's buttons hide.
+  - **Phone:** the same list, `stacked` — each row a card section: the checkbox and
+    category name as one label (tapping the name toggles), the chip, then Label full
+    width, Brand and Model side by side, then Notes; `md` inputs and 44px targets.
+  - **Entered values decide what's tracked.** Label starts blank on every row (the
+    complementary split row too); left empty, it saves a fallback the input shows live
+    as its italic placeholder: `"{brand} {model}"` (whichever exist), else `"{bike name}
+    {category label}"`, plus `" (Outdoor only)"`/`" (Trainer only)"`
+    (`RIDE_CONTEXT_LABELS`) on a split row. A typed label is sent as typed, trimmed.
+    `setupRowLabel` (`utils/setupRowLabel.ts`) feeds both placeholder and submit.
+    Frontend only: the endpoint still requires a label and always gets one. Typing in
+    an unchecked row's Label, Brand, Model or Notes checks it (picking a suggestion
+    counts; the check is merged into the same change); clicking or tabbing into an
+    input just focuses it, and "+ Notes" just opens the notes. A row checked by typing
+    is `autoChecked`, and unchecks itself when focus leaves one of those four inputs
+    and all four are empty (trimmed) — on blur, not every change, so
+    select-all-and-retype doesn't flicker. The checkbox, Check all / Clear all and the
+    bike type preset are deliberate checks (`autoChecked: false`): they're how to track
+    a part without details, and those rows stay checked when emptied. Brand/Model's
+    on-blur casing fix reports itself as `'blur'`, so it never checks a row
+    (`utils/setupRowActivation.ts`). Unchecking keeps whatever was typed; submit sends
+    every checked row, empty or not.
+  - **"Ticked by {type} preset":** a dimmed line under the category of a row the bike
+    type's preset checked (`presetChecked`, set by `buildInitialRows`). Display only;
+    it clears when the user unchecks the row, uses Check all / Clear all
+    (`deliberateCheck`) or types into it (`typedChange`).
+  - **Row states:** an unchecked row dims its category name and input cells (opacity
+    only, so checking or unchecking never changes a row's height); a row error (the
+    `422`'s `row_errors`, mapped back from the submitted index) is a red-toned row with
+    the message on its Label input, counted in the action bar; non-row errors show in an
+    alert above the checklist. Notes is a pill — "+ Notes", "1 note" (typed but hidden),
+    "Hide notes" — and an open note sits on its own line from the Label column to the
+    end. "Skip for now" navigates to `/bikes/:id` with no request sent.
 - `BikeFormModal` has an `onCreateSuccess?: (bike: Bike) => void` prop (same
   pattern as `ComponentFormModal`'s own, fired only on a successful *create*, never
   edit). Only the Bikes page's main "+ New Bike" button passes
@@ -304,8 +328,8 @@ isn't suggested) — Mantine `Autocomplete`, never `Select`. Every surface that
 creates or edits a component's brand/model goes through one shared component,
 `frontend/src/components/ComponentBrandModelInputs.tsx`, so the rules below live in
 exactly one place: `ComponentFormModal.tsx` (create/edit, `layout="stacked"`) and
-`BikeSetup.tsx`'s per-row "Brand / Model" column (`layout="inline"`, one merged
-table cell per row, not two).
+Bike setup's Brand and Model columns (`layout="cells"`: the two fields alone, for
+two grid cells, `aria-label`led with no visible labels).
 
 - **Sources**: the user's own components, via the existing `useComponents()` query
   (no new endpoint — it already returns every component including retired ones

@@ -156,7 +156,7 @@ note above) — this mechanism makes columns easy to add, but doesn't change the
 of computing what's behind them.
 
 **Non-configurable tables** (a plain `<Table>` with no `TableViewPreference` behind
-it — the Settings pages, `BikeSetup`, the component page,
+it — the Settings pages, the component page,
 `ServiceSessionViewModal`, the Strava page's gear tables) need the same phone-width
 consideration without any of this mechanism: wrap in Mantine's own
 `Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
@@ -180,8 +180,8 @@ the same.
   - The row is a `role="group"` named by `label`. Tiles aren't focus stops.
   - Minimums today: Home 220px, Activity 140px.
 - **`DataList`** (`components/datalist/`): the list style for anything that isn't a
-  configurable `<Table>`. Activity, the Bikes table, and the bike page's installed
-  components and Rides use it.
+  configurable `<Table>`. Activity, the Bikes table, the Components list, the bike
+  page's installed components and Rides, and the Bike setup checklist use it.
   - **`DataList`** `({ template, minWidth, stacked })`: one CSS grid in a Paper, which
     scrolls sideways inside itself below `minWidth`. `stacked` drops the grid for a
     phone layout.
@@ -193,17 +193,23 @@ the same.
     character plus the sort arrow). Every DataList uses it both for the field's
     `minmax(<min>px, auto)` track and in `dataListMinWidth`, so a narrow page scrolls
     the list sideways instead of squeezing the headers together.
-  - **`DataListHeader`** `({ columns, sortColumn, order, onSort })`: the darker band of
+  - **`DataListHeader`** `({ columns, sortColumn?, order?, onSort? })`: the darker band of
     small dimmed labels. Each column is `{ key, label?, sortable?, align?,
-    description? }`, one per track. Sortable ones show an arrow when active and call
-    `onSort`; the caller decides the first direction and the flip.
+    description?, hint? }`, one per track. Sortable ones show an arrow when active and call
+    `onSort`; the caller decides the first direction and the flip. A list that doesn't
+    sort (Bike setup) leaves out the sort props and marks every column `sortable:
+    false`. `hint` is a dimmer second part after " · " ("Label · blank uses brand +
+    model").
     - **Labels never overlap:** each stays on one line and truncates with an ellipsis
       (the text, never the arrow). The full label shows in a tooltip when it's cut off.
       A column with a `description` always gets a tooltip ("Total time · Over the
       component's whole life").
   - **`DataListRow`** `({ ariaLabel, onOpen, tone, stacked })`: the whole row is a
     button (Enter/Space, the caller's accessible name), styled by `.data-list-row`.
-    `tone` is `warning` (the no-bike orange) or `muted` (a retired row).
+    Without `onOpen` it's a plain row on the same grid and styling, with no button role,
+    hover or click: the Bike setup checklist's rows, which are full of inputs, are these.
+    `tone` is `warning` (the no-bike orange), `muted` (a retired or already-tracked row),
+    `highlight` (a deep-linked row) or `error` (a row the server rejected).
   - **`DataListBand`** `({ title, aside })`: a full-width row between data rows, such as
     Activity's week bands.
   - **Alignment:** the header and every row are subgrids of the one parent grid, so a
@@ -232,7 +238,8 @@ the same.
     anything unreadable means open. Without a `storageKey` a section starts open.
 - **When to use which:**
   - summary numbers go in a `TileRow`;
-  - a list whose rows open something goes on `DataList`;
+  - a list whose rows open something goes on `DataList`, and so does a list of rows of
+    inputs (plain rows, no `onOpen`);
   - a bike page section's heading is a `PageSection`;
   - a dense, column-configurable management table with a mobile card view stays a
     configurable `<Table>` ("Sortable, configurable tables" above).
