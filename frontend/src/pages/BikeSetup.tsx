@@ -26,6 +26,7 @@ import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
 import { setupRowLabel } from '../utils/setupRowLabel'
+import { activationChange, applyRowChange, withActivation } from '../utils/setupRowActivation'
 import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import type { ComponentSuggestionInput, SuggestionPool } from '../utils/componentSuggestions'
@@ -233,7 +234,7 @@ function SetupChecklist({
   const updateRow = useCallback((category: string, key: string, changes: Partial<SetupRow>) => {
     setRowsByCategory((prev) => ({
       ...prev,
-      [category]: prev[category].map((row) => (row.key === key ? { ...row, ...changes } : row)),
+      [category]: prev[category].map((row) => (row.key === key ? applyRowChange(row, changes) : row)),
     }))
   }, [])
 
@@ -440,6 +441,14 @@ const SetupTableRow = memo(function SetupTableRow({
   onRemove: (category: string, key: string) => void
 }) {
   const change = (changes: Partial<SetupRow>) => onChange(category, row.key, changes)
+  // A click or tap in Label/Brand/Model checks an unchecked row (focus stays
+  // in the input -- it's enabled, just dimmed); so does typing, merged into
+  // the same change. Tab alone, and Brand/Model's blur casing fix, don't.
+  const activate = () => {
+    const checking = activationChange(row)
+    if (checking) change(checking)
+  }
+  const inputCell = { opacity: row.checked ? 1 : 0.5 }
 
   return (
     <Table.Tr>
@@ -499,32 +508,34 @@ const SetupTableRow = memo(function SetupTableRow({
           </Text>
         )}
       </Table.Td>
-      <Table.Td>
+      <Table.Td style={inputCell}>
         <TextInput
           size="sm"
-          disabled={!row.checked}
           value={row.label}
           placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
-          onChange={(event) => change({ label: event.currentTarget.value })}
+          onPointerDown={activate}
+          onChange={(event) => change(withActivation(row, { label: event.currentTarget.value }))}
         />
       </Table.Td>
-      <Table.Td>
+      <Table.Td style={inputCell}>
         <ComponentBrandModelInputs
           layout="inline"
           size="sm"
-          disabled={!row.checked}
           brand={row.brand}
           model={row.model}
           category={category}
           suggestions={suggestions}
-          onChange={change}
+          onPointerDown={activate}
+          onChange={(changes, reason) => change(reason === 'input' ? withActivation(row, changes) : changes)}
         />
       </Table.Td>
-      <Table.Td>
+      <Table.Td style={inputCell}>
         <Stack gap={4}>
-          <UnstyledButton disabled={!row.checked} onClick={() => change({ notesExpanded: !row.notesExpanded })}>
+          <UnstyledButton
+            onClick={() => change(row.checked ? { notesExpanded: !row.notesExpanded } : { checked: true, notesExpanded: true })}
+          >
             <Text size="xs" c="dimmed">
-              {row.notesExpanded ? 'Hide notes' : '+ Notes'}
+              {row.checked && row.notesExpanded ? 'Hide notes' : '+ Notes'}
             </Text>
           </UnstyledButton>
           <Collapse expanded={row.checked && row.notesExpanded}>

@@ -12,7 +12,12 @@ interface ComponentBrandModelInputsProps {
   // caller is @mantine/form (ComponentFormModal, which translates this
   // into form.setFieldValue per key present) or BikeSetup's own row state
   // (whose onChange already has this exact Partial<...> shape).
-  onChange: (changes: { brand?: string; model?: string }) => void
+  // reason: 'input' for typing or picking a suggestion, 'blur' for the
+  // casing fix -- BikeSetup checks its row on input only, so tabbing past
+  // a field never checks it. The modal ignores it.
+  onChange: (changes: { brand?: string; model?: string }, reason: 'input' | 'blur') => void
+  // Passed to both fields (BikeSetup: a click or tap checks the row).
+  onPointerDown?: () => void
   // Narrows model suggestions to this category (ranking a matching category
   // first) and picks which category's ComponentCategorySetting#common_brands
   // feeds the "Common brands" group -- omitted where a category genuinely
@@ -41,6 +46,7 @@ export default function ComponentBrandModelInputs({
   size,
   disabled,
   suggestions: pool,
+  onPointerDown,
 }: ComponentBrandModelInputsProps) {
   // Cheap with a pool passed: memoized on the cached components list, so it
   // only computes when that changes.
@@ -61,7 +67,7 @@ export default function ComponentBrandModelInputs({
   // value -- otherwise leaving a field re-renders the caller for nothing.
   function resolveOnBlur(field: 'brand' | 'model', value: string, options: string[]) {
     const resolved = resolveCasing(value, options)
-    if (resolved !== value) onChange({ [field]: resolved })
+    if (resolved !== value) onChange({ [field]: resolved }, 'blur')
   }
 
   function handleModelOptionSubmit(value: string) {
@@ -69,7 +75,7 @@ export default function ComponentBrandModelInputs({
     // fill in that model's brand" -- never overwrites an already-typed brand.
     if (brand.trim()) return
     const match = modelSuggestions.find((entry) => entry.model === value)
-    if (match) onChange({ brand: match.brand, model: value })
+    if (match) onChange({ brand: match.brand, model: value }, 'input')
   }
 
   const fieldStyle = layout === 'inline' ? { flex: 1, minWidth: 0 } : undefined
@@ -82,7 +88,8 @@ export default function ComponentBrandModelInputs({
         data={brandGroups}
         limit={10}
         value={brand}
-        onChange={(value) => onChange({ brand: value })}
+        onChange={(value) => onChange({ brand: value }, 'input')}
+        onPointerDown={onPointerDown}
         onBlur={() => resolveOnBlur('brand', brand, allBrandNames)}
         style={fieldStyle}
       />
@@ -93,7 +100,8 @@ export default function ComponentBrandModelInputs({
         data={modelOptions}
         limit={10}
         value={model}
-        onChange={(value) => onChange({ model: value })}
+        onChange={(value) => onChange({ model: value }, 'input')}
+        onPointerDown={onPointerDown}
         onOptionSubmit={handleModelOptionSubmit}
         onBlur={() => resolveOnBlur('model', model, modelOptions)}
         style={fieldStyle}
