@@ -239,32 +239,6 @@ export const SERVICE_STATUS_SEVERITY: Record<'ok' | 'warning' | 'due', number> =
   due: 2,
 }
 
-// The toggleable columns on the Maintenance Events list. Component is the
-// always-shown, leading (pinned) linked column — there's no other natural
-// anchor, since an event has no detail page of its own.
-export const MAINTENANCE_EVENT_LIST_COLUMNS = ['performed_at', 'service_type', 'notes'] as const
-
-export type MaintenanceEventListColumn = (typeof MAINTENANCE_EVENT_LIST_COLUMNS)[number]
-
-export const MAINTENANCE_EVENT_LIST_COLUMN_LABELS: Record<MaintenanceEventListColumn, string> = {
-  performed_at: 'Performed At',
-  service_type: 'Type',
-  notes: 'Notes',
-}
-
-export const DEFAULT_MAINTENANCE_EVENT_LIST_COLUMNS: MaintenanceEventListColumn[] = [
-  'performed_at',
-  'service_type',
-  'notes',
-]
-
-export const MAINTENANCE_EVENT_LIST_SORT_COLUMNS = [
-  'component_label',
-  ...MAINTENANCE_EVENT_LIST_COLUMNS,
-] as const
-
-export type MaintenanceEventListSortColumn = (typeof MAINTENANCE_EVENT_LIST_SORT_COLUMNS)[number]
-
 // The toggleable columns on the Assignments list. Component and Bike are both
 // always-shown, leading (pinned) linked columns — a row's identity needs both
 // coordinates, same reasoning as Category+Component on the Bike detail

@@ -9,6 +9,9 @@ const TONE_BACKGROUND = {
   highlight: 'var(--mantine-color-yellow-light)',
   // A row the server rejected (Bike setup's row errors).
   error: 'var(--mantine-color-red-light)',
+  // A service session's header and its events (the Maintenance page):
+  // half of the band background, so a session reads as one block.
+  session: 'color-mix(in srgb, var(--mantine-color-default-hover) 50%, transparent)',
 } as const
 
 // One DataList row: the whole row is the click target and a keyboard

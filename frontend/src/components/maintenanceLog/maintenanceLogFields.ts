@@ -1,3 +1,4 @@
+import { dataListMinWidth, dataListTemplate, fieldMinWidth } from '../datalist/dataListModel'
 import { categoryLabel } from '../../constants'
 import { formatDistance } from '../../utils/distance'
 import { formatShortDate } from '../../utils/datetime'
@@ -67,5 +68,32 @@ export function fieldText(event: MaintenanceLogEvent, field: MaintenanceField): 
       return event.bike_distance_at_event_meters == null ? '—' : formatDistance(event.bike_distance_at_event_meters)
     case 'logged_on':
       return formatShortDate(event.created_at)
+  }
+}
+
+// Each field's narrowest value, beside its header label (fieldMinWidth).
+const VALUE_MIN: Record<MaintenanceField, number> = {
+  component: 130,
+  bike: 110,
+  component_km: 96,
+  since_last: 90,
+  category: 100,
+  bike_km: 90,
+  logged_on: 84,
+}
+
+// The Maintenance DataList's columns: Date | icon gutter | Service | one
+// per shown field | a trailing column (the session header's "View
+// session ›"). Scrolls sideways under minWidth.
+export function maintenanceListLayout(fields: readonly MaintenanceField[]): { template: string; minWidth: number } {
+  const mins = fields.map((field) => fieldMinWidth(MAINTENANCE_FIELD_LABELS[field], VALUE_MIN[field]))
+  const trailing = 100
+  return {
+    template: dataListTemplate({
+      leading: ['88px', '32px'],
+      main: 'minmax(240px, 1fr)',
+      fields: [...mins.map((min) => `minmax(${min}px, auto)`), `minmax(${trailing}px, auto)`],
+    }),
+    minWidth: dataListMinWidth({ leading: [88, 32], main: 240, fields: [...mins, trailing] }),
   }
 }

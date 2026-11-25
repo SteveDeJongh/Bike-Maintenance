@@ -8,7 +8,14 @@ import {
   type MaintenanceSort,
 } from './maintenanceLogFields'
 import type { ComponentTileCounts } from '../componentList/componentListModel'
-import type { Bike, MaintenanceLogMeta, TableViewPreferenceData } from '../../types/models'
+import type {
+  Bike,
+  MaintenanceLogBandTotals,
+  MaintenanceLogEvent,
+  MaintenanceLogMeta,
+  MaintenanceLogSession,
+  TableViewPreferenceData,
+} from '../../types/models'
 
 export type MaintenanceKind = 'session' | 'single'
 export type MaintenanceGroupBy = 'month' | 'component' | 'none'
@@ -131,4 +138,155 @@ export function maintenanceTiles(
 export function servicesThisYearLine(count: number | undefined): string {
   if (count == null) return ''
   return `${count.toLocaleString()} ${count === 1 ? 'service' : 'services'} this year`
+}
+
+// --- the list ---
+
+export interface MaintenanceLogPage {
+  events: MaintenanceLogEvent[]
+  sessions: Record<string, MaintenanceLogSession>
+  meta: Pick<MaintenanceLogMeta, 'month_totals' | 'component_totals'> | null
+}
+
+export type MaintenanceRenderEntry =
+  | { type: 'month'; key: string; monthKey: string; title: string; totals: string }
+  | { type: 'component'; key: string; title: string }
+  | { type: 'session'; key: string; session: MaintenanceLogSession; countLabel: string; showDate: boolean }
+  // inSession: under a session header (no date, the line-and-dot gutter).
+  // sessionLink: a session's event shown without its header (Component
+  // grouping, a field sort) -- the Service cell gets a "Session" marker.
+  | { type: 'event'; key: string; event: MaintenanceLogEvent; showDate: boolean; inSession: boolean; sessionLink: boolean }
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+// The local month an instant falls in, "2026-11" -- the key the log's
+// meta.month_totals uses (the page sends the browser's own zone as tz).
+export function monthKey(value: string): string {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`
+}
+
+function localDayKey(value: string): string {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// "November 2026"
+export function monthTitle(key: string): string {
+  const [year, month] = key.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`
+
+// "18 services · 5 sessions · 9 components" -- sessions only when there
+// are any.
+export function monthTotalsLine(totals: MaintenanceLogBandTotals | undefined): string {
+  if (!totals) return ''
+  const parts = [plural(totals.services, 'service')]
+  if (totals.sessions) parts.push(plural(totals.sessions, 'session'))
+  parts.push(plural(totals.components, 'component'))
+  return parts.join(' · ')
+}
+
+// "3 services", or "2 of 3 services" when the filters hide some.
+export function sessionCountLabel(session: Pick<MaintenanceLogSession, 'event_count' | 'matching_count'>): string {
+  if (session.matching_count < session.event_count) return `${session.matching_count} of ${plural(session.event_count, 'service')}`
+  return plural(session.event_count, 'service')
+}
+
+// The flat list MaintenanceLogList renders, from the loaded pages in order.
+// - month: a band at each new local month (one band even across a Load
+//   more boundary), its totals from the first page that has them; a
+//   session is a header row followed by its events, merging across pages;
+//   the date shows on each day's first top-level row.
+// - none: the same with no bands, and every top-level row shows its date.
+// - component: a band per component ("Chain S1 · 14 services"), no session
+//   headers -- a session's events carry a "Session" marker instead.
+// - flat (a field sort): no bands, no session headers, every date shown.
+export function buildMaintenanceRenderList(
+  pages: MaintenanceLogPage[],
+  groupBy: MaintenanceGroupBy | 'flat',
+): MaintenanceRenderEntry[] {
+  const monthTotals = new Map<string, MaintenanceLogBandTotals>()
+  const componentTotals = new Map<string, number>()
+  const sessions = new Map<number, MaintenanceLogSession>()
+  for (const page of pages) {
+    for (const [key, totals] of Object.entries(page.meta?.month_totals ?? {})) if (!monthTotals.has(key)) monthTotals.set(key, totals)
+    for (const [key, count] of Object.entries(page.meta?.component_totals ?? {})) if (!componentTotals.has(key)) componentTotals.set(key, count)
+    for (const session of Object.values(page.sessions)) if (!sessions.has(session.id)) sessions.set(session.id, session)
+  }
+
+  const headers = groupBy === 'month' || groupBy === 'none'
+  const entries: MaintenanceRenderEntry[] = []
+  let lastBand: string | null = null
+  let lastDay: string | null = null
+  let lastSession: number | null = null
+
+  pages.flatMap((page) => page.events).forEach((event, index) => {
+    if (groupBy === 'month') {
+      const month = monthKey(event.performed_at)
+      if (month !== lastBand) {
+        entries.push({ type: 'month', key: `month-${month}`, monthKey: month, title: monthTitle(month), totals: monthTotalsLine(monthTotals.get(month)) })
+        lastBand = month
+        lastDay = null
+        lastSession = null
+      }
+    } else if (groupBy === 'component') {
+      const component = String(event.component.id)
+      if (component !== lastBand) {
+        const count = componentTotals.get(component)
+        entries.push({
+          type: 'component',
+          key: `component-${component}`,
+          title: count == null ? event.component.label : `${event.component.label} · ${plural(count, 'service')}`,
+        })
+        lastBand = component
+      }
+    }
+
+    const session = event.service_session_id != null ? sessions.get(event.service_session_id) : undefined
+    const day = localDayKey(event.performed_at)
+
+    if (headers && session) {
+      if (session.id !== lastSession) {
+        entries.push({
+          type: 'session',
+          key: `session-${session.id}-${index}`,
+          session,
+          countLabel: sessionCountLabel(session),
+          showDate: groupBy === 'none' || day !== lastDay,
+        })
+        lastSession = session.id
+        lastDay = day
+      }
+      entries.push({ type: 'event', key: `event-${event.id}`, event, showDate: false, inSession: true, sessionLink: false })
+      return
+    }
+
+    lastSession = null
+    entries.push({
+      type: 'event',
+      key: `event-${event.id}`,
+      event,
+      showDate: !headers || groupBy === 'none' || day !== lastDay,
+      inSession: false,
+      sessionLink: event.service_session_id != null,
+    })
+    lastDay = day
+  })
+
+  return entries
+}
+
+const shortDay = (value: string) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+// "Drip wax, Chain S1, Nov 14, open"
+export function eventAccessibleName(event: MaintenanceLogEvent): string {
+  return `${event.service_type.name}, ${event.component.label}, ${shortDay(event.performed_at)}, open`
+}
+
+// "Service session, Libre, 3 services, Nov 14, open"
+export function sessionAccessibleName(session: MaintenanceLogSession, countLabel: string): string {
+  return ['Service session', session.bike?.name, countLabel, shortDay(session.performed_at), 'open'].filter(Boolean).join(', ')
 }

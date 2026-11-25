@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Alert, Button, Group, Loader, Menu, Stack, Text, Title } from '@mantine/core'
+import { Alert, Button, Group, Loader, Menu, Paper, Stack, Text, Title } from '@mantine/core'
 import { IconChevronDown } from '@tabler/icons-react'
 import { useBikes, useComponents, useMaintenanceLog, useServiceTypes, useTableViewPreference } from '../api/queries'
 import BatchServiceModal from '../components/forms/BatchServiceModal'
 import MaintenanceEventFormModal from '../components/forms/MaintenanceEventFormModal'
+import ServiceSessionViewModal from '../components/forms/ServiceSessionViewModal'
+import EmptyState from '../components/maintenanceLog/EmptyState'
+import MaintenanceLogList from '../components/maintenanceLog/MaintenanceLogList'
+import { MAINTENANCE_FIELD_LABELS } from '../components/maintenanceLog/maintenanceLogFields'
 import MaintenanceLogTiles from '../components/maintenanceLog/MaintenanceLogTiles'
 import MaintenanceLogToolbar from '../components/maintenanceLog/MaintenanceLogToolbar'
 import MaintenanceLogViewSheet from '../components/maintenanceLog/MaintenanceLogViewSheet'
@@ -11,7 +15,6 @@ import { defaultSessionBike, maintenanceTiles, servicesThisYearLine } from '../c
 import { useMaintenanceLogView } from '../components/maintenanceLog/useMaintenanceLogView'
 import { componentTileCounts } from '../components/componentList/componentListModel'
 import { categoryLabel } from '../constants'
-import { formatShortDate } from '../utils/datetime'
 import { MOBILE_TAP_TARGET_STYLE } from '../utils/touchTarget'
 import type { MaintenanceEvent, TableViewPreferenceData } from '../types/models'
 
@@ -35,10 +38,14 @@ function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceDat
   const [sessionOpened, setSessionOpened] = useState(false)
   const [editing, setEditing] = useState<MaintenanceEvent | null>(null)
   const [viewSheetOpened, setViewSheetOpened] = useState(false)
+  const [openSessionId, setOpenSessionId] = useState<number | null>(null)
 
   const meta = data?.pages[data.pages.length - 1]?.meta
   const events = useMemo(() => data?.pages.flatMap((page) => page.events) ?? [], [data])
   const sessionBike = defaultSessionBike(bikes)
+  // A field sort flattens the list (no bands, no session headers).
+  const sortNote =
+    view.sortColumn === 'performed_at' ? null : `Sorted by ${MAINTENANCE_FIELD_LABELS[view.sortColumn]}: no grouping or session headers`
   const tiles = maintenanceTiles(meta?.tiles, components ? componentTileCounts(components) : undefined)
   const categories = useMemo(
     () => [...new Set((components ?? []).map((component) => component.category))].sort((a, b) => categoryLabel(a).localeCompare(categoryLabel(b))),
@@ -109,12 +116,34 @@ function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceDat
         </Alert>
       )}
 
-      {/* Interim list -- replaced by the DataList in the next increment. */}
-      {events.map((event) => (
-        <Text key={event.id} size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditing(event)}>
-          {formatShortDate(event.performed_at)} · {event.service_type.name} · {event.component.label}
+      {sortNote && (
+        <Text size="xs" c="dimmed">
+          {sortNote}
         </Text>
-      ))}
+      )}
+
+      {!isPending && !isError && events.length === 0 && meta && (
+        <Paper withBorder radius="md" p="lg">
+          <EmptyState
+            nothingLogged={meta.tiles.last_service_at == null}
+            onClearFilters={view.clearFilters}
+            onLogService={() => setLogOpened(true)}
+          />
+        </Paper>
+      )}
+
+      {!isPending && events.length > 0 && (
+        <MaintenanceLogList
+          pages={data?.pages ?? []}
+          groupBy={view.listGroupBy}
+          fields={view.fields}
+          sortColumn={view.sortColumn}
+          order={view.order}
+          onSort={view.onHeaderSort}
+          onOpenEvent={setEditing}
+          onOpenSession={setOpenSessionId}
+        />
+      )}
 
       {!isPending && events.length > 0 && (
         <>
@@ -137,6 +166,9 @@ function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceDat
       <MaintenanceEventFormModal opened={editing != null} onClose={() => setEditing(null)} event={editing ?? undefined} />
       {sessionBike && (
         <BatchServiceModal opened={sessionOpened} onClose={() => setSessionOpened(false)} bikeId={sessionBike.id} />
+      )}
+      {openSessionId != null && (
+        <ServiceSessionViewModal opened onClose={() => setOpenSessionId(null)} sessionId={openSessionId} />
       )}
       <MaintenanceLogViewSheet
         opened={viewSheetOpened}

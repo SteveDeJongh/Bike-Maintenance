@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildMaintenanceRenderList,
   defaultSessionBike,
+  eventAccessibleName,
+  sessionAccessibleName,
   effectiveGroupBy,
   maintenanceTiles,
   readMaintenanceView,
@@ -8,6 +11,7 @@ import {
   viewBadgeCount,
 } from './maintenanceLogModel'
 import { DEFAULT_MAINTENANCE_FIELDS } from './maintenanceLogFields'
+import type { MaintenanceLogEvent } from '../../types/models'
 
 describe('readMaintenanceView', () => {
   it('gives the defaults for an empty preference', () => {
@@ -117,5 +121,91 @@ describe('servicesThisYearLine', () => {
     expect(servicesThisYearLine(86)).toBe('86 services this year')
     expect(servicesThisYearLine(1)).toBe('1 service this year')
     expect(servicesThisYearLine(undefined)).toBe('')
+  })
+})
+
+describe('buildMaintenanceRenderList', () => {
+  const ev = (id: number, at: string, overrides: Partial<MaintenanceLogEvent> = {}): MaintenanceLogEvent => ({
+    id,
+    component_id: 1,
+    service_type_id: 1,
+    performed_at: at,
+    notes: null,
+    service_session_id: null,
+    created_at: at,
+    service_type: { id: 1, name: 'Drip wax' },
+    component: { id: 1, label: 'Chain S1', category: 'chain' },
+    bike: null,
+    component_distance_at_event_meters: 0,
+    since_last_same_type_meters: null,
+    bike_distance_at_event_meters: null,
+    resets: [],
+    ...overrides,
+  })
+  const session = { id: 7, performed_at: '2026-11-14T09:00:00', bike: { id: 2, name: 'Libre' }, notes: null, event_count: 3, matching_count: 3 }
+  const inSession = (id: number) => ev(id, '2026-11-14T09:00:00', { service_session_id: 7 })
+  const meta = {
+    month_totals: { '2026-11': { services: 18, sessions: 5, components: 9 }, '2026-10': { services: 1, sessions: 0, components: 1 } },
+    component_totals: { '1': 14, '2': 1 },
+  }
+  const shape = (entries: ReturnType<typeof buildMaintenanceRenderList>) =>
+    entries.map((e) => (e.type === 'event' ? `event ${e.event.id}${e.showDate ? ' date' : ''}${e.inSession ? ' in' : ''}${e.sessionLink ? ' link' : ''}` : e.type === 'session' ? `session ${e.countLabel}${e.showDate ? ' date' : ''}` : `${e.type} ${e.title}${'totals' in e ? ` (${e.totals})` : ''}`))
+
+  it('groups by month with session headers and their events, one header across a Load more boundary', () => {
+    const pages = [
+      { events: [ev(1, '2026-11-20T10:00:00'), ev(2, '2026-11-20T08:00:00'), inSession(3)], sessions: { '7': session }, meta },
+      { events: [inSession(4), inSession(5), ev(6, '2026-10-02T10:00:00')], sessions: { '7': session }, meta },
+    ]
+    expect(shape(buildMaintenanceRenderList(pages, 'month'))).toEqual([
+      'month November 2026 (18 services · 5 sessions · 9 components)',
+      'event 1 date',
+      'event 2',
+      'session 3 services date',
+      'event 3 in',
+      'event 4 in',
+      'event 5 in',
+      'month October 2026 (1 service · 1 component)',
+      'event 6 date',
+    ])
+  })
+
+  it('reads "2 of 3 services" when the filters hide some of a session', () => {
+    const pages = [{ events: [inSession(3), inSession(4)], sessions: { '7': { ...session, matching_count: 2 } }, meta }]
+    expect(shape(buildMaintenanceRenderList(pages, 'none'))).toEqual(['session 2 of 3 services date', 'event 3 in', 'event 4 in'])
+  })
+
+  it('shows every date with no bands for None', () => {
+    const pages = [{ events: [ev(1, '2026-11-20T10:00:00'), ev(2, '2026-11-20T08:00:00')], sessions: {}, meta }]
+    expect(shape(buildMaintenanceRenderList(pages, 'none'))).toEqual(['event 1 date', 'event 2 date'])
+  })
+
+  it('bands by component without session headers, marking session events', () => {
+    const cassette = { component: { id: 2, label: 'Cassette', category: 'cassette' } }
+    const pages = [{ events: [ev(9, '2026-11-01T10:00:00', cassette), inSession(3), ev(1, '2026-10-01T10:00:00')], sessions: { '7': session }, meta }]
+    expect(shape(buildMaintenanceRenderList(pages, 'component'))).toEqual([
+      'component Cassette · 1 service',
+      'event 9 date',
+      'component Chain S1 · 14 services',
+      'event 3 date link',
+      'event 1 date',
+    ])
+  })
+
+  it('flattens for a field sort: no bands, no headers', () => {
+    const pages = [{ events: [inSession(3), ev(1, '2026-10-01T10:00:00')], sessions: { '7': session }, meta }]
+    expect(shape(buildMaintenanceRenderList(pages, 'flat'))).toEqual(['event 3 date link', 'event 1 date'])
+  })
+})
+
+describe('accessible names', () => {
+  it('names an event and a session', () => {
+    const event = {
+      service_type: { id: 1, name: 'Drip wax' },
+      component: { id: 1, label: 'Chain S1', category: 'chain' },
+      performed_at: '2026-11-14T09:00:00',
+    } as MaintenanceLogEvent
+    expect(eventAccessibleName(event)).toBe('Drip wax, Chain S1, Nov 14, open')
+    const session = { id: 7, performed_at: '2026-11-14T09:00:00', bike: { id: 2, name: 'Libre' }, notes: null, event_count: 3, matching_count: 3 }
+    expect(sessionAccessibleName(session, '3 services')).toBe('Service session, Libre, 3 services, Nov 14, open')
   })
 })
