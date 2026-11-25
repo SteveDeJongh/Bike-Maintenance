@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso, toIsoDate } from './dateRanges'
+import { daysAgoIso, isDatePreset, presetRange, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso, toIsoDate } from './dateRanges'
 
 // Every function here reads new Date() (or a passed-in Date) in whatever
 // timezone the process is running in -- there's no explicit IANA zone the
@@ -84,5 +84,25 @@ describe('dateRanges', () => {
       vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
       expect(todayIso()).toBe('2026-03-15')
     })
+  })
+})
+
+describe('presetRange', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 10, 25, 12))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('gives each preset its local from/to, and nothing for All time', () => {
+    expect(presetRange('this_year', [null, null])).toEqual({ from: '2026-01-01', to: '2026-11-25' })
+    expect(presetRange('this_month', [null, null])).toEqual({ from: '2026-11-01', to: '2026-11-25' })
+    expect(presetRange(null, [null, null])).toEqual({ from: undefined, to: undefined })
+    expect(presetRange('custom', ['2026-02-01', null])).toEqual({ from: '2026-02-01', to: undefined })
+  })
+
+  it('knows its presets', () => {
+    expect(isDatePreset('last_30_days')).toBe(true)
+    expect(isDatePreset('all')).toBe(false)
   })
 })

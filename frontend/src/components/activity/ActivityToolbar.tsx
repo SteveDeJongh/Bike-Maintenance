@@ -1,24 +1,16 @@
-import { useState } from 'react'
-import { Button, Group, Menu, Paper, Popover, SegmentedControl, Text, TextInput } from '@mantine/core'
-import { DatePicker } from '@mantine/dates'
-import { IconAdjustmentsHorizontal, IconChevronDown, IconSearch } from '@tabler/icons-react'
+import { Button, Group, Paper, SegmentedControl, Text, TextInput } from '@mantine/core'
+import { IconAdjustmentsHorizontal, IconSearch } from '@tabler/icons-react'
 import FieldsPicker from '../datalist/FieldsPicker'
 import { Dot, FilterMenu, Pill } from '../toolbar/ToolbarPills'
+import DateRangePill from '../toolbar/DateRangePill'
 import { ACTIVITY_KIND_LABELS, ACTIVITY_UI_KINDS } from '../../constants'
 import { ACTIVITY_KIND_COLOR, FIELD_OPTIONS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
 import type { GroupBy } from './activityListModel'
-import type { DatePreset, useActivityFilters } from './useActivityFilters'
+import type { useActivityFilters } from './useActivityFilters'
 import type { ActivityUiKind, Bike, Component } from '../../types/models'
 
 type Filters = ReturnType<typeof useActivityFilters>
 
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: 'this_week', label: 'This week' },
-  { value: 'this_month', label: 'This month' },
-  { value: 'this_year', label: 'This year' },
-  { value: 'last_30_days', label: 'Last 30 days' },
-  { value: 'custom', label: 'Custom range…' },
-]
 
 // Row 1: kind pills, then (from sm up) Group by and Fields; on a phone,
 // one "View" button opens ActivityViewSheet with those plus Sort.
@@ -116,7 +108,12 @@ export default function ActivityToolbar({
           allLabel="Any component"
           onSelect={(value) => filters.setComponentId(value ?? undefined)}
         />
-        <DateFilter filters={filters} />
+        <DateRangePill
+          preset={filters.datePreset}
+          onPresetChange={filters.setDatePreset}
+          customRange={filters.customRange}
+          onCustomRangeChange={filters.setCustomRange}
+        />
 
         {filters.hasActiveFilters && (
           <Button size="xs" variant="subtle" radius="xl" onClick={filters.clearFilters}>
@@ -125,63 +122,5 @@ export default function ActivityToolbar({
         )}
       </Group>
     </Paper>
-  )
-}
-
-// Date presets as a menu; "Custom range…" opens a range picker in a popover
-// on the same pill.
-function DateFilter({ filters }: { filters: Filters }) {
-  const [pickerOpened, setPickerOpened] = useState(false)
-  const preset = DATE_PRESETS.find((p) => p.value === filters.datePreset)
-  const [start, end] = filters.customRange
-  const label =
-    filters.datePreset === 'custom' && start
-      ? `${start}${end ? ` – ${end}` : ''}`
-      : (preset?.label.replace('…', '') ?? 'Date')
-
-  return (
-    <Popover opened={pickerOpened} onChange={setPickerOpened} position="bottom-start" shadow="md">
-      <Popover.Target>
-        <div>
-          <Menu position="bottom-start" shadow="md" withinPortal>
-            <Menu.Target>
-              <Button
-                size="xs"
-                radius="xl"
-                variant={filters.datePreset ? 'light' : 'default'}
-                rightSection={<IconChevronDown size={12} />}
-              >
-                {label}
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item onClick={() => filters.setDatePreset(null)}>All time</Menu.Item>
-              <Menu.Divider />
-              {DATE_PRESETS.map((option) => (
-                <Menu.Item
-                  key={option.value}
-                  onClick={() => {
-                    filters.setDatePreset(option.value)
-                    if (option.value === 'custom') setPickerOpened(true)
-                  }}
-                >
-                  {option.label}
-                </Menu.Item>
-              ))}
-            </Menu.Dropdown>
-          </Menu>
-        </div>
-      </Popover.Target>
-      <Popover.Dropdown>
-        <DatePicker
-          type="range"
-          value={filters.customRange}
-          onChange={(value) => {
-            filters.setCustomRange(value)
-            if (value[0] && value[1]) setPickerOpened(false)
-          }}
-        />
-      </Popover.Dropdown>
-    </Popover>
   )
 }

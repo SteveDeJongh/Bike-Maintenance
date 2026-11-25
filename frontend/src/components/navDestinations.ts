@@ -37,7 +37,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   { path: '/activity', label: 'Activity', icon: IconActivity, tab: true },
   { path: '/bikes', label: 'Bikes', icon: IconBike, tab: true },
   { path: '/components', label: 'Components', icon: IconComponents, tab: true },
-  { path: '/maintenance-events', label: 'Maintenance Events', icon: IconTool },
+  { path: '/maintenance-events', label: 'Maintenance', icon: IconTool },
   { path: '/assignments', label: 'Assignments', icon: IconLink },
   { path: '/strava', label: 'Strava', icon: IconBrandStrava },
   { path: '/settings', label: 'Settings', icon: IconSettings },

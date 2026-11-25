@@ -153,6 +153,13 @@ export interface TableViewPreferenceData {
   category?: string | null
   bike_id?: number | null
   service?: string | null
+  // Maintenance page (table_key "maintenance_events"), alongside kinds,
+  // group_by ("month" | "component" | "none"), category and bike_id: the
+  // Service type filter and the date range ("all" for All time; the
+  // custom range's from/to). useMaintenanceLogView validates them on load.
+  service_type_id?: number | null
+  date_preset?: string
+  date_range?: [string | null, string | null]
 }
 
 // null means no enabled service interval at all (not "ok") -- the Components
@@ -531,6 +538,63 @@ export interface MaintenanceEvent {
   // (BatchServiceModal) rather than one at a time -- its own performed_at
   // can't be edited directly while this is set (see ServiceSession).
   service_session_id: number | null
+}
+
+// GET /maintenance_events (Maintenance::EventLog): one page of the
+// Maintenance page's log. A session event's bike is its session's; a
+// single event's is where its component was at performed_at (null: off
+// the bike). Distances are meters at the event; since_last is null for the
+// first service of its type on the component; resets names each enabled
+// requirement on the component this service type satisfies.
+export interface MaintenanceLogEvent extends MaintenanceEvent {
+  created_at: string
+  service_type: { id: number; name: string }
+  component: { id: number; label: string; category: string }
+  bike: { id: number; name: string } | null
+  component_distance_at_event_meters: number
+  since_last_same_type_meters: number | null
+  bike_distance_at_event_meters: number | null
+  resets: string[]
+}
+
+export interface MaintenanceLogSession {
+  id: number
+  performed_at: string
+  bike: { id: number; name: string } | null
+  notes: string | null
+  // Every event in the session vs the ones the filters keep ("2 of 3").
+  event_count: number
+  matching_count: number
+}
+
+export interface MaintenanceLogBandTotals {
+  services: number
+  sessions: number
+  components: number
+}
+
+export interface MaintenanceLogMeta {
+  total: number
+  // Under every filter but kinds: sessions (how many), single events.
+  kind_counts: { session: number; single: number }
+  // Unfiltered; "this year" in the viewer's zone.
+  tiles: {
+    services_this_year: number
+    sessions_this_year: number
+    last_service_at: string | null
+    most_serviced: { component_id: number; label: string; count: number } | null
+  }
+  // Keyed "2026-11" (local month), for the months on this page.
+  month_totals: Record<string, MaintenanceLogBandTotals>
+  // Keyed by component id, for the components on this page.
+  component_totals: Record<string, number>
+}
+
+export interface MaintenanceLogResponse {
+  events: MaintenanceLogEvent[]
+  sessions: Record<string, MaintenanceLogSession>
+  meta: MaintenanceLogMeta
+  next_cursor: string | null
 }
 
 export interface ServiceSessionEvent {

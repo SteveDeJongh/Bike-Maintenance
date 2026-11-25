@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest'
+import {
+  defaultSessionBike,
+  effectiveGroupBy,
+  maintenanceTiles,
+  readMaintenanceView,
+  servicesThisYearLine,
+  viewBadgeCount,
+} from './maintenanceLogModel'
+import { DEFAULT_MAINTENANCE_FIELDS } from './maintenanceLogFields'
+
+describe('readMaintenanceView', () => {
+  it('gives the defaults for an empty preference', () => {
+    expect(readMaintenanceView({})).toEqual({
+      fields: DEFAULT_MAINTENANCE_FIELDS,
+      kinds: ['session', 'single'],
+      groupBy: 'month',
+      bikeId: undefined,
+      category: undefined,
+      serviceTypeId: undefined,
+      datePreset: 'this_year',
+      customRange: [null, null],
+    })
+  })
+
+  it("drops the old table's columns and caps Fields at five", () => {
+    expect(readMaintenanceView({ columns: ['performed_at', 'service_type', 'notes'] }).fields).toEqual(DEFAULT_MAINTENANCE_FIELDS)
+    const all = ['component', 'bike', 'component_km', 'since_last', 'category', 'bike_km', 'logged_on']
+    expect(readMaintenanceView({ columns: all }).fields).toHaveLength(5)
+    expect(readMaintenanceView({ columns: ['bike_km', 'nope'] }).fields).toEqual(['bike_km'])
+  })
+
+  it('reads saved choices and rejects bad ones', () => {
+    const view = readMaintenanceView({
+      kinds: ['single', 'ride'],
+      group_by: 'component',
+      bike_id: 4,
+      category: 'chain',
+      service_type_id: 9,
+      date_preset: 'custom',
+      date_range: ['2026-02-01', 'garbage'],
+    })
+    expect(view).toMatchObject({ kinds: ['single'], groupBy: 'component', bikeId: 4, category: 'chain', serviceTypeId: 9 })
+    expect(view.datePreset).toBe('custom')
+    expect(view.customRange).toEqual(['2026-02-01', null])
+    expect(readMaintenanceView({ group_by: 'week', date_preset: 'all' })).toMatchObject({ groupBy: 'month', datePreset: null })
+  })
+})
+
+describe('effectiveGroupBy', () => {
+  it('keeps the saved grouping for date order and flattens for a field sort', () => {
+    expect(effectiveGroupBy('performed_at', 'component')).toBe('component')
+    expect(effectiveGroupBy('since_last', 'month')).toBe('flat')
+  })
+})
+
+describe('viewBadgeCount', () => {
+  const defaults = { kinds: ['session', 'single'] as const, groupBy: 'month' as const, fields: DEFAULT_MAINTENANCE_FIELDS, sort: 'performed_at' as const, order: 'desc' as const }
+
+  it('counts each non-default choice once', () => {
+    expect(viewBadgeCount({ ...defaults, kinds: [...defaults.kinds] })).toBe(0)
+    expect(
+      viewBadgeCount({ kinds: ['single'], groupBy: 'none', fields: ['component'], sort: 'component_km', order: 'desc' }),
+    ).toBe(4)
+    expect(viewBadgeCount({ ...defaults, kinds: [...defaults.kinds], order: 'asc' })).toBe(1)
+  })
+})
+
+describe('defaultSessionBike', () => {
+  const bike = (id: number, name: string, last: string | null, retired: string | null = null) => ({
+    id,
+    name,
+    last_ride_on: last,
+    retired_on: retired,
+  })
+
+  it('picks the active bike ridden most recently, else the first by name', () => {
+    const bikes = [bike(1, 'Road', '2026-11-01'), bike(2, 'Gravel', '2026-11-20'), bike(3, 'Old', '2026-11-24', '2026-11-24')]
+    expect(defaultSessionBike(bikes)?.id).toBe(2)
+    expect(defaultSessionBike([bike(1, 'Zed', null), bike(2, 'Alpha', null)])?.id).toBe(2)
+    expect(defaultSessionBike([bike(3, 'Old', null, '2026-01-01')])).toBeUndefined()
+    expect(defaultSessionBike(undefined)).toBeUndefined()
+  })
+})
+
+describe('maintenanceTiles', () => {
+  const now = new Date(2026, 10, 25)
+  const tiles = {
+    services_this_year: 86,
+    sessions_this_year: 12,
+    last_service_at: '2026-11-21T10:00:00Z',
+    most_serviced: { component_id: 1, label: 'Chain S1', count: 14 },
+  }
+
+  it('builds the five tiles, Due · soon orange when non-zero', () => {
+    const result = maintenanceTiles(tiles, { due: 1, soon: 2 }, now)
+    expect(result.map((tile) => [tile.label, tile.value])).toEqual([
+      ['Services this year', '86'],
+      ['Sessions', '12'],
+      ['Last service', expect.stringMatching(/Nov 2[01]/)],
+      ['Due · soon', '1 · 2'],
+      ['Most serviced', 'Chain S1 · 14'],
+    ])
+    expect(result[3].color).toBe('orange')
+    expect(maintenanceTiles(tiles, { due: 0, soon: 0 }, now)[3].color).toBeUndefined()
+  })
+
+  it('shows dashes before data or with nothing logged', () => {
+    expect(maintenanceTiles(undefined, undefined).every((tile) => tile.value === '—')).toBe(true)
+    const empty = maintenanceTiles({ ...tiles, last_service_at: null, most_serviced: null }, { due: 0, soon: 0 }, now)
+    expect(empty.map((tile) => tile.value)).toEqual(['86', '12', '—', '0 · 0', '—'])
+  })
+})
+
+describe('servicesThisYearLine', () => {
+  it('reads "86 services this year", singular at 1', () => {
+    expect(servicesThisYearLine(86)).toBe('86 services this year')
+    expect(servicesThisYearLine(1)).toBe('1 service this year')
+    expect(servicesThisYearLine(undefined)).toBe('')
+  })
+})

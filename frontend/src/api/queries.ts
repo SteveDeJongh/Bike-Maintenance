@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery, type Query, type QueryKey } from '@tanstack
 import { apiGet } from './client'
 import type {
   ActivityFeedResponse,
+  MaintenanceLogResponse,
   ActivityUiKind,
   BikeDetail,
   BikeType,
@@ -15,7 +16,6 @@ import type {
   DashboardSummary,
   MaintenanceAlert,
   MaintenanceAlertScope,
-  MaintenanceEvent,
   NotificationSetting,
   RideDetail,
   ServiceableComponentsResponse,
@@ -113,10 +113,47 @@ export function useServiceTypes() {
   })
 }
 
-export function useMaintenanceEvents() {
-  return useQuery({
-    queryKey: ['maintenance_events'],
-    queryFn: () => apiGet<MaintenanceEvent[]>('/maintenance_events'),
+export interface MaintenanceLogParams {
+  kinds: ('session' | 'single')[]
+  bikeId?: number
+  category?: string
+  serviceTypeId?: number
+  from?: string
+  to?: string
+  tz: string
+  q?: string
+  group: 'month' | 'component' | 'none'
+  sort: 'date' | 'component_km' | 'since_last'
+  order: 'asc' | 'desc'
+}
+
+// The Maintenance page's log (Maintenance::EventLog). Date order with
+// Month / None grouping pages by keyset cursor; Component grouping and the
+// field sorts by page number -- next_cursor carries either.
+export function useMaintenanceLog(params: MaintenanceLogParams) {
+  const { kinds, bikeId, category, serviceTypeId, from, to, tz, q, group, sort, order } = params
+
+  return useInfiniteQuery({
+    queryKey: ['maintenance_events', 'log', kinds, bikeId, category, serviceTypeId, from, to, tz, q, group, sort, order],
+    queryFn: ({ pageParam }) => {
+      const search = new URLSearchParams()
+      kinds.forEach((kind) => search.append('kinds[]', kind))
+      if (bikeId) search.set('bike_id', String(bikeId))
+      if (category) search.set('category', category)
+      if (serviceTypeId) search.set('service_type_id', String(serviceTypeId))
+      if (from) search.set('from', from)
+      if (to) search.set('to', to)
+      search.set('tz', tz)
+      if (q) search.set('q', q)
+      search.set('group', group)
+      search.set('sort', sort)
+      search.set('order', order)
+      const byOffset = sort !== 'date' || group === 'component'
+      if (pageParam) search.set(byOffset ? 'page' : 'cursor', pageParam)
+      return apiGet<MaintenanceLogResponse>(`/maintenance_events?${search.toString()}`)
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor,
   })
 }
 

@@ -34,3 +34,39 @@ export function daysAgoIso(days: number): string {
 export function todayIso(): string {
   return toIsoDate(new Date())
 }
+
+// The date-range pill's presets (Activity, Maintenance); null is All time.
+export type DatePreset = 'this_week' | 'this_month' | 'this_year' | 'last_30_days' | 'custom'
+
+export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: 'this_week', label: 'This week' },
+  { value: 'this_month', label: 'This month' },
+  { value: 'this_year', label: 'This year' },
+  { value: 'last_30_days', label: 'Last 30 days' },
+  { value: 'custom', label: 'Custom range…' },
+]
+
+export function isDatePreset(value: unknown): value is DatePreset {
+  return DATE_PRESETS.some((preset) => preset.value === value)
+}
+
+// A preset's from/to (YYYY-MM-DD, local), each undefined when open-ended.
+export function presetRange(
+  preset: DatePreset | null,
+  customRange: [string | null, string | null],
+): { from: string | undefined; to: string | undefined } {
+  switch (preset) {
+    case 'this_week':
+      return { from: startOfWeekIso(), to: todayIso() }
+    case 'this_month':
+      return { from: startOfMonthIso(), to: todayIso() }
+    case 'this_year':
+      return { from: startOfYearIso(), to: todayIso() }
+    case 'last_30_days':
+      return { from: daysAgoIso(30), to: todayIso() }
+    case 'custom':
+      return { from: customRange[0] ?? undefined, to: customRange[1] ?? undefined }
+    default:
+      return { from: undefined, to: undefined }
+  }
+}

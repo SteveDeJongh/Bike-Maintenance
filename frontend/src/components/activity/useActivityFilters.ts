@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useDebouncedValue } from '@mantine/hooks'
 import { useUpdateTableViewPreference } from '../../api/mutations'
 import { useTableViewPreferences } from '../../hooks/useTableViewPreferences'
-import { daysAgoIso, startOfMonthIso, startOfWeekIso, startOfYearIso, todayIso } from './dateRanges'
+import { presetRange, type DatePreset } from './dateRanges'
 import { ACTIVITY_UI_KINDS, DEFAULT_ACTIVITY_KINDS } from '../../constants'
 import { ACTIVITY_FIELDS, DEFAULT_ACTIVITY_FIELDS, MAX_ACTIVITY_FIELDS, type ActivityField } from './activityFields'
 import { effectiveGroupBy, readActivityView, type GroupBy } from './activityListModel'
@@ -12,7 +12,7 @@ import type { ActivityUiKind, TableViewPreferenceData } from '../../types/models
 
 export type Order = 'asc' | 'desc'
 export type ActivitySort = 'occurred_at' | ActivityField
-export type DatePreset = 'this_week' | 'this_month' | 'this_year' | 'last_30_days' | 'custom'
+export type { DatePreset } from './dateRanges'
 
 function isActivityUiKind(value: string): value is ActivityUiKind {
   return (ACTIVITY_UI_KINDS as readonly string[]).includes(value)
@@ -106,22 +106,7 @@ export function useActivityFilters(initialData: TableViewPreferenceData, fromUrl
 
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
 
-  const { from, to } = useMemo(() => {
-    switch (datePreset) {
-      case 'this_week':
-        return { from: startOfWeekIso(), to: todayIso() }
-      case 'this_month':
-        return { from: startOfMonthIso(), to: todayIso() }
-      case 'this_year':
-        return { from: startOfYearIso(), to: todayIso() }
-      case 'last_30_days':
-        return { from: daysAgoIso(30), to: todayIso() }
-      case 'custom':
-        return { from: customRange[0] ?? undefined, to: customRange[1] ?? undefined }
-      default:
-        return { from: undefined, to: undefined }
-    }
-  }, [datePreset, customRange])
+  const { from, to } = useMemo(() => presetRange(datePreset, customRange), [datePreset, customRange])
 
   function clearFilters() {
     setBikeId(undefined)

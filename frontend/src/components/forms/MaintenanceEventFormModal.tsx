@@ -1,11 +1,13 @@
 import { useId, useState } from 'react'
 import { Alert, Button, Group, Select, Stack, Textarea } from '@mantine/core'
 import AppModal from '../AppModal'
+import { confirmDelete } from '../confirmDelete'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import {
   useCreateMaintenanceEvent,
+  useDeleteMaintenanceEvent,
   useUpdateMaintenanceEvent,
   type MaintenanceEventPayload,
 } from '../../api/mutations'
@@ -124,6 +126,22 @@ function MaintenanceEventForm({
   const createEvent = useCreateMaintenanceEvent()
   const updateEvent = useUpdateMaintenanceEvent(event?.id ?? -1)
   const mutation = isEdit ? updateEvent : createEvent
+  const deleteEvent = useDeleteMaintenanceEvent()
+
+  // Edit mode only: deleting one service (the Maintenance page's rows open
+  // this modal and carry no row actions of their own).
+  function handleDelete() {
+    if (!event) return
+    confirmDelete({
+      title: 'Delete service',
+      message: 'Delete this service? This cannot be undone.',
+      onConfirm: () =>
+        deleteEvent.mutate(event.id, {
+          onSuccess: () => onClose(),
+          onError: (error) => setBaseErrors(applyApiErrors(form, error)),
+        }),
+    })
+  }
 
   async function handleSubmit(values: MaintenanceEventFormValues) {
     setBaseErrors([])
@@ -164,16 +182,23 @@ function MaintenanceEventForm({
     <AppModal
       opened={opened}
       onClose={onClose}
-      title={isEdit ? 'Edit Maintenance Event' : 'New Maintenance Event'}
+      title={isEdit ? 'Edit service' : 'Log service'}
       footer={
         opened && (
-          <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" form={formId} loading={mutation.isPending || isCreatingServiceType}>
-              {isEdit ? 'Save' : 'Create'}
-            </Button>
+          <Group justify={isEdit ? 'space-between' : 'flex-end'}>
+            {isEdit && (
+              <Button variant="subtle" color="red" onClick={handleDelete} loading={deleteEvent.isPending}>
+                Delete service
+              </Button>
+            )}
+            <Group gap="sm">
+              <Button variant="default" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" form={formId} loading={mutation.isPending || isCreatingServiceType}>
+                {isEdit ? 'Save' : 'Log service'}
+              </Button>
+            </Group>
           </Group>
         )
       }
