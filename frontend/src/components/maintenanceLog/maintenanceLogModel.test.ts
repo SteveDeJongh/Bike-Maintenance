@@ -3,6 +3,9 @@ import {
   buildMaintenanceRenderList,
   defaultSessionBike,
   eventAccessibleName,
+  phoneMetaLine,
+  phoneSessionLine,
+  splitIntoCards,
   sessionAccessibleName,
   effectiveGroupBy,
   maintenanceTiles,
@@ -207,5 +210,39 @@ describe('accessible names', () => {
     expect(eventAccessibleName(event)).toBe('Drip wax, Chain S1, Nov 14, open')
     const session = { id: 7, performed_at: '2026-11-14T09:00:00', bike: { id: 2, name: 'Libre' }, notes: null, event_count: 3, matching_count: 3 }
     expect(sessionAccessibleName(session, '3 services')).toBe('Service session, Libre, 3 services, Nov 14, open')
+  })
+})
+
+describe('phone helpers', () => {
+  const event = {
+    component: { id: 1, label: 'Chain S2', category: 'chain' },
+    bike: null,
+    component_distance_at_event_meters: 1_020_000,
+  } as MaintenanceLogEvent
+
+  it('reads "Chain S2 · Off the bike · at 1,020 km"', () => {
+    expect(phoneMetaLine(event)).toBe('Chain S2 · Off the bike · at 1,020 km')
+    expect(phoneMetaLine({ ...event, bike: { id: 1, name: 'Libre' } })).toMatch(/^Chain S2 · Libre · at /)
+  })
+
+  it('reads a session as "Libre CR/DL · 3 services"', () => {
+    const session = { id: 7, performed_at: '2026-11-14T09:00:00', bike: { id: 2, name: 'Libre CR/DL' }, notes: null, event_count: 3, matching_count: 3 }
+    expect(phoneSessionLine(session, '3 services')).toBe('Libre CR/DL · 3 services')
+  })
+
+  it('splits the list into a card per band, or one card without bands', () => {
+    const row = (id: number) => ({ type: 'event' as const, key: `e${id}`, event: { id } as MaintenanceLogEvent, showDate: true, inSession: false, sessionLink: false })
+    const cards = splitIntoCards([
+      { type: 'month', key: 'm1', monthKey: '2026-11', title: 'November 2026', totals: '2 services · 1 component' },
+      row(1),
+      row(2),
+      { type: 'month', key: 'm2', monthKey: '2026-10', title: 'October 2026', totals: '' },
+      row(3),
+    ])
+    expect(cards.map((card) => [card.title, card.aside, card.entries.length])).toEqual([
+      ['November 2026', '2 services · 1 component', 2],
+      ['October 2026', null, 1],
+    ])
+    expect(splitIntoCards([row(1)]).map((card) => [card.title, card.entries.length])).toEqual([[null, 1]])
   })
 })

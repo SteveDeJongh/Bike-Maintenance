@@ -2,6 +2,7 @@ import { Divider, Group, SegmentedControl, Select, Stack, Text } from '@mantine/
 import AppModal from '../AppModal'
 import { ColumnPickerPanel } from '../datatable/ColumnPicker'
 import { Pill } from '../toolbar/ToolbarPills'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import {
   FIELD_OPTIONS,
   MAINTENANCE_FIELD_LABELS,
@@ -42,7 +43,7 @@ export default function MaintenanceLogViewSheet({
           </Text>
           <Group gap="xs">
             {MAINTENANCE_KINDS.map((kind) => (
-              <Pill key={kind} active={view.kinds.includes(kind)} onClick={() => view.toggleKind(kind)}>
+              <Pill key={kind} active={view.kinds.includes(kind)} onClick={() => view.toggleKind(kind)} style={MOBILE_TAP_TARGET_STYLE}>
                 {MAINTENANCE_KIND_LABELS[kind]} · {kindCounts?.[kind] ?? 0}
               </Pill>
             ))}

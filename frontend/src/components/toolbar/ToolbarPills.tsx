@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Box, Button, Menu } from '@mantine/core'
 import { IconChevronDown } from '@tabler/icons-react'
 
@@ -14,12 +14,15 @@ export function Pill({
   onClick,
   leftSection,
   rightSection,
+  style,
   children,
 }: {
   active: boolean
   onClick?: () => void
   leftSection?: ReactNode
   rightSection?: ReactNode
+  // e.g. MOBILE_TAP_TARGET_STYLE on a phone toolbar.
+  style?: CSSProperties
   children: ReactNode
 }) {
   return (
@@ -31,6 +34,7 @@ export function Pill({
       leftSection={leftSection}
       rightSection={rightSection}
       aria-pressed={active}
+      style={style}
     >
       {children}
     </Button>
@@ -45,17 +49,19 @@ export function FilterMenu<V extends string | number>({
   options,
   allLabel,
   onSelect,
+  style,
 }: {
   label: string
   active: boolean
   options: { value: V; label: string }[]
   allLabel: string
   onSelect: (value: V | null) => void
+  style?: CSSProperties
 }) {
   return (
     <Menu position="bottom-start" shadow="md" withinPortal>
       <Menu.Target>
-        <Button size="xs" radius="xl" variant={active ? 'light' : 'default'} rightSection={<IconChevronDown size={12} />}>
+        <Button size="xs" radius="xl" variant={active ? 'light' : 'default'} rightSection={<IconChevronDown size={12} />} style={style}>
           {label}
         </Button>
       </Menu.Target>

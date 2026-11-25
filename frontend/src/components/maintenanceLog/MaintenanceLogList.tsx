@@ -1,10 +1,16 @@
 import { useMemo } from 'react'
-import { Text } from '@mantine/core'
+import { Group, Stack, Text } from '@mantine/core'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import DataList, { DataListBand } from '../datalist/DataList'
 import DataListHeader, { type DataListColumn } from '../datalist/DataListHeader'
-import { EventRow, SessionHeaderRow } from './MaintenanceLogRow'
+import { EventRow, PhoneEventRow, PhoneSessionHeaderRow, SessionHeaderRow } from './MaintenanceLogRow'
 import { isSortableField, maintenanceListLayout, MAINTENANCE_FIELD_LABELS, type MaintenanceField, type MaintenanceSort } from './maintenanceLogFields'
-import { buildMaintenanceRenderList, type MaintenanceGroupBy, type MaintenanceLogPage } from './maintenanceLogModel'
+import {
+  buildMaintenanceRenderList,
+  splitIntoCards,
+  type MaintenanceGroupBy,
+  type MaintenanceLogPage,
+} from './maintenanceLogModel'
 import type { MaintenanceLogEvent } from '../../types/models'
 
 // The Maintenance page's one list, on the shared DataList: the header
@@ -31,6 +37,9 @@ export default function MaintenanceLogList({
   onOpenSession: (sessionId: number) => void
 }) {
   const entries = useMemo(() => buildMaintenanceRenderList(pages, groupBy), [pages, groupBy])
+  // A phone gets DataList's stacked layout: each band becomes a small
+  // header above its own card, and the rows their two-line forms.
+  const phone = useIsMobile()
   const { template, minWidth } = maintenanceListLayout(fields)
   const columns: DataListColumn<MaintenanceSort>[] = [
     { key: 'performed_at', label: 'Date' },
@@ -44,6 +53,43 @@ export default function MaintenanceLogList({
     })),
     { key: 'trailing' },
   ]
+
+  if (phone) {
+    return (
+      <Stack gap="md">
+        {splitIntoCards(entries).map((card) => (
+          <Stack key={card.key} gap={4}>
+            {card.title && (
+              <Group justify="space-between" gap="xs" px={4}>
+                <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: '0.04em' }}>
+                  {card.title}
+                </Text>
+                {card.aside && (
+                  <Text size="xs" c="dimmed">
+                    {card.aside}
+                  </Text>
+                )}
+              </Group>
+            )}
+            <DataList template={template} minWidth={minWidth} stacked>
+              {card.entries.map((entry) =>
+                entry.type === 'session' ? (
+                  <PhoneSessionHeaderRow
+                    key={entry.key}
+                    session={entry.session}
+                    countLabel={entry.countLabel}
+                    onOpen={() => onOpenSession(entry.session.id)}
+                  />
+                ) : (
+                  <PhoneEventRow key={entry.key} event={entry.event} inSession={entry.inSession} onOpen={() => onOpenEvent(entry.event)} />
+                ),
+              )}
+            </DataList>
+          </Stack>
+        ))}
+      </Stack>
+    )
+  }
 
   return (
     <DataList template={template} minWidth={minWidth}>

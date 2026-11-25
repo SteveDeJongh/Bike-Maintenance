@@ -6,7 +6,7 @@ import DataListRow from '../datalist/DataListRow'
 import { dayLabel, timeLabel } from '../activity/activityListModel'
 import { categoryLabel } from '../../constants'
 import { fieldText, type MaintenanceField } from './maintenanceLogFields'
-import { eventAccessibleName, sessionAccessibleName } from './maintenanceLogModel'
+import { eventAccessibleName, phoneMetaLine, phoneSessionLine, sessionAccessibleName } from './maintenanceLogModel'
 import type { MaintenanceLogEvent, MaintenanceLogSession } from '../../types/models'
 
 const TEAL_LINE = 'var(--mantine-color-teal-6)'
@@ -219,6 +219,96 @@ export function SessionHeaderRow({
       <Text size="sm" c="var(--mantine-primary-color-filled)" fw={500} ta="right" style={{ whiteSpace: 'nowrap' }}>
         View session ›
       </Text>
+    </DataListRow>
+  )
+}
+
+const phoneDay = (value: string) => dayLabel(value).secondary
+
+// Phone (stacked) rows. A service: icon, type (and reset chips), the date
+// on the right, then "Chain S2 · Off the bike · at 1,020 km". Inside a
+// session: indented, type over component, the component km on the right.
+export function PhoneEventRow({
+  event,
+  inSession,
+  onOpen,
+}: {
+  event: MaintenanceLogEvent
+  inSession: boolean
+  onOpen: () => void
+}) {
+  if (inSession) {
+    return (
+      <DataListRow ariaLabel={eventAccessibleName(event)} onOpen={onOpen} tone="session" stacked>
+        <Group gap="sm" wrap="nowrap" pl={44} mih={44}>
+          <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+            <Text size="sm" fw={500} truncate>
+              {event.service_type.name}
+            </Text>
+            <Text size="xs" c="dimmed" truncate>
+              {event.component.label}
+            </Text>
+          </Stack>
+          <Text size="sm" fw={600} style={{ whiteSpace: 'nowrap' }}>
+            {fieldText(event, 'component_km')}
+          </Text>
+        </Group>
+      </DataListRow>
+    )
+  }
+
+  return (
+    <DataListRow ariaLabel={eventAccessibleName(event)} onOpen={onOpen} stacked>
+      <Group gap="sm" wrap="nowrap" align="flex-start" mih={44}>
+        <WrenchIcon />
+        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+          <Group gap={6} wrap="nowrap" justify="space-between">
+            <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+              <Text size="sm" fw={500} truncate>
+                {event.service_type.name}
+              </Text>
+              <ResetChips names={event.resets} />
+            </Group>
+            <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              {phoneDay(event.performed_at)}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed">
+            {phoneMetaLine(event)}
+          </Text>
+        </Stack>
+      </Group>
+    </DataListRow>
+  )
+}
+
+export function PhoneSessionHeaderRow({
+  session,
+  countLabel,
+  onOpen,
+}: {
+  session: MaintenanceLogSession
+  countLabel: string
+  onOpen: () => void
+}) {
+  return (
+    <DataListRow ariaLabel={sessionAccessibleName(session, countLabel)} onOpen={onOpen} tone="session" stacked>
+      <Group gap="sm" wrap="nowrap" align="flex-start" mih={44}>
+        <WrenchIcon />
+        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+          <Group gap={6} wrap="nowrap" justify="space-between">
+            <Text size="sm" fw={600} truncate>
+              Service session
+            </Text>
+            <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              {phoneDay(session.performed_at)}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed">
+            {phoneSessionLine(session, countLabel)}
+          </Text>
+        </Stack>
+      </Group>
     </DataListRow>
   )
 }

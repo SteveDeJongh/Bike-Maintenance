@@ -1,9 +1,11 @@
+import type { CSSProperties } from 'react'
 import { Badge, Box, Button, Group, Paper, SegmentedControl, Text, TextInput } from '@mantine/core'
 import { IconAdjustmentsHorizontal, IconSearch } from '@tabler/icons-react'
 import FieldsPicker from '../datalist/FieldsPicker'
 import DateRangePill from '../toolbar/DateRangePill'
 import { Dot, FilterMenu, Pill } from '../toolbar/ToolbarPills'
 import { categoryLabel } from '../../constants'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import { FIELD_OPTIONS, MAX_MAINTENANCE_FIELDS, type MaintenanceField } from './maintenanceLogFields'
 import {
   GROUP_BY_OPTIONS,
@@ -46,9 +48,11 @@ export default function MaintenanceLogToolbar({
   const bikeName = bikes?.find((bike) => bike.id === view.bikeId)?.name
   const typeName = serviceTypes?.find((type) => type.id === view.serviceTypeId)?.name
 
-  const filterPills = (
+  // The phone's copy gets 44px tap targets.
+  const filterPills = (tap?: CSSProperties) => (
     <>
       <FilterMenu
+        style={tap}
         label={bikeName ?? 'Bike'}
         active={view.bikeId != null}
         options={(bikes ?? []).map((bike) => ({ value: bike.id, label: bike.name }))}
@@ -56,6 +60,7 @@ export default function MaintenanceLogToolbar({
         onSelect={(value) => view.setBikeId(value ?? undefined)}
       />
       <FilterMenu
+        style={tap}
         label={view.category ? categoryLabel(view.category) : 'Category'}
         active={view.category != null}
         options={categories.map((category) => ({ value: category, label: categoryLabel(category) }))}
@@ -63,6 +68,7 @@ export default function MaintenanceLogToolbar({
         onSelect={(value) => view.setCategory(value ?? undefined)}
       />
       <FilterMenu
+        style={tap}
         label={typeName ?? 'Service type'}
         active={view.serviceTypeId != null}
         options={(serviceTypes ?? []).map((type) => ({ value: type.id, label: type.name }))}
@@ -74,19 +80,20 @@ export default function MaintenanceLogToolbar({
         onPresetChange={view.setDatePreset}
         customRange={view.customRange}
         onCustomRangeChange={view.setCustomRange}
+        style={tap}
       />
       {view.hasActiveFilters && (
-        <Button size="xs" variant="subtle" radius="xl" onClick={view.clearFilters} style={{ flexShrink: 0 }}>
+        <Button size="xs" variant="subtle" radius="xl" onClick={view.clearFilters} style={{ flexShrink: 0, ...tap }}>
           Clear filters
         </Button>
       )}
     </>
   )
 
-  const search = (
+  const search = (size: 'xs' | 'md') => (
     <TextInput
       radius="xl"
-      size="xs"
+      size={size}
       leftSection={<IconSearch size={14} />}
       placeholder="Search service, component or note"
       aria-label="Search service, component or note"
@@ -128,14 +135,14 @@ export default function MaintenanceLogToolbar({
       </Group>
 
       <Group gap="xs" wrap="wrap" mt="sm" visibleFrom="sm">
-        <Box w={280}>{search}</Box>
-        {filterPills}
+        <Box w={280}>{search('xs')}</Box>
+        {filterPills()}
       </Group>
 
       {/* Phone: full-width search + View, then the pills scrolling sideways. */}
       <Box hiddenFrom="sm">
         <Group gap="xs" wrap="nowrap">
-          <Box style={{ flex: 1 }}>{search}</Box>
+          <Box style={{ flex: 1 }}>{search('md')}</Box>
           <Button
             size="xs"
             radius="xl"
@@ -149,12 +156,13 @@ export default function MaintenanceLogToolbar({
               ) : undefined
             }
             onClick={onOpenView}
+            style={MOBILE_TAP_TARGET_STYLE}
           >
             View
           </Button>
         </Group>
         <Group gap="xs" wrap="nowrap" mt="xs" style={{ overflowX: 'auto', paddingBottom: 2 }}>
-          {filterPills}
+          {filterPills(MOBILE_TAP_TARGET_STYLE)}
         </Group>
       </Box>
     </Paper>

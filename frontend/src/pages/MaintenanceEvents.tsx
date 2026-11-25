@@ -16,6 +16,7 @@ import { useMaintenanceLogView } from '../components/maintenanceLog/useMaintenan
 import { componentTileCounts } from '../components/componentList/componentListModel'
 import { categoryLabel } from '../constants'
 import { MOBILE_TAP_TARGET_STYLE } from '../utils/touchTarget'
+import { useIsMobile } from '../hooks/useIsMobile'
 import type { MaintenanceEvent, TableViewPreferenceData } from '../types/models'
 
 // The Maintenance page (route /maintenance-events): every service logged,
@@ -29,6 +30,7 @@ export default function MaintenanceEvents() {
 
 function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceData }) {
   const view = useMaintenanceLogView(initialData)
+  const isMobile = useIsMobile()
   const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useMaintenanceLog(view.params)
   const { data: bikes } = useBikes()
   const { data: components } = useComponents()
@@ -149,7 +151,12 @@ function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceDat
         <>
           <Group justify="center">
             {hasNextPage && (
-              <Button variant="default" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
+              <Button
+                variant="default"
+                onClick={() => fetchNextPage()}
+                loading={isFetchingNextPage}
+                style={isMobile ? MOBILE_TAP_TARGET_STYLE : undefined}
+              >
                 Load more
               </Button>
             )}

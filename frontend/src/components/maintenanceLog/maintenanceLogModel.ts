@@ -1,5 +1,6 @@
 import { isDatePreset, type DatePreset } from '../activity/dateRanges'
 import { formatShortDate } from '../../utils/datetime'
+import { formatDistance } from '../../utils/distance'
 import {
   DEFAULT_MAINTENANCE_FIELDS,
   isMaintenanceField,
@@ -289,4 +290,37 @@ export function eventAccessibleName(event: MaintenanceLogEvent): string {
 // "Service session, Libre, 3 services, Nov 14, open"
 export function sessionAccessibleName(session: MaintenanceLogSession, countLabel: string): string {
   return ['Service session', session.bike?.name, countLabel, shortDay(session.performed_at), 'open'].filter(Boolean).join(', ')
+}
+
+// A phone shows each band as a small header above its own card: the
+// render list split at its bands (one headerless card for None and the
+// field sorts).
+export interface MaintenanceCard {
+  key: string
+  title: string | null
+  aside: string | null
+  entries: Exclude<MaintenanceRenderEntry, { type: 'month' | 'component' }>[]
+}
+
+export function splitIntoCards(entries: MaintenanceRenderEntry[]): MaintenanceCard[] {
+  const cards: MaintenanceCard[] = []
+  for (const entry of entries) {
+    if (entry.type === 'month' || entry.type === 'component') {
+      cards.push({ key: entry.key, title: entry.title, aside: entry.type === 'month' ? entry.totals || null : null, entries: [] })
+      continue
+    }
+    if (cards.length === 0) cards.push({ key: 'all', title: null, aside: null, entries: [] })
+    cards[cards.length - 1].entries.push(entry)
+  }
+  return cards
+}
+
+// A phone service row's dimmed line: "Chain S2 · Off the bike · at 1,020 km".
+export function phoneMetaLine(event: MaintenanceLogEvent): string {
+  return `${event.component.label} · ${event.bike?.name ?? 'Off the bike'} · at ${formatDistance(event.component_distance_at_event_meters)}`
+}
+
+// A phone session header's line: "Libre CR/DL · 3 services".
+export function phoneSessionLine(session: MaintenanceLogSession, countLabel: string): string {
+  return [session.bike?.name, countLabel].filter(Boolean).join(' · ')
 }

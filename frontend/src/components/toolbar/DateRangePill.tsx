@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Button, Menu, Popover } from '@mantine/core'
 import { DatePicker } from '@mantine/dates'
 import { IconChevronDown } from '@tabler/icons-react'
@@ -12,11 +12,13 @@ export default function DateRangePill({
   onPresetChange,
   customRange,
   onCustomRangeChange,
+  style,
 }: {
   preset: DatePreset | null
   onPresetChange: (preset: DatePreset | null) => void
   customRange: [string | null, string | null]
   onCustomRangeChange: (range: [string | null, string | null]) => void
+  style?: CSSProperties
 }) {
   const [pickerOpened, setPickerOpened] = useState(false)
   const option = DATE_PRESETS.find((p) => p.value === preset)
@@ -30,7 +32,7 @@ export default function DateRangePill({
         <div>
           <Menu position="bottom-start" shadow="md" withinPortal>
             <Menu.Target>
-              <Button size="xs" radius="xl" variant={preset ? 'light' : 'default'} rightSection={<IconChevronDown size={12} />}>
+              <Button size="xs" radius="xl" variant={preset ? 'light' : 'default'} rightSection={<IconChevronDown size={12} />} style={style}>
                 {label}
               </Button>
             </Menu.Target>
