@@ -5,14 +5,38 @@ RSpec.describe "MaintenanceEvents", type: :request do
   before { sign_in(current_user) }
 
   describe "GET /maintenance_events" do
-    it "returns only the current user's events" do
+    it "returns only the current user's events, with sessions, meta and a cursor" do
       mine = create(:maintenance_event, component: create(:component, user: current_user))
       create(:maintenance_event) # another user's event
 
-      get "/maintenance_events"
+      get "/maintenance_events", params: { tz: "UTC" }
 
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body).map { |e| e["id"] }).to eq([mine.id])
+      body = JSON.parse(response.body)
+      expect(body["events"].map { |e| e["id"] }).to eq([ mine.id ])
+      expect(body["events"].first).to include(
+        "component" => include("id" => mine.component_id), "service_type" => include("id" => mine.service_type_id),
+        "bike" => nil, "since_last_same_type_meters" => nil, "resets" => [],
+      )
+      expect(body).to include("sessions" => {}, "next_cursor" => nil)
+      expect(body["meta"]).to include("total" => 1, "kind_counts" => { "session" => 0, "single" => 1 })
+    end
+
+    it "passes the filters and paging through" do
+      component = create(:component, user: current_user)
+      3.times { |n| create(:maintenance_event, component: component, performed_at: Time.zone.local(2026, 1, n + 1)) }
+
+      get "/maintenance_events", params: { per_page: 2, kinds: [ "single" ] }
+      body = JSON.parse(response.body)
+      get "/maintenance_events", params: { per_page: 2, kinds: [ "single" ], cursor: body["next_cursor"] }
+
+      expect(body["events"].size).to eq(2)
+      expect(JSON.parse(response.body)["events"].size).to eq(1)
+    end
+
+    it "rejects an unknown sort" do
+      get "/maintenance_events", params: { sort: "label" }
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

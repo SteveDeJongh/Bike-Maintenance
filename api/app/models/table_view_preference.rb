@@ -7,11 +7,12 @@ class TableViewPreference < ApplicationRecord
 
   # Each grouped list's allowed group_by values, per table_key. Absent means
   # that list's frontend default ("week" for the activity log, "category"
-  # for the Components list). Other table keys don't group, so their
-  # group_by isn't checked.
+  # for the Components list, "month" for the Maintenance page). Other table
+  # keys don't group, so their group_by isn't checked.
   GROUP_BY_VALUES = {
     "activity_log" => %w[week none],
     "components" => %w[category bike none],
+    "maintenance_events" => %w[month component none],
   }.freeze
 
   private

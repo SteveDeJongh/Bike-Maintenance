@@ -100,14 +100,15 @@ module Components
 
     # Newest first. component_distance_at_event_meters: attributed ride
     # distance with moved_at strictly before performed_at, across every
-    # assignment. mounted_at_event: an assignment covered performed_at.
+    # assignment (Maintenance::EventDistanceQuery). mounted_at_event: an
+    # assignment covered performed_at.
     # session_components: the other components logged in the same
     # ServiceSession.
     def maintenance_events_json
       events = component.maintenance_events.includes(:service_type).order(performed_at: :desc, id: :desc).to_a
       return [] if events.empty?
 
-      distances = distance_at_events
+      distances = Maintenance::EventDistanceQuery.call(component.user, event_ids: events.map(&:id))
       mounted = mounted_at_events
       sessions = session_components(events.filter_map(&:service_session_id).uniq)
 
@@ -125,23 +126,6 @@ module Components
           session_components: event.service_session_id ? sessions.fetch(event.service_session_id, []) : [],
         }
       end
-    end
-
-    def distance_at_events
-      sql = <<~SQL
-        SELECT e.id AS event_id, COALESCE(SUM(sa.distance_meters), 0) AS meters
-        FROM maintenance_events e
-        LEFT JOIN component_assignments ca ON ca.component_id = e.component_id
-        LEFT JOIN strava_activities sa ON sa.bike_id = ca.bike_id
-          AND sa.moved_at >= ca.started_at
-          AND (ca.ended_at IS NULL OR sa.moved_at < ca.ended_at)
-          AND sa.moved_at < e.performed_at
-          AND #{context_predicate}
-        WHERE e.component_id = #{component.id.to_i}
-        GROUP BY e.id
-      SQL
-
-      connection.exec_query(sql).to_a.to_h { |row| [ row["event_id"].to_i, row["meters"].to_i ] }
     end
 
     def mounted_at_events

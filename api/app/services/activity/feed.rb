@@ -254,11 +254,9 @@ module Activity
 
     # bike_id isn't a stored column on a session-less event -- a component's
     # bike changes over time via component_assignments -- so it's resolved
-    # at performed_at via a LEFT JOIN LATERAL. Lives in the SQL itself (not
-    # a post-hydration lookup) because the bike_id filter needs it too, not
-    # just display. A component mounted indoor_only on two bikes at once
-    # (the documented shared-cassette case) picks one via LIMIT 1, same
-    # "picking one is a display simplification" precedent as Dashboard::Summary.
+    # at performed_at via Maintenance::EventBikeSql's LEFT JOIN LATERAL. Lives
+    # in the SQL itself (not a post-hydration lookup) because the bike_id
+    # filter needs it too, not just display.
     def maintenance_event_select
       conditions = [ "c.user_id = #{user.id.to_i}", "me.service_session_id IS NULL" ]
       conditions << "bike_lookup.bike_id = #{bike_id.to_i}" if bike_id
@@ -269,12 +267,7 @@ module Activity
         SELECT me.performed_at AS occurred_at, 'maintenance_event' AS kind, #{SOURCE_KIND_RANK['maintenance_event']} AS kind_rank, me.id AS source_id, bike_lookup.bike_id AS bike_id
         FROM maintenance_events me
         JOIN components c ON c.id = me.component_id
-        LEFT JOIN LATERAL (
-          SELECT ca.bike_id FROM component_assignments ca
-          WHERE ca.component_id = me.component_id
-            AND me.performed_at >= ca.started_at AND (ca.ended_at IS NULL OR me.performed_at < ca.ended_at)
-          ORDER BY ca.started_at DESC LIMIT 1
-        ) bike_lookup ON true
+        #{Maintenance::EventBikeSql.lateral_join(event_alias: 'me')}
         WHERE #{conditions.join(' AND ')}
       SQL
     end

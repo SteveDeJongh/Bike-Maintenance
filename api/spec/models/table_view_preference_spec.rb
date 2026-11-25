@@ -41,11 +41,15 @@ RSpec.describe TableViewPreference, type: :model do
       %w[category bike none].each do |value|
         expect(build(:table_view_preference, table_key: "components", data: { "group_by" => value })).to be_valid
       end
+      %w[month component none].each do |value|
+        expect(build(:table_view_preference, table_key: "maintenance_events", data: { "group_by" => value })).to be_valid
+      end
     end
 
     it "rejects another list's value" do
       expect(build(:table_view_preference, table_key: "components", data: { "group_by" => "week" })).not_to be_valid
       expect(build(:table_view_preference, table_key: "activity_log", data: { "group_by" => "category" })).not_to be_valid
+      expect(build(:table_view_preference, table_key: "maintenance_events", data: { "group_by" => "week" })).not_to be_valid
     end
 
     it "doesn't check table keys that don't group" do

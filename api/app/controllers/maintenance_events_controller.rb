@@ -1,10 +1,30 @@
 class MaintenanceEventsController < ApplicationController
   before_action :set_maintenance_event, only: %i[ show update destroy ]
 
-  # GET /maintenance_events
+  # GET /maintenance_events -- the Maintenance page's log (Maintenance::EventLog):
+  # filtered, grouped and paged services with their sessions and meta.
   def index
-    @maintenance_events = current_user.maintenance_events.includes(:component)
-    render json: @maintenance_events
+    result = Maintenance::EventLog.call(
+      current_user,
+      kinds: Array(params[:kinds]),
+      bike_id: params[:bike_id],
+      category: params[:category],
+      service_type_id: params[:service_type_id],
+      from: params[:from],
+      to: params[:to],
+      tz: params[:tz],
+      q: params[:q],
+      group: params[:group],
+      sort: params[:sort],
+      order: params[:order],
+      cursor: params[:cursor],
+      page: params[:page],
+      per_page: params[:per_page],
+    )
+
+    render json: { events: result.events, sessions: result.sessions, meta: result.meta, next_cursor: result.next_cursor }
+  rescue Maintenance::EventLog::InvalidParamError => e
+    render json: { base: [ e.message ] }, status: :unprocessable_content
   end
 
   # GET /maintenance_events/1
