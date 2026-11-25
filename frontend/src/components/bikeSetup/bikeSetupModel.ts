@@ -21,6 +21,10 @@ export interface SetupRow {
   // Checked by typing (not the checkbox, "Check all"/"Clear all" or a bike
   // type preset): unchecks itself when emptied (setupRowActivation.ts).
   autoChecked: boolean
+  // Checked by the bike type's preset, shown as "Ticked by {type} preset".
+  // Display only: cleared once the user unchecks the row, uses Check all /
+  // Clear all, or types into it (setupRowActivation.ts).
+  presetChecked: boolean
   label: string
   brand: string
   model: string
@@ -30,8 +34,9 @@ export interface SetupRow {
 
 // Label starts blank: left empty, it saves setupRowLabel's brand/model
 // fallback, which the input shows as its placeholder.
+// `checked` here is the bike type preset's, so it's also presetChecked.
 export function makeRow(key: string, rideContext: RideContext, rideContextEditable: boolean, checked: boolean): SetupRow {
-  return { key, rideContext, rideContextEditable, checked, autoChecked: false, label: '', brand: '', model: '', notes: '', notesExpanded: false }
+  return { key, rideContext, rideContextEditable, checked, autoChecked: false, presetChecked: checked, label: '', brand: '', model: '', notes: '', notesExpanded: false }
 }
 
 // One row per addable (category, ride_context) combination -- a plain

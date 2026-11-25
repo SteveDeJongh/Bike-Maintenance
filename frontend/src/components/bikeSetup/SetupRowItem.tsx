@@ -5,13 +5,15 @@ import ComponentBrandModelInputs from '../ComponentBrandModelInputs'
 import NotesPill from './NotesPill'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../../constants'
 import { setupRowLabel } from '../../utils/setupRowLabel'
-import { withActivation } from '../../utils/setupRowActivation'
+import { deliberateCheck, typedChange } from '../../utils/setupRowActivation'
 import type { SuggestionPool } from '../../utils/componentSuggestions'
 import type { RideContext, SetupRow } from './bikeSetupModel'
 
 export interface SetupRowItemProps {
   category: string
   bikeName: string
+  // The bike type's name, for "Ticked by {type} preset" (null without one).
+  presetName: string | null
   row: SetupRow
   isFirstRowOfCategory: boolean
   existingContexts: RideContext[]
@@ -43,6 +45,7 @@ const RIDE_CONTEXT_OPTIONS = (['both', 'outdoor_only', 'indoor_only'] as const).
 const SetupRowItem = memo(function SetupRowItem({
   category,
   bikeName,
+  presetName,
   row,
   isFirstRowOfCategory,
   existingContexts,
@@ -68,7 +71,7 @@ const SetupRowItem = memo(function SetupRowItem({
       <Checkbox
         aria-label={`Track ${name}`}
         checked={row.checked}
-        onChange={(event) => change({ checked: event.currentTarget.checked, autoChecked: false })}
+        onChange={(event) => change(deliberateCheck(event.currentTarget.checked))}
       />
 
       <Stack gap={2} style={{ minWidth: 0 }}>
@@ -84,6 +87,11 @@ const SetupRowItem = memo(function SetupRowItem({
             </Badge>
           )}
         </Group>
+        {row.presetChecked && presetName && (
+          <Text size="xs" c="dimmed">
+            Ticked by {presetName} preset
+          </Text>
+        )}
         {existingContexts.length > 0 && (
           <Text size="xs" c="dimmed">
             {existingContexts.map((context) => RIDE_CONTEXT_LABELS[context]).join(', ')} already tracked
@@ -126,7 +134,7 @@ const SetupRowItem = memo(function SetupRowItem({
           value={row.label}
           placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
           error={error}
-          onChange={(event) => change(withActivation(row, { label: event.currentTarget.value }))}
+          onChange={(event) => change(typedChange(row, { label: event.currentTarget.value }))}
           onBlur={blur}
         />
       </div>
@@ -141,7 +149,7 @@ const SetupRowItem = memo(function SetupRowItem({
         ariaLabels={{ brand: `${name} brand`, model: `${name} model` }}
         cellStyle={inputCell}
         onBlur={blur}
-        onChange={(changes, reason) => change(reason === 'input' ? withActivation(row, changes) : changes)}
+        onChange={(changes, reason) => change(reason === 'input' ? typedChange(row, changes) : changes)}
       />
 
       <div style={inputCell}>
@@ -156,7 +164,7 @@ const SetupRowItem = memo(function SetupRowItem({
             autosize
             minRows={2}
             value={row.notes}
-            onChange={(event) => change(withActivation(row, { notes: event.currentTarget.value }))}
+            onChange={(event) => change(typedChange(row, { notes: event.currentTarget.value }))}
             onBlur={blur}
           />
         </div>

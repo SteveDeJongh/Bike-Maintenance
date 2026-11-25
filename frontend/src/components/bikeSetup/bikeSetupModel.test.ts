@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   actionBarSummary,
+  buildInitialRows,
   makeRow,
   notesPillLabel,
   rowHasDetails,
@@ -9,7 +10,7 @@ import {
   trackedLabel,
   type SetupRow,
 } from './bikeSetupModel'
-import type { BikeDetail } from '../../types/models'
+import type { BikeDetail, BikeType, ComponentCategorySetting } from '../../types/models'
 import { formatDate } from '../../utils/datetime'
 
 const row = (key: string, overrides: Partial<SetupRow> = {}): SetupRow => ({ ...makeRow(key, 'both', false, false), ...overrides })
@@ -95,5 +96,22 @@ describe('trackedLabel', () => {
     ])
     expect(trackedLabel(b, 'cassette')).toBe('Cassette A, Cassette B')
     expect(trackedLabel(b, 'tire_front')).toBeNull()
+  })
+})
+
+describe('buildInitialRows: presetChecked', () => {
+  const bike = { name: 'Soloist', bike_component_slots: [] } as unknown as BikeDetail
+  const roadType = { id: 1, name: 'Road', default_categories: ['chain'] } as unknown as BikeType
+  const settings = [{ category: 'cassette', allows_multiple_assignments: true, default_ride_context: 'both' }] as unknown as ComponentCategorySetting[]
+
+  it("sets presetChecked where the preset checks a row, and never autoChecked", () => {
+    const rows = buildInitialRows(['chain', 'cassette', 'tire_front'], bike, roadType, settings)
+    expect(rows.chain[0]).toMatchObject({ checked: true, presetChecked: true, autoChecked: false })
+    expect(rows.cassette[0]).toMatchObject({ checked: false, presetChecked: false })
+    expect(rows.tire_front[0]).toMatchObject({ checked: false, presetChecked: false })
+  })
+
+  it('has no preset note without a bike type', () => {
+    expect(buildInitialRows(['chain'], bike, undefined, []).chain[0]).toMatchObject({ checked: false, presetChecked: false })
   })
 })

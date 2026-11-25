@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyRowChange, blurChange, isEmptyRow, withActivation } from './setupRowActivation'
+import { applyRowChange, blurChange, deliberateCheck, isEmptyRow, typedChange, withActivation } from './setupRowActivation'
 
 const blank = { checked: false, autoChecked: false, label: '', brand: '', model: '', notes: '' }
 const deliberate = { ...blank, checked: true } // checkbox, "Check all" or a preset
@@ -56,5 +56,26 @@ describe('applyRowChange', () => {
   it('keeps the typed values when unchecking by hand', () => {
     const typed = { ...auto, label: 'Race', brand: 'Shimano', model: 'CS-R8100' }
     expect(applyRowChange(typed, { checked: false, autoChecked: false })).toEqual({ ...typed, checked: false, autoChecked: false })
+  })
+})
+
+describe('presetChecked ("Ticked by preset")', () => {
+  const preset = { ...blank, checked: true, presetChecked: true }
+
+  it('clears on typing, and never makes a preset row autoChecked', () => {
+    expect(typedChange(preset, { brand: 'S' })).toEqual({ brand: 'S', presetChecked: false })
+  })
+
+  it('leaves a row without the note alone, so an unchecked row still auto-checks', () => {
+    expect(typedChange({ ...blank, presetChecked: false }, { label: 'x' })).toEqual({ label: 'x', checked: true, autoChecked: true })
+  })
+
+  it('clears on the checkbox (uncheck), Check all and Clear all, as a deliberate check', () => {
+    expect(deliberateCheck(false)).toEqual({ checked: false, autoChecked: false, presetChecked: false })
+    expect(deliberateCheck(true)).toEqual({ checked: true, autoChecked: false, presetChecked: false })
+  })
+
+  it('stays checked when emptied (a preset is deliberate)', () => {
+    expect(blurChange(preset)).toBeNull()
   })
 })

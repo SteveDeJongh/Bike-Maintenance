@@ -7,7 +7,7 @@ import { useComponentSetup, type ComponentSetupRow } from '../api/mutations'
 import { useAllCategories } from '../hooks/useAllCategories'
 import { todayIsoDate } from '../utils/datetime'
 import { setupRowLabel } from '../utils/setupRowLabel'
-import { applyRowChange, blurChange } from '../utils/setupRowActivation'
+import { applyRowChange, blurChange, deliberateCheck } from '../utils/setupRowActivation'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import type { ComponentSuggestionInput } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
@@ -182,7 +182,7 @@ function SetupChecklist({
   function setAllChecked(checked: boolean) {
     setRowsByCategory((prev) =>
       Object.fromEntries(
-        Object.entries(prev).map(([category, rows]) => [category, rows.map((row) => ({ ...row, checked, autoChecked: false }))]),
+        Object.entries(prev).map(([category, rows]) => [category, rows.map((row) => ({ ...row, ...deliberateCheck(checked) }))]),
       ),
     )
   }
@@ -269,6 +269,7 @@ function SetupChecklist({
               key={row.key}
               category={category}
               bikeName={bike.name}
+              presetName={bikeType?.name ?? null}
               row={row}
               isFirstRowOfCategory={rowIndex === 0}
               existingContexts={existingContexts}

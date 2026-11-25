@@ -38,6 +38,20 @@ export function blurChange(row: Checkable & RowValues): { checked: false; autoCh
   return row.checked && row.autoChecked && isEmptyRow(row) ? { checked: false, autoChecked: false } : null
 }
 
+// Any typed value (Label, Brand/Model input, Notes): withActivation, and
+// from then on the row is the user's, so a preset's "Ticked by" note clears.
+// Never touches autoChecked on a checked row.
+export function typedChange<T extends object>(row: Checkable & { presetChecked?: boolean }, changes: T) {
+  const activated = withActivation(row, changes)
+  return row.presetChecked ? { ...activated, presetChecked: false as const } : activated
+}
+
+// The checkbox, "Check all" and "Clear all": a deliberate check (stays
+// checked when emptied) that also clears the preset's note.
+export function deliberateCheck(checked: boolean): { checked: boolean; autoChecked: false; presetChecked: false } {
+  return { checked, autoChecked: false, presetChecked: false }
+}
+
 // How a row applies a change: a shallow merge, so unchecking
 // ({ checked: false }) keeps whatever was typed.
 export function applyRowChange<R extends Checkable>(row: R, changes: Partial<R>): R {
