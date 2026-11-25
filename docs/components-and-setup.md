@@ -255,11 +255,20 @@ from a user-editable **bike type** preset.
   fixed, not re-selectable, since `"both"` and a split pairing can't coexist). A
   category with one context already slotted (e.g. `outdoor_only` tracked
   elsewhere) offers only the missing one, pre-labeled with what's already tracked.
-  Checked-row fields (label pre-filled `"{bike name} {category label}"`,
-  brand/model, notes collapsed by default behind a toggle) and un-checked rows
+  Checked-row fields (label, brand/model, notes collapsed by default behind
+  a toggle) and un-checked rows
   render the exact same row height — every input is always rendered, just
   `disabled` when unchecked, instead of appearing/disappearing, so toggling a
-  checkbox never reflows the table. One shared "Installed since" `DateInput`
+  checkbox never reflows the table. **Label starts blank** on every row
+  (the complementary split row too); left empty, it saves a fallback that the
+  input shows live as its placeholder: `"{brand} {model}"` (whichever exist),
+  else `"{bike name} {category label}"`, plus `" (Outdoor only)"`/`" (Trainer
+  only)"` (`RIDE_CONTEXT_LABELS`) on a split row so two rows of one category
+  don't read the same. A typed label is sent as typed, trimmed. One pure
+  helper, `setupRowLabel` (`utils/setupRowLabel.ts`), feeds both the
+  placeholder and the submit, so they can't drift. Frontend only: the
+  endpoint still requires a label (`Component` validates presence) and always
+  gets one. One shared "Installed since" `DateInput`
   (default `bike.acquired_on`, else today) applies to every checked row; its helper
   text calls out that Strava rides before that date won't count toward these
   components (existing attribution behavior, not new logic — see "Core logic"
@@ -299,11 +308,20 @@ table cell per row, not two).
   models only ever come from the user's own data.
   `frontend/src/hooks/useComponentSuggestions.ts` wraps the `useComponents()` query
   into `{ brands, models }` (distinct, case-insensitively grouped, with counts),
-  and takes an optional `extra` array to merge in not-yet-saved values — `BikeSetup`
-  passes every other checklist row's current brand/model/category (memoized over
-  its row state), so typing "SRAM" in one row suggests it in another before either
-  saves.
-- **Ranking** (`frontend/src/utils/componentSuggestions.ts`, plain functions — not unit-tested yet; per the Vitest convention in CLAUDE.md they should get tests next time they change): brand suggestions group into
+  (`buildSuggestionPool`), and takes an optional `extra` array to merge in
+  not-yet-saved values. **The setup page builds one pool for the whole page**:
+  `SetupChecklist` calls the hook once with every row's unsaved
+  brand/model/category and passes the result to each row's inputs as
+  `suggestions` (`ComponentFormModal` omits it and uses the hook directly).
+  So typing "SRAM" in one row suggests it in another before either saves. The
+  unsaved list is keyed on brand/model/category only (a label, note or
+  checkbox change leaves the pool alone) and goes through `useDeferredValue`,
+  so a keystroke updates its own row first and the other rows' suggestions
+  catch up in a background render; `SetupTableRow` is `React.memo` with stable
+  `(category, key, …)` callbacks, so a keystroke re-renders only its row
+  (measured: all 18 rows took ~46 ms dev / 21 ms prod per keystroke before,
+  one row ~2.6 / 1.5 ms). Don't debounce the controlled inputs themselves.
+- **Ranking** (`frontend/src/utils/componentSuggestions.ts`, plain functions, tested in `componentSuggestions.test.ts`): brand suggestions group into
   "Your brands" (usage count descending, then alphabetical) and "Common brands"
   (the current category's `common_brands` minus anything already in the first
   group, case-insensitively, alphabetical — empty, and the group simply omitted,
@@ -317,7 +335,7 @@ table cell per row, not two).
   function needed for that part.
 - **Casing**: on blur, the typed value is trimmed and, if it matches a suggestion
   case-insensitively, replaced with that suggestion's exact casing
-  (`resolveCasing`) — models compare only against models of the matching brand.
+  (`resolveCasing`; `onChange` fires only when that changes the value) — models compare only against models of the matching brand.
   This is deliberately a frontend-only nudge, not a server-side rule — `Component`'s
   `normalizes` (see the data model above) only squishes whitespace, it never
   touches case, so two differently-cased spellings of the same brand can still
