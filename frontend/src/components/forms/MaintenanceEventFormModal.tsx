@@ -20,6 +20,7 @@ import ServiceSessionViewModal from './ServiceSessionViewModal'
 import LogServiceTitle from '../logService/LogServiceTitle'
 import ServicePills from '../logService/ServicePills'
 import DoneOnField from '../logService/DoneOnField'
+import ResetsPanel from '../logService/ResetsPanel'
 import { defaultServiceTypeId, primaryAction, servicePills, sessionLockText } from '../logService/logServiceModel'
 
 interface MaintenanceEventFormValues {
@@ -289,6 +290,23 @@ function MaintenanceEventForm({
               onChange={(value) => form.setFieldValue('notes', value)}
               disabled={noComponent}
             />
+
+            {component && (
+              <ResetsPanel
+                componentId={component.id}
+                requirements={component.service_requirements}
+                serviceTypeId={
+                  form.values.service_type_id && form.values.service_type_id !== CREATE_NEW_SERVICE_TYPE
+                    ? Number(form.values.service_type_id)
+                    : null
+                }
+                isEdit={isEdit}
+                distanceAtServiceMeters={
+                  component.maintenance_events.find((logged) => logged.id === event?.id)?.component_distance_at_event_meters ?? 0
+                }
+                onNavigate={onClose}
+              />
+            )}
           </Stack>
         </form>
       )}

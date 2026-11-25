@@ -1,4 +1,5 @@
-import { requirementFraction } from '../component/componentPageModel'
+import { drivingAmounts, requirementFraction, requirementRuleText } from '../component/componentPageModel'
+import { formatDistance } from '../../utils/distance'
 import type { ComponentDetail, ComponentServiceRequirementWithStatus, ServiceStatus } from '../../types/models'
 
 // The Log service modal's pure pieces (MaintenanceEventFormModal): the
@@ -130,4 +131,65 @@ export function sessionLockText(session: { performed_at: string } | undefined, b
   if (!session) return 'Part of a service session'
   const day = new Date(session.performed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   return `Part of the ${day} service session${bikeName ? ` on ${bikeName}` : ''}`
+}
+
+// --- "What this resets" ---
+
+export interface ResetRow {
+  id: number
+  name: string
+  rule: string
+  fraction: number
+  status: ServiceStatus
+  resets: boolean
+  // "196 km → 0 · resets" / "Reset at 1,160 km" / "Not affected".
+  outcome: string
+}
+
+const amount = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+
+// How much of the driving dimension is used: "196 km", "10 hrs", "40 days".
+export function usedText(requirement: ComponentServiceRequirementWithStatus): string {
+  const { used } = drivingAmounts(requirement)
+  const value = used ?? 0
+  switch (requirement.driving_dimension) {
+    case 'distance':
+      return `${amount(Math.round(value / 1000))} km`
+    case 'moving_time':
+      return `${amount(value / 3600)} hrs`
+    default:
+      return `${amount(value)} ${value === 1 ? 'day' : 'days'}`
+  }
+}
+
+// One row per enabled requirement. Logging: a requirement whose
+// satisfiers include the chosen type resets ("196 km → 0 · resets"),
+// the rest are "Not affected". Editing: the same split, worded as what
+// happened -- "Reset at 1,160 km" (the component's distance at the
+// service).
+export function resetRows(
+  requirements: readonly ComponentServiceRequirementWithStatus[],
+  serviceTypeId: number | null,
+  mode: { kind: 'log' } | { kind: 'edit'; distanceAtServiceMeters: number },
+): ResetRow[] {
+  return requirements
+    .filter((requirement) => requirement.enabled)
+    .map((requirement) => {
+      const resets = serviceTypeId != null && requirement.satisfiers.some((satisfier) => satisfier.service_type_id === serviceTypeId)
+      let outcome = 'Not affected'
+      if (resets) outcome = mode.kind === 'log' ? `${usedText(requirement)} → 0 · resets` : `Reset at ${formatDistance(mode.distanceAtServiceMeters)}`
+      return {
+        id: requirement.id,
+        name: requirement.requirement_name,
+        rule: requirementRuleText(requirement),
+        fraction: requirementFraction(requirement),
+        status: requirement.status,
+        resets,
+        outcome,
+      }
+    })
+}
+
+export function resetsTitle(isEdit: boolean): string {
+  return isEdit ? 'What this service reset' : 'What this resets'
 }

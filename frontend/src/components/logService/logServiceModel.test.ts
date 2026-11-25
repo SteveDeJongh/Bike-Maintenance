@@ -5,6 +5,8 @@ import {
   lastRideLine,
   MAX_RECENT_PILLS,
   primaryAction,
+  resetRows,
+  resetsTitle,
   servicePills,
   sessionLockText,
 } from './logServiceModel'
@@ -153,5 +155,40 @@ describe('sessionLockText', () => {
   it('names the session date and bike', () => {
     expect(sessionLockText({ performed_at: '2026-11-14T09:00:00' }, 'Libre')).toBe('Part of the Nov 14 service session on Libre')
     expect(sessionLockText(undefined, undefined)).toBe('Part of a service session')
+  })
+})
+
+describe('resetRows', () => {
+  const requirements = [
+    requirement(1, 'Wax', [[11, 'Drip wax', 1]], { distance_used_meters: 196_000, distance_remaining_meters: 4_000, status: 'warning' }),
+    requirement(2, 'Clean', [[13, 'Degrease', 1]]),
+    requirement(3, 'Hours', [[11, 'Drip wax', 1]], { driving_dimension: 'moving_time', moving_time_used_seconds: 36_000, moving_time_remaining_seconds: 0 }),
+    requirement(4, 'Off', [[11, 'Drip wax', 1]], { enabled: false }),
+  ]
+
+  it('logging: a satisfier resets ("196 km → 0 · resets"), the rest are not affected; disabled ones are left out', () => {
+    const rows = resetRows(requirements, 11, { kind: 'log' })
+    expect(rows.map((row) => [row.name, row.resets, row.outcome])).toEqual([
+      ['Wax', true, '196 km → 0 · resets'],
+      ['Clean', false, 'Not affected'],
+      ['Hours', true, '10 hrs → 0 · resets'],
+    ])
+    expect(rows[0].fraction).toBeCloseTo(0.98)
+    expect(rows[0].rule).toMatch(/^Every 200 km/)
+  })
+
+  it('with no type chosen nothing resets', () => {
+    expect(resetRows(requirements, null, { kind: 'log' }).every((row) => !row.resets)).toBe(true)
+  })
+
+  it('editing: "Reset at <km>" for what the service reset', () => {
+    const rows = resetRows(requirements, 13, { kind: 'edit', distanceAtServiceMeters: 1_160_000 })
+    expect(rows.map((row) => row.outcome)).toEqual(['Not affected', 'Reset at 1,160 km', 'Not affected'])
+    expect(resetsTitle(true)).toBe('What this service reset')
+    expect(resetsTitle(false)).toBe('What this resets')
+  })
+
+  it('is empty without enabled requirements', () => {
+    expect(resetRows([], 11, { kind: 'log' })).toEqual([])
   })
 })
