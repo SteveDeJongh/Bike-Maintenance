@@ -5,12 +5,12 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on three tables: the Strava page's Rides tab and the Maintenance Events/Assignments
-lists (each its own `table_key`: `strava_rides`, `maintenance_events`,
-`assignments`). The Bikes list, the Components list and the bike page's installed
-components were tables too; they're now `DataList`s ("Bikes page", "Components page"
-and "Bike page" below), still saving through `useTableViewPreferences` (`bikes`,
-`components`, `bike_installed_components`). The bike page's old History and Ride history tables are
+on two tables: the Strava page's Rides tab and the Assignments list (each its own
+`table_key`: `strava_rides`, `assignments`). The Bikes list, the Components list, the
+bike page's installed components and the Maintenance page were tables too; they're now
+`DataList`s ("Bikes page", "Components page", "Bike page" and "Maintenance page"
+below), still saving through `useTableViewPreferences` (`bikes`, `components`,
+`bike_installed_components`, `maintenance_events`). The bike page's old History and Ride history tables are
 gone; their `bike_history`/`bike_rides` preference rows are unused.
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
   grouped `DataList` (see "Shared building blocks" below and
@@ -36,15 +36,15 @@ A future page can adopt the same UX without rework:
   hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
   `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
   the preferences query's data **once**, on mount — the calling page must not render
-  the component that calls this hook until that query has resolved (`MaintenanceEvents.tsx`
+  the component that calls this hook until that query has resolved (`Assignments.tsx`
   gates on its preference query before rendering its table). If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
   force a remount via `key={tableKey}` rather than relying on the hook to notice the
   change. An optional `extraData` getter lets a page keep one more piece of state in
   the same `TableViewPreference` row alongside columns/sort, spread into every save
   the hook makes so toggling a column never silently drops it (a `PATCH` replaces the
-  whole `data` value, no deep merge) — the Activity log's persisted kind-chip
-  selection is the only user of this so far; every other adopter omits it.
+  whole `data` value, no deep merge) — Activity, Bikes, Components and Maintenance
+  keep their kinds, filters and grouping this way; the tables omit it.
 - `frontend/src/components/datatable/ColumnPicker.tsx` — the "+" icon/popover column
   picker (rendered as the last `<Table.Th>` in the header row, not floated above the
   table), with a draggable "Visible" section and a static "Available" section.
@@ -75,8 +75,7 @@ A future page can adopt the same UX without rework:
   pieces trying to support every possible column type generically. A pinned
   column is specifically one with a real navigation target (consistently true
   across every adopter so far: Bikes' Name, the Bike detail
-  tables' Category+Component, Maintenance Events' Component, Assignments'
-  Component+Bike) — not just "the most important field." A row can have more than
+  tables' Category+Component, Assignments' Component+Bike) — not just "the most important field." A row can have more than
   one pinned column when its identity genuinely needs more than one coordinate
   (Category+Component; Component+Bike) rather than one. If a column that becomes pinned isn't linked yet, add the link as part of adopting this —
   "pinned" is expected to mean "clickable" everywhere in the app.
@@ -108,7 +107,7 @@ A future page can adopt the same UX without rework:
   but still saves through the exact same `PATCH` path as a desktop header
   click, so a sort chosen on the phone is the one desktop sees next. A table
   with no click-to-sort at all would render no `MobileSortControl`, matching having
-  no sortable `DraggableHeaderCell`s on desktop. `MaintenanceEvents.tsx` is the reference implementation for both pieces, the
+  no sortable `DraggableHeaderCell`s on desktop. `Assignments.tsx` is the reference implementation for both pieces, the
   same role it already plays for the table/column-picker side — it reuses the
   exact sorted array the desktop table already computes rather than duplicating
   the sort logic for cards.
@@ -117,7 +116,7 @@ A future page can adopt the same UX without rework:
   "Layout and navigation" below for why that boundary had to be made exact,
   rather than relying on two independently-resolved breakpoints to agree by
   coincidence.
-- **Tables with card view**: `maintenance_events`, `assignments`.
+- **Tables with card view**: `assignments`.
   `assignments`' card uses a two-line title (Component, then Bike dimmed underneath,
   both independently tappable) for its two pinned columns: a card's title slot
   always carries every pinned column, arranged to read naturally for that table.
@@ -142,14 +141,14 @@ sort-keys constant if any pinned column should be sortable too (mirroring
 `BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
 `columnValue` map (comparable value per sortable column, `null` for "not
 applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
-column) keyed the same way `MaintenanceEvents.tsx` does. Call `useTableViewPreferences` with
+column) keyed the same way `Assignments.tsx` does. Call `useTableViewPreferences` with
 those constants, then render pinned columns by hand and map the configurable ones
 through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
-header cell — `MaintenanceEvents.tsx` is the reference implementation to copy the shape from.
+header cell — `Assignments.tsx` is the reference implementation to copy the shape from.
 **A new adopter must render both views** — the desktop `<Table>` and, below
 `useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
 `<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
-not just the table; `MaintenanceEvents.tsx` is the reference shape for both. Don't add new
+not just the table; `Assignments.tsx` is the reference shape for both. Don't add new
 per-row computed/aggregated columns to a list page without checking whether the
 underlying data is already batched for that scale (see `Component#total_distance`'s
 note above) — this mechanism makes columns easy to add, but doesn't change the cost
@@ -178,10 +177,11 @@ the same.
   - The fades come from `useHorizontalOverflow`, whose edge maths is `overflowEdges`
     (`utils/horizontalOverflow.ts`).
   - The row is a `role="group"` named by `label`. Tiles aren't focus stops.
-  - Minimums today: Home 220px, Activity 140px.
+  - Minimums today: Home 220px, Activity 140px, Components and Maintenance 150px.
 - **`DataList`** (`components/datalist/`): the list style for anything that isn't a
   configurable `<Table>`. Activity, the Bikes table, the Components list, the bike
-  page's installed components and Rides, and the Bike setup checklist use it.
+  page's installed components and Rides, the Bike setup checklist and the Maintenance
+  page use it.
   - **`DataList`** `({ template, minWidth, stacked })`: one CSS grid in a Paper, which
     scrolls sideways inside itself below `minWidth`. `stacked` drops the grid for a
     phone layout.
@@ -209,9 +209,11 @@ the same.
     Without `onOpen` it's a plain row on the same grid and styling, with no button role,
     hover or click: the Bike setup checklist's rows, which are full of inputs, are these.
     `tone` is `warning` (the no-bike orange), `muted` (a retired or already-tracked row),
-    `highlight` (a deep-linked row) or `error` (a row the server rejected).
+    `highlight` (a deep-linked row), `error` (a row the server rejected) or `session`
+    (a service session's header and its services on the Maintenance page: half the
+    band background, via `color-mix`).
   - **`DataListBand`** `({ title, aside })`: a full-width row between data rows, such as
-    Activity's week bands.
+    Activity's week bands and the Maintenance page's month and component bands.
   - **Alignment:** the header and every row are subgrids of the one parent grid, so a
     field column is as wide as its widest value across all rows and cells always line
     up. Each child of a row is one cell, and a cell may span tracks (`gridColumn`).
@@ -581,6 +583,137 @@ components, Service & component history, and Rides.
     items.
   - **`overview.mounted` and `overview.off_bike`** come from `Bikes::CardComponents`.
   - **Both builders** are the same ones Home's `GET /dashboard` uses.
+
+## Maintenance page
+
+`/maintenance-events` (`pages/MaintenanceEvents.tsx`, `components/maintenanceLog/`),
+in the Activity look. The nav item and heading say "Maintenance". The route kept its
+old path.
+
+- **Naming:** user-facing text calls one `MaintenanceEvent` a **service** and a
+  `ServiceSession` a **service session**, everywhere on this page and in
+  `MaintenanceEventFormModal` ("Log service", "Edit service", "Delete service").
+- **Header:** "Maintenance" with the dimmed line "Every service you've logged, in
+  sessions or one at a time". On the right:
+  - **Log service** (outline) opens `MaintenanceEventFormModal`, with the existing
+    component `Select` (part 2 adds a component picker).
+  - **Log service session** (primary) opens `BatchServiceModal` for
+    `defaultSessionBike`: the active bike ridden most recently, else the first by name.
+    It's disabled with no active bike. Part 3 adds a bike switcher inside the modal.
+  - **On a phone:** "86 services this year" replaces the dimmed line, and one 44px Log
+    service menu offers "One component" and "Service session on a bike".
+- **Tiles** (`MaintenanceLogTiles`, a `TileRow` at 150px, `maintenanceTiles`):
+  - Services this year, Sessions (this year) and Last service, from `meta.tiles`. These
+    are unfiltered, and "this year" is in the viewer's zone.
+  - **Due · soon**, orange when non-zero. It's `componentTileCounts` over
+    `useComponents()`, the Components tile's own count, so the two pages can't
+    disagree.
+  - **Most serviced** ("Chain S1 · 14"), this year.
+- **Toolbar** (`MaintenanceLogToolbar`, Activity's shape):
+  - **Row 1, left:** the Sessions (filled teal dot) and Single events (teal ring) pills,
+    each with a count. At least one stays on.
+  - **Row 1, right:** Group by Month | Component | None, then `FieldsPicker` (cap 5).
+  - **Row 2:** the search ("Search service, component or note"), then Bike, Category
+    and Service type `FilterMenu`s and `DateRangePill` (`components/toolbar/`, shared
+    with Activity; presets from `presetRange` in `activity/dateRanges.ts`; default
+    This year, "All time" clears it). Clear filters shows when anything differs from
+    the defaults.
+  - **Phone:** a full-width search and a View button, badged with the number of
+    non-default choices (`viewBadgeCount`), that opens `MaintenanceLogViewSheet` (the
+    kind pills, Group by, Sort and Fields). The filter pills scroll sideways under it,
+    and the targets are 44px.
+- **Saved view** (`useMaintenanceLogView`): the `maintenance_events`
+  `TableViewPreference` holds:
+  - `columns`, `sort_column` and `sort_direction`;
+  - `kinds`, `group_by`, `bike_id`, `category` and `service_type_id`;
+  - `date_preset` (`"all"` for All time) and `date_range` (a custom from/to).
+
+  Every save sends the full object. The search text isn't saved. `readMaintenanceView`
+  validates it all on load, and the old table's columns fall back to the default
+  Fields. The server checks `group_by` (`month`, `component`, `none`).
+- **List** (`MaintenanceLogList`, a `DataList`; `buildMaintenanceRenderList` decides
+  the rows):
+  - **Columns** (`maintenanceListLayout`): Date (day over date) | an icon gutter |
+    Service | the Fields | a trailing column for "View session ›".
+    - **Service:** the type, its time, a "↺ Wax" outline chip per requirement it
+      resets, and the notes dimmed under it.
+    - **Fields** (`maintenanceLogFields.ts`): Component (linked, category under it),
+      Bike ("Off the bike" dimmed), Component km (bold) and Since last by default.
+      Category, Bike km and Logged on are available too.
+  - **Service sessions:** a header row (wrench, "Service session", time, a teal
+    "3 services" chip, the note, the bike, "View session ›") with its services under
+    it on a teal line-and-dot gutter. Both use the `session` tone. When filters hide
+    some services the chip reads "2 of 3 services". A session split across Load more
+    pages keeps one header.
+  - **Grouping:**
+    - **Month** (default): bands "November 2026 · 18 services · 5 sessions · 9
+      components", with totals from `meta.month_totals`. They're right across Load
+      more, and a month has one band. The date shows on each day's first row.
+    - **Component:** a band per component ("Chain S1 · 14 services",
+      `meta.component_totals`) and no session headers. A session's service gets a
+      dimmed "Session" link instead.
+    - **None:** no bands, and every row shows its date. Session headers stay.
+  - **Sorting:** Date (default newest first), Component km and Since last, by header
+    click. A field sort flattens the list (no bands or session headers) with a dimmed
+    note under the toolbar. The saved grouping returns with Date.
+  - **Clicks:** a session header opens `ServiceSessionViewModal`, and a service opens
+    `MaintenanceEventFormModal` in edit mode, which now has **Delete service**. The
+    Component link only navigates. The accessible names read "Drip wax, Chain S1,
+    Nov 14, open".
+  - **Empty states:** "No services logged yet" (no last service at all) with Log
+    service, otherwise "No services match these filters" with Clear filters.
+  - **Footer:** Load more and "Showing 14 of 86".
+- **Phone:** the same list stacked. Each band becomes a small header above its own
+  card (`splitIntoCards`).
+  - **A service:** the icon, the type, the date on the right, then "Chain S2 · Off the
+    bike · at 1,020 km" (`phoneMetaLine`).
+  - **A session:** a header (icon, "Service session", date, "Libre CR/DL · 3
+    services"), then its services indented, type over component, with the component km
+    on the right.
+- **Data:** `GET /maintenance_events` is `Maintenance::EventLog`, scoped through
+  `current_user`.
+  - **Params:** `kinds[]` (`session`, `single`), `bike_id`, `category`,
+    `service_type_id`, `from`/`to` with `tz`, `q`, `group`, `sort` (`date`,
+    `component_km`, `since_last`), `order`, and `cursor` or `page`, `per_page`.
+  - **Returns:** `{ events, sessions, meta, next_cursor }`.
+  - **One base relation** for the page, the counts and the band totals.
+    - **The bike** is the session's bike, or for a single service the bike its
+      component was on at `performed_at`. That's `Maintenance::EventBikeSql`, shared
+      with `Activity::Feed`. Both the Bike filter and the Bike column use it.
+    - **`q`** matches the service type name, the component's label, brand and model,
+      the service's notes and its session's notes. A session-note match brings in
+      every service in that session.
+  - **Paging:**
+    - **Date order** (Month and None): keyset on `(performed_at,
+      COALESCE(service_session_id, 0), id)`. A session's services share
+      `performed_at`, so they stay together.
+    - **Component grouping and the field sorts:** offset paging. The field sorts
+      compute over the whole filtered set, then slice. That's fine at hundreds of
+      services; a cached distance would be the next step if it ever isn't.
+  - **Per service, all batched:**
+    - **Component km at the service:** `Maintenance::EventDistanceQuery`, shared with
+      the component page's history. It counts rides before `performed_at` under the
+      assignments' `RideContextSql`.
+    - **Since last:** the difference from the previous service of the same type on the
+      same component, across all the user's services whatever the filters
+      (`LAG(id)`); null for the first. A split indoor/outdoor slot counts only its own
+      rides.
+    - **Bike km:** the bike's rides before `performed_at`, as its odometer counts them;
+      null off the bike.
+    - **`resets`:** the names of the component's enabled requirements whose effective
+      satisfiers include the type, today's ones (`satisfier_owner`/`effective_name`).
+  - **`sessions`:** by id, with `event_count` and `matching_count`.
+  - **`meta`:**
+    - `total`;
+    - `kind_counts`, under every filter but kinds: sessions counted as sessions,
+      single services as services;
+    - `tiles`;
+    - `month_totals` for the page's months, with local month bounds from Ruby's zone
+      via `width_bucket`;
+    - `component_totals`.
+- **Invalidation:** the key is `['maintenance_events', 'log', …]`. That's in `history`
+  (every service and session write, rides, assignments, bikes) and in `intervals`,
+  because requirement and satisfier edits change the reset chips.
 
 ## Theming
 

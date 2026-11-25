@@ -444,8 +444,9 @@ Strava gear tracking is per-bike, not per-component, so mileage attribution is c
   lifetime distance, moving time and elevation. Average power is pooled over the
   metered rides, which is safe because one component's windows never cover the same
   ride. A parity spec checks all of it against the Ruby methods.
-- `component_distance_at_event_meters` is one more query. For each maintenance
-  event, it sums the attributed ride distance (same windows, same `RideContextSql`
+- `component_distance_at_event_meters` is one more query,
+  `Maintenance::EventDistanceQuery` (shared with the Maintenance page's log, which
+  also derives "since last" from it). For each maintenance event, it sums the attributed ride distance (same windows, same `RideContextSql`
   predicate) with `moved_at` **strictly before** `performed_at`, so a ride at the
   same instant counts after the service. Off-bike time adds nothing. Its cost is
   events × the rides in the component's windows. If that ever gets slow, the

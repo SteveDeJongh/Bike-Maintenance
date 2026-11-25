@@ -153,7 +153,8 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
   the keyset `WHERE (occurred_at, kind_rank, source_id) < (...)` tuple comparison
   needs every column compared the same direction to stay correct. A session-less
   `maintenance_event`'s bike isn't a stored column — resolved at `performed_at` via
-  a `LEFT JOIN LATERAL` against `component_assignments` (Postgres-specific, same tier
+  `Maintenance::EventBikeSql`'s `LEFT JOIN LATERAL` against `component_assignments`
+  (shared with the Maintenance page's `Maintenance::EventLog`) (Postgres-specific, same tier
   of raw SQL this codebase already uses for window functions/`IS DISTINCT FROM`) —
   live in the SQL itself, not a post-hydration lookup, since the `bike_id` filter
   needs it too. `component_id` filtering for rides reuses

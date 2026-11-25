@@ -19,7 +19,7 @@ export const INVALIDATION_GROUPS = {
   // mounted state -- i.e. everything Maintenance::IntervalStatus feeds.
   // Changes whenever rides, events, assignments, or intervals change.
   serviceStatus: [['components'], ['bikes'], ['serviceable_components'], ['maintenance_alerts'], ['dashboard'], ['ride_detail']],
-  // Logged history: the activity feed, the maintenance event list, and
+  // Logged history: the activity feed, the Maintenance page's log, and
   // service session detail views -- plus service types, whose event_count
   // (Settings -> Service types) changes with every logged event.
   history: [['activity'], ['maintenance_events'], ['service_sessions'], ['service_types'], ['ride_detail']],
@@ -33,8 +33,10 @@ export const INVALIDATION_GROUPS = {
   rides: [['strava_rides'], ['activity'], ['ride_detail']],
   // Category templates and per-component service requirement config --
   // plus service types: adding/switching a satisfier can auto-tag its type
-  // with the requirement's category, and changes requirement_count.
-  intervals: [['category_service_requirements'], ['component_service_requirements'], ['service_types']],
+  // with the requirement's category, and changes requirement_count -- and
+  // the Maintenance page's log, whose "↺ <requirement>" chips name the
+  // requirements each service resets.
+  intervals: [['category_service_requirements'], ['component_service_requirements'], ['service_types'], ['maintenance_events']],
   // Per-category settings, including brands remembered from component saves
   // (Component#remember_brand).
   categorySettings: [['component_category_settings']],
