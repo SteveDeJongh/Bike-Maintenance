@@ -16,8 +16,9 @@ interface ComponentBrandModelInputsProps {
   // casing fix -- BikeSetup checks its row on input only, so tabbing past
   // a field never checks it. The modal ignores it.
   onChange: (changes: { brand?: string; model?: string }, reason: 'input' | 'blur') => void
-  // Passed to both fields (BikeSetup: a click or tap checks the row).
-  onPointerDown?: () => void
+  // Called when either field loses focus, after its casing fix (BikeSetup:
+  // an auto-checked row that's been emptied unchecks itself).
+  onBlur?: () => void
   // Narrows model suggestions to this category (ranking a matching category
   // first) and picks which category's ComponentCategorySetting#common_brands
   // feeds the "Common brands" group -- omitted where a category genuinely
@@ -46,7 +47,7 @@ export default function ComponentBrandModelInputs({
   size,
   disabled,
   suggestions: pool,
-  onPointerDown,
+  onBlur,
 }: ComponentBrandModelInputsProps) {
   // Cheap with a pool passed: memoized on the cached components list, so it
   // only computes when that changes.
@@ -68,6 +69,7 @@ export default function ComponentBrandModelInputs({
   function resolveOnBlur(field: 'brand' | 'model', value: string, options: string[]) {
     const resolved = resolveCasing(value, options)
     if (resolved !== value) onChange({ [field]: resolved }, 'blur')
+    onBlur?.()
   }
 
   function handleModelOptionSubmit(value: string) {
@@ -89,7 +91,6 @@ export default function ComponentBrandModelInputs({
         limit={10}
         value={brand}
         onChange={(value) => onChange({ brand: value }, 'input')}
-        onPointerDown={onPointerDown}
         onBlur={() => resolveOnBlur('brand', brand, allBrandNames)}
         style={fieldStyle}
       />
@@ -101,7 +102,6 @@ export default function ComponentBrandModelInputs({
         limit={10}
         value={model}
         onChange={(value) => onChange({ model: value }, 'input')}
-        onPointerDown={onPointerDown}
         onOptionSubmit={handleModelOptionSubmit}
         onBlur={() => resolveOnBlur('model', model, modelOptions)}
         style={fieldStyle}

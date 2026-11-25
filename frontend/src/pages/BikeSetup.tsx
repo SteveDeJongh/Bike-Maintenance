@@ -26,7 +26,7 @@ import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
 import { setupRowLabel } from '../utils/setupRowLabel'
-import { activationChange, applyRowChange, withActivation } from '../utils/setupRowActivation'
+import { applyRowChange, blurChange, withActivation } from '../utils/setupRowActivation'
 import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import type { ComponentSuggestionInput, SuggestionPool } from '../utils/componentSuggestions'
@@ -44,6 +44,9 @@ interface SetupRow {
   // one left once its sibling already exists.
   rideContextEditable: boolean
   checked: boolean
+  // Checked by typing (not the checkbox, "Check all"/"Clear all" or a bike
+  // type preset): unchecks itself when emptied (setupRowActivation.ts).
+  autoChecked: boolean
   label: string
   brand: string
   model: string
@@ -54,7 +57,7 @@ interface SetupRow {
 // Label starts blank: left empty, it saves setupRowLabel's brand/model
 // fallback, which the input shows as its placeholder.
 function makeRow(key: string, rideContext: RideContext, rideContextEditable: boolean, checked: boolean): SetupRow {
-  return { key, rideContext, rideContextEditable, checked, label: '', brand: '', model: '', notes: '', notesExpanded: false }
+  return { key, rideContext, rideContextEditable, checked, autoChecked: false, label: '', brand: '', model: '', notes: '', notesExpanded: false }
 }
 
 // One row per addable (category, ride_context) combination -- a plain
@@ -262,10 +265,22 @@ function SetupChecklist({
     setRowsByCategory((prev) => ({ ...prev, [category]: prev[category].filter((row) => row.key !== key) }))
   }, [])
 
+  // Blur from Label/Brand/Model/Notes: uncheck an emptied auto-checked row.
+  // Inside the updater, so it sees a change queued on the same blur (the
+  // casing fix); returning prev when there's nothing to do skips the render.
+  const blurRow = useCallback((category: string, key: string) => {
+    setRowsByCategory((prev) => {
+      const row = prev[category]?.find((r) => r.key === key)
+      const changes = row && blurChange(row)
+      if (!changes) return prev
+      return { ...prev, [category]: prev[category].map((r) => (r.key === key ? applyRowChange(r, changes) : r)) }
+    })
+  }, [])
+
   function setAllChecked(checked: boolean) {
     setRowsByCategory((prev) =>
       Object.fromEntries(
-        Object.entries(prev).map(([category, rows]) => [category, rows.map((row) => ({ ...row, checked }))]),
+        Object.entries(prev).map(([category, rows]) => [category, rows.map((row) => ({ ...row, checked, autoChecked: false }))]),
       ),
     )
   }
@@ -386,6 +401,7 @@ function SetupChecklist({
                 onRideContextChange={changeRideContext}
                 onAddComplementary={addComplementaryRow}
                 onRemove={removeRow}
+                onBlur={blurRow}
               />
             ))
           })}
@@ -424,6 +440,7 @@ const SetupTableRow = memo(function SetupTableRow({
   onRideContextChange,
   onAddComplementary,
   onRemove,
+  onBlur,
 }: {
   category: string
   bikeName: string
@@ -439,15 +456,13 @@ const SetupTableRow = memo(function SetupTableRow({
   onRideContextChange: (category: string, key: string, rideContext: RideContext) => void
   onAddComplementary: (category: string) => void
   onRemove: (category: string, key: string) => void
+  onBlur: (category: string, key: string) => void
 }) {
   const change = (changes: Partial<SetupRow>) => onChange(category, row.key, changes)
-  // A click or tap in Label/Brand/Model checks an unchecked row (focus stays
-  // in the input -- it's enabled, just dimmed); so does typing, merged into
-  // the same change. Tab alone, and Brand/Model's blur casing fix, don't.
-  const activate = () => {
-    const checking = activationChange(row)
-    if (checking) change(checking)
-  }
+  // Typing in Label/Brand/Model/Notes checks an unchecked row (merged into
+  // the same change); emptying an auto-checked one unchecks it on blur.
+  // Clicking, Tab and the casing fix don't check.
+  const blur = () => onBlur(category, row.key)
   const inputCell = { opacity: row.checked ? 1 : 0.5 }
 
   return (
@@ -457,7 +472,7 @@ const SetupTableRow = memo(function SetupTableRow({
           <Checkbox
             mt={2}
             checked={row.checked}
-            onChange={(event) => change({ checked: event.currentTarget.checked })}
+            onChange={(event) => change({ checked: event.currentTarget.checked, autoChecked: false })}
           />
           <Stack gap={2}>
             {isFirstRowOfCategory && <Text size="sm">{categoryLabel(category)}</Text>}
@@ -513,8 +528,8 @@ const SetupTableRow = memo(function SetupTableRow({
           size="sm"
           value={row.label}
           placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
-          onPointerDown={activate}
           onChange={(event) => change(withActivation(row, { label: event.currentTarget.value }))}
+          onBlur={blur}
         />
       </Table.Td>
       <Table.Td style={inputCell}>
@@ -525,24 +540,25 @@ const SetupTableRow = memo(function SetupTableRow({
           model={row.model}
           category={category}
           suggestions={suggestions}
-          onPointerDown={activate}
+          onBlur={blur}
           onChange={(changes, reason) => change(reason === 'input' ? withActivation(row, changes) : changes)}
         />
       </Table.Td>
       <Table.Td style={inputCell}>
         <Stack gap={4}>
           <UnstyledButton
-            onClick={() => change(row.checked ? { notesExpanded: !row.notesExpanded } : { checked: true, notesExpanded: true })}
+            onClick={() => change({ notesExpanded: !row.notesExpanded })}
           >
             <Text size="xs" c="dimmed">
-              {row.checked && row.notesExpanded ? 'Hide notes' : '+ Notes'}
+              {row.notesExpanded ? 'Hide notes' : '+ Notes'}
             </Text>
           </UnstyledButton>
-          <Collapse expanded={row.checked && row.notesExpanded}>
+          <Collapse expanded={row.notesExpanded}>
             <Textarea
               size="sm"
               value={row.notes}
-              onChange={(event) => change({ notes: event.currentTarget.value })}
+              onChange={(event) => change(withActivation(row, { notes: event.currentTarget.value }))}
+              onBlur={blur}
             />
           </Collapse>
         </Stack>
