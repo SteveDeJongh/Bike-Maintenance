@@ -257,9 +257,15 @@ from a user-editable **bike type** preset.
   elsewhere) offers only the missing one, pre-labeled with what's already tracked.
   Checked-row fields (label, brand/model, notes collapsed by default behind
   a toggle) and un-checked rows
-  render the exact same row height — every input is always rendered, just
-  `disabled` when unchecked, instead of appearing/disappearing, so toggling a
-  checkbox never reflows the table. **Label starts blank** on every row
+  render the exact same row height — every input is always rendered, and an
+  unchecked row's inputs are **dimmed (reduced opacity), not disabled**, so
+  toggling a checkbox never reflows the table. A click, tap or keystroke in an
+  unchecked row's Label, Brand or Model checks the row (the cursor stays in the
+  input; a keystroke's check is merged into the same change), and "+ Notes"
+  checks it and opens the notes. Tab alone doesn't — focus sends nothing, and
+  Brand/Model's on-blur casing fix reports itself as `'blur'` to
+  `ComponentBrandModelInputs`' `onChange`, which the row never treats as
+  input. Unchecking keeps whatever was typed (`utils/setupRowActivation.ts`). **Label starts blank** on every row
   (the complementary split row too); left empty, it saves a fallback that the
   input shows live as its placeholder: `"{brand} {model}"` (whichever exist),
   else `"{bike name} {category label}"`, plus `" (Outdoor only)"`/`" (Trainer
