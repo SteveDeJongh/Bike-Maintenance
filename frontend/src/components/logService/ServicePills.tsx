@@ -94,10 +94,16 @@ export default function ServicePills({
           {error}
         </Text>
       )}
-      <Text size="xs" c="dimmed">
-        Types that satisfy this component's intervals come first. Other type lists{' '}
-        {category ? `${categoryLabel(category)} types` : 'tagged types'}, then any.
-      </Text>
+      {disabled ? (
+        <Text size="xs" c="dimmed">
+          Pick a component first
+        </Text>
+      ) : (
+        <Text size="xs" c="dimmed">
+          Types that satisfy this component's intervals come first. Other type lists{' '}
+          {category ? `${categoryLabel(category)} types` : 'tagged types'}, then any.
+        </Text>
+      )}
     </Stack>
   )
 }

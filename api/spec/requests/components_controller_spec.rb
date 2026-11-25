@@ -156,7 +156,7 @@ RSpec.describe "Components", type: :request do
       bike = create(:bike, user: current_user)
       due_component = create(:component, user: current_user, category: "chain")
       service_type = current_user.service_types.find_by!(name: "wax")
-      create(:component_service_requirement, component: due_component, service_type: service_type, distance_interval_meters: 1_000)
+      create(:component_service_requirement, component: due_component, service_type: service_type, distance_interval_meters: 1_000, name: "Wax")
       create(:component_assignment, component: due_component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ended_at: nil)
       create(:strava_activity, bike: bike, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
 
@@ -165,8 +165,8 @@ RSpec.describe "Components", type: :request do
       get "/components"
 
       by_id = JSON.parse(response.body).index_by { |c| c["id"] }
-      expect(by_id[due_component.id]["service_status"]).to eq("due")
-      expect(by_id[bare_component.id]["service_status"]).to be_nil
+      expect(by_id[due_component.id]).to include("service_status" => "due", "worst_requirement_name" => "Wax")
+      expect(by_id[bare_component.id]).to include("service_status" => nil, "worst_requirement_name" => nil)
     end
 
     it "includes current_bikes per component, batched, including the two-bikes-at-once case" do

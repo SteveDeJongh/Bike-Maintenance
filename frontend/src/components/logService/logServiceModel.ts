@@ -1,6 +1,17 @@
 import { drivingAmounts, requirementFraction, requirementRuleText } from '../component/componentPageModel'
 import { formatDistance } from '../../utils/distance'
-import type { ComponentDetail, ComponentServiceRequirementWithStatus, ServiceStatus } from '../../types/models'
+import { compareCategory, matchesSearch } from '../componentList/componentListModel'
+import { componentState, spareReadyLabel } from '../../utils/componentState'
+import { categoryLabel } from '../../constants'
+import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
+import type {
+  Bike,
+  ComponentDetail,
+  ComponentListItem,
+  ComponentServiceRequirementWithStatus,
+  ServiceStatus,
+  ServiceType,
+} from '../../types/models'
 
 // The Log service modal's pure pieces (MaintenanceEventFormModal): the
 // service pills, the default type, the primary button and the last-ride
@@ -192,4 +203,126 @@ export function resetRows(
 
 export function resetsTitle(isEdit: boolean): string {
   return isEdit ? 'What this service reset' : 'What this resets'
+}
+
+// --- the component picker ---
+
+export interface PickerChip {
+  label: string
+  color: string
+}
+
+export interface PickerOption {
+  // Unique per group: a component can sit in Needs attention and its own
+  // group, and a shared cassette under each of its bikes.
+  key: string
+  component: ComponentListItem
+  line: string
+  chip: PickerChip | null
+}
+
+export interface PickerGroup {
+  key: string
+  label: string
+  options: PickerOption[]
+}
+
+// The worst requirement as a chip: "Wax due" (red), "Clean soon"
+// (orange); nothing when it's OK or there's no requirement.
+export function statusChip(component: Pick<ComponentListItem, 'service_status' | 'worst_requirement_name'>): PickerChip | null {
+  const name = component.worst_requirement_name ?? 'Service'
+  if (component.service_status === 'due') return { label: `${name} due`, color: 'red' }
+  if (component.service_status === 'warning') return { label: `${name} soon`, color: 'orange' }
+  return null
+}
+
+// The dimmed line under a component: "Chain · on Juan Solo · 1,356 km
+// lifetime", "Chain · last on Soloist · ...", "Chain · retired · ...".
+export function pickerLine(component: ComponentListItem): string {
+  const state = componentState(component)
+  const where =
+    state === 'installed'
+      ? `on ${component.current_bikes.map((bike) => bike.name).sort((a, b) => a.localeCompare(b)).join(', ')}`
+      : state === 'retired'
+        ? 'retired'
+        : component.last_bike
+          ? `last on ${component.last_bike.name}`
+          : 'never installed'
+  return [categoryLabel(component.category), where, `${formatDistance(component.lifetime_distance_meters)} lifetime`].join(' · ')
+}
+
+// The picker's groups, in order: Needs attention (due, then soon, most
+// used first, across bikes and spares); one group per active bike A-Z with
+// its mounted components in category order (a shared cassette under each
+// of its bikes); Spares, with a rotating spare's "<type> · ready" chip;
+// Retired, only when asked for. A component in Needs attention also shows
+// in its own group. Search (label, brand, model) narrows every group;
+// empty groups are left out.
+export function componentPickerGroups(
+  components: readonly ComponentListItem[],
+  {
+    bikes,
+    categoryOrder,
+    q = '',
+    showRetired = false,
+  }: { bikes: readonly Pick<Bike, 'id' | 'name' | 'retired_on'>[]; categoryOrder: readonly string[]; q?: string; showRetired?: boolean },
+): PickerGroup[] {
+  const matching = components.filter((component) => matchesSearch(component, q))
+  const byCategory = (a: ComponentListItem, b: ComponentListItem) =>
+    compareCategory(a.category, b.category, categoryOrder) || a.label.localeCompare(b.label)
+  const option = (group: string, component: ComponentListItem, chip = statusChip(component)): PickerOption => ({
+    key: `${group}-${component.id}`,
+    component,
+    line: pickerLine(component),
+    chip,
+  })
+
+  const groups: PickerGroup[] = []
+  const attention = matching
+    .filter((component) => componentState(component) !== 'retired' && (component.service_status === 'due' || component.service_status === 'warning'))
+    .sort(
+      (a, b) =>
+        SEVERITY[b.service_status!] - SEVERITY[a.service_status!] || (b.fraction_used ?? 0) - (a.fraction_used ?? 0) || a.label.localeCompare(b.label),
+    )
+  groups.push({ key: 'attention', label: 'Needs attention', options: attention.map((c) => option('attention', c)) })
+
+  for (const bike of [...bikes].filter((b) => !b.retired_on).sort((a, b) => a.name.localeCompare(b.name))) {
+    const mounted = matching
+      .filter((component) => componentState(component) === 'installed' && component.current_bikes.some((current) => current.id === bike.id))
+      .sort(byCategory)
+    groups.push({ key: `bike-${bike.id}`, label: bike.name, options: mounted.map((c) => option(`bike-${bike.id}`, c)) })
+  }
+
+  const spares = matching.filter((component) => componentState(component) === 'spare').sort(byCategory)
+  groups.push({
+    key: 'spares',
+    label: 'Spares',
+    options: spares.map((c) => {
+      const ready = spareReadyLabel(c)
+      return option('spares', c, statusChip(c) ?? (ready ? { label: ready, color: 'teal' } : null))
+    }),
+  })
+
+  if (showRetired) {
+    const retired = matching.filter((component) => componentState(component) === 'retired').sort(byCategory)
+    groups.push({ key: 'retired', label: 'Retired', options: retired.map((c) => option('retired', c, null)) })
+  }
+
+  return groups.filter((group) => group.options.length > 0)
+}
+
+// Switching component keeps the chosen type when it still fits the new
+// one -- one of its pills, or a type the category-scoped picker lists
+// first for its category (tagged for it, or untagged/universal) -- else
+// falls back to the new component's default.
+export function serviceTypeAfterComponentChange(
+  current: string,
+  next: { pills: ServicePill[]; category: string; serviceTypes: readonly Pick<ServiceType, 'id' | 'categories'>[]; defaultId: number | undefined },
+): string {
+  if (current === CREATE_NEW_SERVICE_TYPE) return current
+  const id = Number(current)
+  if (current && next.pills.some((pill) => pill.serviceTypeId === id)) return current
+  const type = next.serviceTypes.find((candidate) => candidate.id === id)
+  if (current && type && (type.categories.length === 0 || type.categories.includes(next.category))) return current
+  return next.defaultId ? String(next.defaultId) : ''
 }

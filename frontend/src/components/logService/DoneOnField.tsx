@@ -74,6 +74,11 @@ export default function DoneOnField({
           )}
         </Group>
       </Group>
+      {disabled && (
+        <Text size="xs" c="dimmed">
+          Pick a component first
+        </Text>
+      )}
       {componentId != null && !beforeThis.isPending && (
         <Text size="xs" c="dimmed">
           {lastRideLine(beforeThis.data)}

@@ -23,6 +23,8 @@ class ComponentsController < ApplicationController
         .merge(Maintenance::WearFields.call(result))
         .merge(
           has_enabled_requirement: !result.nil?,
+          # The driving requirement's name, for a status chip ("Wax due").
+          worst_requirement_name: result&.component_service_requirement&.effective_name,
           lifetime_distance_meters: lifetime[component.id] || 0,
           current_bikes: current_bikes.map { |bike| bike.except(:started_at) },
           # The earliest open assignment's start -- a shared indoor cassette

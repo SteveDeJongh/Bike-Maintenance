@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  componentPickerGroups,
   defaultServiceTypeId,
+  pickerLine,
+  serviceTypeAfterComponentChange,
+  statusChip,
   lastRideEnd,
   lastRideLine,
   MAX_RECENT_PILLS,
@@ -10,7 +14,8 @@ import {
   servicePills,
   sessionLockText,
 } from './logServiceModel'
-import type { ComponentMaintenanceEvent, ComponentServiceRequirementWithStatus, ServiceStatus } from '../../types/models'
+import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
+import type { ComponentListItem, ComponentMaintenanceEvent, ComponentServiceRequirementWithStatus, ServiceStatus } from '../../types/models'
 
 function requirement(
   id: number,
@@ -190,5 +195,102 @@ describe('resetRows', () => {
 
   it('is empty without enabled requirements', () => {
     expect(resetRows([], 11, { kind: 'log' })).toEqual([])
+  })
+})
+
+describe('the component picker', () => {
+  const juan = { id: 1, name: 'Juan Solo', retired_on: null }
+  const soloist = { id: 2, name: 'Soloist', retired_on: null }
+  const oldBike = { id: 3, name: 'Old MTB', retired_on: '2025-01-01' }
+  const on = (bike: { id: number; name: string }, ride_context: 'both' | 'indoor_only' = 'both') => ({ id: bike.id, name: bike.name, ride_context })
+  let nextId = 1
+  const part = (overrides: Partial<ComponentListItem>): ComponentListItem =>
+    ({
+      id: nextId++,
+      label: 'Part',
+      category: 'chain',
+      acquired_on: '2026-01-01',
+      retired_on: null,
+      brand: null,
+      model: null,
+      notes: null,
+      service_status: 'ok',
+      worst_requirement_name: 'Wax',
+      current_bikes: [],
+      last_bike: null,
+      fraction_used: 0.2,
+      driving_dimension: 'distance',
+      distance_remaining_meters: null,
+      moving_time_remaining_seconds: null,
+      days_remaining: null,
+      has_enabled_requirement: true,
+      lifetime_distance_meters: 1_356_000,
+      assigned_since: null,
+      rotates: false,
+      latest_service: null,
+      ...overrides,
+    }) as ComponentListItem
+
+  const chainS1 = part({ label: 'Chain S1', current_bikes: [on(soloist)], service_status: 'due', fraction_used: 1.1 })
+  const cassette = part({ label: 'Shared cassette', category: 'cassette', current_bikes: [on(juan, 'indoor_only'), on(soloist, 'indoor_only')] })
+  const tire = part({ label: 'Front tire', category: 'tire_front', current_bikes: [on(juan)], service_status: 'warning', worst_requirement_name: 'Check', fraction_used: 0.9 })
+  const chainJ = part({ label: 'Chain J1', current_bikes: [on(juan)] })
+  const spare = part({
+    label: 'Chain S2',
+    rotates: true,
+    last_bike: { id: 2, name: 'Soloist', removed_at: '2026-10-01T00:00:00Z' },
+    latest_service: { service_type_name: 'drip wax', performed_at: '2026-10-05T00:00:00Z' },
+  })
+  const retired = part({ label: 'Old chain', retired_on: '2026-01-01', service_status: 'due' })
+  const all = [chainS1, cassette, tire, chainJ, spare, retired]
+  const order = ['chain', 'cassette', 'tire_front']
+  const shape = (groups: ReturnType<typeof componentPickerGroups>) =>
+    groups.map((group) => [group.label, group.options.map((o) => `${o.component.label}${o.chip ? ` [${o.chip.label}]` : ''}`)])
+
+  it('groups Needs attention, then each active bike A-Z in category order, then spares; retired hidden', () => {
+    expect(shape(componentPickerGroups(all, { bikes: [soloist, juan, oldBike], categoryOrder: order }))).toEqual([
+      ['Needs attention', ['Chain S1 [Wax due]', 'Front tire [Check soon]']],
+      ['Juan Solo', ['Chain J1', 'Shared cassette', 'Front tire [Check soon]']],
+      ['Soloist', ['Chain S1 [Wax due]', 'Shared cassette']],
+      ['Spares', ['Chain S2 [Drip wax · ready]']],
+    ])
+  })
+
+  it('shows retired at the end when asked, and search narrows every group', () => {
+    const groups = componentPickerGroups(all, { bikes: [soloist, juan], categoryOrder: order, showRetired: true })
+    expect(groups.at(-1)?.label).toBe('Retired')
+    expect(groups.at(-1)?.options.map((o) => [o.component.label, o.chip])).toEqual([['Old chain', null]])
+    expect(shape(componentPickerGroups(all, { bikes: [soloist, juan], categoryOrder: order, q: 'chain s' }))).toEqual([
+      ['Needs attention', ['Chain S1 [Wax due]']],
+      ['Soloist', ['Chain S1 [Wax due]']],
+      ['Spares', ['Chain S2 [Drip wax · ready]']],
+    ])
+  })
+
+  it('reads the line and chip', () => {
+    expect(pickerLine(chainJ)).toBe('Chain · on Juan Solo · 1,356 km lifetime')
+    expect(pickerLine(spare)).toMatch(/^Chain · last on Soloist · /)
+    expect(statusChip({ service_status: 'due', worst_requirement_name: 'Wax' })).toEqual({ label: 'Wax due', color: 'red' })
+    expect(statusChip({ service_status: 'warning', worst_requirement_name: 'Clean' })).toEqual({ label: 'Clean soon', color: 'orange' })
+    expect(statusChip({ service_status: 'ok', worst_requirement_name: 'Wax' })).toBeNull()
+  })
+})
+
+describe('serviceTypeAfterComponentChange', () => {
+  const pills = [{ serviceTypeId: 11, name: 'Drip wax', requirementNames: ['Wax'] }]
+  const serviceTypes = [
+    { id: 11, categories: ['chain'] },
+    { id: 20, categories: [] }, // universal
+    { id: 30, categories: ['tire_front'] },
+  ]
+  const next = { pills, category: 'chain', serviceTypes, defaultId: 11 }
+
+  it('keeps a pill, a universal or a category-tagged type; otherwise takes the new default', () => {
+    expect(serviceTypeAfterComponentChange('11', next)).toBe('11')
+    expect(serviceTypeAfterComponentChange('20', next)).toBe('20')
+    expect(serviceTypeAfterComponentChange('30', next)).toBe('11')
+    expect(serviceTypeAfterComponentChange('30', { ...next, defaultId: undefined })).toBe('')
+    expect(serviceTypeAfterComponentChange('', next)).toBe('11')
+    expect(serviceTypeAfterComponentChange(CREATE_NEW_SERVICE_TYPE, next)).toBe(CREATE_NEW_SERVICE_TYPE)
   })
 })

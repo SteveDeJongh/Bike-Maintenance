@@ -232,6 +232,9 @@ export interface ComponentListItem extends ComponentWithServiceStatus {
   moving_time_remaining_seconds: number | null
   days_remaining: number | null
   has_enabled_requirement: boolean
+  // The driving (worst) requirement's name, for a status chip ("Wax due");
+  // null with no enabled requirement.
+  worst_requirement_name: string | null
   lifetime_distance_meters: number
   // The earliest open assignment's started_at (a shared indoor cassette has
   // one per bike); null when not installed.

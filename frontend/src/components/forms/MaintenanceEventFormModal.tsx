@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Alert, Button, Group, Select, Stack, Tooltip } from '@mantine/core'
+import { Alert, Button, Group, Stack, Tooltip } from '@mantine/core'
 import AppModal from '../AppModal'
 import { confirmDelete } from '../confirmDelete'
 import { useForm } from '@mantine/form'
@@ -12,7 +12,7 @@ import {
 } from '../../api/mutations'
 import { useBikes, useComponent, useComponents, useServiceSession, useServiceTypes } from '../../api/queries'
 import { nowIsoUtc } from '../../utils/datetime'
-import type { Component, MaintenanceEvent } from '../../types/models'
+import type { MaintenanceEvent } from '../../types/models'
 import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
 import ServiceNotesField from './ServiceNotesField'
@@ -21,7 +21,14 @@ import LogServiceTitle from '../logService/LogServiceTitle'
 import ServicePills from '../logService/ServicePills'
 import DoneOnField from '../logService/DoneOnField'
 import ResetsPanel from '../logService/ResetsPanel'
-import { defaultServiceTypeId, primaryAction, servicePills, sessionLockText } from '../logService/logServiceModel'
+import {
+  defaultServiceTypeId,
+  primaryAction,
+  serviceTypeAfterComponentChange,
+  servicePills,
+  sessionLockText,
+} from '../logService/logServiceModel'
+import ComponentPicker from '../logService/ComponentPicker'
 
 interface MaintenanceEventFormValues {
   component_id: string
@@ -142,17 +149,27 @@ function MaintenanceEventForm({
   const { data: session } = useServiceSession(opened && sessionId != null ? sessionId : NaN)
   const sessionBikeName = bikes?.find((bike) => bike.id === session?.bike_id)?.name
 
-  // Logging (not editing): once the component's requirements load, start
-  // on its default type -- unless the opener preselected one, or the user
-  // already picked. Once per component.
-  const defaultedFor = useRef<number | null>(null)
+  // Logging (not editing), as each component's requirements load: the
+  // first one starts on its default type unless the opener preselected
+  // one; switching to another keeps the type only if it still fits
+  // (serviceTypeAfterComponentChange). Date and notes always stay.
+  const typedFor = useRef<number | null>(null)
   useEffect(() => {
-    if (isEdit || !component || defaultedFor.current === component.id) return
-    defaultedFor.current = component.id
-    if (form.values.service_type_id) return
-    const id = defaultServiceTypeId(component, preselectedServiceTypeId)
-    if (id) form.setFieldValue('service_type_id', String(id))
-  }, [component, isEdit, preselectedServiceTypeId, form])
+    if (isEdit || !component || typedFor.current === component.id) return
+    const first = typedFor.current == null
+    typedFor.current = component.id
+    const current = form.values.service_type_id
+    const defaultId = defaultServiceTypeId(component, first ? preselectedServiceTypeId : undefined)
+    const next = first
+      ? current || (defaultId ? String(defaultId) : '')
+      : serviceTypeAfterComponentChange(current, {
+          pills: servicePills(component),
+          category: component.category,
+          serviceTypes: serviceTypes ?? [],
+          defaultId,
+        })
+    if (next !== current) form.setFieldValue('service_type_id', next)
+  }, [component, isEdit, preselectedServiceTypeId, form, serviceTypes])
 
   const createEvent = useCreateMaintenanceEvent()
   const updateEvent = useUpdateMaintenanceEvent(event?.id ?? -1)
@@ -207,7 +224,6 @@ function MaintenanceEventForm({
         null)
   const primary = primaryAction({ isEdit, hasComponent: componentId != null, serviceTypeName: selectedTypeName })
 
-  const componentOptions = (components ?? []).map((c: Component) => ({ value: String(c.id), label: c.label }))
   const noComponent = componentId == null
 
   return (
@@ -257,7 +273,11 @@ function MaintenanceEventForm({
             )}
 
             {!isEdit && defaultComponentId == null && (
-              <Select label="Component" required searchable data={componentOptions} {...form.getInputProps('component_id')} />
+              <ComponentPicker
+                value={componentId}
+                onChange={(id) => form.setFieldValue('component_id', String(id))}
+                error={typeof form.errors.component_id === 'string' ? form.errors.component_id : undefined}
+              />
             )}
 
             <ServicePills

@@ -31,6 +31,7 @@ function component(overrides: Partial<ComponentListItem> = {}): ComponentListIte
     model: null,
     notes: null,
     service_status: null,
+    worst_requirement_name: null,
     current_bikes: [],
     last_bike: null,
     fraction_used: null,

@@ -169,7 +169,18 @@ function MaintenanceInner({ initialData }: { initialData: TableViewPreferenceDat
         </>
       )}
 
-      <MaintenanceEventFormModal opened={logOpened} onClose={() => setLogOpened(false)} />
+      <MaintenanceEventFormModal
+        opened={logOpened}
+        onClose={() => setLogOpened(false)}
+        onLogSession={
+          sessionBike
+            ? () => {
+                setLogOpened(false)
+                setSessionOpened(true)
+              }
+            : undefined
+        }
+      />
       <MaintenanceEventFormModal opened={editing != null} onClose={() => setEditing(null)} event={editing ?? undefined} />
       {sessionBike && (
         <BatchServiceModal opened={sessionOpened} onClose={() => setSessionOpened(false)} bikeId={sessionBike.id} />
