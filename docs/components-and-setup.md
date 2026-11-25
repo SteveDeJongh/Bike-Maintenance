@@ -259,13 +259,21 @@ from a user-editable **bike type** preset.
   a toggle) and un-checked rows
   render the exact same row height — every input is always rendered, and an
   unchecked row's inputs are **dimmed (reduced opacity), not disabled**, so
-  toggling a checkbox never reflows the table. A click, tap or keystroke in an
-  unchecked row's Label, Brand or Model checks the row (the cursor stays in the
-  input; a keystroke's check is merged into the same change), and "+ Notes"
-  checks it and opens the notes. Tab alone doesn't — focus sends nothing, and
+  toggling a checkbox never reflows the table. **Entered values decide
+  what's tracked**: typing in an unchecked row's Label, Brand, Model or Notes
+  checks it (picking a Brand/Model suggestion counts as typing; the check is
+  merged into the same change). Clicking or tabbing into an input just
+  focuses it, and "+ Notes" just opens the notes. A row checked by typing is
+  `autoChecked`, and unchecks itself when focus leaves one of those four
+  inputs and all four are empty (trimmed) — on blur, not on every change, so
+  select-all-and-retype doesn't flicker. The checkbox, "Check all"/"Clear
+  all" and a bike type preset are deliberate (`autoChecked: false`): they're
+  how to track a part without details (its label falls back to `"{bike name}
+  {category label}"`), and those rows stay checked when emptied. Unchecking
+  keeps whatever was typed; submit sends every checked row, empty or not.
   Brand/Model's on-blur casing fix reports itself as `'blur'` to
-  `ComponentBrandModelInputs`' `onChange`, which the row never treats as
-  input. Unchecking keeps whatever was typed (`utils/setupRowActivation.ts`). **Label starts blank** on every row
+  `ComponentBrandModelInputs`' `onChange`, so it never checks a row
+  (`utils/setupRowActivation.ts`). **Label starts blank** on every row
   (the complementary split row too); left empty, it saves a fallback that the
   input shows live as its placeholder: `"{brand} {model}"` (whichever exist),
   else `"{bike name} {category label}"`, plus `" (Outdoor only)"`/`" (Trainer
