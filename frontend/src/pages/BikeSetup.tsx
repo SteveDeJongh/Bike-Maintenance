@@ -29,6 +29,7 @@ import SetupChecklistList from '../components/bikeSetup/SetupChecklistList'
 import SetupRowItem from '../components/bikeSetup/SetupRowItem'
 import AlreadyTrackedRow from '../components/bikeSetup/AlreadyTrackedRow'
 import { MOBILE_TAP_TARGET_STYLE } from '../utils/touchTarget'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 export default function BikeSetup() {
   const { id } = useParams<{ id: string }>()
@@ -89,6 +90,7 @@ function SetupChecklist({
   trackableCategories: string[]
 }) {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const componentSetup = useComponentSetup(bike.id)
 
   // bike/bikeType/categorySettings are already fully resolved by the time
@@ -254,14 +256,14 @@ function SetupChecklist({
 
       {baseError && <Alert color="red">{baseError}</Alert>}
 
-      <SetupChecklistList stacked={false}>
+      <SetupChecklistList stacked={isMobile}>
         {trackableCategories.map((category) => {
           const rows = rowsByCategory[category]
           const setting = categorySettings.find((s) => s.category === category)
           const existingContexts = existingContextsByCategory[category] ?? NO_CONTEXTS
 
           if (rows.length === 0) {
-            return <AlreadyTrackedRow key={category} category={category} label={trackedLabel(bike, category)} stacked={false} />
+            return <AlreadyTrackedRow key={category} category={category} label={trackedLabel(bike, category)} stacked={isMobile} />
           }
 
           return rows.map((row, rowIndex) => (
@@ -283,6 +285,7 @@ function SetupChecklist({
               onAddComplementary={addComplementaryRow}
               onRemove={removeRow}
               onBlur={blurRow}
+              stacked={isMobile}
             />
           ))
         })}
