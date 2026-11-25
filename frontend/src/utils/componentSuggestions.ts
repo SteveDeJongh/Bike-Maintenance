@@ -1,13 +1,28 @@
 // Pure ranking/casing logic behind the brand/model autocomplete
-// (ComponentBrandModelInputs). Kept separate from the hook and the
-// component so it's ready to unit test later with no refactor -- this
-// project currently has no frontend test runner configured, so none are
-// added here, but the logic is isolated for when one exists.
+// (ComponentBrandModelInputs), tested in componentSuggestions.test.ts.
 
 export interface ComponentSuggestionInput {
   brand: string | null
   model: string | null
   category: string
+}
+
+export interface SuggestionPool {
+  brands: BrandCount[]
+  models: ModelCount[]
+}
+
+// The whole pool: every saved component's brand/model/category plus any
+// not-yet-saved values (Bike setup's checklist rows), counted together.
+export function buildSuggestionPool(
+  components: readonly ComponentSuggestionInput[],
+  extra: readonly ComponentSuggestionInput[] = [],
+): SuggestionPool {
+  const rows = [
+    ...components.map(({ brand, model, category }) => ({ brand, model, category })),
+    ...extra,
+  ]
+  return { brands: countBrands(rows), models: countModels(rows) }
 }
 
 export interface BrandCount {

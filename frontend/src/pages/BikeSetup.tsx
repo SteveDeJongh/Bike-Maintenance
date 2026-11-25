@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Alert,
@@ -27,7 +27,8 @@ import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
 import { setupRowLabel } from '../utils/setupRowLabel'
 import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
-import type { ComponentSuggestionInput } from '../utils/componentSuggestions'
+import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
+import type { ComponentSuggestionInput, SuggestionPool } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
 
 type RideContext = 'both' | 'outdoor_only' | 'indoor_only'
@@ -197,27 +198,46 @@ function SetupChecklist({
 
   const installedOn = installedOnOverride ?? bike.acquired_on ?? todayIsoDate()
 
-  // Every row's current (unsaved) brand/model/category, merged into
-  // suggestions everywhere -- so typing "SRAM" in the chain row offers
-  // "SRAM" in the cassette row before anything's submitted. Memoized over
-  // rowsByCategory so useComponentSuggestions' own memoization isn't
-  // defeated by a new array identity every render.
+  // One suggestion pool for the page: saved components plus every row's
+  // unsaved brand/model, so "SRAM" typed in the chain row is offered in the
+  // cassette row before anything's submitted. The unsaved list is keyed on
+  // just brand/model/category, so typing a label or note, or ticking a
+  // row, leaves the pool alone. useDeferredValue lets a keystroke update its
+  // own row first; the other rows' suggestions catch up in a background,
+  // interruptible render (the only "debounce" on this page).
+  const unsavedSignature = JSON.stringify(
+    Object.entries(rowsByCategory).flatMap(([category, rows]) => rows.map((row) => [category, row.brand, row.model])),
+  )
   const unsavedSuggestions: ComponentSuggestionInput[] = useMemo(
     () =>
-      Object.entries(rowsByCategory).flatMap(([category, rows]) =>
-        rows.map((row) => ({ brand: row.brand || null, model: row.model || null, category })),
-      ),
-    [rowsByCategory],
+      (JSON.parse(unsavedSignature) as [string, string, string][]).map(([category, brand, model]) => ({
+        brand: brand || null,
+        model: model || null,
+        category,
+      })),
+    [unsavedSignature],
   )
+  const suggestionPool = useComponentSuggestions(useDeferredValue(unsavedSuggestions))
 
-  function updateRow(category: string, key: string, changes: Partial<SetupRow>) {
+  // What's already slotted per category -- the bike doesn't change while
+  // this page is open, so built once (a fresh Set per render would defeat
+  // SetupTableRow's memo).
+  const existingContextsByCategory = useMemo(() => {
+    const result: Record<string, RideContext[]> = {}
+    for (const slot of bike.bike_component_slots) (result[slot.category] ??= []).push(slot.ride_context)
+    return result
+  }, [bike.bike_component_slots])
+
+  // Stable (functional updates only), so a keystroke re-renders just the
+  // row it changed -- SetupTableRow is memoized.
+  const updateRow = useCallback((category: string, key: string, changes: Partial<SetupRow>) => {
     setRowsByCategory((prev) => ({
       ...prev,
       [category]: prev[category].map((row) => (row.key === key ? { ...row, ...changes } : row)),
     }))
-  }
+  }, [])
 
-  function changeRideContext(category: string, key: string, rideContext: RideContext) {
+  const changeRideContext = useCallback((category: string, key: string, rideContext: RideContext) => {
     setRowsByCategory((prev) => {
       const rows = prev[category]
       const updated = rows.map((row) => (row.key === key ? { ...row, key: `${category}:${rideContext}`, rideContext } : row))
@@ -225,22 +245,21 @@ function SetupChecklist({
       // complementary split row that might have been added.
       return { ...prev, [category]: rideContext === 'both' ? updated.slice(0, 1) : updated }
     })
-  }
+  }, [])
 
-  function addComplementaryRow(category: string) {
+  const addComplementaryRow = useCallback((category: string) => {
     setRowsByCategory((prev) => {
       const rows = prev[category]
       const primary = rows[0]
       if (!primary || rows.length > 1) return prev
       const other: RideContext = primary.rideContext === 'outdoor_only' ? 'indoor_only' : 'outdoor_only'
-      const newRow = makeRow(`${category}:${other}`, other, false, false)
-      return { ...prev, [category]: [...rows, newRow] }
+      return { ...prev, [category]: [...rows, makeRow(`${category}:${other}`, other, false, false)] }
     })
-  }
+  }, [])
 
-  function removeRow(category: string, key: string) {
+  const removeRow = useCallback((category: string, key: string) => {
     setRowsByCategory((prev) => ({ ...prev, [category]: prev[category].filter((row) => row.key !== key) }))
-  }
+  }, [])
 
   function setAllChecked(checked: boolean) {
     setRowsByCategory((prev) =>
@@ -330,9 +349,7 @@ function SetupChecklist({
           {trackableCategories.map((category) => {
             const rows = rowsByCategory[category]
             const setting = categorySettings.find((s) => s.category === category)
-            const existingContexts = new Set(
-              bike.bike_component_slots.filter((slot) => slot.category === category).map((slot) => slot.ride_context),
-            )
+            const existingContexts = existingContextsByCategory[category] ?? NO_CONTEXTS
 
             if (rows.length === 0) {
               return (
@@ -363,11 +380,11 @@ function SetupChecklist({
                 canAddComplementary={rows.length === 1 && row.rideContextEditable && row.rideContext !== 'both'}
                 canRemove={rowIndex > 0}
                 error={rowErrors[row.key]}
-                extraSuggestions={unsavedSuggestions}
-                onChange={(changes) => updateRow(category, row.key, changes)}
-                onRideContextChange={(rideContext) => changeRideContext(category, row.key, rideContext)}
-                onAddComplementary={() => addComplementaryRow(category)}
-                onRemove={() => removeRow(category, row.key)}
+                suggestions={suggestionPool}
+                onChange={updateRow}
+                onRideContextChange={changeRideContext}
+                onAddComplementary={addComplementaryRow}
+                onRemove={removeRow}
               />
             ))
           })}
@@ -387,7 +404,11 @@ function SetupChecklist({
   )
 }
 
-function SetupTableRow({
+const NO_CONTEXTS: RideContext[] = []
+
+// Memoized: every prop is stable across another row's keystroke (the
+// callbacks take the row's category and key), so typing re-renders one row.
+const SetupTableRow = memo(function SetupTableRow({
   category,
   bikeName,
   row,
@@ -397,7 +418,7 @@ function SetupTableRow({
   canAddComplementary,
   canRemove,
   error,
-  extraSuggestions,
+  suggestions,
   onChange,
   onRideContextChange,
   onAddComplementary,
@@ -407,17 +428,19 @@ function SetupTableRow({
   bikeName: string
   row: SetupRow
   isFirstRowOfCategory: boolean
-  existingContexts: Set<string>
+  existingContexts: RideContext[]
   allowsMultiple: boolean
   canAddComplementary: boolean
   canRemove: boolean
   error: string | undefined
-  extraSuggestions: ComponentSuggestionInput[]
-  onChange: (changes: Partial<SetupRow>) => void
-  onRideContextChange: (rideContext: RideContext) => void
-  onAddComplementary: () => void
-  onRemove: () => void
+  suggestions: SuggestionPool
+  onChange: (category: string, key: string, changes: Partial<SetupRow>) => void
+  onRideContextChange: (category: string, key: string, rideContext: RideContext) => void
+  onAddComplementary: (category: string) => void
+  onRemove: (category: string, key: string) => void
 }) {
+  const change = (changes: Partial<SetupRow>) => onChange(category, row.key, changes)
+
   return (
     <Table.Tr>
       <Table.Td>
@@ -425,13 +448,13 @@ function SetupTableRow({
           <Checkbox
             mt={2}
             checked={row.checked}
-            onChange={(event) => onChange({ checked: event.currentTarget.checked })}
+            onChange={(event) => change({ checked: event.currentTarget.checked })}
           />
           <Stack gap={2}>
             {isFirstRowOfCategory && <Text size="sm">{categoryLabel(category)}</Text>}
-            {existingContexts.size > 0 && (
+            {existingContexts.length > 0 && (
               <Text size="xs" c="dimmed">
-                {Array.from(existingContexts).map((context) => RIDE_CONTEXT_LABELS[context as RideContext]).join(', ')}{' '}
+                {existingContexts.map((context) => RIDE_CONTEXT_LABELS[context]).join(', ')}{' '}
                 already tracked
               </Text>
             )}
@@ -445,7 +468,7 @@ function SetupTableRow({
                   { value: 'indoor_only', label: RIDE_CONTEXT_LABELS.indoor_only },
                 ]}
                 value={row.rideContext}
-                onChange={(value) => value && onRideContextChange(value as RideContext)}
+                onChange={(value) => value && onRideContextChange(category, row.key, value as RideContext)}
                 allowDeselect={false}
               />
             )}
@@ -455,14 +478,14 @@ function SetupTableRow({
               </Badge>
             )}
             {canAddComplementary && (
-              <UnstyledButton onClick={onAddComplementary}>
+              <UnstyledButton onClick={() => onAddComplementary(category)}>
                 <Text size="xs" c="dimmed">
                   + Add {row.rideContext === 'outdoor_only' ? 'indoor' : 'outdoor'} too
                 </Text>
               </UnstyledButton>
             )}
             {canRemove && (
-              <UnstyledButton onClick={onRemove}>
+              <UnstyledButton onClick={() => onRemove(category, row.key)}>
                 <Text size="xs" c="dimmed">
                   Remove
                 </Text>
@@ -482,7 +505,7 @@ function SetupTableRow({
           disabled={!row.checked}
           value={row.label}
           placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
-          onChange={(event) => onChange({ label: event.currentTarget.value })}
+          onChange={(event) => change({ label: event.currentTarget.value })}
         />
       </Table.Td>
       <Table.Td>
@@ -493,13 +516,13 @@ function SetupTableRow({
           brand={row.brand}
           model={row.model}
           category={category}
-          extraSuggestions={extraSuggestions}
-          onChange={(changes) => onChange(changes)}
+          suggestions={suggestions}
+          onChange={change}
         />
       </Table.Td>
       <Table.Td>
         <Stack gap={4}>
-          <UnstyledButton disabled={!row.checked} onClick={() => onChange({ notesExpanded: !row.notesExpanded })}>
+          <UnstyledButton disabled={!row.checked} onClick={() => change({ notesExpanded: !row.notesExpanded })}>
             <Text size="xs" c="dimmed">
               {row.notesExpanded ? 'Hide notes' : '+ Notes'}
             </Text>
@@ -508,11 +531,11 @@ function SetupTableRow({
             <Textarea
               size="sm"
               value={row.notes}
-              onChange={(event) => onChange({ notes: event.currentTarget.value })}
+              onChange={(event) => change({ notes: event.currentTarget.value })}
             />
           </Collapse>
         </Stack>
       </Table.Td>
     </Table.Tr>
   )
-}
+})

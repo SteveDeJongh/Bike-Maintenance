@@ -1,7 +1,8 @@
+import { useMemo } from 'react'
 import { Autocomplete, Group, Stack, type MantineSize } from '@mantine/core'
 import { useComponentCategorySettings } from '../api/queries'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
-import { buildBrandGroups, buildModelSuggestions, resolveCasing, type ComponentSuggestionInput } from '../utils/componentSuggestions'
+import { buildBrandGroups, buildModelSuggestions, resolveCasing, type SuggestionPool } from '../utils/componentSuggestions'
 
 interface ComponentBrandModelInputsProps {
   brand: string
@@ -24,10 +25,11 @@ interface ComponentBrandModelInputsProps {
   layout?: 'stacked' | 'inline'
   size?: MantineSize
   disabled?: boolean
-  // Unsaved values from elsewhere (e.g. BikeSetup's other checklist rows)
-  // to merge into the suggestion pool before anything's saved. Must be a
-  // stable (memoized) array -- see useComponentSuggestions.
-  extraSuggestions?: ComponentSuggestionInput[]
+  // A pool built once by the caller (BikeSetup: saved components plus every
+  // checklist row's unsaved values), instead of this field's own
+  // useComponentSuggestions -- so 18 rows don't each rebuild it. Omitted,
+  // the field uses the hook (ComponentFormModal).
+  suggestions?: SuggestionPool
 }
 
 export default function ComponentBrandModelInputs({
@@ -38,16 +40,29 @@ export default function ComponentBrandModelInputs({
   layout = 'stacked',
   size,
   disabled,
-  extraSuggestions,
+  suggestions: pool,
 }: ComponentBrandModelInputsProps) {
-  const suggestions = useComponentSuggestions(extraSuggestions)
+  // Cheap with a pool passed: memoized on the cached components list, so it
+  // only computes when that changes.
+  const ownPool = useComponentSuggestions()
+  const suggestions = pool ?? ownPool
   const { data: categorySettings } = useComponentCategorySettings()
-  const commonBrands = categorySettings?.find((setting) => setting.category === category)?.common_brands ?? []
+  const commonBrands = categorySettings?.find((setting) => setting.category === category)?.common_brands
 
-  const brandGroups = buildBrandGroups(suggestions.brands, commonBrands)
-  const allBrandNames = brandGroups.flatMap((group) => group.items)
-  const modelSuggestions = buildModelSuggestions(suggestions.models, { brand, category })
-  const modelOptions = modelSuggestions.map((entry) => entry.model)
+  const brandGroups = useMemo(() => buildBrandGroups(suggestions.brands, commonBrands ?? []), [suggestions.brands, commonBrands])
+  const allBrandNames = useMemo(() => brandGroups.flatMap((group) => group.items), [brandGroups])
+  const modelSuggestions = useMemo(
+    () => buildModelSuggestions(suggestions.models, { brand, category }),
+    [suggestions.models, brand, category],
+  )
+  const modelOptions = useMemo(() => modelSuggestions.map((entry) => entry.model), [modelSuggestions])
+
+  // On blur, only report a change when the casing fix actually changes the
+  // value -- otherwise leaving a field re-renders the caller for nothing.
+  function resolveOnBlur(field: 'brand' | 'model', value: string, options: string[]) {
+    const resolved = resolveCasing(value, options)
+    if (resolved !== value) onChange({ [field]: resolved })
+  }
 
   function handleModelOptionSubmit(value: string) {
     // "If the brand field is empty and the user picks a model suggestion,
@@ -68,7 +83,7 @@ export default function ComponentBrandModelInputs({
         limit={10}
         value={brand}
         onChange={(value) => onChange({ brand: value })}
-        onBlur={() => onChange({ brand: resolveCasing(brand, allBrandNames) })}
+        onBlur={() => resolveOnBlur('brand', brand, allBrandNames)}
         style={fieldStyle}
       />
       <Autocomplete
@@ -80,7 +95,7 @@ export default function ComponentBrandModelInputs({
         value={model}
         onChange={(value) => onChange({ model: value })}
         onOptionSubmit={handleModelOptionSubmit}
-        onBlur={() => onChange({ model: resolveCasing(model, modelOptions) })}
+        onBlur={() => resolveOnBlur('model', model, modelOptions)}
         style={fieldStyle}
       />
     </>
