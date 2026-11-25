@@ -389,7 +389,9 @@ Bikes/Activity look.
   - `lifetime_distance_meters` (`Maintenance::LifetimeDistanceQuery`);
   - `assigned_since` (the earliest open assignment's `started_at`);
   - `rotates`;
-  - `latest_service` (`Maintenance::LatestServiceQuery`, one `DISTINCT ON`).
+  - `latest_service` (`Maintenance::LatestServiceQuery`, one `DISTINCT ON`);
+  - `worst_requirement_name`, the driving requirement's name from the same worst
+    result (the Log service picker's "Wax due" chip).
 
   "Ready" is decided on the frontend from these raw values and
   `last_bike.removed_at`.
@@ -595,8 +597,8 @@ old path.
   `MaintenanceEventFormModal` ("Log service", "Edit service", "Delete service").
 - **Header:** "Maintenance" with the dimmed line "Every service you've logged, in
   sessions or one at a time". On the right:
-  - **Log service** (outline) opens `MaintenanceEventFormModal`, with the existing
-    component `Select` (part 2 adds a component picker).
+  - **Log service** (outline) opens the Log service modal with no component, so
+    it starts with the component picker (see "Log service modal" below).
   - **Log service session** (primary) opens `BatchServiceModal` for
     `defaultSessionBike`: the active bike ridden most recently, else the first by name.
     It's disabled with no active bike. Part 3 adds a bike switcher inside the modal.
@@ -714,6 +716,75 @@ old path.
 - **Invalidation:** the key is `['maintenance_events', 'log', …]`. That's in `history`
   (every service and session write, rides, assignments, bikes) and in `intervals`,
   because requirement and satisfier edits change the reset chips.
+
+### Log service modal
+
+`MaintenanceEventFormModal` (`components/forms/`, pieces in `components/logService/`,
+pure logic in `logServiceModel.ts`): logging or editing **one service** on one
+component. Every single-service entry point opens it; a fresh form mounts on every
+open, so a reopened modal starts from its opener's component and type again.
+
+- **Versions:**
+  - **Log from the Maintenance page:** no component, so the component picker
+    comes first and everything below says "Pick a component first".
+  - **Log from a component** (`defaultComponentId`): the component page's Log
+    service, its intervals rows' split button (`defaultServiceTypeId` too), Home's
+    Needs attention / next service, and the installation modal. No picker.
+  - **Edit** (`event`): from a row on the Maintenance page or the component page's
+    maintenance history.
+  - **Edit in session:** an edit whose event has a `service_session_id`.
+- **Title** (`LogServiceTitle`, lifted like the installation modal's): "LOG
+  SERVICE" / "EDIT SERVICE" over the label, a neutral category chip, and "On
+  <bike> since <date> · 1,356 km lifetime" (`componentPlacement`; bikes linked;
+  "Off the bike · last on <bike>" for a spare, "Retired · last on …"). Without a
+  component it reads "One component", with "Doing several on one bike? Log a
+  service session" when the opener passes `onLogSession` (the Maintenance page,
+  which closes this and opens `BatchServiceModal` for its default bike).
+- **Component picker** (`ComponentPicker`, a Mantine `Combobox` with
+  `Combobox.Search`): closed, the label, "Chain · on Juan Solo · 1,356 km lifetime"
+  (`pickerLine`) and the worst requirement as a chip ("Wax due" red, "Clean soon"
+  orange; `statusChip` from `worst_requirement_name`). `componentPickerGroups`, from
+  `useComponents()`: Needs attention (due, then soon, most used first), one group per
+  active bike A–Z in category order (a shared cassette under each bike), Spares
+  ("last on …", and `spareReadyLabel`'s "<type> · ready" chip), and Retired behind
+  the footer's "Show retired". A component in Needs attention also shows in its own
+  group. Search matches label, brand and model across every group. Switching
+  component keeps the date and notes, and keeps the type when it's one of the new
+  component's pills or a type tagged for (or universal to) its category
+  (`serviceTypeAfterComponentChange`) — tags filter, they never forbid — else takes
+  the new default.
+- **Service** (`ServicePills`, `servicePills`): one pill per satisfier of the
+  component's enabled requirements, requirement then position order, with the
+  requirement dimmed inside ("Drip wax · Wax"; a type satisfying two names both),
+  then up to three recent other types logged on it, then a dashed **Other type ▾**:
+  the shared `ServiceTypePicker` through its `renderTarget`, scoped to the category,
+  inline create included. The selected pill is primary-tinted with a primary border.
+  The default (`defaultServiceTypeId`) is the opener's type, else the first satisfier
+  of the most urgent requirement (worst status, then most used).
+- **Done on** (`DoneOnField`): the date/time picker with **Now** and **After last
+  ride** (when the latest ride this component counted toward, before the modal
+  opened, ended: `moved_at + elapsed_time`, never after now), and "Last ride before
+  this: Hill repeats, Nov 14, 9:15 am" for the chosen time. Both come from
+  `useLastRideBefore`, `GET /activity?kinds[]=ride&component_id=&before=&per_page=1`
+  (its `component_id` filter is exactly "counted toward": assignment windows and
+  ride context). Edit in session: disabled with a lock, "Part of the <date> service
+  session on <bike> · change the date there" (`useServiceSession`), the link opening
+  `ServiceSessionViewModal` stacked on top; no shortcuts.
+- **Notes:** `ServiceNotesField` ("Notes · optional", "Products used, what you
+  noticed"), shared with `BatchServiceModal`.
+- **What this resets** (`ResetsPanel`, `resetRows`): an inset panel, one row per
+  enabled requirement — name and rule (`requirementRuleText`), the current
+  `WearBar`, and the outcome. A satisfier of the chosen type gets an arrow to a
+  near-empty teal bar and "196 km → 0 · resets" (the used amount on the driving
+  dimension); the rest read "Not affected" with the name dimmed. With no
+  requirements: "No service intervals on this component" and a link to
+  `/components/:id#intervals`. Editing: "What this service reset", bars dimmed,
+  and "Reset at 1,160 km" (the component's distance at the service). It reflects
+  today's requirements.
+- **Footer:** Delete (outline red, edit only, the existing confirm) on the left;
+  Cancel and the primary on the right — "Log Drip wax" (`primaryAction`), or Save
+  changes when editing, disabled with a tooltip reason ("Pick a component first",
+  "Pick a service type").
 
 ## Theming
 

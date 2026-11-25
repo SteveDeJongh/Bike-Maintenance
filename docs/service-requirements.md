@@ -211,7 +211,8 @@ stays visible even when it's filtered out (an old event's type). Ordering lives 
 new type (tagged <category>)", and `useServiceTypeIdResolver`'s
 `resolveServiceTypeId(id, name, category)` sends `categories: [category]`. Category
 context per site: `MaintenanceEventFormModal` — the form's currently selected
-component; `BatchServiceModal`'s "Add other…" rows — each row's own chosen
+component (its "Other type" pill; `renderTarget` swaps the labelled input for a
+custom trigger); `BatchServiceModal`'s "Add other…" rows — each row's own chosen
 component; `SatisfiersEditor`/`DraftSatisfierRow` — a template's own category
 (Settings) or a custom requirement's component category (`CustomRequirementEditor`,
 `AddCustomServiceIntervalModal`). The "Log service" split button lists a
@@ -319,7 +320,8 @@ this bike" gets computed and how the batch logger itself works.
   "Session with <other components>" and opens `ServiceSessionViewModal`.
   `ServiceSessionViewModal` shows the date, the note and every event, with Edit
   date/note and Delete session (`confirmDelete` naming the event count).
-  `MaintenanceEventFormModal`'s date field is `disabled` with explanatory text
-  whenever the event being edited is session-bound, matching the backend
-  validation up front rather than only surfacing it as a 422 after the fact.
+  `MaintenanceEventFormModal`'s date field is `disabled` (with a lock) whenever the
+  event being edited is session-bound, reading "Part of the <date> service session
+  on <bike> · change the date there" with a link to `ServiceSessionViewModal` --
+  matching the backend validation up front rather than only surfacing it as a 422.
 

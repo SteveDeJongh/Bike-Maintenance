@@ -187,7 +187,10 @@ entry at `started_at` and, when `ended_at` is set, a second at `ended_at`).
 - **`GET /activity`** (`ActivityController#index`), scoped through `current_user`
   throughout. Params: `kinds[]` (`ride`/`service`/`setup`, default `["ride"]`),
   `bike_id`, `from`/`to` (dates) + `tz` (reusing the Dashboard's own
-  tz-then-UTC-boundary convention), `q`, `component_id`, `order` (`desc`/`asc`),
+  tz-then-UTC-boundary convention), `before` (an ISO instant: only entries strictly
+  before it, every kind and the meta alike; unparseable means unset; the Log
+  service modal's last counted ride via `useLastRideBefore`), `q`, `component_id`,
+  `order` (`desc`/`asc`),
   `sort` (`date` or a metric key), `cursor` (opaque, keyset only — base64 of
   `occurred_at|kind_rank|source_id`), `page` (offset, metric sorts only),
   `per_page`. Response: `{ items, meta, next_cursor, rides_only }` — `next_cursor`

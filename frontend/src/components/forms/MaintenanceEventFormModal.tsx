@@ -92,9 +92,21 @@ export default function MaintenanceEventFormModal({
   defaultServiceTypeId: preselectedServiceTypeId,
   onLogSession,
 }: MaintenanceEventFormModalProps) {
+  // A fresh form on every open, so a reopened Log service starts from the
+  // opener's component and type again (not the last pick), and a different
+  // preselection (the intervals rows' split button) takes effect. Bumped
+  // while rendering, React's pattern for state derived from a prop change,
+  // so the close transition still plays on the same instance.
+  const [wasOpened, setWasOpened] = useState(opened)
+  const [generation, setGeneration] = useState(0)
+  if (opened !== wasOpened) {
+    setWasOpened(opened)
+    if (opened) setGeneration((current) => current + 1)
+  }
+
   return (
     <MaintenanceEventForm
-      key={event?.id ?? 'new'}
+      key={`${event?.id ?? 'new'}-${generation}`}
       opened={opened}
       onClose={onClose}
       event={event}
