@@ -15,6 +15,7 @@ class ActivityController < ApplicationController
       cursor: params[:cursor],
       page: params[:page],
       per_page: params[:per_page],
+      before: params[:before],
     )
 
     render json: { items: result.items, meta: result.meta, next_cursor: result.next_cursor, rides_only: result.rides_only }

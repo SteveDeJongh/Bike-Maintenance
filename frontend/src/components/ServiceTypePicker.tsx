@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Combobox, Group, Input, InputBase, Text, TextInput, useCombobox } from '@mantine/core'
+import { useState, type ReactNode } from 'react'
+import { Box, Combobox, Group, Input, InputBase, Text, TextInput, useCombobox } from '@mantine/core'
 import { useServiceTypes } from '../api/queries'
 import { categoryLabel } from '../constants'
 import { partitionServiceTypes, type PickerRow } from '../utils/serviceTypePicker'
@@ -19,6 +19,10 @@ interface ServiceTypePickerProps {
   label?: string
   error?: string
   newTypeNameError?: string
+  // A custom trigger instead of the labelled input -- the Log service
+  // modal's dashed "Other type ▾" pill. Gets the dropdown toggle and the
+  // current selection's name (null when nothing, or a new type, is picked).
+  renderTarget?: (toggle: () => void, selectedName: string | null) => ReactNode
 }
 
 // The one service-type picker, used everywhere a service type is chosen
@@ -36,6 +40,7 @@ export default function ServiceTypePicker({
   label = 'Service type',
   error,
   newTypeNameError,
+  renderTarget,
 }: ServiceTypePickerProps) {
   const { data: serviceTypes } = useServiceTypes()
   const [showAll, setShowAll] = useState(false)
@@ -59,21 +64,27 @@ export default function ServiceTypePicker({
     <>
       <Combobox store={combobox} onOptionSubmit={handleSubmit}>
         <Combobox.Target>
-          <InputBase
-            component="button"
-            type="button"
-            label={label}
-            required
-            error={error}
-            pointer
-            rightSection={<Combobox.Chevron />}
-            rightSectionPointerEvents="none"
-            onClick={() => combobox.toggleDropdown()}
-          >
-            {value === CREATE_NEW_SERVICE_TYPE
-              ? createLabel
-              : selected?.name ?? <Input.Placeholder>Pick a service type</Input.Placeholder>}
-          </InputBase>
+          {renderTarget ? (
+            <Box component="span" style={{ display: 'inline-block' }}>
+              {renderTarget(() => combobox.toggleDropdown(), selected?.name ?? null)}
+            </Box>
+          ) : (
+            <InputBase
+              component="button"
+              type="button"
+              label={label}
+              required
+              error={error}
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => combobox.toggleDropdown()}
+            >
+              {value === CREATE_NEW_SERVICE_TYPE
+                ? createLabel
+                : selected?.name ?? <Input.Placeholder>Pick a service type</Input.Placeholder>}
+            </InputBase>
+          )}
         </Combobox.Target>
 
         <Combobox.Dropdown>

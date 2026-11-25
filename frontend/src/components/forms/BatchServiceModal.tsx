@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Alert, Anchor, Button, Checkbox, Group, Loader, Select, Stack, Text, Textarea, Title } from '@mantine/core'
 import AppModal from '../AppModal'
+import ServiceNotesField from './ServiceNotesField'
 import { DateTimePicker } from '@mantine/dates'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../../api/client'
@@ -306,7 +307,7 @@ function BatchServiceForm({
           {droppedCount === 1 ? ' was' : ' were'} unchecked.
         </Text>
       )}
-      <Textarea label="Note (optional)" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <ServiceNotesField label="Note (optional)" value={notes} onChange={setNotes} />
 
       {baseError && <Alert color="red">{baseError}</Alert>}
 

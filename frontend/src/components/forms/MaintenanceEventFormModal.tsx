@@ -1,8 +1,7 @@
-import { useId, useState } from 'react'
-import { Alert, Button, Group, Select, Stack, Textarea } from '@mantine/core'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Alert, Button, Group, Select, Stack, Tooltip } from '@mantine/core'
 import AppModal from '../AppModal'
 import { confirmDelete } from '../confirmDelete'
-import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
 import {
@@ -11,11 +10,17 @@ import {
   useUpdateMaintenanceEvent,
   type MaintenanceEventPayload,
 } from '../../api/mutations'
-import { useComponents } from '../../api/queries'
-import { isoUtcToDate, mantineLocalStringToIsoUtc, nowIsoUtc } from '../../utils/datetime'
+import { useBikes, useComponent, useComponents, useServiceSession, useServiceTypes } from '../../api/queries'
+import { nowIsoUtc } from '../../utils/datetime'
 import type { Component, MaintenanceEvent } from '../../types/models'
-import ServiceTypePicker, { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
+import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
 import { useServiceTypeIdResolver } from '../../hooks/useServiceTypeIdResolver'
+import ServiceNotesField from './ServiceNotesField'
+import ServiceSessionViewModal from './ServiceSessionViewModal'
+import LogServiceTitle from '../logService/LogServiceTitle'
+import ServicePills from '../logService/ServicePills'
+import DoneOnField from '../logService/DoneOnField'
+import { defaultServiceTypeId, primaryAction, servicePills, sessionLockText } from '../logService/logServiceModel'
 
 interface MaintenanceEventFormValues {
   component_id: string
@@ -27,10 +32,10 @@ interface MaintenanceEventFormValues {
   notes: string
 }
 
-function emptyValues(defaultComponentId?: number, defaultServiceTypeId?: number): MaintenanceEventFormValues {
+function emptyValues(defaultComponentId?: number, defaultServiceTypeIdValue?: number): MaintenanceEventFormValues {
   return {
     component_id: defaultComponentId ? String(defaultComponentId) : '',
-    service_type_id: defaultServiceTypeId ? String(defaultServiceTypeId) : '',
+    service_type_id: defaultServiceTypeIdValue ? String(defaultServiceTypeIdValue) : '',
     service_type_new_name: '',
     performed_at: nowIsoUtc(),
     notes: '',
@@ -62,14 +67,22 @@ interface MaintenanceEventFormModalProps {
   event?: MaintenanceEvent
   defaultComponentId?: number
   defaultServiceTypeId?: number
+  // Given by an opener that can start a service session (the Maintenance
+  // page): the no-component version links to it ("Log a service session").
+  onLogSession?: () => void
 }
 
+// The Log service modal: logging or editing one service on one component
+// (docs/frontend-ui.md, "Log service modal"). Opened with a component, or
+// editing, it's that component's; opened without one it starts with the
+// component picker.
 export default function MaintenanceEventFormModal({
   opened,
   onClose,
   event,
   defaultComponentId,
-  defaultServiceTypeId,
+  defaultServiceTypeId: preselectedServiceTypeId,
+  onLogSession,
 }: MaintenanceEventFormModalProps) {
   return (
     <MaintenanceEventForm
@@ -78,44 +91,43 @@ export default function MaintenanceEventFormModal({
       onClose={onClose}
       event={event}
       defaultComponentId={defaultComponentId}
-      defaultServiceTypeId={defaultServiceTypeId}
+      preselectedServiceTypeId={preselectedServiceTypeId}
+      onLogSession={onLogSession}
     />
   )
 }
 
-// Owns the AppModal itself, not just the form inside it -- unlike every
-// other form modal, this one needs its submit/cancel row as AppModal's
-// `footer` prop (for the sticky-on-mobile treatment), and that footer's
-// own disabled/loading state depends on this component's own form/
-// mutation state, which the previous split (a non-keyed outer Modal
-// wrapper around a keyed inner form) had no way to reach. Keying this
-// whole component by event identity (same as the old inner form did)
-// still forces a clean remount of all of it -- including AppModal --
-// whenever the edit target changes; in practice `opened` already cycles
-// through false whenever that happens, so AppModal's close transition is
-// unaffected.
+// Owns the AppModal itself, not just the form inside it -- the footer
+// (AppModal's `footer`, sticky on mobile) and the lifted title both depend
+// on this form's state. Keyed by event identity, so changing the edit
+// target remounts all of it.
 function MaintenanceEventForm({
   opened,
   onClose,
   event,
   defaultComponentId,
-  defaultServiceTypeId,
+  preselectedServiceTypeId,
+  onLogSession,
 }: {
   opened: boolean
   onClose: () => void
   event?: MaintenanceEvent
   defaultComponentId?: number
-  defaultServiceTypeId?: number
+  preselectedServiceTypeId?: number
+  onLogSession?: () => void
 }) {
   const formId = useId()
   const isEdit = Boolean(event)
   const [baseErrors, setBaseErrors] = useState<string[]>([])
+  const [sessionOpened, setSessionOpened] = useState(false)
 
   const { data: components } = useComponents()
+  const { data: serviceTypes } = useServiceTypes()
+  const { data: bikes } = useBikes()
   const { resolveServiceTypeId, isCreatingServiceType } = useServiceTypeIdResolver()
 
   const form = useForm<MaintenanceEventFormValues>({
-    initialValues: event ? toFormValues(event) : emptyValues(defaultComponentId, defaultServiceTypeId),
+    initialValues: event ? toFormValues(event) : emptyValues(defaultComponentId, preselectedServiceTypeId),
     validate: {
       component_id: (value) => (value ? null : 'Component is required'),
       service_type_id: (value) => (value ? null : 'Service type is required'),
@@ -123,10 +135,53 @@ function MaintenanceEventForm({
     },
   })
 
+  const componentId = form.values.component_id ? Number(form.values.component_id) : undefined
+  const { data: component } = useComponent(opened && componentId != null ? componentId : NaN)
+  const sessionId = event?.service_session_id ?? null
+  const { data: session } = useServiceSession(opened && sessionId != null ? sessionId : NaN)
+  const sessionBikeName = bikes?.find((bike) => bike.id === session?.bike_id)?.name
+
+  // Logging (not editing): once the component's requirements load, start
+  // on its default type -- unless the opener preselected one, or the user
+  // already picked. Once per component.
+  const defaultedFor = useRef<number | null>(null)
+  useEffect(() => {
+    if (isEdit || !component || defaultedFor.current === component.id) return
+    defaultedFor.current = component.id
+    if (form.values.service_type_id) return
+    const id = defaultServiceTypeId(component, preselectedServiceTypeId)
+    if (id) form.setFieldValue('service_type_id', String(id))
+  }, [component, isEdit, preselectedServiceTypeId, form])
+
   const createEvent = useCreateMaintenanceEvent()
   const updateEvent = useUpdateMaintenanceEvent(event?.id ?? -1)
   const mutation = isEdit ? updateEvent : createEvent
   const deleteEvent = useDeleteMaintenanceEvent()
+
+  const category = component?.category ?? components?.find((c) => c.id === componentId)?.category ?? null
+  const pills = component ? servicePills(component) : []
+
+  async function handleSubmit(values: MaintenanceEventFormValues) {
+    setBaseErrors([])
+
+    if (values.service_type_id === CREATE_NEW_SERVICE_TYPE && !values.service_type_new_name.trim()) {
+      form.setFieldError('service_type_new_name', 'Name is required')
+      return
+    }
+
+    let resolvedServiceTypeId: number
+    try {
+      resolvedServiceTypeId = await resolveServiceTypeId(values.service_type_id, values.service_type_new_name, category)
+    } catch (error) {
+      setBaseErrors(applyApiErrors(form, error))
+      return
+    }
+
+    mutation.mutate(toPayload(values, resolvedServiceTypeId), {
+      onSuccess: () => onClose(),
+      onError: (error) => setBaseErrors(applyApiErrors(form, error)),
+    })
+  }
 
   // Edit mode only: deleting one service (the Maintenance page's rows open
   // this modal and carry no row actions of their own).
@@ -143,61 +198,47 @@ function MaintenanceEventForm({
     })
   }
 
-  async function handleSubmit(values: MaintenanceEventFormValues) {
-    setBaseErrors([])
+  const selectedTypeName =
+    form.values.service_type_id === CREATE_NEW_SERVICE_TYPE
+      ? form.values.service_type_new_name.trim() || null
+      : (pills.find((pill) => String(pill.serviceTypeId) === form.values.service_type_id)?.name ??
+        serviceTypes?.find((type) => String(type.id) === form.values.service_type_id)?.name ??
+        null)
+  const primary = primaryAction({ isEdit, hasComponent: componentId != null, serviceTypeName: selectedTypeName })
 
-    if (values.service_type_id === CREATE_NEW_SERVICE_TYPE && !values.service_type_new_name.trim()) {
-      form.setFieldError('service_type_new_name', 'Name is required')
-      return
-    }
-
-    let resolvedServiceTypeId: number
-    try {
-      resolvedServiceTypeId = await resolveServiceTypeId(values.service_type_id, values.service_type_new_name, selectedCategory)
-    } catch (error) {
-      setBaseErrors(applyApiErrors(form, error))
-      return
-    }
-
-    mutation.mutate(toPayload(values, resolvedServiceTypeId), {
-      onSuccess: () => onClose(),
-      onError: (error) => setBaseErrors(applyApiErrors(form, error)),
-    })
-  }
-
-  function handleServiceTypeChange(value: string) {
-    form.setFieldValue('service_type_id', value)
-  }
-
-  // The picker's category context: whichever component is picked right now
-  // (none picked yet = no filter).
-  const selectedCategory = components?.find((component) => String(component.id) === form.values.component_id)?.category ?? null
-
-  const componentOptions = (components ?? []).map((component: Component) => ({
-    value: String(component.id),
-    label: component.label,
-  }))
+  const componentOptions = (components ?? []).map((c: Component) => ({ value: String(c.id), label: c.label }))
+  const noComponent = componentId == null
 
   return (
     <AppModal
       opened={opened}
       onClose={onClose}
-      title={isEdit ? 'Edit service' : 'Log service'}
+      size="lg"
+      title={<LogServiceTitle isEdit={isEdit} component={component} onNavigate={onClose} onLogSession={onLogSession} />}
       footer={
         opened && (
           <Group justify={isEdit ? 'space-between' : 'flex-end'}>
             {isEdit && (
-              <Button variant="subtle" color="red" onClick={handleDelete} loading={deleteEvent.isPending}>
-                Delete service
+              <Button variant="outline" color="red" onClick={handleDelete} loading={deleteEvent.isPending}>
+                Delete
               </Button>
             )}
             <Group gap="sm">
               <Button variant="default" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" form={formId} loading={mutation.isPending || isCreatingServiceType}>
-                {isEdit ? 'Save' : 'Log service'}
-              </Button>
+              <Tooltip label={primary.disabledReason} disabled={!primary.disabledReason}>
+                <span>
+                  <Button
+                    type="submit"
+                    form={formId}
+                    disabled={primary.disabledReason != null}
+                    loading={mutation.isPending || isCreatingServiceType}
+                  >
+                    {primary.label}
+                  </Button>
+                </span>
+              </Tooltip>
             </Group>
           </Group>
         )
@@ -214,41 +255,45 @@ function MaintenanceEventForm({
               </Alert>
             )}
 
-            <Select
-              label="Component"
-              required
-              data={componentOptions}
-              {...form.getInputProps('component_id')}
-            />
-            <ServiceTypePicker
+            {!isEdit && defaultComponentId == null && (
+              <Select label="Component" required searchable data={componentOptions} {...form.getInputProps('component_id')} />
+            )}
+
+            <ServicePills
+              pills={pills}
               value={form.values.service_type_id}
-              category={selectedCategory}
-              onChange={handleServiceTypeChange}
+              onChange={(value) => form.setFieldValue('service_type_id', value)}
+              category={category}
               newTypeName={form.values.service_type_new_name}
               onNewTypeNameChange={(value) => form.setFieldValue('service_type_new_name', value)}
               error={typeof form.errors.service_type_id === 'string' ? form.errors.service_type_id : undefined}
-              newTypeNameError={
-                typeof form.errors.service_type_new_name === 'string' ? form.errors.service_type_new_name : undefined
-              }
+              newTypeNameError={typeof form.errors.service_type_new_name === 'string' ? form.errors.service_type_new_name : undefined}
+              disabled={noComponent}
             />
-            <DateTimePicker
-              label="Performed at"
-              required
-              value={isoUtcToDate(form.values.performed_at)}
-              onChange={(value) =>
-                form.setFieldValue('performed_at', mantineLocalStringToIsoUtc(value))
-              }
-              error={form.errors.performed_at}
-              disabled={event?.service_session_id != null}
-              description={
-                event?.service_session_id != null
-                  ? "Part of a service session — edit the date from the session marker on this component's history instead."
+
+            <DoneOnField
+              value={form.values.performed_at}
+              onChange={(value) => form.setFieldValue('performed_at', value)}
+              componentId={componentId}
+              error={typeof form.errors.performed_at === 'string' ? form.errors.performed_at : undefined}
+              disabled={noComponent}
+              locked={
+                sessionId != null
+                  ? { text: sessionLockText(session, sessionBikeName), onOpenSession: () => setSessionOpened(true) }
                   : undefined
               }
             />
-            <Textarea label="Notes" {...form.getInputProps('notes')} />
+
+            <ServiceNotesField
+              value={form.values.notes}
+              onChange={(value) => form.setFieldValue('notes', value)}
+              disabled={noComponent}
+            />
           </Stack>
         </form>
+      )}
+      {sessionId != null && sessionOpened && (
+        <ServiceSessionViewModal opened onClose={() => setSessionOpened(false)} sessionId={sessionId} />
       )}
     </AppModal>
   )

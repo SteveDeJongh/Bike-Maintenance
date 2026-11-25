@@ -79,7 +79,7 @@ module Activity
     end
 
     def initialize(user, kinds: nil, bike_id: nil, from: nil, to: nil, tz: nil, q: nil, component_id: nil,
-      order: "desc", sort: "date", cursor: nil, page: 1, per_page: nil, include_meta: true)
+      order: "desc", sort: "date", cursor: nil, page: 1, per_page: nil, include_meta: true, before: nil)
       @user = user
       # The dashboard's Recent service only wants entries -- skipping meta
       # saves the ride-totals and per-kind count queries it would discard.
@@ -103,6 +103,9 @@ module Activity
       @zone = zone
       @from_time = from.present? ? Date.parse(from).in_time_zone(zone).beginning_of_day.utc : nil
       @to_time = to.present? ? Date.parse(to).in_time_zone(zone).end_of_day.utc : nil
+      # An instant, not a day: only entries strictly before it (the Log
+      # service modal's "last ride before this"). Unparseable means unset.
+      @before_time = parse_instant(before)
 
     end
 
@@ -112,7 +115,8 @@ module Activity
 
     private
 
-    attr_reader :user, :bike_id, :component_id, :q, :order, :sort, :cursor, :page, :per_page, :from_time, :to_time
+    attr_reader :user, :bike_id, :component_id, :q, :order, :sort, :cursor, :page, :per_page, :from_time, :to_time,
+      :before_time
 
     def source_kinds
       @kind_groups.flat_map { |group| KIND_GROUPS.fetch(group) }
@@ -304,7 +308,14 @@ module Activity
       conditions = []
       conditions << "#{column} >= #{quote(from_time)}" if from_time
       conditions << "#{column} <= #{quote(to_time)}" if to_time
+      conditions << "#{column} < #{quote(before_time)}" if before_time
       conditions
+    end
+
+    def parse_instant(value)
+      value.present? ? Time.iso8601(value.to_s).utc : nil
+    rescue ArgumentError
+      nil
     end
 
     def quote(value)
@@ -604,6 +615,7 @@ module Activity
       scope = scope.where(moved_at: from_time..) if from_time && !to_time
       scope = scope.where(moved_at: ..to_time) if to_time && !from_time
       scope = scope.where(moved_at: from_time..to_time) if from_time && to_time
+      scope = scope.where(moved_at: ...before_time) if before_time
       if component_id
         scope = scope.where(
           "EXISTS (SELECT 1 FROM component_assignments ca WHERE ca.bike_id = strava_activities.bike_id " \

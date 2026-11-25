@@ -356,3 +356,22 @@ export function useRideDetail(id: number | null) {
     enabled: id != null,
   })
 }
+
+// The latest ride a component counted toward that started strictly before
+// an instant (GET /activity's component_id filter -- its assignment
+// windows and ride context -- with `before`): the Log service modal's
+// "After last ride" and "Last ride before this". null when there's none.
+// Keyed under ['activity'], so the rides invalidation group refreshes it.
+export function useLastRideBefore(componentId: number | undefined, before: string | null) {
+  return useQuery({
+    queryKey: ['activity', 'last_ride', componentId, before],
+    queryFn: async () => {
+      const params = new URLSearchParams({ component_id: String(componentId), before: before ?? '', per_page: '1', order: 'desc' })
+      params.append('kinds[]', 'ride')
+      const response = await apiGet<ActivityFeedResponse>(`/activity?${params.toString()}`)
+      const ride = response.items.find((item) => item.kind === 'ride')
+      return ride ? { name: ride.name, moved_at: ride.moved_at, elapsed_time: ride.elapsed_time } : null
+    },
+    enabled: componentId != null && before != null,
+  })
+}

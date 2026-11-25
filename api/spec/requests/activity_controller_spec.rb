@@ -65,6 +65,25 @@ RSpec.describe "Activity", type: :request do
       expect(item["component"]).to eq("id" => component.id, "label" => "Chain A")
     end
 
+    it "keeps only entries strictly before ?before=, an instant -- the component's last counted ride" do
+      bike = create(:bike, user: current_user)
+      chain = create(:component, user: current_user)
+      create(:component_assignment, component: chain, bike: bike, started_at: Time.utc(2026, 1, 1))
+      earlier = create(:strava_activity, user: current_user, bike: bike, moved_at: Time.utc(2026, 3, 1, 8), name: "Hill repeats")
+      at_instant = create(:strava_activity, user: current_user, bike: bike, moved_at: Time.utc(2026, 3, 1, 10))
+      create(:strava_activity, user: current_user, bike: bike, moved_at: Time.utc(2026, 3, 1, 12))
+
+      get "/activity", params: { kinds: [ "ride" ], component_id: chain.id, before: "2026-03-01T10:00:00Z", per_page: 1 }
+
+      body = JSON.parse(response.body)
+      expect(body["items"].map { |i| i["id"] }).to eq([ earlier.id ])
+      expect(body["items"].first).to include("name" => "Hill repeats", "elapsed_time" => earlier.elapsed_time)
+      expect(at_instant.id).not_to eq(earlier.id)
+
+      get "/activity", params: { kinds: [ "ride" ], before: "not a time" }
+      expect(JSON.parse(response.body)["items"].size).to eq(3)
+    end
+
     it "includes meta.week_totals keyed by the local Monday for a date-ordered page" do
       bike = create(:bike, user: current_user)
       create(:strava_activity, user: current_user, bike: bike, moved_at: ActiveSupport::TimeZone["America/Vancouver"].parse("2026-03-15 23:30"), distance_meters: 3_000)
