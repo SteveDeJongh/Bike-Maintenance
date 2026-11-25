@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Autocomplete, Group, Stack, type MantineSize } from '@mantine/core'
+import { useMemo, type CSSProperties } from 'react'
+import { Autocomplete, Stack, type MantineSize } from '@mantine/core'
 import { useComponentCategorySettings } from '../api/queries'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import { buildBrandGroups, buildModelSuggestions, resolveCasing, type SuggestionPool } from '../utils/componentSuggestions'
@@ -27,8 +27,12 @@ interface ComponentBrandModelInputsProps {
   // usage-count-only (see buildModelSuggestions).
   category?: string
   // 'stacked' (default): full-width, one per line, for the modal.
-  // 'inline': side by side, for a single setup-page table cell.
-  layout?: 'stacked' | 'inline'
+  // 'cells': the two fields alone (a fragment) with no visible labels, for
+  // two grid cells (Bike setup's Brand and Model columns) -- pass ariaLabels.
+  layout?: 'stacked' | 'cells'
+  ariaLabels?: { brand: string; model: string }
+  // 'cells' only: each field's own style (Bike setup dims unchecked rows).
+  cellStyle?: CSSProperties
   size?: MantineSize
   disabled?: boolean
   // A pool built once by the caller (BikeSetup: saved components plus every
@@ -48,6 +52,8 @@ export default function ComponentBrandModelInputs({
   disabled,
   suggestions: pool,
   onBlur,
+  ariaLabels,
+  cellStyle,
 }: ComponentBrandModelInputsProps) {
   // Cheap with a pool passed: memoized on the cached components list, so it
   // only computes when that changes.
@@ -80,11 +86,13 @@ export default function ComponentBrandModelInputs({
     if (match) onChange({ brand: match.brand, model: value }, 'input')
   }
 
-  const fieldStyle = layout === 'inline' ? { flex: 1, minWidth: 0 } : undefined
+  const cells = layout === 'cells'
+  const fieldStyle = cells ? { minWidth: 0, ...cellStyle } : undefined
   const fields = (
     <>
       <Autocomplete
-        label="Brand"
+        label={cells ? undefined : 'Brand'}
+        aria-label={ariaLabels?.brand}
         size={size}
         disabled={disabled}
         data={brandGroups}
@@ -95,7 +103,8 @@ export default function ComponentBrandModelInputs({
         style={fieldStyle}
       />
       <Autocomplete
-        label="Model"
+        label={cells ? undefined : 'Model'}
+        aria-label={ariaLabels?.model}
         size={size}
         disabled={disabled}
         data={modelOptions}
@@ -109,11 +118,5 @@ export default function ComponentBrandModelInputs({
     </>
   )
 
-  return layout === 'inline' ? (
-    <Group gap="xs" wrap="nowrap" align="flex-start">
-      {fields}
-    </Group>
-  ) : (
-    <Stack gap="xs">{fields}</Stack>
-  )
+  return cells ? fields : <Stack gap="xs">{fields}</Stack>
 }

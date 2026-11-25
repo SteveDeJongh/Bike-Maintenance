@@ -12,6 +12,9 @@ export interface DataListColumn<K extends string> {
   // Always shown in the header's tooltip ("Total time · Over the
   // component's whole life"); the Fields picker shows it too.
   description?: string
+  // A dimmer second part after " · ", e.g. Bike setup's "Label · blank
+  // uses brand + model".
+  hint?: string
 }
 
 // The column header band: one cell per grid track, as a subgrid of the
@@ -19,7 +22,9 @@ export interface DataListColumn<K extends string> {
 // call onSort (the caller decides the first direction and the flip); the
 // active one shows an arrow. Labels stay on one line: a column narrower
 // than its label (fieldMinWidth should prevent it) truncates the text --
-// never the arrow -- and the full label shows in a tooltip.
+// never the arrow -- and the full label shows in a tooltip. A list that
+// doesn't sort (Bike setup) omits sortColumn/order/onSort and marks every
+// column sortable: false.
 export default function DataListHeader<K extends string>({
   columns,
   sortColumn,
@@ -27,9 +32,9 @@ export default function DataListHeader<K extends string>({
   onSort,
 }: {
   columns: DataListColumn<K>[]
-  sortColumn: K
-  order: 'asc' | 'desc'
-  onSort: (column: K) => void
+  sortColumn?: K
+  order?: 'asc' | 'desc'
+  onSort?: (column: K) => void
 }) {
   return (
     <div
@@ -50,6 +55,7 @@ export default function DataListHeader<K extends string>({
             <HeaderLabel
               key={column.key}
               label={column.label}
+              hint={column.hint}
               description={column.description}
               active={false}
               alignRight={alignRight}
@@ -62,9 +68,9 @@ export default function DataListHeader<K extends string>({
             label={column.label}
             description={column.description}
             active={column.key === sortColumn}
-            order={order}
+            order={order ?? 'asc'}
             alignRight={alignRight}
-            onClick={() => onSort(column.key as K)}
+            onClick={() => onSort?.(column.key as K)}
           />
         )
       })}
@@ -77,17 +83,20 @@ export default function DataListHeader<K extends string>({
 // pointer arrives, so a resize is always picked up).
 function HeaderLabel({
   label,
+  hint,
   description,
   active,
   alignRight,
 }: {
   label: string
+  hint?: string
   description?: string
   active: boolean
   alignRight: boolean
 }) {
   const [truncated, setTruncated] = useState(false)
-  const tooltip = description ? `${label} · ${description}` : label
+  const full = hint ? `${label} · ${hint}` : label
+  const tooltip = description ? `${full} · ${description}` : full
 
   function measure(event: MouseEvent<HTMLElement>) {
     const el = event.currentTarget
@@ -106,6 +115,7 @@ function HeaderLabel({
         style={{ minWidth: 0 }}
       >
         {label}
+        {hint && <span style={{ opacity: 0.7, fontWeight: 400 }}> · {hint}</span>}
       </Text>
     </Tooltip>
   )

@@ -145,3 +145,9 @@ body {
     text-align: left;
   }
 }
+
+/* Bike setup: the Label's placeholder is the fallback that will be saved
+   (setupRowLabel), set apart from a typed label by italics. */
+.setup-label-input::placeholder {
+  font-style: italic;
+}

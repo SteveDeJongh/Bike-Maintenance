@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { actionBarSummary, makeRow, rowHasDetails, setupButtonLabel, tickedCount, type SetupRow } from './bikeSetupModel'
+import {
+  actionBarSummary,
+  makeRow,
+  notesPillLabel,
+  rowHasDetails,
+  setupButtonLabel,
+  tickedCount,
+  trackedLabel,
+  type SetupRow,
+} from './bikeSetupModel'
+import type { BikeDetail } from '../../types/models'
 import { formatDate } from '../../utils/datetime'
 
 const row = (key: string, overrides: Partial<SetupRow> = {}): SetupRow => ({ ...makeRow(key, 'both', false, false), ...overrides })
@@ -57,5 +67,33 @@ describe('actionBarSummary', () => {
       detail: null,
       phoneLine: 'Nothing to set up yet',
     })
+  })
+})
+
+describe('notesPillLabel', () => {
+  it('reads "+ Notes", "1 note" for a hidden note, "Hide notes" when open', () => {
+    expect(notesPillLabel({ notes: ' ', notesExpanded: false })).toBe('+ Notes')
+    expect(notesPillLabel({ notes: 'Two coats', notesExpanded: false })).toBe('1 note')
+    expect(notesPillLabel({ notes: '', notesExpanded: true })).toBe('Hide notes')
+  })
+})
+
+describe('trackedLabel', () => {
+  const assignment = (label: string, category: string, endedAt: string | null) => ({
+    ended_at: endedAt,
+    component: { label, category },
+  })
+  const bike = (assignments: ReturnType<typeof assignment>[]) =>
+    ({ component_assignments: assignments }) as unknown as Pick<BikeDetail, 'component_assignments'>
+
+  it("joins the category's open assignments, ignoring ended ones and other categories", () => {
+    const b = bike([
+      assignment('Cassette A', 'cassette', null),
+      assignment('Cassette B', 'cassette', null),
+      assignment('Old cassette', 'cassette', '2026-01-01T00:00:00Z'),
+      assignment('Chain A', 'chain', null),
+    ])
+    expect(trackedLabel(b, 'cassette')).toBe('Cassette A, Cassette B')
+    expect(trackedLabel(b, 'tire_front')).toBeNull()
   })
 })

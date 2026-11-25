@@ -7,6 +7,8 @@ const TONE_BACKGROUND = {
   muted: 'var(--mantine-color-gray-light)',
   // A deep-linked row, briefly (the component page's ?event=<id>).
   highlight: 'var(--mantine-color-yellow-light)',
+  // A row the server rejected (Bike setup's row errors).
+  error: 'var(--mantine-color-red-light)',
 } as const
 
 // One DataList row: the whole row is the click target and a keyboard

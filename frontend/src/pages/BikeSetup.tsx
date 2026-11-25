@@ -1,32 +1,15 @@
-import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Checkbox,
-  Collapse,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  TextInput,
-  UnstyledButton,
-} from '@mantine/core'
+import { Alert, Anchor, Loader, Stack, Text } from '@mantine/core'
 import { ApiError } from '../api/client'
 import { useBike, useBikeTypes, useComponentCategorySettings } from '../api/queries'
 import { useComponentSetup, type ComponentSetupRow } from '../api/mutations'
 import { useAllCategories } from '../hooks/useAllCategories'
-import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
 import { setupRowLabel } from '../utils/setupRowLabel'
-import { applyRowChange, blurChange, withActivation } from '../utils/setupRowActivation'
-import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
+import { applyRowChange, blurChange } from '../utils/setupRowActivation'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
-import type { ComponentSuggestionInput, SuggestionPool } from '../utils/componentSuggestions'
+import type { ComponentSuggestionInput } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
 import {
   buildInitialRows,
@@ -34,6 +17,7 @@ import {
   parseRowErrorsByIndex,
   actionBarSummary,
   tickedCount,
+  trackedLabel,
   type RideContext,
   type SetupRow,
 } from '../components/bikeSetup/bikeSetupModel'
@@ -41,6 +25,9 @@ import BikeSetupHeader from '../components/bikeSetup/BikeSetupHeader'
 import BikeSetupToolbar from '../components/bikeSetup/BikeSetupToolbar'
 import BikeSetupActionBar from '../components/bikeSetup/BikeSetupActionBar'
 import SetupActions from '../components/bikeSetup/SetupActions'
+import SetupChecklistList from '../components/bikeSetup/SetupChecklistList'
+import SetupRowItem from '../components/bikeSetup/SetupRowItem'
+import AlreadyTrackedRow from '../components/bikeSetup/AlreadyTrackedRow'
 import { MOBILE_TAP_TARGET_STYLE } from '../utils/touchTarget'
 
 export default function BikeSetup() {
@@ -267,63 +254,38 @@ function SetupChecklist({
 
       {baseError && <Alert color="red">{baseError}</Alert>}
 
-      <Table.ScrollContainer minWidth={700}>
-      <Table verticalSpacing="sm">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Category</Table.Th>
-            <Table.Th>Label</Table.Th>
-            <Table.Th>Brand / Model</Table.Th>
-            <Table.Th>Notes</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {trackableCategories.map((category) => {
-            const rows = rowsByCategory[category]
-            const setting = categorySettings.find((s) => s.category === category)
-            const existingContexts = existingContextsByCategory[category] ?? NO_CONTEXTS
+      <SetupChecklistList stacked={false}>
+        {trackableCategories.map((category) => {
+          const rows = rowsByCategory[category]
+          const setting = categorySettings.find((s) => s.category === category)
+          const existingContexts = existingContextsByCategory[category] ?? NO_CONTEXTS
 
-            if (rows.length === 0) {
-              return (
-                <Table.Tr key={category}>
-                  <Table.Td colSpan={4}>
-                    <Group gap="xs">
-                      <Text size="sm" c="dimmed">
-                        {categoryLabel(category)}
-                      </Text>
-                      <Badge size="xs" color="gray">
-                        Already tracked
-                      </Badge>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              )
-            }
+          if (rows.length === 0) {
+            return <AlreadyTrackedRow key={category} category={category} label={trackedLabel(bike, category)} stacked={false} />
+          }
 
-            return rows.map((row, rowIndex) => (
-              <SetupTableRow
-                key={row.key}
-                category={category}
-                bikeName={bike.name}
-                row={row}
-                isFirstRowOfCategory={rowIndex === 0}
-                existingContexts={existingContexts}
-                allowsMultiple={setting?.allows_multiple_assignments ?? false}
-                canAddComplementary={rows.length === 1 && row.rideContextEditable && row.rideContext !== 'both'}
-                canRemove={rowIndex > 0}
-                error={rowErrors[row.key]}
-                suggestions={suggestionPool}
-                onChange={updateRow}
-                onRideContextChange={changeRideContext}
-                onAddComplementary={addComplementaryRow}
-                onRemove={removeRow}
-                onBlur={blurRow}
-              />
-            ))
-          })}
-        </Table.Tbody>
-      </Table>
-      </Table.ScrollContainer>
+          return rows.map((row, rowIndex) => (
+            <SetupRowItem
+              key={row.key}
+              category={category}
+              bikeName={bike.name}
+              row={row}
+              isFirstRowOfCategory={rowIndex === 0}
+              existingContexts={existingContexts}
+              allowsMultiple={setting?.allows_multiple_assignments ?? false}
+              canAddComplementary={rows.length === 1 && row.rideContextEditable && row.rideContext !== 'both'}
+              canRemove={rowIndex > 0}
+              error={rowErrors[row.key]}
+              suggestions={suggestionPool}
+              onChange={updateRow}
+              onRideContextChange={changeRideContext}
+              onAddComplementary={addComplementaryRow}
+              onRemove={removeRow}
+              onBlur={blurRow}
+            />
+          ))
+        })}
+      </SetupChecklistList>
 
       <BikeSetupActionBar
         summary={summary}
@@ -344,147 +306,3 @@ function SetupChecklist({
 }
 
 const NO_CONTEXTS: RideContext[] = []
-
-// Memoized: every prop is stable across another row's keystroke (the
-// callbacks take the row's category and key), so typing re-renders one row.
-const SetupTableRow = memo(function SetupTableRow({
-  category,
-  bikeName,
-  row,
-  isFirstRowOfCategory,
-  existingContexts,
-  allowsMultiple,
-  canAddComplementary,
-  canRemove,
-  error,
-  suggestions,
-  onChange,
-  onRideContextChange,
-  onAddComplementary,
-  onRemove,
-  onBlur,
-}: {
-  category: string
-  bikeName: string
-  row: SetupRow
-  isFirstRowOfCategory: boolean
-  existingContexts: RideContext[]
-  allowsMultiple: boolean
-  canAddComplementary: boolean
-  canRemove: boolean
-  error: string | undefined
-  suggestions: SuggestionPool
-  onChange: (category: string, key: string, changes: Partial<SetupRow>) => void
-  onRideContextChange: (category: string, key: string, rideContext: RideContext) => void
-  onAddComplementary: (category: string) => void
-  onRemove: (category: string, key: string) => void
-  onBlur: (category: string, key: string) => void
-}) {
-  const change = (changes: Partial<SetupRow>) => onChange(category, row.key, changes)
-  // Typing in Label/Brand/Model/Notes checks an unchecked row (merged into
-  // the same change); emptying an auto-checked one unchecks it on blur.
-  // Clicking, Tab and the casing fix don't check.
-  const blur = () => onBlur(category, row.key)
-  const inputCell = { opacity: row.checked ? 1 : 0.5 }
-
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Group gap="xs" wrap="nowrap" align="flex-start">
-          <Checkbox
-            mt={2}
-            checked={row.checked}
-            onChange={(event) => change({ checked: event.currentTarget.checked, autoChecked: false })}
-          />
-          <Stack gap={2}>
-            {isFirstRowOfCategory && <Text size="sm">{categoryLabel(category)}</Text>}
-            {existingContexts.length > 0 && (
-              <Text size="xs" c="dimmed">
-                {existingContexts.map((context) => RIDE_CONTEXT_LABELS[context]).join(', ')}{' '}
-                already tracked
-              </Text>
-            )}
-            {allowsMultiple && row.rideContextEditable && (
-              <Select
-                size="xs"
-                w={140}
-                data={[
-                  { value: 'both', label: RIDE_CONTEXT_LABELS.both },
-                  { value: 'outdoor_only', label: RIDE_CONTEXT_LABELS.outdoor_only },
-                  { value: 'indoor_only', label: RIDE_CONTEXT_LABELS.indoor_only },
-                ]}
-                value={row.rideContext}
-                onChange={(value) => value && onRideContextChange(category, row.key, value as RideContext)}
-                allowDeselect={false}
-              />
-            )}
-            {allowsMultiple && !row.rideContextEditable && (
-              <Badge size="xs" variant="light" color={row.rideContext === 'indoor_only' ? 'grape' : 'blue'}>
-                {RIDE_CONTEXT_LABELS[row.rideContext]}
-              </Badge>
-            )}
-            {canAddComplementary && (
-              <UnstyledButton onClick={() => onAddComplementary(category)}>
-                <Text size="xs" c="dimmed">
-                  + Add {row.rideContext === 'outdoor_only' ? 'indoor' : 'outdoor'} too
-                </Text>
-              </UnstyledButton>
-            )}
-            {canRemove && (
-              <UnstyledButton onClick={() => onRemove(category, row.key)}>
-                <Text size="xs" c="dimmed">
-                  Remove
-                </Text>
-              </UnstyledButton>
-            )}
-          </Stack>
-        </Group>
-        {error && (
-          <Text c="red" size="xs" mt={4}>
-            {error}
-          </Text>
-        )}
-      </Table.Td>
-      <Table.Td style={inputCell}>
-        <TextInput
-          size="sm"
-          value={row.label}
-          placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
-          onChange={(event) => change(withActivation(row, { label: event.currentTarget.value }))}
-          onBlur={blur}
-        />
-      </Table.Td>
-      <Table.Td style={inputCell}>
-        <ComponentBrandModelInputs
-          layout="inline"
-          size="sm"
-          brand={row.brand}
-          model={row.model}
-          category={category}
-          suggestions={suggestions}
-          onBlur={blur}
-          onChange={(changes, reason) => change(reason === 'input' ? withActivation(row, changes) : changes)}
-        />
-      </Table.Td>
-      <Table.Td style={inputCell}>
-        <Stack gap={4}>
-          <UnstyledButton
-            onClick={() => change({ notesExpanded: !row.notesExpanded })}
-          >
-            <Text size="xs" c="dimmed">
-              {row.notesExpanded ? 'Hide notes' : '+ Notes'}
-            </Text>
-          </UnstyledButton>
-          <Collapse expanded={row.notesExpanded}>
-            <Textarea
-              size="sm"
-              value={row.notes}
-              onChange={(event) => change(withActivation(row, { notes: event.currentTarget.value }))}
-              onBlur={blur}
-            />
-          </Collapse>
-        </Stack>
-      </Table.Td>
-    </Table.Tr>
-  )
-})

@@ -167,3 +167,20 @@ export function actionBarSummary({
     phoneLine: `${checked.length} will be installed from ${from}`,
   }
 }
+
+// The Notes cell's pill: "Hide notes" when open, "1 note" when a note is
+// typed but hidden, else "+ Notes".
+export function notesPillLabel(row: Pick<SetupRow, 'notes' | 'notesExpanded'>): string {
+  if (row.notesExpanded) return 'Hide notes'
+  return row.notes.trim() ? '1 note' : '+ Notes'
+}
+
+// An "Already tracked" row's dimmed part label: the bike's open
+// assignments in that category (two for a split category), from the same
+// GET /bikes/:id payload -- or null when nothing's installed in the slot.
+export function trackedLabel(bike: Pick<BikeDetail, 'component_assignments'>, category: string): string | null {
+  const labels = bike.component_assignments
+    .filter((assignment) => assignment.ended_at === null && assignment.component.category === category)
+    .map((assignment) => assignment.component.label)
+  return labels.length ? labels.join(', ') : null
+}
