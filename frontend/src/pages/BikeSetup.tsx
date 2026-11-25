@@ -25,6 +25,7 @@ import { useComponentSetup, type ComponentSetupRow } from '../api/mutations'
 import { useAllCategories } from '../hooks/useAllCategories'
 import { categoryLabel, RIDE_CONTEXT_LABELS } from '../constants'
 import { todayIsoDate } from '../utils/datetime'
+import { setupRowLabel } from '../utils/setupRowLabel'
 import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
 import type { ComponentSuggestionInput } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
@@ -48,14 +49,10 @@ interface SetupRow {
   notesExpanded: boolean
 }
 
-function makeRow(
-  key: string,
-  rideContext: RideContext,
-  rideContextEditable: boolean,
-  checked: boolean,
-  label: string,
-): SetupRow {
-  return { key, rideContext, rideContextEditable, checked, label, brand: '', model: '', notes: '', notesExpanded: false }
+// Label starts blank: left empty, it saves setupRowLabel's brand/model
+// fallback, which the input shows as its placeholder.
+function makeRow(key: string, rideContext: RideContext, rideContextEditable: boolean, checked: boolean): SetupRow {
+  return { key, rideContext, rideContextEditable, checked, label: '', brand: '', model: '', notes: '', notesExpanded: false }
 }
 
 // One row per addable (category, ride_context) combination -- a plain
@@ -84,7 +81,6 @@ function buildInitialRows(
     const allowsMultiple = setting?.allows_multiple_assignments ?? false
     const defaultRideContext = setting?.default_ride_context ?? 'both'
     const defaultChecked = Boolean(bikeType?.default_categories.includes(category))
-    const label = `${bike.name} ${categoryLabel(category)}`
 
     if (existing.has('both')) {
       result[category] = []
@@ -92,7 +88,7 @@ function buildInitialRows(
     }
 
     if (!allowsMultiple) {
-      result[category] = existing.size > 0 ? [] : [makeRow(`${category}:both`, 'both', false, defaultChecked, label)]
+      result[category] = existing.size > 0 ? [] : [makeRow(`${category}:both`, 'both', false, defaultChecked)]
       continue
     }
 
@@ -101,11 +97,11 @@ function buildInitialRows(
     if (hasOutdoor && hasIndoor) {
       result[category] = []
     } else if (hasOutdoor) {
-      result[category] = [makeRow(`${category}:indoor_only`, 'indoor_only', false, false, label)]
+      result[category] = [makeRow(`${category}:indoor_only`, 'indoor_only', false, false)]
     } else if (hasIndoor) {
-      result[category] = [makeRow(`${category}:outdoor_only`, 'outdoor_only', false, false, label)]
+      result[category] = [makeRow(`${category}:outdoor_only`, 'outdoor_only', false, false)]
     } else {
-      result[category] = [makeRow(`${category}:${defaultRideContext}`, defaultRideContext, true, defaultChecked, label)]
+      result[category] = [makeRow(`${category}:${defaultRideContext}`, defaultRideContext, true, defaultChecked)]
     }
   }
   return result
@@ -237,7 +233,7 @@ function SetupChecklist({
       const primary = rows[0]
       if (!primary || rows.length > 1) return prev
       const other: RideContext = primary.rideContext === 'outdoor_only' ? 'indoor_only' : 'outdoor_only'
-      const newRow = makeRow(`${category}:${other}`, other, false, false, primary.label)
+      const newRow = makeRow(`${category}:${other}`, other, false, false)
       return { ...prev, [category]: [...rows, newRow] }
     })
   }
@@ -266,7 +262,7 @@ function SetupChecklist({
       return {
         category,
         ride_context: row.rideContext,
-        label: row.label.trim(),
+        label: setupRowLabel(row, { bikeName: bike.name, category }),
         brand: row.brand.trim() || null,
         model: row.model.trim() || null,
         notes: row.notes.trim() || null,
@@ -359,6 +355,7 @@ function SetupChecklist({
               <SetupTableRow
                 key={row.key}
                 category={category}
+                bikeName={bike.name}
                 row={row}
                 isFirstRowOfCategory={rowIndex === 0}
                 existingContexts={existingContexts}
@@ -392,6 +389,7 @@ function SetupChecklist({
 
 function SetupTableRow({
   category,
+  bikeName,
   row,
   isFirstRowOfCategory,
   existingContexts,
@@ -406,6 +404,7 @@ function SetupTableRow({
   onRemove,
 }: {
   category: string
+  bikeName: string
   row: SetupRow
   isFirstRowOfCategory: boolean
   existingContexts: Set<string>
@@ -482,6 +481,7 @@ function SetupTableRow({
           size="sm"
           disabled={!row.checked}
           value={row.label}
+          placeholder={setupRowLabel({ ...row, label: '' }, { bikeName, category })}
           onChange={(event) => onChange({ label: event.currentTarget.value })}
         />
       </Table.Td>
