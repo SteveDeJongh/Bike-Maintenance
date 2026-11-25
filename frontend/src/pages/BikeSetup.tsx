@@ -4,7 +4,6 @@ import {
   Alert,
   Anchor,
   Badge,
-  Button,
   Checkbox,
   Collapse,
   Group,
@@ -15,10 +14,8 @@ import {
   Text,
   Textarea,
   TextInput,
-  Title,
   UnstyledButton,
 } from '@mantine/core'
-import { DateInput } from '@mantine/dates'
 import { ApiError } from '../api/client'
 import { useBike, useBikeTypes, useComponentCategorySettings } from '../api/queries'
 import { useComponentSetup, type ComponentSetupRow } from '../api/mutations'
@@ -31,102 +28,20 @@ import ComponentBrandModelInputs from '../components/ComponentBrandModelInputs'
 import { useComponentSuggestions } from '../hooks/useComponentSuggestions'
 import type { ComponentSuggestionInput, SuggestionPool } from '../utils/componentSuggestions'
 import type { BikeDetail, BikeType, ComponentCategorySetting } from '../types/models'
-
-type RideContext = 'both' | 'outdoor_only' | 'indoor_only'
-
-interface SetupRow {
-  key: string
-  rideContext: RideContext
-  // false only for the one case where the user actually has a choice: a
-  // fresh (no existing slot), allows_multiple_assignments category's sole
-  // starting row. Every other row's context is fixed by circumstance --
-  // "both" for a plain category, or whichever split context is the only
-  // one left once its sibling already exists.
-  rideContextEditable: boolean
-  checked: boolean
-  // Checked by typing (not the checkbox, "Check all"/"Clear all" or a bike
-  // type preset): unchecks itself when emptied (setupRowActivation.ts).
-  autoChecked: boolean
-  label: string
-  brand: string
-  model: string
-  notes: string
-  notesExpanded: boolean
-}
-
-// Label starts blank: left empty, it saves setupRowLabel's brand/model
-// fallback, which the input shows as its placeholder.
-function makeRow(key: string, rideContext: RideContext, rideContextEditable: boolean, checked: boolean): SetupRow {
-  return { key, rideContext, rideContextEditable, checked, autoChecked: false, label: '', brand: '', model: '', notes: '', notesExpanded: false }
-}
-
-// One row per addable (category, ride_context) combination -- a plain
-// category gets at most one ("both"); an allows_multiple_assignments
-// category gets up to two (outdoor_only + indoor_only), and only the
-// context(s) not already slotted on this bike. A fully-tracked category
-// (every valid context already has a slot) gets none -- the checklist
-// shows it as an "Already tracked" row instead, never blocked, never hidden.
-function buildInitialRows(
-  categories: string[],
-  bike: BikeDetail,
-  bikeType: BikeType | undefined,
-  categorySettings: ComponentCategorySetting[],
-): Record<string, SetupRow[]> {
-  const existingContextsByCategory = new Map<string, Set<RideContext>>()
-  for (const slot of bike.bike_component_slots) {
-    const set = existingContextsByCategory.get(slot.category) ?? new Set<RideContext>()
-    set.add(slot.ride_context)
-    existingContextsByCategory.set(slot.category, set)
-  }
-
-  const result: Record<string, SetupRow[]> = {}
-  for (const category of categories) {
-    const existing = existingContextsByCategory.get(category) ?? new Set<RideContext>()
-    const setting = categorySettings.find((s) => s.category === category)
-    const allowsMultiple = setting?.allows_multiple_assignments ?? false
-    const defaultRideContext = setting?.default_ride_context ?? 'both'
-    const defaultChecked = Boolean(bikeType?.default_categories.includes(category))
-
-    if (existing.has('both')) {
-      result[category] = []
-      continue
-    }
-
-    if (!allowsMultiple) {
-      result[category] = existing.size > 0 ? [] : [makeRow(`${category}:both`, 'both', false, defaultChecked)]
-      continue
-    }
-
-    const hasOutdoor = existing.has('outdoor_only')
-    const hasIndoor = existing.has('indoor_only')
-    if (hasOutdoor && hasIndoor) {
-      result[category] = []
-    } else if (hasOutdoor) {
-      result[category] = [makeRow(`${category}:indoor_only`, 'indoor_only', false, false)]
-    } else if (hasIndoor) {
-      result[category] = [makeRow(`${category}:outdoor_only`, 'outdoor_only', false, false)]
-    } else {
-      result[category] = [makeRow(`${category}:${defaultRideContext}`, defaultRideContext, true, defaultChecked)]
-    }
-  }
-  return result
-}
-
-// POST /bikes/:id/component_setup returns { row_errors: { "<index>": {field: [messages]} } }
-// on a 422 -- index is the position within the *submitted* components
-// array, not a row key, so the caller re-maps it back to a row.
-function parseRowErrorsByIndex(error: unknown): Record<number, string> {
-  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object' || !('row_errors' in error.body)) {
-    return {}
-  }
-  const rowErrors = (error.body as { row_errors: Record<string, Record<string, string[]>> }).row_errors
-  return Object.fromEntries(
-    Object.entries(rowErrors).map(([index, fieldErrors]) => [
-      Number(index),
-      Object.values(fieldErrors).flat().join(', '),
-    ]),
-  )
-}
+import {
+  buildInitialRows,
+  makeRow,
+  parseRowErrorsByIndex,
+  actionBarSummary,
+  tickedCount,
+  type RideContext,
+  type SetupRow,
+} from '../components/bikeSetup/bikeSetupModel'
+import BikeSetupHeader from '../components/bikeSetup/BikeSetupHeader'
+import BikeSetupToolbar from '../components/bikeSetup/BikeSetupToolbar'
+import BikeSetupActionBar from '../components/bikeSetup/BikeSetupActionBar'
+import SetupActions from '../components/bikeSetup/SetupActions'
+import { MOBILE_TAP_TARGET_STYLE } from '../utils/touchTarget'
 
 export default function BikeSetup() {
   const { id } = useParams<{ id: string }>()
@@ -325,29 +240,30 @@ function SetupChecklist({
     )
   }
 
+  const { ticked, total } = tickedCount(rowsByCategory)
+  const summary = actionBarSummary({
+    rowsByCategory,
+    installedOn,
+    bikeName: bike.name,
+    errorCount: Object.keys(rowErrors).length,
+  })
+  const skip = () => navigate(`/bikes/${bike.id}`)
+  const actions = (
+    <SetupActions count={ticked} submitting={componentSetup.isPending} onSkip={skip} onSubmit={handleSubmit} />
+  )
+
   return (
     <Stack>
-      <Title order={2}>Set up components for {bike.name}</Title>
-      <Text c="dimmed">
-        Check the parts this bike has. Each one gets tracked, created, and installed in one step.
-      </Text>
+      <BikeSetupHeader bike={bike} typeName={bikeType?.name ?? null} actions={actions} />
 
-      <DateInput
-        label="Installed since"
-        description="Strava rides before this date won't count toward these components' mileage."
-        value={installedOn}
-        onChange={(value) => setInstalledOnOverride(value)}
-        maw={250}
+      <BikeSetupToolbar
+        installedOn={installedOn}
+        onInstalledOnChange={(value) => setInstalledOnOverride(value)}
+        ticked={ticked}
+        total={total}
+        onCheckAll={() => setAllChecked(true)}
+        onClearAll={() => setAllChecked(false)}
       />
-
-      <Group>
-        <Button size="xs" variant="default" onClick={() => setAllChecked(true)}>
-          Check all
-        </Button>
-        <Button size="xs" variant="default" onClick={() => setAllChecked(false)}>
-          Clear all
-        </Button>
-      </Group>
 
       {baseError && <Alert color="red">{baseError}</Alert>}
 
@@ -409,14 +325,20 @@ function SetupChecklist({
       </Table>
       </Table.ScrollContainer>
 
-      <Group justify="flex-end">
-        <Button variant="default" onClick={() => navigate(`/bikes/${bike.id}`)}>
-          Skip for now
-        </Button>
-        <Button onClick={handleSubmit} loading={componentSetup.isPending}>
-          Set up components
-        </Button>
-      </Group>
+      <BikeSetupActionBar
+        summary={summary}
+        actions={actions}
+        phoneActions={
+          <SetupActions
+            count={ticked}
+            submitting={componentSetup.isPending}
+            onSkip={skip}
+            onSubmit={handleSubmit}
+            grow
+            buttonStyle={MOBILE_TAP_TARGET_STYLE}
+          />
+        }
+      />
     </Stack>
   )
 }

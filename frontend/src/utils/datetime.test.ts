@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatHeaderDate, formatShortDate, isoWeekNumber, relativeDay } from './datetime'
+import { formatDate, formatHeaderDate, formatShortDate, isoWeekNumber, relativeDay } from './datetime'
 
 describe('isoWeekNumber', () => {
   it('numbers an ordinary week', () => {
@@ -72,5 +72,12 @@ describe('relativeDay', () => {
 
   it('handles yesterday across a month boundary', () => {
     expect(relativeDay(at(2026, 10, 30), new Date(2026, 11, 1, 8))).toBe('yesterday')
+  })
+})
+
+describe('formatDate', () => {
+  it('reads a date-only value as that local day', () => {
+    expect(formatDate('2026-04-04')).toBe(new Date(2026, 3, 4).toLocaleDateString(undefined, { dateStyle: 'medium' }))
+    expect(formatDate(null)).toBe('')
   })
 })

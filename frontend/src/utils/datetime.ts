@@ -55,9 +55,11 @@ export function relativeDay(value: string, now: Date = new Date()): string {
   return formatShortDate(value, now)
 }
 
+// "Apr 4, 2026". A date-only value is that day in the browser's zone
+// (parseDay), not the day before west of UTC.
 export function formatDate(value: string | null): string {
   if (!value) return ''
-  return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  return parseDay(value).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
 // Coarse, manual-sync-cadence relative time for the Home header's sync pill
