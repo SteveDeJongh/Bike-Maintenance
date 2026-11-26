@@ -9,6 +9,8 @@ import { WrenchIcon } from '../service/ServiceMarks'
 import { useDeleteServiceSession, useUpdateServiceSession } from '../../api/mutations'
 import { useServiceSession } from '../../api/queries'
 import { confirmDelete } from '../confirmDelete'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { MOBILE_TAP_TARGET_STYLE } from '../../utils/touchTarget'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import { deleteSessionMessage, moveHint, sessionDateTitle, sessionEditError, sessionStats } from '../serviceSession/sessionModel'
 import type { ServiceSession } from '../../types/models'
@@ -19,6 +21,10 @@ interface ServiceSessionViewModalProps {
   opened: boolean
   onClose: () => void
   sessionId: number
+  // Leaving for another page (a service row, the bike link) closes this,
+  // and, when given, the opener too -- the Log service modal, which this
+  // stacks over.
+  onNavigate?: () => void
 }
 
 // One service session (docs/service-requirements.md, "Batch service
@@ -28,10 +34,14 @@ interface ServiceSessionViewModalProps {
 // per-service edit or remove here -- that's from the component. Editing
 // only touches the session's date and note; every service's performed_at
 // moves with it on the server (ServiceSession#sync_event_performed_at).
-export default function ServiceSessionViewModal({ opened, onClose, sessionId }: ServiceSessionViewModalProps) {
+export default function ServiceSessionViewModal({ opened, onClose, sessionId, onNavigate }: ServiceSessionViewModalProps) {
+  const leave = () => {
+    onClose()
+    onNavigate?.()
+  }
   return (
-    <AppModal opened={opened} onClose={onClose} title={<SessionTitle sessionId={sessionId} onNavigate={onClose} />}>
-      {opened && <ServiceSessionView sessionId={sessionId} onClose={onClose} />}
+    <AppModal opened={opened} onClose={onClose} title={<SessionTitle sessionId={sessionId} onNavigate={leave} />}>
+      {opened && <ServiceSessionView sessionId={sessionId} onClose={onClose} onLeave={leave} />}
     </AppModal>
   )
 }
@@ -65,7 +75,7 @@ function SessionTitle({ sessionId, onNavigate }: { sessionId: number; onNavigate
   )
 }
 
-function ServiceSessionView({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
+function ServiceSessionView({ sessionId, onClose, onLeave }: { sessionId: number; onClose: () => void; onLeave: () => void }) {
   const { data: session, isPending, isError, error } = useServiceSession(sessionId)
   const [editing, setEditing] = useState(false)
 
@@ -86,7 +96,7 @@ function ServiceSessionView({ sessionId, onClose }: { sessionId: number; onClose
       ) : (
         <SessionSummary session={session} onEdit={() => setEditing(true)} onDeleted={onClose} />
       )}
-      <SessionServicesList events={session.events} onOpen={onClose} />
+      <SessionServicesList events={session.events} onOpen={onLeave} />
     </Stack>
   )
 }
@@ -94,6 +104,7 @@ function ServiceSessionView({ sessionId, onClose }: { sessionId: number; onClose
 function SessionSummary({ session, onEdit, onDeleted }: { session: ServiceSession; onEdit: () => void; onDeleted: () => void }) {
   const deleteSession = useDeleteServiceSession()
   const stats = sessionStats(session)
+  const tap = useIsMobile() ? MOBILE_TAP_TARGET_STYLE : undefined
 
   function handleDelete() {
     confirmDelete({
@@ -125,10 +136,10 @@ function SessionSummary({ session, onEdit, onDeleted }: { session: ServiceSessio
         </Group>
       )}
       <Group gap="sm">
-        <Button size="xs" variant="outline" onClick={onEdit}>
+        <Button size="xs" variant="outline" onClick={onEdit} style={tap}>
           Edit date and note
         </Button>
-        <Button size="xs" variant="outline" color="red" onClick={handleDelete} loading={deleteSession.isPending}>
+        <Button size="xs" variant="outline" color="red" onClick={handleDelete} loading={deleteSession.isPending} style={tap}>
           Delete session
         </Button>
       </Group>

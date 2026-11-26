@@ -342,7 +342,7 @@ function MaintenanceEventForm({
         </form>
       )}
       {sessionId != null && sessionOpened && (
-        <ServiceSessionViewModal opened onClose={() => setSessionOpened(false)} sessionId={sessionId} />
+        <ServiceSessionViewModal opened onClose={() => setSessionOpened(false)} sessionId={sessionId} onNavigate={onClose} />
       )}
     </AppModal>
   )
