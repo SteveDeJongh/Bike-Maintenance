@@ -212,7 +212,7 @@ new type (tagged <category>)", and `useServiceTypeIdResolver`'s
 `resolveServiceTypeId(id, name, category)` sends `categories: [category]`. Category
 context per site: `MaintenanceEventFormModal` — the form's currently selected
 component (its "Other type" pill; `renderTarget` swaps the labelled input for a
-custom trigger); `BatchServiceModal`'s "Add other…" rows — each row's own chosen
+custom trigger); `BatchServiceModal`'s "Other service" rows — each row's own chosen
 component; `SatisfiersEditor`/`DraftSatisfierRow` — a template's own category
 (Settings) or a custom requirement's component category (`CustomRequirementEditor`,
 `AddCustomServiceIntervalModal`). The "Log service" split button lists a
@@ -289,37 +289,87 @@ this bike" gets computed and how the batch logger itself works.
   every existing event's component against `Bikes::ServiceableComponents` at
   the *new* time first, naming whichever would stop qualifying instead of
   saving anything.
-- **`BatchServiceModal`** (`frontend/src/components/forms/BatchServiceModal.tsx`)
-  is the frontend: a date/time picker up top (refetching
-  `serviceable_components` on every change — whatever's still checked after a
-  refetch stays checked, the rest silently drop with a one-line dimmed note of
-  how many), components grouped mounted-first then a dimmed "Off the bike"
-  group. Rows are **one per (component, service type)** that satisfies at least
-  one of that component's enabled requirements — not one per requirement — so a
-  service type satisfying two requirements at once (a 200 h service that also
-  clears a 50 h one) shows as a single checkbox that logs one event and clears
-  both, the same convention `ComponentDetail`'s own split "Log service" button
-  uses. Each row names every requirement it clears, each with its own status
-  ("Drip Wax · clears Chain lube (due), Chain re-wax (ok)"), and the row's own
-  `ServiceStatusBadge` is the worst status across them (`SERVICE_STATUS_SEVERITY`).
-  "Select all due and warning" picks, per non-ok requirement, its position-1
-  satisfier — deduped by `(component, service type)` key, so two due requirements
-  on the same component that share a satisfier only ever add one row. "Add
-  other…" rows (a component picker from the same eligible list plus
-  `ServiceTypePicker`/`useServiceTypeIdResolver`, the exact pieces
-  `MaintenanceEventFormModal` already uses) are unchanged — they were always
-  service-type-first, with no requirement concept to group by. Rows show no remaining-distance text (a row can clear several requirements with different remaining amounts, and the "clears X (status)" list already says what matters) — `ComponentDetail`'s own rows do. Takes an optional
-  `initialPerformedAt` prop — unused by `BikeDetail`'s header "Log service"
-  button and the Dashboard `BikeCard`'s own "Log service" action, but used by the shared "Log service after this ride" per-ride action
-  (`LogServiceAfterRideButton`, in `RideDetailModal` — see "Ride history"), which
-  passes a ride's `moved_at + elapsed_time`. Mutations
-  (`useCreateServiceSession`/`useUpdateServiceSession`/`useDeleteServiceSession`)
-  invalidate the `history` and `serviceStatus` groups, same as single-event
-  "Log service" (see "Cache invalidation" under Conventions)
+- **`BatchServiceModal`** (`components/forms/BatchServiceModal.tsx`; pieces and
+  pure logic in `components/batchService/`, `batchServiceModel.ts`), "Log service
+  session":
+  - **Entry points**, each passing the bike to start on: the Maintenance page's Log
+    service session (its most recently ridden active bike, `defaultSessionBike`),
+    the Log service modal's "Log a service session" link (the same bike), the bike
+    page header, Home's bike cards, and "Log service after this ride"
+    (`LogServiceAfterRideButton` in `RideDetailModal`, which also passes the ride's
+    `moved_at + elapsed_time` as `initialPerformedAt`).
+  - **Header:** "LOG SERVICE SESSION" over the bike as a pill (`BatchServiceTitle`);
+    its menu lists active bikes, most recently ridden first (`bikesByRecentRide`).
+    **Switching bikes** with anything selected asks first ("Clear 3 selections?",
+    `bikeSwitchConfirm`), then clears the checked rows, their notes, the Other
+    service rows and any row errors, and `serviceable_components` refetches for the
+    new bike. Selections can't carry over: component ids belong to one bike's
+    lineup, and only an off-the-bike spare could match.
+  - **Date and note:** Done on (260px) and "Session note · optional" on one row
+    (stacked on a phone), then "Showing what was on the bike at this time · status
+    is as of today" — the point-in-time rule: which components show is as of the
+    chosen time, their statuses are as of now. A date change refetches; whatever's
+    still eligible stays checked and the rest drop, counted in the same line
+    ("2 selections dropped after the date changed").
+  - **The list:** "What did you do?" with an orange "Select all due and soon · N"
+    pill (`dueAndSoonKeys`: per non-ok requirement its position-1 satisfier, deduped;
+    N is what it would add, hidden at 0). One bordered list with On the bike / Off
+    the bike bands, the off-bike group at 60% opacity. Each component: the label
+    bold, the category dimmed, and for a ready rotating spare "· drip wax Nov 20"
+    (`readyLine`, from `GET /components`' `spareReadyLabel` inputs, joined by id).
+    Rows are **one per (component, service type)** that satisfies at least one of
+    its enabled requirements — not one per requirement — so a type clearing two
+    requirements (a 200 h service that also clears a 50 h one) is one checkbox that
+    logs one event and clears both. A row shows the **worst** requirement it clears
+    (`rowStatus`): a Due / Soon / OK chip (red, orange, teal) and what's left on its
+    driving dimension, right-aligned in the status colour ("8 km over", "6 days
+    left"; dimmed when OK; wrapping under the type on a phone). A checked row gets
+    the faint primary tint and its note input under it, indented to the type.
+  - **Other service** rows ("+ Add other service", dashed): a tinted block with a
+    checkbox that's ticked once the row has a component and a type (that's what
+    makes it count, as before), the component (from the same eligible list), the
+    shared `ServiceTypePicker` scoped to that component's category, and ×.
+  - **422 row errors** show under their rows; other failures in an alert.
+  - **Footer:** "4 selected · 3 components" (`batchFooterCounts`: checked rows plus
+    complete Other service rows, over distinct components); Cancel and "Log N
+    services", disabled at 0 with "Select at least one service".
+  - **Empty state:** "No components were on this bike at that time", with a link to
+    the bike.
+  - Mutations (`useCreateServiceSession`/`useUpdateServiceSession`/
+    `useDeleteServiceSession`) invalidate `history` and `serviceStatus`, same as a
+    single service.
+- **`ServiceSessionViewModal`** (`components/forms/`, pieces in
+  `components/serviceSession/`, `sessionModel.ts`) shows one session. It opens from
+  the Maintenance page's session headers, Activity's service rows, Home's Recent
+  service, the bike page's service card, the component page's history marker, and
+  the Log service modal's locked date (stacked on top; `onNavigate` closes that
+  modal too when this one leaves the page).
+  - **Header:** a 40px teal wrench, "SERVICE SESSION · <bike>" (the bike linked),
+    and "Sat, Nov 14, 2026 · 4:10 pm" (`sessionDateTitle`).
+  - **View:** the note as plain text; a row of stats (`sessionStats`, missing ones
+    left out) — Bike km (the bike's odometer at `performed_at`), Last ride before
+    ("Hill repeats · 62 km") and Logged (`created_at`); Edit date and note and Delete
+    session (both outline; the confirm names the service count).
+  - **Editing** replaces the view block in place: an inset panel with Done on
+    (focused) and "Moves all N services. Each component must have been on <bike>
+    (or off the bike) at the new time.", the note, Cancel / Save. A 422 (which
+    names the components that wouldn't qualify) shows under the date and keeps the
+    edits.
+  - **Services** (both states, `SessionServicesList`): "N components" beside the
+    heading; one bordered row per service — a 28px wrench, "Drip wax · Chain S1"
+    with its "↺" reset chips and note, "at 1,160 km" over "200 km since last", a
+    chevron — opening `/components/:id?event=<id>`. A footnote says one service's
+    type or note is changed, or it's removed, from its component.
+  - **Data:** `GET /service_sessions/:id` (and the create/update responses) adds
+    `bike`, `bike_distance_at_meters`, `last_ride_before` (`{ name,
+    distance_meters, moved_at }` or null) and enriched `events`
+    (`Maintenance::EventLog`'s rows for the session, via its internal
+    `service_session_id` filter: `service_type`, `component`,
+    `component_distance_at_event_meters`, `since_last_same_type_meters`, `resets`).
+    `WrenchIcon` and `ResetChips` are shared with the Maintenance page
+    (`components/service/ServiceMarks.tsx`).
 - **Showing a session**: on the component page, a session event's history row reads
-  "Session with <other components>" and opens `ServiceSessionViewModal`.
-  `ServiceSessionViewModal` shows the date, the note and every event, with Edit
-  date/note and Delete session (`confirmDelete` naming the event count).
+  "Session with <other components>" and opens `ServiceSessionViewModal` (above).
   `MaintenanceEventFormModal`'s date field is `disabled` (with a lock) whenever the
   event being edited is session-bound, reading "Part of the <date> service session
   on <bike> · change the date there" with a link to `ServiceSessionViewModal` --

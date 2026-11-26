@@ -600,8 +600,9 @@ old path.
   - **Log service** (outline) opens the Log service modal with no component, so
     it starts with the component picker (see "Log service modal" below).
   - **Log service session** (primary) opens `BatchServiceModal` for
-    `defaultSessionBike`: the active bike ridden most recently, else the first by name.
-    It's disabled with no active bike. Part 3 adds a bike switcher inside the modal.
+    `defaultSessionBike`: the active bike ridden most recently, else the first by name,
+    switchable in the modal's header. It's disabled with no active bike. Both session
+    modals are documented in `docs/service-requirements.md`, "Batch service logging".
   - **On a phone:** "86 services this year" replaces the dimmed line, and one 44px Log
     service menu offers "One component" and "Service session on a bike".
 - **Tiles** (`MaintenanceLogTiles`, a `TileRow` at 150px, `maintenanceTiles`):

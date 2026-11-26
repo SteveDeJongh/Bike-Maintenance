@@ -289,7 +289,7 @@
 - `ServiceRequirementSatisfier`: owner (polymorphic — a `CategoryServiceRequirement`
   template, or an **unlinked** `ComponentServiceRequirement`; never a linked row,
   which has none of its own), service_type_id, position (integer — position 1 is the
-  default service type for "Log service"/"Select all due and warning"),
+  default service type for "Log service"/"Select all due and soon"),
   allowance_distance_meters/allowance_moving_time_seconds/allowance_calendar_amount+
   allowance_calendar_unit (all nullable — per-dimension overrides on how far *this*
   satisfier's own service buys; `nil` on a dimension means "same as the owning
