@@ -4,7 +4,8 @@ import AppModal from '../AppModal'
 import { DateTimePicker } from '@mantine/dates'
 import { useForm } from '@mantine/form'
 import { applyApiErrors } from '../../api/errors'
-import { useUpdateComponentAssignment } from '../../api/mutations'
+import { useDeleteComponentAssignment, useUpdateComponentAssignment } from '../../api/mutations'
+import { confirmDelete } from '../confirmDelete'
 import RideContextCheckboxes from '../RideContextCheckboxes'
 import { isoUtcToDate, mantineLocalStringToIsoUtc } from '../../utils/datetime'
 import type { ComponentAssignmentWithStats } from '../../types/models'
@@ -19,12 +20,15 @@ interface EditInstallationModalProps {
   opened: boolean
   onClose: () => void
   assignment: ComponentAssignmentWithStats
+  // After Delete installation: the installation it was opened from is gone,
+  // so the opener (the installation modal) closes too.
+  onDeleted?: () => void
 }
 
-export default function EditInstallationModal({ opened, onClose, assignment }: EditInstallationModalProps) {
+export default function EditInstallationModal({ opened, onClose, assignment, onDeleted }: EditInstallationModalProps) {
   return (
     <AppModal opened={opened} onClose={onClose} title="Edit installation">
-      {opened && <EditInstallationForm key={assignment.id} onClose={onClose} assignment={assignment} />}
+      {opened && <EditInstallationForm key={assignment.id} onClose={onClose} assignment={assignment} onDeleted={onDeleted} />}
     </AppModal>
   )
 }
@@ -32,9 +36,11 @@ export default function EditInstallationModal({ opened, onClose, assignment }: E
 function EditInstallationForm({
   onClose,
   assignment,
+  onDeleted,
 }: {
   onClose: () => void
   assignment: ComponentAssignmentWithStats
+  onDeleted?: () => void
 }) {
   // Uninstalled-on is only editable once there's already a real value to
   // edit (a past/History row) — an active row has no ended_at yet, and
@@ -56,6 +62,25 @@ function EditInstallationForm({
   })
 
   const updateAssignment = useUpdateComponentAssignment(assignment.id)
+  const deleteAssignment = useDeleteComponentAssignment()
+
+  // Removes the record outright (a mistaken install, or a stint to re-add
+  // on another bike) -- unlike Remove, which ends it. Its rides stop
+  // counting toward the component.
+  function handleDelete() {
+    confirmDelete({
+      title: 'Delete installation',
+      message: `Delete this installation of ${assignment.component.label}? Its rides stop counting toward it. This cannot be undone.`,
+      onConfirm: () =>
+        deleteAssignment.mutate(assignment.id, {
+          onSuccess: () => {
+            onClose()
+            onDeleted?.()
+          },
+          onError: (error) => setBaseErrors(applyApiErrors(form, error)),
+        }),
+    })
+  }
 
   function handleSubmit(values: EditInstallationFormValues) {
     setBaseErrors([])
@@ -103,13 +128,18 @@ function EditInstallationForm({
           onChange={(value) => form.setFieldValue('ride_context', value)}
         />
 
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
+        <Group justify="space-between">
+          <Button variant="outline" color="red" onClick={handleDelete} loading={deleteAssignment.isPending}>
+            Delete installation
           </Button>
-          <Button type="submit" loading={updateAssignment.isPending}>
-            Save
-          </Button>
+          <Group gap="sm">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={updateAssignment.isPending}>
+              Save
+            </Button>
+          </Group>
         </Group>
       </Stack>
     </form>

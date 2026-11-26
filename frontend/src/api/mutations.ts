@@ -322,11 +322,13 @@ export function useDeleteComponent() {
 // service status (alerts, dashboard, picker) moves too, not just the views.
 
 
+// track_slot: also start tracking the component's category on the bike, in
+// the same request (Install on bike's "Track <Category> on <bike>").
 export function useCreateComponentAssignment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (values: ComponentAssignmentPayload) =>
-      apiPost<ComponentAssignment>('/component_assignments', { component_assignment: values }),
+    mutationFn: ({ track_slot, ...values }: ComponentAssignmentPayload & { track_slot?: boolean }) =>
+      apiPost<ComponentAssignment>('/component_assignments', { component_assignment: values, ...(track_slot ? { track_slot: true } : {}) }),
     onSuccess: () => invalidate(queryClient, 'setup', 'serviceStatus', 'history'),
   })
 }

@@ -201,7 +201,7 @@ function AssignmentDetailContent({
         onClose={() => setLogOpened(false)}
         defaultComponentId={assignment.component_id}
       />
-      <EditInstallationModal opened={editOpened} onClose={() => setEditOpened(false)} assignment={assignment} />
+      <EditInstallationModal opened={editOpened} onClose={() => setEditOpened(false)} assignment={assignment} onDeleted={onClose} />
       <EndAssignmentModal
         opened={removeOpened}
         onClose={() => setRemoveOpened(false)}

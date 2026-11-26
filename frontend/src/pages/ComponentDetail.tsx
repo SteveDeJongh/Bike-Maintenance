@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useParams, Link } from 'react-router-dom'
 import { Alert, Anchor, Box, Group, Loader, Stack, Text } from '@mantine/core'
 import { ApiError } from '../api/client'
@@ -9,6 +9,8 @@ import ComponentStatTiles from '../components/component/ComponentStatTiles'
 import InstallationHistorySection from '../components/component/InstallationHistorySection'
 import MaintenanceHistorySection from '../components/component/MaintenanceHistorySection'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
+import InstallOnBikeModal from '../components/installOnBike/InstallOnBikeModal'
+import { installationRowId } from '../components/component/componentPageModel'
 
 // The component page (docs/frontend-ui.md, "Component page"): the one place
 // for a part's whole life -- header and actions, alert banners, lifetime
@@ -25,6 +27,19 @@ export default function ComponentDetail() {
   useEffect(() => {
     if (toIntervals && component) document.getElementById('intervals')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [toIntervals, component])
+
+  // Install on bike, from the ⋯ menu or Installation history's "+ Add
+  // installation"; the new row is scrolled to and highlighted briefly once
+  // the refetched history has it.
+  const [installOrigin, setInstallOrigin] = useState<'menu' | 'history' | null>(null)
+  const [highlightedId, setHighlightedId] = useState<number | null>(null)
+  const highlightedPresent = component?.assignments.some((installation) => installation.id === highlightedId) ?? false
+  useEffect(() => {
+    if (highlightedId == null || !highlightedPresent) return
+    document.getElementById(installationRowId(highlightedId))?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timer = window.setTimeout(() => setHighlightedId(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [highlightedId, highlightedPresent])
 
   if (!Number.isFinite(componentId) || (error instanceof ApiError && error.status === 404)) {
     return (
@@ -49,7 +64,10 @@ export default function ComponentDetail() {
 
   return (
     <Stack>
-      <ComponentPageHeader component={component} />
+      <ComponentPageHeader
+        component={component}
+        onInstallOnBike={component.retired_on ? undefined : () => setInstallOrigin('menu')}
+      />
       <MaintenanceAlertBanners scope={{ componentId }} />
       <ComponentStatTiles component={component} />
       <Box id="intervals" style={{ scrollMarginTop: 'calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-md))' }}>
@@ -60,9 +78,22 @@ export default function ComponentDetail() {
           <MaintenanceHistorySection componentId={componentId} events={component.maintenance_events} />
         </Box>
         <Box style={{ flex: '1 1 440px', minWidth: 0 }}>
-          <InstallationHistorySection installations={component.assignments} />
+          <InstallationHistorySection
+            installations={component.assignments}
+            highlightedId={highlightedId}
+            onAddInstallation={component.retired_on ? undefined : () => setInstallOrigin('history')}
+          />
         </Box>
       </Group>
+      {!component.retired_on && (
+        <InstallOnBikeModal
+          opened={installOrigin != null}
+          onClose={() => setInstallOrigin(null)}
+          component={component}
+          origin={installOrigin ?? 'menu'}
+          onInstalled={setHighlightedId}
+        />
+      )}
     </Stack>
   )
 }

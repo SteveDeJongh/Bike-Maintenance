@@ -204,3 +204,6 @@ export function installationRange(installation: Pick<ComponentInstallation, 'sta
   const start = sameYear ? dayOnly(installation.started_at) : dayWithYear(installation.started_at)
   return `${start} → ${dayWithYear(installation.ended_at)}`
 }
+
+// An Installation history row's DOM id, for scrolling to a new one.
+export const installationRowId = (assignmentId: number) => `installation-${assignmentId}`

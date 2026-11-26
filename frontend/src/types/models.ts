@@ -64,6 +64,9 @@ export interface BikeStats {
 // tiles need (list only; GET /bikes/:id doesn't return these).
 export interface BikeWithStats extends Bike, BikeStats {
   ride_count: number
+  // The categories the bike tracks (any slot) -- Install on bike's "Not
+  // tracked on this bike".
+  slot_categories: string[]
   // Since local Jan 1 in the zone useBikes sends.
   distance_this_year: number
   last_ride_activity_type: string | null

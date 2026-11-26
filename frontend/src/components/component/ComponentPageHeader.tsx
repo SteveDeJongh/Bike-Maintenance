@@ -56,9 +56,16 @@ function Placement({ component }: { component: ComponentDetail }) {
 // The component page's top: a "← Components" link, the label with its
 // category and status chips ("Retired <date>" once retired), a dimmed line
 // (brand/model · acquired · where it is), the notes, and the actions -- Log
-// service, Edit, Retire / Un-retire, and a ⋯ menu with Delete, enabled only
-// for a component with no history.
-export default function ComponentPageHeader({ component }: { component: ComponentDetail }) {
+// service, Edit, Retire / Un-retire, and a ⋯ menu with Install on bike… (not
+// for a retired component: no onInstallOnBike) and Delete, enabled only for
+// a component with no history.
+export default function ComponentPageHeader({
+  component,
+  onInstallOnBike,
+}: {
+  component: ComponentDetail
+  onInstallOnBike?: () => void
+}) {
   const navigate = useNavigate()
   const deleteComponent = useDeleteComponent()
   const unretire = useUnretireComponent(component.id)
@@ -156,6 +163,12 @@ export default function ComponentPageHeader({ component }: { component: Componen
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
+              {onInstallOnBike && (
+                <>
+                  <Menu.Item onClick={onInstallOnBike}>Install on bike…</Menu.Item>
+                  <Menu.Divider />
+                </>
+              )}
               <Menu.Item color="red" disabled={!component.deletable} onClick={handleDelete}>
                 Delete component
               </Menu.Item>

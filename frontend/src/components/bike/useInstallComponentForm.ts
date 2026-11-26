@@ -5,6 +5,7 @@ import { useCreateComponentAssignment, useDeleteBikeComponentSlot } from '../../
 import { parseApiError } from '../../api/errors'
 import { categoryLabel } from '../../constants'
 import { nowIsoUtc } from '../../utils/datetime'
+import { canTakeComponent } from '../../utils/swapOptions'
 import type { BikeComponentSlot, BikeDetail as BikeDetailData, Component } from '../../types/models'
 
 function showError(title: string, error: unknown) {
@@ -41,18 +42,13 @@ export function useInstallComponentForm({
   const createAssignment = useCreateComponentAssignment()
   const deleteSlot = useDeleteBikeComponentSlot()
 
-  // A component already active on a different bike is normally excluded --
-  // unless this slot is indoor_only, the category allows sharing, and every
-  // one of the component's active-elsewhere assignments is also
-  // indoor_only (e.g. a cassette that physically lives on the trainer, not
-  // on any one bike's frame).
-  const availableComponents = components
-    .filter((component) => component.category === slot.category && !component.retired_on)
-    .filter((component) => {
-      const elsewhere = activeAssignmentsElsewhereByComponentId.get(component.id) ?? []
-      if (elsewhere.length === 0) return true
-      return slot.ride_context === 'indoor_only' && categoryAllowsMultiple && elsewhere.every((context) => context === 'indoor_only')
-    })
+  // canTakeComponent (utils/swapOptions.ts), the swap pill's rule: a spare,
+  // or a shared indoor cassette for an indoor_only slot. The map only holds
+  // other bikes' installations, hence bikeId null.
+  const availableComponents = components.filter((component) => {
+    const open = (activeAssignmentsElsewhereByComponentId.get(component.id) ?? []).map((rideContext) => ({ bikeId: null, rideContext }))
+    return canTakeComponent(component, open, { bikeId: bike.id, category: slot.category, rideContext: slot.ride_context }, categoryAllowsMultiple)
+  })
 
   function install(componentId: number) {
     createAssignment.mutate(

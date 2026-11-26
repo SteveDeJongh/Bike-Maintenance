@@ -37,20 +37,41 @@ export function swapOptions(
 ): SwapOption[] {
   const options: SwapOption[] = []
   for (const component of components) {
-    if (component.category !== slot.category || component.id === slot.componentId || component.retired_on) continue
-
-    if (component.current_bikes.length === 0) {
-      options.push({ component, kind: 'spare' })
-      continue
-    }
-
-    const shareable =
-      allowsMultiple &&
-      slot.rideContext === 'indoor_only' &&
-      component.current_bikes.every((bike) => bike.ride_context === 'indoor_only' && bike.id !== slot.bikeId)
-    if (shareable) options.push({ component, kind: 'shared' })
+    if (component.id === slot.componentId) continue
+    const open = component.current_bikes.map((bike) => ({ bikeId: bike.id, rideContext: bike.ride_context }))
+    const kind = canTakeComponent(component, open, slot, allowsMultiple)
+    if (kind) options.push({ component, kind })
   }
   return orderSwapOptions(options)
+}
+
+// One open installation of a component: its bike (null when it's only
+// known to be on another bike than the slot's) and ride context.
+export interface OpenInstallation {
+  bikeId: number | null
+  rideContext: RideContext
+}
+
+// The one rule for "can this slot take this component now" -- the swap
+// pill, the empty-slot picker and the Install on bike modal all use it,
+// mirroring what the server accepts (ComponentAssignment's two overlap
+// validations): same category, not retired, and either a spare (no open
+// installation) or a shared indoor cassette (the category allows multiple
+// assignments, the slot is indoor_only, and every open installation is
+// indoor_only and on another bike). null when it can't.
+export function canTakeComponent(
+  component: { category: string; retired_on: string | null },
+  open: readonly OpenInstallation[],
+  slot: { bikeId: number; category: string; rideContext: RideContext },
+  allowsMultiple: boolean,
+): SwapOptionKind | null {
+  if (component.category !== slot.category || component.retired_on) return null
+  if (open.length === 0) return 'spare'
+  const shareable =
+    allowsMultiple &&
+    slot.rideContext === 'indoor_only' &&
+    open.every((installation) => installation.rideContext === 'indoor_only' && installation.bikeId !== slot.bikeId)
+  return shareable ? 'shared' : null
 }
 
 // Spares most recently removed first, then never-installed spares by name,
