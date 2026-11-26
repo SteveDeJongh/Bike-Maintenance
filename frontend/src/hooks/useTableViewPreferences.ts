@@ -3,6 +3,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { parseApiError } from '../api/errors'
 import { useUpdateTableViewPreference } from '../api/mutations'
+import { savedSort } from '../utils/savedSort'
 import type { TableViewPreferenceData } from '../types/models'
 
 interface UseTableViewPreferencesOptions<Column extends string, SortColumn extends string> {
@@ -40,21 +41,15 @@ export function useTableViewPreferences<Column extends string, SortColumn extend
     return (allColumns as readonly string[]).includes(value)
   }
 
-  function isSortColumn(value: string | null | undefined): value is SortColumn {
-    return typeof value === 'string' && (sortColumns as readonly string[]).includes(value)
-  }
-
   const [orderedColumns, setOrderedColumns] = useState<Column[]>(
     () => initialData.columns?.filter(isColumn) ?? defaultColumns,
   )
-  const [sortColumn, setSortColumn] = useState<SortColumn>(() =>
-    isSortColumn(initialData.sort_column) ? initialData.sort_column : defaultSort.column,
-  )
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(
-    initialData.sort_direction === 'desc' || initialData.sort_direction === 'asc'
-      ? initialData.sort_direction
-      : defaultSort.direction,
-  )
+  // Column and direction together (savedSort): an old, invalid saved
+  // column falls back with its direction, so a list never opens on the
+  // default column in a stale direction.
+  const [initialSort] = useState(() => savedSort(initialData, sortColumns, defaultSort))
+  const [sortColumn, setSortColumn] = useState<SortColumn>(initialSort.column)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialSort.direction)
   const [saveError, setSaveError] = useState<string | null>(null)
   const updatePreference = useUpdateTableViewPreference(tableKey)
 
