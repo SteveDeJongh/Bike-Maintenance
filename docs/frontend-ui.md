@@ -5,12 +5,14 @@
 ## Sortable, configurable tables
 
 Built from reusable pieces, not a one-off for any single page — in production use
-on two tables: the Strava page's Rides tab and the Assignments list (each its own
-`table_key`: `strava_rides`, `assignments`). The Bikes list, the Components list, the
-bike page's installed components and the Maintenance page were tables too; they're now
-`DataList`s ("Bikes page", "Components page", "Bike page" and "Maintenance page"
-below), still saving through `useTableViewPreferences` (`bikes`, `components`,
-`bike_installed_components`, `maintenance_events`). The bike page's old History and Ride history tables are
+on one table now: the Strava page's Rides tab (`table_key` `strava_rides`). The Bikes
+list, the Components list, the bike page's installed components and the Maintenance
+page were tables too; they're now `DataList`s ("Bikes page", "Components page", "Bike
+page" and "Maintenance page" below), still saving through `useTableViewPreferences`
+(`bikes`, `components`, `bike_installed_components`, `maintenance_events`). The
+Assignments page (`assignments`) is gone: `/assignments` redirects to Activity's setup
+changes, and installs start from a component's Install on bike ("Component page") or
+a bike's slots. A new list should be a `DataList`, not a configurable table. The bike page's old History and Ride history tables are
 gone; their `bike_history`/`bike_rides` preference rows are unused.
 - **The Activity page isn't a table**, but it reuses the hook and the picker. It's a
   grouped `DataList` (see "Shared building blocks" below and
@@ -40,8 +42,8 @@ A future page can adopt the same UX without rework:
   column that's still a valid sort; an invalid or missing column (e.g. an old table's
   column left on the same `table_key`) falls back to `defaultSort` for both, so a list
   never opens on its default column in a stale direction. The calling page must not render
-  the component that calls this hook until that query has resolved (`Assignments.tsx`
-  gates on its preference query before rendering its table). If a page ever needs to swap
+  the component that calls this hook until that query has resolved (`RidesTab` and
+  every DataList page gate on their preference query). If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
   force a remount via `key={tableKey}` rather than relying on the hook to notice the
   change. An optional `extraData` getter lets a page keep one more piece of state in
@@ -71,96 +73,20 @@ A future page can adopt the same UX without rework:
   popover rows and the live headers): a `useSortable` wrapper returning ref/style/
   handle props, and the `PointerSensor` activation-distance setup (so a plain click
   doesn't register as a drag attempt).
-- `frontend/src/components/datatable/SortableHeaderCell.tsx` — a `<Table.Th>` wrapper
-  for the ▲/▼ click-to-sort indicator, used for pinned (non-draggable) columns like
-  Bikes' Name.
-- A page still writes its own `<Table>` body — pinned/special-cased columns stay
-  hand-coded around the generic, hook-driven columns, rather than the reusable
-  pieces trying to support every possible column type generically. A pinned
-  column is specifically one with a real navigation target (consistently true
-  across every adopter so far: Bikes' Name, the Bike detail
-  tables' Category+Component, Assignments' Component+Bike) — not just "the most important field." A row can have more than
-  one pinned column when its identity genuinely needs more than one coordinate
-  (Category+Component; Component+Bike) rather than one. If a column that becomes pinned isn't linked yet, add the link as part of adopting this —
-  "pinned" is expected to mean "clickable" everywhere in the app.
-- **Card view**: below the shared `useIsMobile()` breakpoint
-  (see "Layout and navigation" below), a configurable table renders as cards
-  instead of a `<Table>` — column drag-to-reorder has no good touch equivalent
-  (the drag handle and touch-scroll gestures would fight each other), and a
-  desktop-width table just doesn't fit a phone screen regardless.
-  `frontend/src/components/datatable/DataCardList.tsx` renders one `Card` per
-  row: the table's own pinned column(s) as the tappable title (whatever link
-  target the desktop table already uses — "pinned" already means "clickable"
-  per the rule above, so the card title is never a new navigation target), an
-  optional badge row next to the title (e.g. Bikes' "Retired"), every visible
-  configurable column as a compact label/value pair in the user's saved
-  order (a pair is hidden outright when its value is empty/`null`/the table's
-  own `"—"` placeholder — a card has no column header to make an empty cell
-  self-explanatory the way a table row does), and the row's actions behind a
-  44px "⋯" `ActionIcon`/`Menu` in the corner, never inline, so a destructive
-  action is never one accidental tap away. Neither `ColumnPicker` nor any drag
-  handle renders in card view — column layout stays a desktop-only account
-  preference; a card simply reflects whatever's currently saved.
-  `frontend/src/components/datatable/MobileSortControl.tsx` is card view's
-  replacement for click-to-sort (no column headers to click): a compact
-  `Select` of the table's sortable columns plus a ▲/▼ direction toggle, same
-  glyphs the desktop header cells use. It requires
-  `useTableViewPreferences`'s `setSort` to take an optional explicit
-  `direction` argument — picking a new column keeps the current direction
-  instead of resetting it, and the toggle button keeps the current column —
-  but still saves through the exact same `PATCH` path as a desktop header
-  click, so a sort chosen on the phone is the one desktop sees next. A table
-  with no click-to-sort at all would render no `MobileSortControl`, matching having
-  no sortable `DraggableHeaderCell`s on desktop. `Assignments.tsx` is the reference implementation for both pieces, the
-  same role it already plays for the table/column-picker side — it reuses the
-  exact sorted array the desktop table already computes rather than duplicating
-  the sort logic for cards.
-  Card view's own breakpoint (`useIsMobile()`) and the nav shell's CSS
-  breakpoint (`sm`) land on the same side at exactly 768px wide — see
-  "Layout and navigation" below for why that boundary had to be made exact,
-  rather than relying on two independently-resolved breakpoints to agree by
-  coincidence.
-- **Tables with card view**: `assignments`.
-  `assignments`' card uses a two-line title (Component, then Bike dimmed underneath,
-  both independently tappable) for its two pinned columns: a card's title slot
-  always carries every pinned column, arranged to read naturally for that table.
-  `DataCardList` carries an optional `onRowClick` prop for a card that opens
-  something on tap.
-- **`strava_rides` (the Strava page's Rides tab) deliberately has no card
-  view** — it has per-row bulk-select checkboxes, a "select all"/"select all
-  matching" toolbar, and conditional row actions (Ignore/Un-ignore/Resolve gear),
-  none of which `DataCardList`
-  supports; it still only scrolls horizontally on mobile (`Table.ScrollContainer`).
-  Giving it a real card view needs a deliberate design decision first (most
-  likely either a selection-aware extension of `DataCardList`, or its own
-  bespoke card component) — revisit if this is genuinely painful on a
-  phone in practice, rather than guessing at an interaction now.
-
-**To adopt this on a new or existing table**, define on the frontend (nothing to
-build on the backend — `TableViewPreference`/`/table_view_preferences/:table_key` is
-already generic): a `tableKey` string unique to that table; a column-keys constant +
-display-label map + default-visible subset (mirroring `BIKE_LIST_COLUMNS`/
-`BIKE_LIST_COLUMN_LABELS`/`DEFAULT_BIKE_LIST_COLUMNS` in `constants.ts`); a
-sort-keys constant if any pinned column should be sortable too (mirroring
-`BIKE_LIST_SORT_COLUMNS`, which adds `'name'` on top of the toggleable columns); a
-`columnValue` map (comparable value per sortable column, `null` for "not
-applicable" — always sorts last) and a `columnRenderer` map (display `ReactNode` per
-column) keyed the same way `Assignments.tsx` does. Call `useTableViewPreferences` with
-those constants, then render pinned columns by hand and map the configurable ones
-through `<DraggableHeaderCell>`/`columnRenderer`, with `<ColumnPicker>` as the final
-header cell — `Assignments.tsx` is the reference implementation to copy the shape from.
-**A new adopter must render both views** — the desktop `<Table>` and, below
-`useIsMobile()`, `<MobileSortControl>` (when it has any sortable column) plus
-`<DataCardList>` fed the same `orderedColumns`/`columnLabels`/`columnRenderer` —
-not just the table; `Assignments.tsx` is the reference shape for both. Don't add new
-per-row computed/aggregated columns to a list page without checking whether the
-underlying data is already batched for that scale (see `Component#total_distance`'s
-note above) — this mechanism makes columns easy to add, but doesn't change the cost
-of computing what's behind them.
+- **Pinned columns:** a page still writes its own `<Table>` body; pinned,
+  special-cased columns stay hand-coded around the hook-driven ones. A pinned column is
+  one with a real navigation target ("pinned" means "clickable").
+- **No card view any more.** The card view (`DataCardList` + `MobileSortControl`) went
+  with the Assignments page, its last user. `strava_rides` never had one: its bulk
+  select, "select all matching" and conditional row actions need their own design, so
+  it scrolls sideways on a phone (`Table.ScrollContainer`). Revisit that with a
+  deliberate design (or a move to `DataList`), not by reviving the old cards.
+- **Columns cost data:** don't add per-row computed or aggregated columns to a list
+  without checking that the data behind them is batched for that scale (see
+  `Component#total_distance`'s note above).
 
 **Non-configurable tables** (a plain `<Table>` with no `TableViewPreference` behind
-it — the Settings pages, the component page,
-`ServiceSessionViewModal`, the Strava page's gear tables) need the same phone-width
+it — the Settings pages, the Strava page's gear tables) need the same phone-width
 consideration without any of this mechanism: wrap in Mantine's own
 `Table.ScrollContainer` with a sensible `minWidth` so the table scrolls
 horizontally instead of overflowing the page. Skip the wrapper only for a table
@@ -416,7 +342,8 @@ place for a part's whole life. Everything comes from `GET /components/:id`.
     "Never installed", or, once retired, "Last on <bike>". Bike names are links;
   - the notes;
   - **actions:** Log service (primary, no service type preselected), Edit, Retire or
-    Un-retire, and a ⋯ menu with **Delete**. Delete is enabled only when the payload
+    Un-retire, and a ⋯ menu with **Install on bike…** (not for a retired component;
+    see "Install on bike" in `docs/components-and-setup.md`) and **Delete**. Delete is enabled only when the payload
     says `deletable`; otherwise the menu shows "Has history. Retire it instead."
     (see "Deleting a component" in `docs/components-and-setup.md`). Confirming
     deletes the component, then returns to `/components`.
@@ -454,7 +381,10 @@ place for a part's whole life. Everything comes from `GET /components/:id`.
     assignment, newest first. Each row has a bike icon (primary while current), the
     bike with a "Current" chip and "Jun 2 → Sep 30, 2026 · Trainer only"
     (`installationRangeText`), and the stint's distance. A row opens that
-    installation's `AssignmentDetailModal`.
+    installation's `AssignmentDetailModal`. The header's **+ Add installation** (not
+    for a retired component) opens Install on bike, the natural place to back-fill
+    history; the row it creates is scrolled to and briefly highlighted
+    (`installationRowId`).
 - **Collapse keys:** `componentPage.collapsed.intervals`, `.maintenance` and
   `.installations`, remembered per device (`componentSections.ts`).
 - **`#intervals`** (the installation modal's "No service intervals" link) scrolls to
@@ -487,7 +417,10 @@ everything else: editing intervals, maintenance history and every installation.
     linking to the component page's `#intervals`.
 
   **Past** ones get only Edit installation and no service status, since the intervals
-  describe the component now, not that stint.
+  describe the component now, not that stint. Edit installation (both) has **Delete
+  installation** (outline red, `confirmDelete`): it removes the record outright -- a
+  mistaken install, or a stint to re-add elsewhere -- and closes the installation modal
+  too. Moving a stint to another bike or component is delete, then + Add installation.
 - **Both** show **This installation** (Distance, Time, Elevation, Avg power when
   metered) with "Lifetime across all installations: <km> · <hrs>" under it.
 - **Footer:** "Open component page →".

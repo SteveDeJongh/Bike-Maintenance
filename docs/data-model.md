@@ -78,6 +78,14 @@
     clipped into the trainer). Both sides must be `indoor_only` here — unlike the
     same-slot case, there's no one-each-context pairing across bikes.
   Timestamps, not dates: a component can be swapped more than once in a day.
+  Neither date may be more than `ComponentAssignment::FUTURE_TOLERANCE` (5 minutes,
+  shared with the swap) ahead, checked when that date is set; a **new** assignment's
+  `ended_at` must be after its `started_at` (a closed, back-filled stint needs length),
+  while updates keep "at or after". Overlap errors are `:base` and name the conflict:
+  "Overlaps Chain S2 on this slot, Jun 2 → Sep 30" / "Overlaps its own installation on
+  Libre, Feb 1 → Apr 1" (times when a range is one day; "→ now" while open). An
+  assignment needs no `BikeComponentSlot`: attribution and both history lists read
+  assignments, and only the bike page's current lineup goes by slots.
   Validates that `component.user_id == bike.user_id` (no cross-user assignments).
   Reachable from a `User` via `has_many through:` on `bikes` — no direct `user_id`
   column of its own. `#overlaps?` (the private helper both overlap validations above

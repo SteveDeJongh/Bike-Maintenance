@@ -180,10 +180,10 @@ Frontend:
 - **Responsive:** prefer CSS (`hiddenFrom`/`visibleFrom`, per-breakpoint props) over JS.
   When JS branching is truly needed, use `useIsMobile()` — never a new media query. Its
   `767.98px` boundary must stay in sync with `index.css`'s iOS-input-zoom rule.
-- **A configurable table renders both views** — the desktop `<Table>` and, on mobile,
-  `MobileSortControl` + `DataCardList`. `Assignments.tsx` is the reference implementation.
-  A pinned column always links somewhere. Non-configurable tables wrap in
-  `Table.ScrollContainer` unless they genuinely fit at 390px.
+- **New lists are `DataList`s.** The one configurable `<Table>` left is the Strava page's
+  Rides tab (no card view; it scrolls sideways on a phone). A pinned column always links
+  somewhere. Non-configurable tables wrap in `Table.ScrollContainer` unless they
+  genuinely fit at 390px.
 - Gate rendering of any component calling `useTableViewPreferences` on its preference
   query having resolved (it seeds state once, on mount).
 - Brand/model inputs are `Autocomplete` (free text), always through `ComponentBrandModelInputs`.
@@ -257,6 +257,6 @@ these docs (e.g. see "Strava integration") name the `##` headings listed here.
   merge rule, the `/activity` page.
 - `docs/components-and-setup.md` — **One-step component swap**, **Installed, spare and
   retired**, **Last bike and the Components list's Bike column**, **Deleting a
-  component**, **Retiring a component**, **Bike setup**,
+  component**, **Retiring a component**, **Install on bike**, **Bike setup**,
   **Brand/model autocomplete**. Swap endpoint and modal, bike types and batched
   component setup, suggestion sources and ranking.

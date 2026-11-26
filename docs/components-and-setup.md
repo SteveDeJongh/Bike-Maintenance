@@ -79,6 +79,55 @@ Swapping one component for another in the same slot (the main use case: rotating
   `assignment_id`. `ComponentCurrentBike`'s is optional, since only
   `GET /components/:id` sets it.
 
+## Install on bike
+
+Installs start from the component now (the old Assignments page and its New
+assignment form are gone; `/assignments` redirects to Activity's setup changes) or
+from a bike's empty slot (the bike page's empty-slot picker, unchanged).
+
+- **Entry points** (component page, neither for a retired component): the ⋯ menu's
+  **Install on bike…** and Installation history's **+ Add installation**. Both open
+  `InstallOnBikeModal` (`components/installOnBike/`, pure logic in
+  `installOnBikeModel.ts`), a fresh form on every open.
+- **Fields:**
+  - **Bike** (`bikeOptions`): active bikes most recently ridden first
+    (`compareLastRidden`), retired ones behind "Show retired bikes" for back-filling.
+    A bike without a slot for the category reads "Not tracked on this bike"
+    (`GET /bikes`' `slot_categories`).
+  - **Slot** (`slotOptions`): the bike's slots for the category, each with its ride
+    context and occupant ("Chain · All rides · Chain S2 installed" / "… · empty");
+    hidden when there's one. Installing now offers only slots `canTakeComponent`
+    allows (`utils/swapOptions.ts` -- the swap pill's and empty-slot picker's rule: a
+    spare, or a shared indoor cassette for an `indoor_only` slot on another bike); a
+    past stint can go in any of them.
+  - **Installed on** (date and time, now by default) and **Removed on** (optional,
+    "Leave blank if it's still on the bike"). Removed on is required for a component
+    that's mounted now (moving it is the swap's job) and for a retired bike. Neither
+    may be in the future; Removed on must be after Installed on.
+- **What submit does** (`submitCase`):
+  - **Removed on set:** `POST /component_assignments` with `ended_at` -- a closed
+    stint that never ends or moves another assignment. The model's overlap rules (slot
+    and component) decide; a conflict comes back as the usual `:base` 422 naming it,
+    shown under the date fields.
+  - **Occupied slot, no Removed on:** the swap (`POST /component_assignments/:id/swap`
+    on the occupant, `swapped_at` = Installed on), with "This will remove <occupant>
+    from <bike> on <date>." and **Swap in**.
+  - **Otherwise:** a plain `POST /component_assignments` (**Install**; **Add
+    installation** for a past stint from Installation history).
+  - The ride context is a split slot's own, else the category's default (the
+    empty-slot picker's rule).
+- **No slot:** choosing an untracked bike shows "Track <Category> on <bike>". It's
+  required (checked, locked) when installing now -- the bike's lineup goes by slots --
+  and optional, off by default, for a past stint, which needs no slot (so back-filling a
+  part long gone from a bike doesn't add an empty slot to its lineup). It's sent as
+  `track_slot: true` on the same `POST`, which creates the bike's `"both"` slot for the
+  category and the assignment in one transaction (a failed install leaves no slot).
+- **The summary:** "Rides on <bike> from <start> to <end / now> will count toward this
+  component." (`attributionLine`) -- a back-filled stint moves those rides' mileage.
+- **After success:** the create and swap mutations invalidate `setup`, `serviceStatus`
+  (components, bikes, alerts, the dashboard) and `history`; the modal closes and the new
+  row is highlighted in Installation history.
+
 ## Installed, spare and retired
 
 The one classification of a component's state, `componentState` in
