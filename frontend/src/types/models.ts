@@ -198,6 +198,9 @@ export interface ComponentCurrentBike {
   // That assignment's ride_context -- swapOptions needs it to tell a
   // shared indoor cassette from one that can't be shared.
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'
+  // The bike's retirement (GET /components/:id only): an open assignment on
+  // a retired bike isn't "Current" (installationStatus).
+  retired_on?: string | null
 }
 
 // The bike of a component's most recently ended assignment -- set only
@@ -265,7 +268,8 @@ export interface ComponentDetail extends Component {
 // the distance attributed to that stint.
 export interface ComponentInstallation {
   id: number
-  bike: { id: number; name: string }
+  // retired_on: an open stint on a retired bike isn't "Current".
+  bike: { id: number; name: string; retired_on: string | null }
   started_at: string
   ended_at: string | null
   ride_context: 'both' | 'outdoor_only' | 'indoor_only'

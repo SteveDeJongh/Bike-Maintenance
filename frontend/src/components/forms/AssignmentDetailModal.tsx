@@ -6,6 +6,7 @@ import AppModal from '../AppModal'
 import ComponentSwapPill from '../ComponentSwapPill'
 import WhereItIs from '../installation/WhereItIs'
 import { installationActions, whereItIs } from '../installation/installationModel'
+import { installationStatus } from '../../utils/installationStatus'
 import MaintenanceEventFormModal from './MaintenanceEventFormModal'
 import InstallationServiceStatus from '../installation/InstallationServiceStatus'
 import InstallationStats from '../installation/InstallationStats'
@@ -127,17 +128,27 @@ function AssignmentLoader({
     return <Loader />
   }
 
-  return <AssignmentDetailContent assignment={assignment} bikeName={bike.data?.name ?? ''} onSwapped={onSwapped} onClose={onClose} />
+  return (
+    <AssignmentDetailContent
+      assignment={assignment}
+      bikeName={bike.data?.name ?? ''}
+      bikeRetiredOn={bike.data?.retired_on ?? null}
+      onSwapped={onSwapped}
+      onClose={onClose}
+    />
+  )
 }
 
 function AssignmentDetailContent({
   assignment,
   bikeName,
+  bikeRetiredOn,
   onSwapped,
   onClose,
 }: {
   assignment: ComponentAssignmentWithStats
   bikeName: string
+  bikeRetiredOn: string | null
   onSwapped: (id: number) => void
   onClose: () => void
 }) {
@@ -151,14 +162,15 @@ function AssignmentDetailContent({
   const [logOpened, setLogOpened] = useState(false)
   const [editOpened, setEditOpened] = useState(false)
   const [removeOpened, setRemoveOpened] = useState(false)
-  const where = whereItIs(assignment, bikeName, component?.current_bikes)
-  const actions = installationActions(assignment)
+  const status = installationStatus(assignment, { retired_on: bikeRetiredOn })
+  const where = whereItIs(assignment, bikeName, component?.current_bikes, bikeRetiredOn != null)
+  const actions = installationActions(status)
 
   return (
     <Stack>
       <WhereItIs where={where} />
 
-      {where.kind === 'current' && (
+      {status === 'current' && (
         <Group gap="xs" wrap="nowrap">
           <SmallLabel>Swap</SmallLabel>
           <ComponentSwapPill assignment={assignment} onSwapped={(newAssignment) => onSwapped(newAssignment.id)} />
@@ -188,7 +200,7 @@ function AssignmentDetailContent({
 
       <InstallationStats assignment={assignment} />
 
-      {where.kind === 'current' && component && <InstallationServiceStatus component={component} onNavigate={leaveTo} />}
+      {status === 'current' && component && <InstallationServiceStatus component={component} onNavigate={leaveTo} />}
 
       <Group justify="flex-end">
         <Anchor component="button" type="button" size="sm" fw={500} onClick={() => leaveTo(`/components/${assignment.component_id}`)}>

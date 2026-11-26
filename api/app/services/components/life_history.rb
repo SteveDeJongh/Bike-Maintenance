@@ -76,7 +76,9 @@ module Components
       component.component_assignments.includes(:bike).order(started_at: :desc, id: :desc).map do |assignment|
         {
           id: assignment.id,
-          bike: { id: assignment.bike.id, name: assignment.bike.name },
+          # retired_on: an open stint on a retired bike isn't "Current"
+          # (installationStatus on the frontend).
+          bike: { id: assignment.bike.id, name: assignment.bike.name, retired_on: assignment.bike.retired_on },
           started_at: assignment.started_at,
           ended_at: assignment.ended_at,
           ride_context: assignment.ride_context,

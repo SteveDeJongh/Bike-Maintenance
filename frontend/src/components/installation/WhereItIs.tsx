@@ -22,7 +22,8 @@ export default function WhereItIs({ where }: { where: Where }) {
       <Text size="sm" c="dimmed">
         {where.kind === 'current' ? (
           <>
-            On <BikeLink bike={where.bike} /> since {formatShortDate(where.since)}
+            On <BikeLink bike={where.bike} />
+            {where.retiredBike && ' (retired)'} since {formatShortDate(where.since)}
           </>
         ) : (
           <>

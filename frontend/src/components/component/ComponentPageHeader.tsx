@@ -37,10 +37,25 @@ function BikeLinks({ bikes }: { bikes: { id: number; name: string }[] }) {
 function Placement({ component }: { component: ComponentDetail }) {
   const placement = componentPlacement(component)
   if (placement.kind === 'installed') {
+    const since = placement.since && ` since ${formatShortDate(placement.since)}`
+    if (placement.bikes.length === 0) {
+      return (
+        <>
+          On retired <BikeLinks bikes={placement.retiredBikes} />
+          {since} · {placement.rideContext}
+        </>
+      )
+    }
     return (
       <>
         On <BikeLinks bikes={placement.bikes} />
-        {placement.since && ` since ${formatShortDate(placement.since)}`} · {placement.rideContext}
+        {since} · {placement.rideContext}
+        {placement.retiredBikes.length > 0 && (
+          <Text span inherit c="dimmed" opacity={0.75}>
+            {' · also on retired '}
+            <BikeLinks bikes={placement.retiredBikes} />
+          </Text>
+        )}
       </>
     )
   }

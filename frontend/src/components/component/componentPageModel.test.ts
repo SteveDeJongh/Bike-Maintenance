@@ -68,9 +68,17 @@ function detail(overrides: Partial<ComponentDetail> = {}): ComponentDetail {
 }
 
 const soloist = { id: 2, name: 'Soloist', ride_context: 'both' as const }
-const install = (id: number, bikeId: number, name: string, startedAt: string, endedAt: string | null = null, rideContext: 'both' | 'indoor_only' = 'both') => ({
+const install = (
+  id: number,
+  bikeId: number,
+  name: string,
+  startedAt: string,
+  endedAt: string | null = null,
+  rideContext: 'both' | 'indoor_only' = 'both',
+  bikeRetiredOn: string | null = null,
+) => ({
   id,
-  bike: { id: bikeId, name },
+  bike: { id: bikeId, name, retired_on: bikeRetiredOn },
   started_at: startedAt,
   ended_at: endedAt,
   ride_context: rideContext,
@@ -112,6 +120,31 @@ describe('componentPlacement / placementText', () => {
     const placement = componentPlacement(component)
     expect(placement).toMatchObject({ kind: 'installed', bikes: [{ name: 'Juan Solo' }, { name: 'Soloist' }] })
     expect(placementText(placement, now)).toMatch(/^On Juan Solo, Soloist since Jun 2 · Trainer only$/)
+  })
+
+  it('lists only bikes that are not retired, adding "· also on retired <bike>"', () => {
+    const lightning = { id: 7, name: 'White lightning', ride_context: 'indoor_only' as const, retired_on: '2026-10-01' }
+    const component = detail({
+      current_bikes: [{ ...soloist, ride_context: 'indoor_only', retired_on: null }, lightning],
+      assignments: [
+        install(10, 2, 'Soloist', sameYearDay(6, 1), null, 'indoor_only'),
+        install(11, 7, 'White lightning', sameYearDay(2, 2), null, 'indoor_only', '2026-10-01'),
+      ],
+    })
+    const placement = componentPlacement(component)
+    expect(placement).toMatchObject({ bikes: [{ name: 'Soloist' }], retiredBikes: [{ name: 'White lightning' }] })
+    expect(placementText(placement, now)).toMatch(/^On Soloist since Jul 1 · Trainer only · also on retired White lightning$/)
+  })
+
+  it('reads "On retired <bike> since …" when every bike it is on is retired, and no retired part with none', () => {
+    const lightning = { id: 7, name: 'White lightning', ride_context: 'both' as const, retired_on: '2026-10-01' }
+    const allRetired = detail({
+      current_bikes: [lightning],
+      assignments: [install(11, 7, 'White lightning', sameYearDay(2, 2), null, 'both', '2026-10-01')],
+    })
+    expect(placementText(componentPlacement(allRetired), now)).toMatch(/^On retired White lightning since Mar 2 · All rides$/)
+    const none = detail({ current_bikes: [soloist], assignments: [install(9, 2, 'Soloist', sameYearDay(9, 15))] })
+    expect(componentPlacement(none)).toMatchObject({ retiredBikes: [] })
   })
 
   it('reads "Spare · last on <bike>", "Never installed", or "Last on <bike>" when retired', () => {

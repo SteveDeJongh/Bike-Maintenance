@@ -1,4 +1,5 @@
 import { RIDE_CONTEXT_LABELS, SERVICE_STATUS_SEVERITY } from '../../constants'
+import { installationStatus } from '../../utils/installationStatus'
 import { componentState } from '../../utils/componentState'
 import { formatShortDate } from '../../utils/datetime'
 import type {
@@ -54,11 +55,19 @@ export function drivingAmounts(requirement: ComponentServiceRequirementWithStatu
 }
 
 // Where the component is, for the header's dimmed line. Installed: its
-// bike(s) A-Z (a shared cassette has two), since the earliest open
-// assignment, and that assignment's ride context. Otherwise the last bike
+// bikes that aren't retired, A-Z (a shared cassette has two), since their
+// earliest open assignment, and that assignment's ride context, plus any
+// retired bikes it was left on (retiredBikes: "· also on retired <bike>",
+// or, when that's all, "On retired <bike>"). Otherwise the last bike
 // (spare or retired) or none.
 export type ComponentPlacement =
-  | { kind: 'installed'; bikes: { id: number; name: string }[]; since: string | null; rideContext: string }
+  | {
+      kind: 'installed'
+      bikes: { id: number; name: string }[]
+      retiredBikes: { id: number; name: string }[]
+      since: string | null
+      rideContext: string
+    }
   | { kind: 'spare' | 'retired'; lastBike: { id: number; name: string } | null }
 
 export function componentPlacement(component: ComponentDetail): ComponentPlacement {
@@ -66,26 +75,37 @@ export function componentPlacement(component: ComponentDetail): ComponentPlaceme
   if (state !== 'installed') return { kind: state, lastBike: component.last_bike }
 
   const open = component.assignments.filter((assignment) => assignment.ended_at == null)
-  const since = open.map((assignment) => assignment.started_at).sort()[0] ?? null
-  const bikes = [...component.current_bikes]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((bike) => ({ id: bike.id, name: bike.name }))
+  const onActive = open.filter((assignment) => installationStatus(assignment, assignment.bike) === 'current')
+  const shown = onActive.length > 0 ? onActive : open
+  const since = shown.map((assignment) => assignment.started_at).sort()[0] ?? null
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
+  const pick = (bike: { id: number; name: string }) => ({ id: bike.id, name: bike.name })
+  const current = [...component.current_bikes].sort(byName)
+  const bikes = current.filter((bike) => !bike.retired_on).map(pick)
+  const retiredBikes = current.filter((bike) => bike.retired_on).map(pick)
+  const contextBike = current.find((bike) => !bike.retired_on) ?? current[0]
   return {
     kind: 'installed',
     bikes,
+    retiredBikes,
     since,
-    rideContext: RIDE_CONTEXT_LABELS[component.current_bikes[0].ride_context],
+    rideContext: RIDE_CONTEXT_LABELS[contextBike.ride_context],
   }
 }
 
 // The placement as plain text: "On Soloist since Oct 15 · All rides",
-// "On Juan Solo, Soloist since Jun 2 · Trainer only", "Spare · last on
-// Soloist", "Never installed", "Last on Soloist" (retired). The header
-// renders the same words with the bikes linked.
+// "On Juan Solo, Soloist since Jun 2 · Trainer only", "On Juan Solo since
+// Jun 2 · All rides · also on retired White lightning", "On retired White
+// lightning since Mar 2 · All rides", "Spare · last on Soloist", "Never
+// installed", "Last on Soloist" (retired). The header renders the same
+// words with the bikes linked.
 export function placementText(placement: ComponentPlacement, now: Date = new Date()): string {
   if (placement.kind === 'installed') {
     const since = placement.since ? ` since ${formatShortDate(placement.since, now)}` : ''
-    return `On ${placement.bikes.map((bike) => bike.name).join(', ')}${since} · ${placement.rideContext}`
+    const names = (bikes: { name: string }[]) => bikes.map((bike) => bike.name).join(', ')
+    if (placement.bikes.length === 0) return `On retired ${names(placement.retiredBikes)}${since} · ${placement.rideContext}`
+    const also = placement.retiredBikes.length ? ` · also on retired ${names(placement.retiredBikes)}` : ''
+    return `On ${names(placement.bikes)}${since} · ${placement.rideContext}${also}`
   }
   if (!placement.lastBike) return 'Never installed'
   return placement.kind === 'spare' ? `Spare · last on ${placement.lastBike.name}` : `Last on ${placement.lastBike.name}`

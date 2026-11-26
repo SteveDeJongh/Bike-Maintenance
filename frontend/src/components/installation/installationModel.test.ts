@@ -36,11 +36,22 @@ describe('whereItIs / whereItIsText', () => {
 
 describe('installationActions', () => {
   it('offers Log service, Edit and Remove for a current installation', () => {
-    expect(installationActions({ ended_at: null })).toEqual(['log_service', 'edit', 'remove'])
+    expect(installationActions('current')).toEqual(['log_service', 'edit', 'remove'])
+  })
+
+  it('offers Edit and Remove, without Log service, on a retired bike', () => {
+    expect(installationActions('retired_bike')).toEqual(['edit', 'remove'])
   })
 
   it('offers only Edit for a past one', () => {
-    expect(installationActions({ ended_at: day(2026, 8, 30) })).toEqual(['edit'])
+    expect(installationActions('past')).toEqual(['edit'])
+  })
+})
+
+describe('whereItIs on a retired bike', () => {
+  it('reads "On <bike> (retired) since …"', () => {
+    const where = whereItIs(current, 'White lightning', [], true)
+    expect(whereItIsText(where, now)).toBe(`On White lightning (retired) since ${shortDay(current.started_at)} · All rides`)
   })
 })
 

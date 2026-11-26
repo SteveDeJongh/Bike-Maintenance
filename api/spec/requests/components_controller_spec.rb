@@ -364,7 +364,7 @@ RSpec.describe "Components", type: :request do
       body = show(chain)
 
       expect(body["assignments"].map { |a| a["id"] }).to eq([ current.id, past.id ])
-      expect(body["assignments"].first).to include("bike" => { "id" => trainer.id, "name" => "Juan Solo" }, "ended_at" => nil,
+      expect(body["assignments"].first).to include("bike" => { "id" => trainer.id, "name" => "Juan Solo", "retired_on" => nil }, "ended_at" => nil,
                                                    "ride_context" => "both", "distance_meters" => 4_000)
       expect(body["assignments"].last).to include("distance_meters" => 6_000)
       expect(body["assignments"].last["ended_at"]).to be_present

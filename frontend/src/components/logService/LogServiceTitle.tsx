@@ -57,10 +57,11 @@ export default function LogServiceTitle({
 
   let where
   if (placement.kind === 'installed') {
+    const listed = placement.bikes.length > 0 ? placement.bikes : placement.retiredBikes
     where = (
       <>
-        On{' '}
-        {placement.bikes.map((bike, index) => (
+        {placement.bikes.length > 0 ? 'On' : 'On retired'}{' '}
+        {listed.map((bike, index) => (
           <Fragment key={bike.id}>
             {index > 0 && ', '}
             {bikeLink(bike)}

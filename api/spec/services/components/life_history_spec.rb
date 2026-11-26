@@ -33,7 +33,7 @@ RSpec.describe Components::LifeHistory do
 
       expect(result.assignments.map { |a| a[:id] }).to eq([ current.id, past.id ]) # newest first
       expect(result.assignments.map { |a| a[:distance_meters] }).to eq([ current.distance_meters, past.distance_meters ])
-      expect(result.assignments.first).to include(bike: { id: trainer_bike.id, name: "Juan Solo" }, ended_at: nil, ride_context: "both")
+      expect(result.assignments.first).to include(bike: { id: trainer_bike.id, name: "Juan Solo", retired_on: nil }, ended_at: nil, ride_context: "both")
       expect(result.lifetime_stats).to include(
         distance_meters: chain.total_distance,
         moving_time_seconds: chain.total_moving_time,

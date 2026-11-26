@@ -9,10 +9,13 @@ import AssignmentDetailModal from '../forms/AssignmentDetailModal'
 import { formatDistance } from '../../utils/distance'
 import { installationRangeText, installationRowId, installationsSummary } from './componentPageModel'
 import { COMPONENT_SECTION_STORAGE_KEYS } from './componentSections'
+import { installationStatus, sortInstallations } from '../../utils/installationStatus'
 import type { ComponentInstallation } from '../../types/models'
 
 // The component page's installation history (a PageSection): every
-// assignment, newest first -- a bike icon (primary while current), the bike
+// assignment -- current ones, then open ones left on a retired bike (a grey
+// "Retired bike" chip and icon), then past ones, each newest first
+// (sortInstallations) -- a bike icon (primary while current), the bike
 // with a "Current" chip and its range and ride context, and the stint's
 // distance. A row opens that installation's AssignmentDetailModal, current
 // or past.
@@ -55,14 +58,15 @@ export default function InstallationHistorySection({
         </Paper>
       ) : (
         <DataList template={template} minWidth={minWidth}>
-          {installations.map((installation) => {
-            const current = installation.ended_at == null
+          {sortInstallations(installations).map((installation) => {
+            const status = installationStatus(installation, installation.bike)
+            const current = status === 'current'
             return (
               <DataListRow
                 key={installation.id}
                 id={installationRowId(installation.id)}
                 tone={installation.id === highlightedId ? 'highlight' : undefined}
-                ariaLabel={`${installation.bike.name}${current ? ', current' : ''}, open installation`}
+                ariaLabel={`${installation.bike.name}${current ? ', current' : status === 'retired_bike' ? ', on a retired bike' : ''}, open installation`}
                 onOpen={() => setSelected(installation)}
               >
                 <IconBike
@@ -78,6 +82,11 @@ export default function InstallationHistorySection({
                     {current && (
                       <Badge size="xs" variant="light">
                         Current
+                      </Badge>
+                    )}
+                    {status === 'retired_bike' && (
+                      <Badge size="xs" variant="light" color="gray">
+                        Retired bike
                       </Badge>
                     )}
                   </Group>

@@ -1,6 +1,7 @@
 import { RIDE_CONTEXT_LABELS } from '../../constants'
 import { installationRange, lastDoneText, requirementFraction } from '../component/componentPageModel'
 import { formatShortDate } from '../../utils/datetime'
+import type { InstallationStatus } from '../../utils/installationStatus'
 import { formatDistance } from '../../utils/distance'
 import { formatDuration } from '../../utils/duration'
 import { formatDrivingRemaining } from '../../utils/serviceInterval'
@@ -17,7 +18,15 @@ import type {
 type Bike = { id: number; name: string }
 
 export type WhereItIs =
-  | { kind: 'current'; bike: Bike; since: string; rideContext: ComponentAssignment['ride_context']; alsoOn: Bike[] }
+  | {
+      kind: 'current'
+      bike: Bike
+      since: string
+      rideContext: ComponentAssignment['ride_context']
+      alsoOn: Bike[]
+      // Still open, but on a retired bike: "On <bike> (retired) since …".
+      retiredBike: boolean
+    }
   | { kind: 'past'; bike: Bike; range: string; rideContext: ComponentAssignment['ride_context'] }
 
 // Where this installation is (or was). A shared cassette's other current
@@ -26,6 +35,7 @@ export function whereItIs(
   assignment: Pick<ComponentAssignment, 'bike_id' | 'started_at' | 'ended_at' | 'ride_context'>,
   bikeName: string,
   componentCurrentBikes: readonly ComponentCurrentBike[] = [],
+  bikeRetired = false,
 ): WhereItIs {
   const bike = { id: assignment.bike_id, name: bikeName }
   if (assignment.ended_at) {
@@ -35,7 +45,7 @@ export function whereItIs(
     .filter((other) => other.id !== assignment.bike_id)
     .map((other) => ({ id: other.id, name: other.name }))
     .sort((a, b) => a.name.localeCompare(b.name))
-  return { kind: 'current', bike, since: assignment.started_at, rideContext: assignment.ride_context, alsoOn }
+  return { kind: 'current', bike, since: assignment.started_at, rideContext: assignment.ride_context, alsoOn, retiredBike: bikeRetired }
 }
 
 // The same as plain text: "On Soloist since Oct 15 · All rides · also on
@@ -45,15 +55,18 @@ export function whereItIsText(where: WhereItIs, now: Date = new Date()): string 
   const context = RIDE_CONTEXT_LABELS[where.rideContext]
   if (where.kind === 'past') return `Was on ${where.bike.name} · ${where.range} · ${context}`
   const also = where.alsoOn.length ? ` · also on ${where.alsoOn.map((bike) => bike.name).join(', ')}` : ''
-  return `On ${where.bike.name} since ${formatShortDate(where.since, now)} · ${context}${also}`
+  return `On ${where.bike.name}${where.retiredBike ? ' (retired)' : ''} since ${formatShortDate(where.since, now)} · ${context}${also}`
 }
 
 export type InstallationAction = 'log_service' | 'edit' | 'remove'
 
-// Current: Log service, Edit installation, Remove from bike. Past: only
-// Edit installation (its dates and context can still be corrected).
-export function installationActions(assignment: Pick<ComponentAssignment, 'ended_at'>): InstallationAction[] {
-  return assignment.ended_at ? ['edit'] : ['log_service', 'edit', 'remove']
+// By installationStatus: current -- Log service, Edit installation, Remove
+// from bike; left on a retired bike -- Edit and Remove only (no service to
+// log, no swap); past -- only Edit installation (its dates and context can
+// still be corrected).
+export function installationActions(status: InstallationStatus): InstallationAction[] {
+  if (status === 'past') return ['edit']
+  return status === 'retired_bike' ? ['edit', 'remove'] : ['log_service', 'edit', 'remove']
 }
 
 // Under "This installation": the component's totals over every stint.
