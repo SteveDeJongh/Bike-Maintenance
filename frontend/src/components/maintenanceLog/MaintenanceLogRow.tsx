@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react'
-import { Anchor, Badge, Box, Group, Stack, Text, ThemeIcon } from '@mantine/core'
-import { IconTool } from '@tabler/icons-react'
+import { Anchor, Badge, Box, Group, Stack, Text } from '@mantine/core'
+import { ResetChips, WrenchIcon } from '../service/ServiceMarks'
 import { Link } from 'react-router-dom'
 import DataListRow from '../datalist/DataListRow'
 import { dayLabel, timeLabel } from '../activity/activityListModel'
@@ -30,14 +30,6 @@ export function DateCell({ value }: { value: string | null }) {
   )
 }
 
-export function WrenchIcon() {
-  return (
-    <ThemeIcon radius="xl" size={32} variant="light" color="teal">
-      <IconTool size={18} />
-    </ThemeIcon>
-  )
-}
-
 // A session's event: a thin teal line through the row with a dot -- the
 // line runs edge to edge (through the row's vertical padding), so a
 // session's rows read as one thread.
@@ -50,15 +42,6 @@ function SessionThread() {
       />
     </Box>
   )
-}
-
-// "↺ Wax": each enabled requirement on the component this service resets.
-export function ResetChips({ names }: { names: string[] }) {
-  return names.map((name) => (
-    <Badge key={name} size="xs" variant="outline" color="teal" tt="none" style={{ flexShrink: 0 }}>
-      ↺ {name}
-    </Badge>
-  ))
 }
 
 function ServiceCell({

@@ -600,21 +600,34 @@ export interface MaintenanceLogResponse {
   next_cursor: string | null
 }
 
+// A session's service as GET /service_sessions/:id returns it -- the same
+// enriched fields the Maintenance page's log has (Maintenance::EventLog).
 export interface ServiceSessionEvent {
   id: number
   component_id: number
   service_type_id: number
   performed_at: string
   notes: string | null
+  service_type: { id: number; name: string }
+  component: { id: number; label: string; category: string }
+  component_distance_at_event_meters: number
+  since_last_same_type_meters: number | null
+  resets: string[]
 }
 
+// GET /service_sessions/:id: the session, its bike's odometer and last
+// ride at performed_at (null when never ridden before), and its services,
+// oldest first.
 export interface ServiceSession {
   id: number
   bike_id: number
+  bike: { id: number; name: string }
   performed_at: string
   notes: string | null
   created_at: string
   updated_at: string
+  bike_distance_at_meters: number
+  last_ride_before: { name: string; distance_meters: number; moved_at: string } | null
   events: ServiceSessionEvent[]
 }
 

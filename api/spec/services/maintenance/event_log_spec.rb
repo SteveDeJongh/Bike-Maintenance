@@ -206,6 +206,14 @@ RSpec.describe Maintenance::EventLog do
     end
   end
 
+  describe "service_session_id (internal)" do
+    it "keeps only that session's services" do
+      session = session_with(road, at(1, 5), [ [ chain, wax ], [ chain, clean ] ])
+      event(chain, at(1, 6))
+      expect(ids(call(service_session_id: session.id, order: "asc"))).to eq(session.maintenance_events.order(:id).pluck(:id))
+    end
+  end
+
   describe "sessions" do
     it "reports how many of a session's events the filters keep" do
       cassette = create(:component, user: user, category: "cassette")

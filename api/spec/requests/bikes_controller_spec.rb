@@ -946,6 +946,40 @@ RSpec.describe "Bikes", type: :request do
       expect(body["events"].size).to eq(1)
     end
 
+    it "shows the bike, its km and last ride before the session, and each service enriched" do
+      bike = create(:bike, user: current_user, name: "Libre")
+      at = Time.zone.local(2026, 3, 1, 16, 10)
+      chain = create(:component, user: current_user, label: "Chain S1", category: "chain")
+      wax = create(:service_type, user: current_user, name: "Drip wax")
+      create(:component_service_requirement, component: chain, name: "Wax", service_type: wax)
+      create(:component_assignment, bike: bike, component: chain, started_at: Time.zone.local(2026, 1, 1))
+      create(:maintenance_event, component: chain, service_type: wax, performed_at: Time.zone.local(2026, 1, 15))
+      create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 1), distance_meters: 40_000)
+      create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 2, 20), distance_meters: 62_000, name: "Hill repeats")
+      create(:strava_activity, user: current_user, bike: bike, moved_at: Time.zone.local(2026, 3, 2), distance_meters: 5_000)
+      session = create(:service_session, bike: bike, user: current_user, performed_at: at)
+      event = create(:maintenance_event, service_session: session, component: chain, service_type: wax, performed_at: at)
+
+      get "/service_sessions/#{session.id}"
+
+      body = JSON.parse(response.body)
+      expect(body).to include(
+        "bike" => { "id" => bike.id, "name" => "Libre" },
+        "bike_distance_at_meters" => 102_000,
+        "last_ride_before" => include("name" => "Hill repeats", "distance_meters" => 62_000),
+      )
+      expect(body["events"].first).to include(
+        "id" => event.id, "service_type" => include("name" => "Drip wax"), "component" => include("label" => "Chain S1"),
+        "component_distance_at_event_meters" => 102_000, "since_last_same_type_meters" => 102_000, "resets" => [ "Wax" ],
+      )
+    end
+
+    it "has no last ride before a session on a bike never ridden" do
+      session = create(:service_session, bike: create(:bike, user: current_user))
+      get "/service_sessions/#{session.id}"
+      expect(JSON.parse(response.body)).to include("last_ride_before" => nil, "bike_distance_at_meters" => 0)
+    end
+
     it "updates performed_at and cascades it to every event" do
       session = create(:service_session, user: current_user, bike: create(:bike, user: current_user),
         performed_at: Time.zone.local(2026, 1, 1, 12, 0))

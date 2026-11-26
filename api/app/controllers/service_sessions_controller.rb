@@ -117,10 +117,27 @@ class ServiceSessionsController < ApplicationController
       (result.mounted + result.off_bike).map(&:id).to_set
     end
 
+    # The session modal's payload: the bike, its odometer and last ride at
+    # performed_at, and each service as the Maintenance page's log has it
+    # (Maintenance::EventLog: km at the service, since last, resets),
+    # oldest first.
     def service_session_json(session)
+      bike = session.bike
+      rides_before = bike.strava_activities.where(moved_at: ...session.performed_at)
+      last_ride = rides_before.order(moved_at: :desc, id: :desc).first
+      events = Maintenance::EventLog.call(
+        current_user, service_session_id: session.id, order: "asc", group: "none", per_page: Maintenance::EventLog::MAX_PER_PAGE,
+      ).events
+
       session.as_json(only: %i[ id bike_id performed_at notes created_at updated_at ]).merge(
-        events: session.maintenance_events.map { |event|
-          event.as_json(only: %i[ id component_id service_type_id performed_at notes ])
+        bike: { id: bike.id, name: bike.name },
+        bike_distance_at_meters: rides_before.sum(:distance_meters),
+        last_ride_before: last_ride && { name: last_ride.name, distance_meters: last_ride.distance_meters, moved_at: last_ride.moved_at },
+        events: events.map { |event|
+          event.slice(
+            :id, :component_id, :service_type_id, :performed_at, :notes, :service_type, :component,
+            :component_distance_at_event_meters, :since_last_same_type_meters, :resets,
+          )
         },
       )
     end

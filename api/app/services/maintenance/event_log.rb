@@ -35,7 +35,7 @@ module Maintenance
     end
 
     def initialize(user, kinds: nil, bike_id: nil, category: nil, service_type_id: nil, from: nil, to: nil, tz: nil,
-      q: nil, group: nil, sort: nil, order: nil, cursor: nil, page: nil, per_page: nil)
+      q: nil, group: nil, sort: nil, order: nil, cursor: nil, page: nil, per_page: nil, service_session_id: nil)
       @user = user
       @kinds = Array(kinds).select { |kind| KINDS.include?(kind) }
       @kinds = KINDS.dup if @kinds.empty?
@@ -43,6 +43,9 @@ module Maintenance
       @category = category.presence
       @service_type_id = service_type_id.presence&.to_i
       @q = q.presence
+      # Internal (not a /maintenance_events param): one session's services,
+      # for GET /service_sessions/:id.
+      @service_session_id = service_session_id.presence&.to_i
       @group = group.presence || "month"
       raise InvalidParamError, "Unknown group: #{@group}. Use one of #{GROUPS.join(', ')}." unless GROUPS.include?(@group)
 
@@ -74,7 +77,7 @@ module Maintenance
     private
 
     attr_reader :user, :kinds, :bike_id, :category, :service_type_id, :q, :group, :sort, :order, :cursor, :page,
-      :per_page, :zone, :from_time, :to_time
+      :per_page, :zone, :from_time, :to_time, :service_session_id
 
     BIKE_SQL = "COALESCE(ss.bike_id, bike_lookup.bike_id)".freeze
     SESSION_KEY_SQL = "COALESCE(me.service_session_id, 0)".freeze
@@ -113,6 +116,7 @@ module Maintenance
       list << "#{BIKE_SQL} = #{bike_id}" if bike_id
       list << "c.category = #{quote(category)}" if category
       list << "me.service_type_id = #{service_type_id}" if service_type_id
+      list << "me.service_session_id = #{service_session_id}" if service_session_id
       list << "me.performed_at >= #{quote(from_time)}" if from_time
       list << "me.performed_at <= #{quote(to_time)}" if to_time
       list << q_condition if q

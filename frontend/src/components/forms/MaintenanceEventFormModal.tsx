@@ -10,7 +10,7 @@ import {
   useUpdateMaintenanceEvent,
   type MaintenanceEventPayload,
 } from '../../api/mutations'
-import { useBikes, useComponent, useComponents, useServiceSession, useServiceTypes } from '../../api/queries'
+import { useComponent, useComponents, useServiceSession, useServiceTypes } from '../../api/queries'
 import { nowIsoUtc } from '../../utils/datetime'
 import type { MaintenanceEvent } from '../../types/models'
 import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
@@ -143,7 +143,6 @@ function MaintenanceEventForm({
 
   const { data: components } = useComponents()
   const { data: serviceTypes } = useServiceTypes()
-  const { data: bikes } = useBikes()
   const { resolveServiceTypeId, isCreatingServiceType } = useServiceTypeIdResolver()
 
   const form = useForm<MaintenanceEventFormValues>({
@@ -159,7 +158,7 @@ function MaintenanceEventForm({
   const { data: component } = useComponent(opened && componentId != null ? componentId : NaN)
   const sessionId = event?.service_session_id ?? null
   const { data: session } = useServiceSession(opened && sessionId != null ? sessionId : NaN)
-  const sessionBikeName = bikes?.find((bike) => bike.id === session?.bike_id)?.name
+  const sessionBikeName = session?.bike.name
 
   // Logging (not editing), as each component's requirements load: the
   // first one starts on its default type unless the opener preselected
