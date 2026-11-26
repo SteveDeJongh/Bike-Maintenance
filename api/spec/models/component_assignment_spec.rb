@@ -61,7 +61,7 @@ RSpec.describe ComponentAssignment, type: :model do
         started_at: Date.new(2026, 2, 1), ended_at: nil)
 
       expect(overlapping).not_to be_valid
-      expect(overlapping.errors[:base]).to include(a_string_matching(/already assigned/))
+      expect(overlapping.errors[:base]).to include(a_string_matching(/\AOverlaps its own installation on .+, Jan 1 → now\z/))
     end
 
     it "allows a second assignment once the first has ended before the new one starts" do
@@ -143,10 +143,7 @@ RSpec.describe ComponentAssignment, type: :model do
 
       expect(overlapping).not_to be_valid
       message = overlapping.errors[:base].first
-      expect(message).to include("Chain A")
-      expect(message).to include(existing.started_at.strftime("%B"))
-      expect(message).to include("Remove or end that assignment")
-      expect(message).not_to include("earliest")
+      expect(message).to eq("Overlaps Chain A on this slot, #{existing.started_at.strftime('%b %-d')} → now")
     end
 
     it "allows different categories on the same bike to overlap" do
@@ -215,9 +212,8 @@ RSpec.describe ComponentAssignment, type: :model do
 
       expect(swap_in).not_to be_valid
       message = swap_in.errors[:base].first
-      expect(message).to include("Chain A")
-      expect(message).to include("earliest this component can be installed")
-      expect(message).to include(outgoing.ended_at.strftime("%-I:%M %p"))
+      expect(message).to eq("Overlaps Chain A on this slot, Mar 1, 8:00 AM → 9:00 AM")
+      expect(outgoing).to be_persisted
     end
 
     it "names the specific conflicting assignment when more than one exists, ordered by started_at" do

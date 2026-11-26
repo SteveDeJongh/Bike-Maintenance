@@ -257,7 +257,7 @@ RSpec.describe Maintenance::RequirementStatus do
     end
 
     it "a 1-month requirement serviced on Jan 31 of a leap year is due Feb 29" do
-      component, = build_component(acquired_on: Date.new(2027, 1, 1))
+      component, = build_component(acquired_on: Date.new(2026, 1, 1)) # installed in the past; the leap-year service is what matters
       wax = create(:service_type, user: component.user, name: "Service")
       requirement = create(:component_service_requirement, component: component, name: "Monthly",
         distance_interval_meters: nil, calendar_amount: 1, calendar_unit: "month", service_type: wax)

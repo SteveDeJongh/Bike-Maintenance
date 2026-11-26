@@ -89,6 +89,127 @@ RSpec.describe "ComponentAssignments", type: :request do
     end
   end
 
+  describe "POST /component_assignments: Install on bike" do
+    let(:bike) { create(:bike, user: current_user, name: "Soloist") }
+    let(:chain) { create(:component, user: current_user, label: "Chain S1", category: "chain") }
+    let(:other_chain) { create(:component, user: current_user, label: "Chain S2", category: "chain") }
+
+    def install(component, started_at:, ended_at: nil, bike_id: bike.id, track_slot: nil)
+      params = { component_assignment: { component_id: component.id, bike_id: bike_id, started_at: started_at, ended_at: ended_at } }
+      params[:track_slot] = track_slot unless track_slot.nil?
+      post "/component_assignments", params: params
+      JSON.parse(response.body)
+    end
+
+    it "creates a closed past stint in an empty window of the slot, leaving other assignments alone" do
+      earlier = create(:component_assignment, bike: bike, component: other_chain,
+        started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 3, 1))
+      later = create(:component_assignment, bike: bike, component: other_chain,
+        started_at: Time.zone.local(2026, 6, 1))
+
+      body = install(chain, started_at: "2026-03-01T00:00:00Z", ended_at: "2026-05-01T00:00:00Z")
+
+      expect(response).to have_http_status(:created)
+      expect(body).to include("ended_at" => be_present)
+      expect([ earlier.reload.ended_at, later.reload.ended_at ]).to eq([ Time.zone.local(2026, 3, 1), nil ])
+    end
+
+    it "rejects a closed stint that overlaps the slot's other assignment, naming it" do
+      create(:component_assignment, bike: bike, component: other_chain,
+        started_at: Time.zone.local(2026, 6, 2), ended_at: Time.zone.local(2026, 9, 30))
+
+      body = install(chain, started_at: "2026-07-01T00:00:00Z", ended_at: "2026-08-01T00:00:00Z")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["base"]).to eq([ "Overlaps Chain S2 on this slot, Jun 2 → Sep 30" ])
+    end
+
+    it "rejects a closed stint that overlaps the component's own stint on another bike" do
+      gravel = create(:bike, user: current_user, name: "Libre")
+      create(:component_assignment, bike: gravel, component: chain,
+        started_at: Time.zone.local(2026, 2, 1), ended_at: Time.zone.local(2026, 4, 1))
+
+      body = install(chain, started_at: "2026-03-01T00:00:00Z", ended_at: "2026-05-01T00:00:00Z")
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["base"]).to eq([ "Overlaps its own installation on Libre, Feb 1 → Apr 1" ])
+    end
+
+    it "allows a closed stint before the component's current installation elsewhere" do
+      gravel = create(:bike, user: current_user)
+      create(:component_assignment, bike: gravel, component: chain, started_at: Time.zone.local(2026, 6, 1))
+
+      install(chain, started_at: "2026-01-01T00:00:00Z", ended_at: "2026-05-01T00:00:00Z")
+
+      expect(response).to have_http_status(:created)
+      expect(chain.component_assignments.where(ended_at: nil).count).to eq(1)
+    end
+
+    it "rejects an end at or before the start, and future dates" do
+      body = install(chain, started_at: "2026-03-01T00:00:00Z", ended_at: "2026-02-01T00:00:00Z")
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["ended_at"]).to eq([ "must be after the installed date" ])
+
+      install(chain, started_at: "2026-03-01T00:00:00Z", ended_at: "2026-03-01T00:00:00Z")
+      expect(response).to have_http_status(:unprocessable_content)
+
+      body = install(chain, started_at: 1.day.from_now.iso8601)
+      expect(body["started_at"]).to eq([ "can't be in the future" ])
+
+      body = install(chain, started_at: "2026-01-01T00:00:00Z", ended_at: 1.day.from_now.iso8601)
+      expect(body["ended_at"]).to eq([ "can't be in the future" ])
+    end
+
+    it "takes an open install into an occupied slot only through swap" do
+      occupant = create(:component_assignment, bike: bike, component: other_chain, started_at: Time.zone.local(2026, 1, 1))
+
+      body = install(chain, started_at: "2026-03-01T00:00:00Z")
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["base"].first).to start_with("Overlaps Chain S2 on this slot")
+
+      post "/component_assignments/#{occupant.id}/swap", params: { component_id: chain.id, swapped_at: "2026-03-01T00:00:00Z" }
+      expect(response).to have_http_status(:created)
+      expect(occupant.reload.ended_at).to eq(Time.zone.parse("2026-03-01T00:00:00Z"))
+    end
+
+    it "starts tracking the category with track_slot, in one transaction" do
+      install(chain, started_at: "2026-01-01T00:00:00Z", track_slot: true)
+
+      expect(response).to have_http_status(:created)
+      expect(bike.bike_component_slots.pluck(:category, :ride_context)).to eq([ %w[chain both] ])
+    end
+
+    it "leaves no slot behind when the install itself fails" do
+      install(chain, started_at: 1.day.from_now.iso8601, track_slot: true)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(bike.bike_component_slots).to be_empty
+    end
+
+    it "404s on another user's bike, and creates nothing" do
+      other_bike = create(:bike)
+      install(chain, started_at: "2026-01-01T00:00:00Z", bike_id: other_bike.id, track_slot: true)
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_bike.bike_component_slots).to be_empty
+    end
+
+    it "counts the back-filled stint's rides toward the component, and only those" do
+      ride = ->(at, meters) { create(:strava_activity, user: current_user, bike: bike, moved_at: at, distance_meters: meters) }
+      ride.call(Time.zone.local(2026, 2, 15), 1_000) # before
+      ride.call(Time.zone.local(2026, 3, 10), 20_000) # inside
+      ride.call(Time.zone.local(2026, 4, 20), 30_000) # inside
+      ride.call(Time.zone.local(2026, 5, 1), 4_000) # at the end: half-open, outside
+      ride.call(Time.zone.local(2026, 6, 1), 5_000) # after
+
+      install(chain, started_at: "2026-03-01T00:00:00Z", ended_at: "2026-05-01T00:00:00Z")
+
+      expect(response).to have_http_status(:created)
+      expect(chain.reload.total_distance).to eq(50_000)
+      expect(Maintenance::LifetimeDistanceQuery.call(current_user, component_ids: [ chain.id ])).to eq(chain.id => 50_000)
+    end
+  end
+
   describe "POST /component_assignments/:id/swap" do
     # Pins the frontend's swapOptions rule (utils/swapOptions.ts) to what
     # the endpoint really accepts for a shared indoor cassette.
@@ -271,7 +392,7 @@ RSpec.describe "ComponentAssignments", type: :request do
       }
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(JSON.parse(response.body)["base"].join).to include("already assigned")
+      expect(JSON.parse(response.body)["base"].join).to include("Overlaps its own installation")
       expect(assignment.reload.ended_at).to be_nil
     end
 

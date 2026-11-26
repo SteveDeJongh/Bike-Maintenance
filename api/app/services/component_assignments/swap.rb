@@ -11,9 +11,9 @@ module ComponentAssignments
   class Swap
     Result = Struct.new(:success?, :ended_assignment, :new_assignment, :errors, keyword_init: true)
 
-    # Same order of magnitude as ServiceSession::FUTURE_TOLERANCE -- a
-    # small, clock-skew-sized allowance, not a loose window.
-    FUTURE_TOLERANCE = 5.minutes
+    # The assignment's own clock-skew allowance (shared with ServiceSession's
+    # order of magnitude) -- a small allowance, not a loose window.
+    FUTURE_TOLERANCE = ComponentAssignment::FUTURE_TOLERANCE
 
     def self.call(assignment:, component:, swapped_at:)
       new(assignment, component, swapped_at).call

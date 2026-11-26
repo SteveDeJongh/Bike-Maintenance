@@ -19,6 +19,8 @@ class BikesController < ApplicationController
     last_rides = activities.group(:bike_id).maximum(:moved_at)
     elevations = activities.group(:bike_id).sum(:total_elevation_gain)
     ride_counts = activities.group(:bike_id).count
+    slot_categories = BikeComponentSlot.where(bike_id: @bikes.select(:id)).distinct.pluck(:bike_id, :category)
+      .group_by(&:first).transform_values { |pairs| pairs.map(&:last).sort }
     average_powers = activities
       .where(device_watts: true)
       .group(:bike_id)
@@ -47,6 +49,9 @@ class BikesController < ApplicationController
         total_elevation_gain: elevations[bike.id] || 0,
         installed_components_count: assignments.size,
         ride_count: ride_counts[bike.id] || 0,
+        # The categories it tracks (any slot) -- the Install on bike
+        # picker's "Not tracked on this bike".
+        slot_categories: slot_categories.fetch(bike.id, []),
         distance_this_year: this_year_distances[bike.id] || 0,
         last_ride_activity_type: last_ride_types[bike.id],
         status_counts: status_counts(assignments, worst),

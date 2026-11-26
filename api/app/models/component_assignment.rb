@@ -1,10 +1,15 @@
 class ComponentAssignment < ApplicationRecord
+  # Same clock-skew allowance as ComponentAssignments::Swap and
+  # ServiceSession.
+  FUTURE_TOLERANCE = 5.minutes
+
   belongs_to :component
   belongs_to :bike
 
   validates :started_at, presence: true
   validates :ride_context, inclusion: { in: %w[both outdoor_only indoor_only] }
   validate :ended_at_after_started_at
+  validate :not_in_the_future
   validate :no_overlapping_assignment_for_component
   validate :no_overlapping_assignment_for_bike_slot
   validate :component_and_bike_have_same_owner
@@ -74,10 +79,26 @@ class ComponentAssignment < ApplicationRecord
     errors.add(:base, "Component and bike must belong to the same user") if component.user_id != bike.user_id
   end
 
+  # A new installation's end must come after its start (a closed, back-
+  # filled stint needs some length); an update keeps the older "at or
+  # after", so ending or editing an existing one behaves as it always has.
   def ended_at_after_started_at
     return if started_at.blank? || ended_at.blank?
 
-    errors.add(:ended_at, "must be at or after started_at") if ended_at < started_at
+    if new_record?
+      errors.add(:ended_at, "must be after the installed date") if ended_at <= started_at
+    elsif ended_at < started_at
+      errors.add(:ended_at, "must be at or after started_at")
+    end
+  end
+
+  # Neither date can be more than FUTURE_TOLERANCE ahead (clock skew, the
+  # same allowance as a swap's date) -- only checked when that date is
+  # being set, so older rows and unrelated updates are never affected.
+  def not_in_the_future
+    limit = Time.current + FUTURE_TOLERANCE
+    errors.add(:started_at, "can't be in the future") if started_at.present? && will_save_change_to_started_at? && started_at > limit
+    errors.add(:ended_at, "can't be in the future") if ended_at.present? && will_save_change_to_ended_at? && ended_at > limit
   end
 
   # Normally a component can only have one active assignment at a time --
@@ -93,10 +114,11 @@ class ComponentAssignment < ApplicationRecord
   def no_overlapping_assignment_for_component
     return if component_id.blank? || component.blank? || started_at.blank?
 
-    conflicts = ComponentAssignment.where(component_id: component_id).where.not(id: id)
-    if conflicts.any? { |other| overlaps?(other) && !(allows_multiple_assignments? && ride_context == "indoor_only" && other.ride_context == "indoor_only") }
-      errors.add(:base, "This component is already assigned to a bike during that period")
-    end
+    conflicting = ComponentAssignment.includes(:bike).where(component_id: component_id).where.not(id: id).order(:started_at)
+      .find { |other| overlaps?(other) && !(allows_multiple_assignments? && ride_context == "indoor_only" && other.ride_context == "indoor_only") }
+    return if conflicting.nil?
+
+    errors.add(:base, "Overlaps its own installation on #{conflicting.bike.name}, #{range_text(conflicting)}")
   end
 
   def no_overlapping_assignment_for_bike_slot
@@ -111,22 +133,21 @@ class ComponentAssignment < ApplicationRecord
 
     return if conflicting.nil?
 
-    timeframe = conflicting.ended_at ? "#{format_timestamp(conflicting.started_at)} to " \
-      "#{format_timestamp(conflicting.ended_at)}" : "#{format_timestamp(conflicting.started_at)} with no end date yet"
-
-    if conflicting.ended_at
-      errors.add(:base, "#{conflicting.component.label} was already installed as the #{component.category} " \
-        "on this bike from #{timeframe}. The earliest this component can be installed is " \
-        "#{format_timestamp(conflicting.ended_at)}.")
-    else
-      errors.add(:base, "#{conflicting.component.label} is already installed as the #{component.category} " \
-        "on this bike, starting #{timeframe}. Remove or end that assignment before installing another " \
-        "#{component.category} during an overlapping period.")
-    end
+    errors.add(:base, "Overlaps #{conflicting.component.label} on this slot, #{range_text(conflicting)}")
   end
 
-  def format_timestamp(time)
-    time.strftime("%B %-d, %Y at %-I:%M %p")
+  # "Jun 2 → Sep 30", "Jun 2 → now"; the year when it isn't this year, and
+  # the times when both ends fall on the same day (a same-day swap).
+  def range_text(other)
+    start = other.started_at.in_time_zone
+    finish = other.ended_at&.in_time_zone
+    same_day = finish && start.to_date == finish.to_date
+    day = ->(time) { time.year == Time.current.year ? time.strftime("%b %-d") : time.strftime("%b %-d, %Y") }
+    clock = ->(time) { time.strftime("%-I:%M %p") }
+    return "#{day.call(start)} → now" unless finish
+    return "#{day.call(start)}, #{clock.call(start)} → #{clock.call(finish)}" if same_day
+
+    "#{day.call(start)} → #{day.call(finish)}"
   end
 
   # An outdoor-only assignment and an indoor-only assignment never actually

@@ -13,13 +13,32 @@ class ComponentAssignmentsController < ApplicationController
   end
 
   # POST /component_assignments
+  # An optional ended_at makes a closed, back-filled stint; it never ends
+  # or moves any other assignment (the overlap validations reject
+  # conflicts). `track_slot: true` also starts tracking the component's
+  # category on the bike (its "both" slot) in the same transaction -- the
+  # Install on bike modal's "Track <Category> on <bike>" -- so a failed
+  # install never leaves a stray slot.
   def create
     assignment_params = component_assignment_params
     return render_bike_or_component_not_found unless owns_referenced_records?(assignment_params)
 
     @component_assignment = ComponentAssignment.new(assignment_params)
+    slot = nil
 
-    if @component_assignment.save
+    ActiveRecord::Base.transaction do
+      if ActiveModel::Type::Boolean.new.cast(params[:track_slot]) && @component_assignment.bike && @component_assignment.component
+        slot = @component_assignment.bike.bike_component_slots
+          .find_or_initialize_by(category: @component_assignment.component.category, ride_context: "both")
+        unless slot.save
+          slot.errors.each { |error| @component_assignment.errors.add(:base, "Couldn't track this category: #{error.full_message}") }
+          raise ActiveRecord::Rollback
+        end
+      end
+      raise ActiveRecord::Rollback unless @component_assignment.save
+    end
+
+    if @component_assignment.persisted?
       render json: @component_assignment, status: :created
     else
       render json: @component_assignment.errors, status: :unprocessable_content

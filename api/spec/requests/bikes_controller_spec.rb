@@ -5,6 +5,19 @@ RSpec.describe "Bikes", type: :request do
   before { sign_in(current_user) }
 
   describe "GET /bikes" do
+    it "lists the categories each bike tracks as slot_categories" do
+      bike = create(:bike, user: current_user)
+      create(:bike_component_slot, bike: bike, category: "chain")
+      create(:bike_component_slot, bike: bike, category: "cassette")
+      bare = create(:bike, user: current_user)
+
+      get "/bikes"
+
+      by_id = JSON.parse(response.body).index_by { |b| b["id"] }
+      expect(by_id[bike.id]["slot_categories"]).to eq(%w[cassette chain])
+      expect(by_id[bare.id]["slot_categories"]).to eq([])
+    end
+
     it "never includes another user's bikes" do
       mine = create(:bike, user: current_user)
       create(:bike) # another user's
