@@ -3,6 +3,7 @@ import {
   componentPickerGroups,
   defaultServiceTypeId,
   pickerLine,
+  riddenDetail,
   serviceTypeAfterComponentChange,
   statusChip,
   lastRideEnd,
@@ -199,9 +200,10 @@ describe('resetRows', () => {
 })
 
 describe('the component picker', () => {
-  const juan = { id: 1, name: 'Juan Solo', retired_on: null }
-  const soloist = { id: 2, name: 'Soloist', retired_on: null }
-  const oldBike = { id: 3, name: 'Old MTB', retired_on: '2025-01-01' }
+  // Juan Solo ridden more recently than the Soloist, so it comes first.
+  const juan = { id: 1, name: 'Juan Solo', retired_on: null, last_ride_on: '2026-11-24T18:00:00Z' }
+  const soloist = { id: 2, name: 'Soloist', retired_on: null, last_ride_on: '2026-11-16T09:00:00Z' }
+  const oldBike = { id: 3, name: 'Old MTB', retired_on: '2025-01-01', last_ride_on: '2024-12-01T00:00:00Z' }
   const on = (bike: { id: number; name: string }, ride_context: 'both' | 'indoor_only' = 'both') => ({ id: bike.id, name: bike.name, ride_context })
   let nextId = 1
   const part = (overrides: Partial<ComponentListItem>): ComponentListItem =>
@@ -247,7 +249,7 @@ describe('the component picker', () => {
   const shape = (groups: ReturnType<typeof componentPickerGroups>) =>
     groups.map((group) => [group.label, group.options.map((o) => `${o.component.label}${o.chip ? ` [${o.chip.label}]` : ''}`)])
 
-  it('groups Needs attention, then each active bike A-Z in category order, then spares; retired hidden', () => {
+  it('groups Needs attention, then each active bike by last ride in category order, then spares; retired hidden', () => {
     expect(shape(componentPickerGroups(all, { bikes: [soloist, juan, oldBike], categoryOrder: order }))).toEqual([
       ['Needs attention', ['Chain S1 [Wax due]', 'Front tire [Check soon]']],
       ['Juan Solo', ['Chain J1', 'Shared cassette', 'Front tire [Check soon]']],
@@ -264,6 +266,33 @@ describe('the component picker', () => {
       ['Needs attention', ['Chain S1 [Wax due]']],
       ['Soloist', ['Chain S1 [Wax due]']],
       ['Spares', ['Chain S2 [Drip wax · ready]']],
+    ])
+  })
+
+  it('orders bikes most recently ridden first, never ridden last, ties by name; spares and retired after every bike', () => {
+    const fresh = { id: 4, name: 'Zed', retired_on: null, last_ride_on: '2026-11-26T08:00:00Z' }
+    const tieA = { id: 5, name: 'Alpha', retired_on: null, last_ride_on: '2026-11-20T10:00:00Z' }
+    const tieB = { id: 6, name: 'Beta', retired_on: null, last_ride_on: '2026-11-20T10:00:00Z' }
+    const never = { id: 7, name: 'Aardvark', retired_on: null, last_ride_on: null }
+    const bikes = [never, tieB, soloist, tieA, fresh, juan]
+    const mountedOn = (bike: { id: number; name: string }) => part({ label: `On ${bike.name}`, current_bikes: [on(bike)] })
+    const components = [...bikes.map(mountedOn), spare, retired]
+    const groups = componentPickerGroups(components, { bikes, categoryOrder: order, showRetired: true })
+    expect(groups.map((group) => group.label)).toEqual(['Zed', 'Juan Solo', 'Alpha', 'Beta', 'Soloist', 'Aardvark', 'Spares', 'Retired'])
+  })
+
+  it('gives each bike group a dimmed "ridden …" detail, and nothing for a never-ridden bike or the other groups', () => {
+    const now = new Date('2026-11-26T12:00:00')
+    expect(riddenDetail(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8).toISOString(), now)).toBe('ridden today')
+    expect(riddenDetail(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 20).toISOString(), now)).toBe('ridden yesterday')
+    expect(riddenDetail(new Date(2026, 10, 16, 9).toISOString(), now)).toBe('ridden Nov 16')
+    expect(riddenDetail(null, now)).toBeNull()
+    const groups = componentPickerGroups(all, { bikes: [soloist, juan], categoryOrder: order, now })
+    expect(groups.map((group) => [group.label, group.detail])).toEqual([
+      ['Needs attention', null],
+      ['Juan Solo', 'ridden Nov 24'],
+      ['Soloist', 'ridden Nov 16'],
+      ['Spares', null],
     ])
   })
 

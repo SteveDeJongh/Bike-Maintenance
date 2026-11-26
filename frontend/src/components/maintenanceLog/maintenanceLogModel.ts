@@ -1,4 +1,5 @@
 import { isDatePreset, type DatePreset } from '../activity/dateRanges'
+import { compareLastRidden } from '../bikes/bikesList'
 import { formatShortDate } from '../../utils/datetime'
 import { formatDistance } from '../../utils/distance'
 import {
@@ -98,8 +99,7 @@ type RiddenBike = Pick<Bike, 'id' | 'name' | 'retired_on'> & { last_ride_on: str
 // Active bikes, most recently ridden first (never ridden last), then by
 // name -- the batch modal's bike picker.
 export function bikesByRecentRide<B extends RiddenBike>(bikes: readonly B[] | undefined): B[] {
-  const ridden = (bike: B) => (bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity)
-  return (bikes ?? []).filter((bike) => !bike.retired_on).sort((a, b) => ridden(b) - ridden(a) || a.name.localeCompare(b.name))
+  return (bikes ?? []).filter((bike) => !bike.retired_on).sort(compareLastRidden)
 }
 
 // Log service session's bike: the first of bikesByRecentRide; undefined

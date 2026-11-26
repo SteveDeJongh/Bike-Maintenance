@@ -4,8 +4,10 @@ import { compareCategory, matchesSearch } from '../componentList/componentListMo
 import { componentState, spareReadyLabel } from '../../utils/componentState'
 import { categoryLabel } from '../../constants'
 import { CREATE_NEW_SERVICE_TYPE } from '../ServiceTypePicker'
+import { compareLastRidden } from '../bikes/bikesList'
+import { relativeDay } from '../../utils/datetime'
 import type {
-  Bike,
+  BikeWithStats,
   ComponentDetail,
   ComponentListItem,
   ComponentServiceRequirementWithStatus,
@@ -224,7 +226,15 @@ export interface PickerOption {
 export interface PickerGroup {
   key: string
   label: string
+  // Dimmed after the label: a bike group's "ridden today" / "ridden Nov 16";
+  // null for other groups and never-ridden bikes.
+  detail: string | null
   options: PickerOption[]
+}
+
+// A bike group's detail: "ridden today", "ridden yesterday", "ridden Nov 16".
+export function riddenDetail(lastRideOn: string | null, now: Date = new Date()): string | null {
+  return lastRideOn ? `ridden ${relativeDay(lastRideOn, now)}` : null
 }
 
 // The worst requirement as a chip: "Wax due" (red), "Clean soon"
@@ -252,7 +262,8 @@ export function pickerLine(component: ComponentListItem): string {
 }
 
 // The picker's groups, in order: Needs attention (due, then soon, most
-// used first, across bikes and spares); one group per active bike A-Z with
+// used first, across bikes and spares); one group per active bike, most
+// recently ridden first (compareLastRidden; never ridden last, A-Z), with
 // its mounted components in category order (a shared cassette under each
 // of its bikes); Spares, with a rotating spare's "<type> · ready" chip;
 // Retired, only when asked for. A component in Needs attention also shows
@@ -265,7 +276,14 @@ export function componentPickerGroups(
     categoryOrder,
     q = '',
     showRetired = false,
-  }: { bikes: readonly Pick<Bike, 'id' | 'name' | 'retired_on'>[]; categoryOrder: readonly string[]; q?: string; showRetired?: boolean },
+    now = new Date(),
+  }: {
+    bikes: readonly Pick<BikeWithStats, 'id' | 'name' | 'retired_on' | 'last_ride_on'>[]
+    categoryOrder: readonly string[]
+    q?: string
+    showRetired?: boolean
+    now?: Date
+  },
 ): PickerGroup[] {
   const matching = components.filter((component) => matchesSearch(component, q))
   const byCategory = (a: ComponentListItem, b: ComponentListItem) =>
@@ -284,19 +302,25 @@ export function componentPickerGroups(
       (a, b) =>
         SEVERITY[b.service_status!] - SEVERITY[a.service_status!] || (b.fraction_used ?? 0) - (a.fraction_used ?? 0) || a.label.localeCompare(b.label),
     )
-  groups.push({ key: 'attention', label: 'Needs attention', options: attention.map((c) => option('attention', c)) })
+  groups.push({ key: 'attention', label: 'Needs attention', detail: null, options: attention.map((c) => option('attention', c)) })
 
-  for (const bike of [...bikes].filter((b) => !b.retired_on).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const bike of [...bikes].filter((b) => !b.retired_on).sort(compareLastRidden)) {
     const mounted = matching
       .filter((component) => componentState(component) === 'installed' && component.current_bikes.some((current) => current.id === bike.id))
       .sort(byCategory)
-    groups.push({ key: `bike-${bike.id}`, label: bike.name, options: mounted.map((c) => option(`bike-${bike.id}`, c)) })
+    groups.push({
+      key: `bike-${bike.id}`,
+      label: bike.name,
+      detail: riddenDetail(bike.last_ride_on, now),
+      options: mounted.map((c) => option(`bike-${bike.id}`, c)),
+    })
   }
 
   const spares = matching.filter((component) => componentState(component) === 'spare').sort(byCategory)
   groups.push({
     key: 'spares',
     label: 'Spares',
+    detail: null,
     options: spares.map((c) => {
       const ready = spareReadyLabel(c)
       return option('spares', c, statusChip(c) ?? (ready ? { label: ready, color: 'teal' } : null))
@@ -305,7 +329,7 @@ export function componentPickerGroups(
 
   if (showRetired) {
     const retired = matching.filter((component) => componentState(component) === 'retired').sort(byCategory)
-    groups.push({ key: 'retired', label: 'Retired', options: retired.map((c) => option('retired', c, null)) })
+    groups.push({ key: 'retired', label: 'Retired', detail: null, options: retired.map((c) => option('retired', c, null)) })
   }
 
   return groups.filter((group) => group.options.length > 0)

@@ -101,7 +101,21 @@ export default function ComponentPicker({
           <Combobox.Options mah={340} style={{ overflowY: 'auto' }}>
             {groups.length === 0 && <Combobox.Empty>No components match</Combobox.Empty>}
             {groups.map((group) => (
-              <Combobox.Group key={group.key} label={group.label}>
+              <Combobox.Group
+                key={group.key}
+                label={
+                  group.detail ? (
+                    <>
+                      {group.label}{' '}
+                      <Text span inherit fw={400} c="dimmed" tt="none">
+                        · {group.detail}
+                      </Text>
+                    </>
+                  ) : (
+                    group.label
+                  )
+                }
+              >
                 {group.options.map((option) => (
                   <Combobox.Option key={option.key} value={String(option.component.id)} active={option.component.id === value}>
                     <ComponentSummary component={option.component} chip={option.chip} />

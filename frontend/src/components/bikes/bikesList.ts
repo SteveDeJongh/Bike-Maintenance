@@ -58,8 +58,17 @@ export function bikesHeaderLine({ active, retired }: Pick<BikeTileTotals, 'activ
 
 type SortableBike = Pick<BikeWithStats, 'name' | 'last_ride_on' | 'total_distance' | 'status_counts'>
 
-function ridden(bike: SortableBike): number {
+function ridden(bike: Pick<BikeWithStats, 'last_ride_on'>): number {
   return bike.last_ride_on ? Date.parse(bike.last_ride_on) : -Infinity
+}
+
+// Last ridden: most recent first, never-ridden bikes last, ties A-Z by
+// name. The Bikes page's card sort, the Log service picker's bike groups
+// and the batch modal's bike menu all order bikes this way.
+export function compareLastRidden(a: Pick<BikeWithStats, 'name' | 'last_ride_on'>, b: Pick<BikeWithStats, 'name' | 'last_ride_on'>): number {
+  const ra = ridden(a)
+  const rb = ridden(b)
+  return (ra === rb ? 0 : rb > ra ? 1 : -1) || a.name.localeCompare(b.name)
 }
 
 // The card grid's order. Most urgent is Home's ordering (sortByUrgency) on
@@ -70,7 +79,7 @@ export function sortBikeCards<T extends SortableBike>(bikes: T[], sort: BikeCard
 
   const byName = (a: T, b: T) => a.name.localeCompare(b.name)
   const compare: Record<Exclude<BikeCardSort, 'urgent'>, (a: T, b: T) => number> = {
-    last_ridden: (a, b) => (ridden(a) === ridden(b) ? 0 : ridden(b) > ridden(a) ? 1 : -1) || byName(a, b),
+    last_ridden: compareLastRidden,
     distance: (a, b) => b.total_distance - a.total_distance || byName(a, b),
     name: byName,
   }
