@@ -5,7 +5,6 @@ import {
   IconBrandStrava,
   IconComponents,
   IconHome,
-  IconLink,
   IconSettings,
   IconTool,
 } from '@tabler/icons-react'
@@ -38,7 +37,6 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   { path: '/bikes', label: 'Bikes', icon: IconBike, tab: true },
   { path: '/components', label: 'Components', icon: IconComponents, tab: true },
   { path: '/maintenance-events', label: 'Maintenance', icon: IconTool },
-  { path: '/assignments', label: 'Assignments', icon: IconLink },
   { path: '/strava', label: 'Strava', icon: IconBrandStrava },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ]

@@ -14,7 +14,7 @@ interface DraggableHeaderCellProps {
   sortable?: boolean
 }
 
-// Like SortableHeaderCell, but for configurable (non-pinned) columns: a drag
+// A configurable column's header cell (the Strava Rides table): a drag
 // handle sits next to the sortable label, kept as a separate click target so
 // dragging to reorder and clicking to sort never contend over the same
 // gesture on the same element.

@@ -239,35 +239,6 @@ export const SERVICE_STATUS_SEVERITY: Record<'ok' | 'warning' | 'due', number> =
   due: 2,
 }
 
-// The toggleable columns on the Assignments list. Component and Bike are both
-// always-shown, leading (pinned) linked columns — a row's identity needs both
-// coordinates, same reasoning as Category+Component on the Bike detail
-// tables. Category (derived from the component) is just a regular
-// configurable column here, not pinned.
-export const ASSIGNMENT_LIST_COLUMNS = ['category', 'started_at', 'ended_at'] as const
-
-export type AssignmentListColumn = (typeof ASSIGNMENT_LIST_COLUMNS)[number]
-
-export const ASSIGNMENT_LIST_COLUMN_LABELS: Record<AssignmentListColumn, string> = {
-  category: 'Category',
-  started_at: 'Started',
-  ended_at: 'Ended',
-}
-
-export const DEFAULT_ASSIGNMENT_LIST_COLUMNS: AssignmentListColumn[] = [
-  'category',
-  'started_at',
-  'ended_at',
-]
-
-export const ASSIGNMENT_LIST_SORT_COLUMNS = [
-  'component_label',
-  'bike_name',
-  ...ASSIGNMENT_LIST_COLUMNS,
-] as const
-
-export type AssignmentListSortColumn = (typeof ASSIGNMENT_LIST_SORT_COLUMNS)[number]
-
 // Ride columns: the set the Strava page's Rides tab draws from (through
 // SHARED_RIDE_COLUMN_RENDERERS, which every column but the odometer shares).
 // It began as the bike page's old Ride history table, since replaced by the

@@ -13,7 +13,6 @@ import BikeDetail from './pages/BikeDetail'
 import BikeSetup from './pages/BikeSetup'
 import Components from './pages/Components'
 import ComponentDetail from './pages/ComponentDetail'
-import Assignments from './pages/Assignments'
 import MaintenanceEvents from './pages/MaintenanceEvents'
 import Strava from './pages/Strava'
 import SettingsLayout from './pages/settings/SettingsLayout'
@@ -44,7 +43,9 @@ export const router = createBrowserRouter([
           { path: 'bikes/:id/setup', element: <BikeSetup /> },
           { path: 'components', element: <Components /> },
           { path: 'components/:id', element: <ComponentDetail /> },
-          { path: 'assignments', element: <Assignments /> },
+          // The old Assignments page: its lists live on the bike and component
+          // pages, its setup changes on Activity.
+          { path: 'assignments', element: <Navigate to="/activity?kinds=setup" replace /> },
           { path: 'maintenance-events', element: <MaintenanceEvents /> },
           { path: 'strava', element: <Strava /> },
           {
