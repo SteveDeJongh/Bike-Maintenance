@@ -231,6 +231,69 @@ RSpec.describe Component, type: :model do
     end
   end
 
+  describe "effectively retired" do
+    let(:user) { create(:user) }
+    let(:road) { create(:bike, user: user) }
+    let(:sold) { create(:bike, user: user, retired_on: Date.new(2026, 10, 1)) }
+
+    def mount(component, bike, ride_context: "both")
+      create(:component_assignment, component: component, bike: bike, started_at: Time.zone.local(2026, 1, 1), ride_context: ride_context)
+    end
+
+    def check(component)
+      component.reload
+      in_scope = Component.effectively_retired.exists?(component.id)
+      expect(Component.in_inventory.exists?(component.id)).to eq(!in_scope)
+      expect(component.effectively_retired?).to eq(in_scope) # scope and method agree
+      in_scope
+    end
+
+    it "is retired_on set" do
+      component = create(:component, user: user, retired_on: Date.new(2026, 5, 1))
+      expect(check(component)).to be true
+      expect(component.effective_retired_on).to eq(Date.new(2026, 5, 1))
+    end
+
+    it "is every open assignment on a retired bike, dated by that bike" do
+      chain = create(:component, user: user)
+      mount(chain, sold)
+      expect(check(chain)).to be true
+      expect(chain.effective_retired_on).to eq(Date.new(2026, 10, 1))
+    end
+
+    it "isn't a shared cassette still on an active bike" do
+      ComponentCategorySetting.find_or_initialize_by(user: user, category: "cassette").update!(allows_multiple_assignments: true)
+      cassette = create(:component, user: user, category: "cassette")
+      mount(cassette, sold, ride_context: "indoor_only")
+      mount(cassette, road, ride_context: "indoor_only")
+      expect(check(cassette)).to be false
+      expect(cassette.effective_retired_on).to be_nil
+    end
+
+    it "isn't a spare, even one last on a retired bike" do
+      spare = create(:component, user: user)
+      create(:component_assignment, component: spare, bike: sold, started_at: Time.zone.local(2026, 1, 1), ended_at: Time.zone.local(2026, 2, 1))
+      expect(check(spare)).to be false
+      expect(check(create(:component, user: user))).to be false
+    end
+
+    it "comes back when the bike is un-retired" do
+      chain = create(:component, user: user)
+      mount(chain, sold)
+      expect(check(chain)).to be true
+      sold.update!(retired_on: nil)
+      expect(check(chain)).to be false
+    end
+
+    it "reads preloaded assignments the same way" do
+      chain = create(:component, user: user)
+      mount(chain, sold)
+      loaded = Component.includes(component_assignments: :bike).find(chain.id)
+      expect(loaded.component_assignments).to be_loaded
+      expect(loaded.effectively_retired?).to be true
+    end
+  end
+
   describe ".current_bikes_by_component" do
     it "returns every currently-installed bike per component, batched" do
       user = create(:user)
@@ -242,7 +305,7 @@ RSpec.describe Component, type: :model do
 
       result = described_class.current_bikes_by_component(user)
 
-      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist", ride_context: "both", started_at: started }])
+      expect(result[component.id]).to eq([{ id: bike.id, name: "Soloist", ride_context: "both", started_at: started, retired_on: nil }])
     end
 
     it "includes both bikes for a component concurrently shared indoor_only across two bikes" do

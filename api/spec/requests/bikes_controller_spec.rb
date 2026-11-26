@@ -5,6 +5,19 @@ RSpec.describe "Bikes", type: :request do
   before { sign_in(current_user) }
 
   describe "GET /bikes" do
+    it "counts nothing due on a retired bike's card" do
+      sold = create(:bike, user: current_user, retired_on: Date.new(2026, 10, 1))
+      chain = create(:component, user: current_user)
+      create(:component_service_requirement, component: chain, service_type: current_user.service_types.find_by!(name: "wax"),
+        distance_interval_meters: 1_000)
+      create(:component_assignment, component: chain, bike: sold, started_at: Time.zone.local(2026, 1, 1))
+      create(:strava_activity, user: current_user, bike: sold, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+
+      get "/bikes"
+
+      expect(JSON.parse(response.body).find { |b| b["id"] == sold.id }["status_counts"]).to eq("due" => 0, "warning" => 0)
+    end
+
     it "lists the categories each bike tracks as slot_categories" do
       bike = create(:bike, user: current_user)
       create(:bike_component_slot, bike: bike, category: "chain")

@@ -282,6 +282,25 @@ RSpec.describe "Dashboard", type: :request do
         component
       end
 
+      it "leaves out components left on a retired bike, in attention and upcoming, and brings them back with the bike" do
+        sold = create(:bike, user: current_user)
+        due = due_component(bike: sold)
+        ok = create(:component, user: current_user, category: "saddle")
+        create(:component_service_requirement, component: ok, service_type: current_user.service_types.find_by!(name: "inspect"),
+          distance_interval_meters: 1_000_000)
+        create(:component_assignment, component: ok, bike: sold, started_at: Time.zone.local(2026, 1, 1))
+        sold.update!(retired_on: Date.new(2026, 10, 1))
+
+        get "/dashboard"
+        body = JSON.parse(response.body)
+        expect(body["attention"]).to be_empty
+        expect(body["upcoming"]).to be_empty
+
+        sold.update!(retired_on: nil)
+        get "/dashboard"
+        expect(JSON.parse(response.body)["attention"].map { |a| a["component_id"] }).to eq([ due.id ])
+      end
+
       it "includes a due interval, excludes an ok one" do
         bike = create(:bike, user: current_user)
         due = due_component(bike: bike)

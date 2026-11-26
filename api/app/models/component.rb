@@ -22,6 +22,40 @@ class Component < ApplicationRecord
   validates :label, presence: true
   validates :category, presence: true
 
+  # Effectively retired (docs/components-and-setup.md, "Installed, spare and
+  # retired"): retired_on is set, or it has at least one open assignment and
+  # every open assignment is on a retired bike -- retiring a bike leaves its
+  # parts installed (it usually went with them), and they leave the
+  # inventory with it. Derived, never stored: un-retiring the bike brings
+  # them back. A spare (no open assignment) is unaffected; a shared cassette
+  # still on any active bike stays. One definition: this scope, its inverse
+  # and #effectively_retired? (parity-specced).
+  OPEN_ON_RETIRED_BIKE_ONLY_SQL = <<~SQL.squish.freeze
+    EXISTS (SELECT 1 FROM component_assignments ca WHERE ca.component_id = components.id AND ca.ended_at IS NULL)
+    AND NOT EXISTS (
+      SELECT 1 FROM component_assignments ca JOIN bikes b ON b.id = ca.bike_id
+      WHERE ca.component_id = components.id AND ca.ended_at IS NULL AND b.retired_on IS NULL
+    )
+  SQL
+
+  scope :effectively_retired, -> { where("components.retired_on IS NOT NULL OR (#{OPEN_ON_RETIRED_BIKE_ONLY_SQL})") }
+  scope :in_inventory, -> { where.not(id: effectively_retired.select(:id)) }
+
+  # The rule from a component's open bikes (current_bikes_by_component's
+  # rows, each with the bike's retired_on) -- for batched lists.
+  def self.effectively_retired_from?(retired_on, open_bikes)
+    retired_on.present? || (open_bikes.any? && open_bikes.all? { |bike| bike[:retired_on].present? })
+  end
+
+  # The date the UI shows and sorts by: retired_on, else (when it's left on
+  # retired bikes only) the latest of those bikes' retired_on.
+  def self.effective_retired_on_from(retired_on, open_bikes)
+    return retired_on if retired_on.present?
+    return nil unless effectively_retired_from?(nil, open_bikes)
+
+    open_bikes.map { |bike| bike[:retired_on] }.max
+  end
+
   # Same convention as User#normalizes :email -- collapses whitespace
   # (including internal runs, not just leading/trailing) and turns a blank
   # value into nil, so "Shimano", "shimano ", and "Shimano  " don't drift
@@ -50,10 +84,21 @@ class Component < ApplicationRecord
     ComponentAssignment.joins(:bike, :component)
       .where(ended_at: nil, components: { user_id: user.id })
       .pluck("component_assignments.component_id", "bikes.id", "bikes.name", "component_assignments.ride_context",
-             "component_assignments.started_at")
-      .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(cid, bid, bname, ride_context, started_at), h|
-        h[cid] << { id: bid, name: bname, ride_context: ride_context, started_at: started_at }
+             "component_assignments.started_at", "bikes.retired_on")
+      .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(cid, bid, bname, ride_context, started_at, retired_on), h|
+        h[cid] << { id: bid, name: bname, ride_context: ride_context, started_at: started_at, retired_on: retired_on }
       end
+  end
+
+  # The same rule per component, from its open assignments (preloaded
+  # with their bikes when the caller has them, e.g.
+  # Maintenance::RequirementStatus).
+  def effectively_retired?
+    self.class.effectively_retired_from?(retired_on, open_bikes_with_retirement)
+  end
+
+  def effective_retired_on
+    self.class.effective_retired_on_from(retired_on, open_bikes_with_retirement)
   end
 
   UNDELETABLE_MESSAGE = "This component has installation or maintenance history, so it can't be deleted. Retire it instead.".freeze
@@ -107,6 +152,16 @@ class Component < ApplicationRecord
   end
 
   private
+
+  def open_bikes_with_retirement
+    assignments = if component_assignments.loaded?
+      component_assignments.select { |assignment| assignment.ended_at.nil? }
+    else
+      component_assignments.where(ended_at: nil).includes(:bike).to_a
+    end
+    assignments.map { |assignment| { retired_on: assignment.bike.retired_on } }
+  end
+
 
   # Creating a component in a category auto-creates an enabled, linked
   # ComponentServiceRequirement for each of that category's templates --

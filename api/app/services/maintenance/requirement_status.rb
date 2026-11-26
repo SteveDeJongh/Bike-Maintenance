@@ -33,8 +33,10 @@ module Maintenance
         component_service_requirement.component.component_assignments.exists?(ended_at: nil)
       end
 
+      # Out of the inventory: retired, or left on retired bikes only
+      # (Component#effectively_retired?) -- alerts and Up next skip it.
       def retired?
-        component_service_requirement.component.retired_on.present?
+        component_service_requirement.component.effectively_retired?
       end
 
       def notifications_enabled?
@@ -72,7 +74,7 @@ module Maintenance
     # taking the first match.
     DIMENSION_PRIORITY = %i[ distance moving_time days ].freeze
 
-    REQUIREMENT_INCLUDES = [ :component, { category_service_requirement: { satisfiers: :service_type } }, { satisfiers: :service_type } ].freeze
+    REQUIREMENT_INCLUDES = [ { component: { component_assignments: :bike } }, { category_service_requirement: { satisfiers: :service_type } }, { satisfiers: :service_type } ].freeze
 
     # Every one of the component's requirements, enabled or not -- a
     # disabled requirement is still shown (with its own computed status) so

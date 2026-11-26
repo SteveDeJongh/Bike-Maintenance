@@ -27,6 +27,26 @@ RSpec.describe "MaintenanceAlerts", type: :request do
       expect(alert["setting_position"]).to eq(0)
     end
 
+    it "excludes a due component left on a retired bike, and another user's retired bike never affects mine" do
+      sold = create(:bike, user: current_user, retired_on: Date.new(2026, 10, 1))
+      component = create(:component, user: current_user, category: "chain")
+      create(:component_service_requirement, component: component, service_type: current_user.service_types.find_by!(name: "wax"),
+        distance_interval_meters: 1_000)
+      create(:component_assignment, component: component, bike: sold, started_at: Time.zone.local(2026, 1, 1))
+      create(:strava_activity, bike: sold, user: current_user, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+      mine = create(:bike, user: current_user)
+      other = create(:component, user: current_user, category: "cassette")
+      create(:component_service_requirement, component: other, service_type: current_user.service_types.find_by!(name: "wax"),
+        distance_interval_meters: 1_000)
+      create(:component_assignment, component: other, bike: mine, started_at: Time.zone.local(2026, 1, 1))
+      create(:strava_activity, bike: mine, user: current_user, moved_at: Time.zone.local(2026, 1, 5), distance_meters: 1_000)
+      create(:bike, retired_on: Date.new(2026, 1, 1)) # someone else's
+
+      get "/maintenance_alerts"
+
+      expect(JSON.parse(response.body).map { |alert| alert["component_id"] }).to eq([ other.id ])
+    end
+
     it "excludes an ok interval, and only current_user's intervals" do
       bike = create(:bike, user: current_user)
       component = create(:component, user: current_user, category: "chain")

@@ -54,7 +54,9 @@ class BikesController < ApplicationController
         slot_categories: slot_categories.fetch(bike.id, []),
         distance_this_year: this_year_distances[bike.id] || 0,
         last_ride_activity_type: last_ride_types[bike.id],
-        status_counts: status_counts(assignments, worst),
+        # A retired bike's parts are out of the inventory (Component.effectively_retired),
+        # so its card counts nothing due.
+        status_counts: bike.retired_on ? { due: 0, warning: 0 } : status_counts(assignments, worst),
         next_service: (next_service_by_bike[bike.id] || []).map { |assignment| next_service_json(assignment, worst, lifetime) },
       )
     }

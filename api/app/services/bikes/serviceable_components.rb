@@ -54,7 +54,12 @@ module Bikes
 
     attr_reader :bike, :at, :off_bike_components
 
+    # Nothing counts as mounted on a bike retired by `at`: its parts went
+    # with it (Component.effectively_retired) -- retired_on cast to a
+    # timestamp, the same rule as a component's own retired_on above.
     def mounted_components
+      return Component.none if bike.retired_on.present? && bike.retired_on.to_time(:utc) <= at
+
       Component.where(id: bike.component_assignments.where(started_at: ..at)
         .where("ended_at IS NULL OR ended_at > ?", at).select(:component_id)).order(:label)
     end

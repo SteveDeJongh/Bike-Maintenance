@@ -27,6 +27,9 @@ class ComponentsController < ApplicationController
           worst_requirement_name: result&.component_service_requirement&.effective_name,
           lifetime_distance_meters: lifetime[component.id] || 0,
           current_bikes: current_bikes.map { |bike| bike.except(:started_at) },
+          # Retired, or left on retired bikes only (Component.effectively_retired).
+          effectively_retired: Component.effectively_retired_from?(component.retired_on, current_bikes),
+          effective_retired_on: Component.effective_retired_on_from(component.retired_on, current_bikes),
           # The earliest open assignment's start -- a shared indoor cassette
           # has one per bike.
           assigned_since: current_bikes.map { |bike| bike[:started_at] }.min,
@@ -52,6 +55,8 @@ class ComponentsController < ApplicationController
     render json: @component.as_json.merge(
       service_requirements: service_requirements,
       current_bikes: current_bikes,
+      effectively_retired: Component.effectively_retired_from?(@component.retired_on, current_bikes),
+      effective_retired_on: Component.effective_retired_on_from(@component.retired_on, current_bikes),
       last_bike: last_bike,
       assignments: history.assignments,
       lifetime_stats: history.lifetime_stats,

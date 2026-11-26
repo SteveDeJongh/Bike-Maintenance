@@ -81,4 +81,16 @@ RSpec.describe Bikes::ServiceableComponents do
       expect(result.off_bike.map(&:id)).to eq([ component.id ])
     end
   end
+
+  describe "a retired bike" do
+    it "has nothing mounted from its retired_on on, and its parts before" do
+      user = create(:user)
+      bike = create(:bike, user: user, retired_on: Date.new(2026, 10, 1))
+      chain = create(:component, user: user)
+      create(:component_assignment, component: chain, bike: bike, started_at: Time.zone.local(2026, 1, 1))
+
+      expect(described_class.call(bike, at: Time.zone.local(2026, 9, 1)).mounted).to eq([ chain ])
+      expect(described_class.call(bike, at: Time.zone.local(2026, 10, 2)).mounted).to be_empty
+    end
+  end
 end

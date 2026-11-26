@@ -9,6 +9,28 @@ RSpec.describe "Components", type: :request do
   before { sign_in(current_user) }
 
   describe "GET /components" do
+    it "marks components retired or left on retired bikes as effectively retired, with the date" do
+      sold = create(:bike, user: current_user, retired_on: Date.new(2026, 10, 1))
+      road = create(:bike, user: current_user)
+      on_sold = create(:component, user: current_user)
+      create(:component_assignment, component: on_sold, bike: sold, started_at: Time.zone.local(2026, 1, 1))
+      on_road = create(:component, user: current_user)
+      create(:component_assignment, component: on_road, bike: road, started_at: Time.zone.local(2026, 1, 1))
+      retired = create(:component, user: current_user, retired_on: Date.new(2026, 5, 1))
+      spare = create(:component, user: current_user)
+
+      get "/components"
+
+      by_id = JSON.parse(response.body).index_by { |c| c["id"] }
+      expect(by_id[on_sold.id]).to include("effectively_retired" => true, "effective_retired_on" => "2026-10-01", "retired_on" => nil)
+      expect(by_id[retired.id]).to include("effectively_retired" => true, "effective_retired_on" => "2026-05-01")
+      expect(by_id[on_road.id]).to include("effectively_retired" => false, "effective_retired_on" => nil)
+      expect(by_id[spare.id]).to include("effectively_retired" => false)
+
+      get "/components/#{on_sold.id}"
+      expect(JSON.parse(response.body)).to include("effectively_retired" => true, "effective_retired_on" => "2026-10-01")
+    end
+
     it "never includes another user's components" do
       mine = create(:component, user: current_user)
       create(:component) # another user's
