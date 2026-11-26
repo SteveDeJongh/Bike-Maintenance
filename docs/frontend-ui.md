@@ -35,7 +35,11 @@ A future page can adopt the same UX without rework:
   dnd-kit `DragEndEvent` handler — wire it straight into a `<DndContext>`, no need to
   hand-translate drag ids into a `reorderColumn` call), `sortColumn`/`sortDirection`/
   `setSort`, and `saveError`/`clearSaveError`. Its `useState` initializers seed from
-  the preferences query's data **once**, on mount — the calling page must not render
+  the preferences query's data **once**, on mount. The saved sort is read as a pair
+  (`savedSort`, `utils/savedSort.ts`): the saved direction is kept only with a saved
+  column that's still a valid sort; an invalid or missing column (e.g. an old table's
+  column left on the same `table_key`) falls back to `defaultSort` for both, so a list
+  never opens on its default column in a stale direction. The calling page must not render
   the component that calls this hook until that query has resolved (`Assignments.tsx`
   gates on its preference query before rendering its table). If a page ever needs to swap
   `tableKey` on an already-mounted component (e.g. tabs that don't unmount), it must
@@ -746,7 +750,11 @@ open, so a reopened modal starts from its opener's component and type again.
   (`pickerLine`) and the worst requirement as a chip ("Wax due" red, "Clean soon"
   orange; `statusChip` from `worst_requirement_name`). `componentPickerGroups`, from
   `useComponents()`: Needs attention (due, then soon, most used first), one group per
-  active bike A–Z in category order (a shared cassette under each bike), Spares
+  active bike, most recently ridden first (`compareLastRidden` from `bikesList.ts`, the
+  Bikes page's Last ridden order: never-ridden bikes last, ties A–Z), each labelled
+  with a dimmed "· ridden today" / "ridden yesterday" / "ridden Nov 16" (`riddenDetail`,
+  from `last_ride_on` via `relativeDay`; nothing for a never-ridden bike), its mounted
+  components in category order (a shared cassette under each bike), Spares
   ("last on …", and `spareReadyLabel`'s "<type> · ready" chip), and Retired behind
   the footer's "Show retired". A component in Needs attention also shows in its own
   group. Search matches label, brand and model across every group. Switching
@@ -782,6 +790,8 @@ open, so a reopened modal starts from its opener's component and type again.
   `/components/:id#intervals`. Editing: "What this service reset", bars dimmed,
   and "Reset at 1,160 km" (the component's distance at the service). It reflects
   today's requirements.
+- **Spacing:** the form body has `pb="xl"` (32px), so the last section (the panel,
+  or notes) sits clearly further from the footer than the sections from each other.
 - **Footer:** Delete (outline red, edit only, the existing confirm) on the left;
   Cancel and the primary on the right — "Log Drip wax" (`primaryAction`), or Save
   changes when editing, disabled with a tooltip reason ("Pick a component first",
