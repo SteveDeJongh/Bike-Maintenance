@@ -12,7 +12,7 @@ import MaintenanceEventFormModal from '../forms/MaintenanceEventFormModal'
 import RetireComponentModal from '../forms/RetireComponentModal'
 import { categoryLabel, SERVICE_STATUS_COLORS } from '../../constants'
 import { formatShortDate } from '../../utils/datetime'
-import { componentPlacement, identityParts, placementText, worstRequirementStatus } from './componentPageModel'
+import { componentPlacement, identityParts, placementText, retireAction, worstRequirementStatus } from './componentPageModel'
 import type { ComponentDetail, ServiceStatus } from '../../types/models'
 
 const STATUS_LABELS: Record<ServiceStatus, string> = { due: 'Due', warning: 'Soon', ok: 'OK' }
@@ -88,6 +88,7 @@ export default function ComponentPageHeader({
   const [editOpened, setEditOpened] = useState(false)
   const [retireOpened, setRetireOpened] = useState(false)
   const status = worstRequirementStatus(component.service_requirements)
+  const retire = retireAction(component)
 
   function confirmUnretire() {
     modals.openConfirmModal({
@@ -132,9 +133,9 @@ export default function ComponentPageHeader({
             <Badge variant="default" tt="none" fw={500}>
               {categoryLabel(component.category)}
             </Badge>
-            {component.retired_on ? (
+            {component.effectively_retired || component.retired_on ? (
               <Badge color="gray" variant="light" tt="none" fw={500}>
-                Retired {formatShortDate(component.retired_on)}
+                Retired {formatShortDate((component.effective_retired_on ?? component.retired_on)!)}
               </Badge>
             ) : (
               status && (
@@ -162,11 +163,12 @@ export default function ComponentPageHeader({
           <Button variant="default" onClick={() => setEditOpened(true)}>
             Edit
           </Button>
-          {component.retired_on ? (
+          {retire === 'unretire' && (
             <Button variant="default" onClick={confirmUnretire} loading={unretire.isPending}>
               Un-retire
             </Button>
-          ) : (
+          )}
+          {retire === 'retire' && (
             <Button variant="default" onClick={() => setRetireOpened(true)}>
               Retire
             </Button>

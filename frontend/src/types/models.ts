@@ -218,6 +218,11 @@ export interface ComponentLastBike {
 // ComponentFormModal's create/update calls) doesn't end up requiring
 // server-computed fields no form could ever send.
 export interface ComponentWithServiceStatus extends Component {
+  // Retired, or left on retired bikes only (Component.effectively_retired):
+  // out of the inventory. effective_retired_on is retired_on, else the
+  // latest retired_on of those bikes -- the date shown and sorted by.
+  effectively_retired: boolean
+  effective_retired_on: string | null
   // The worst status across this component's enabled service intervals --
   // batched server-side (Maintenance::IntervalStatus.worst_status_by_component),
   // not a per-row query.
@@ -251,6 +256,9 @@ export interface ComponentListItem extends ComponentWithServiceStatus {
 }
 
 export interface ComponentDetail extends Component {
+  // See ComponentWithServiceStatus.
+  effectively_retired: boolean
+  effective_retired_on: string | null
   service_requirements: ComponentServiceRequirementWithStatus[]
   current_bikes: ComponentCurrentBike[]
   last_bike: ComponentLastBike | null

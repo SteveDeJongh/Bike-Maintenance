@@ -16,6 +16,11 @@ describe('componentState', () => {
     expect(componentState({ retired_on: '2026-03-01', current_bikes: [] })).toBe('retired')
     expect(componentState({ retired_on: '2026-03-01', current_bikes: [bike] })).toBe('retired')
   })
+
+  it('is retired when left on retired bikes only (effectively_retired), installed again once the bike is back', () => {
+    expect(componentState({ retired_on: null, effectively_retired: true, current_bikes: [bike] })).toBe('retired')
+    expect(componentState({ retired_on: null, effectively_retired: false, current_bikes: [bike] })).toBe('installed')
+  })
 })
 
 describe('spareReadyLabel', () => {

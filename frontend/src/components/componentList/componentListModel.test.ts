@@ -6,6 +6,8 @@ import {
   componentTileCounts,
   filterComponents,
   groupComponents,
+  matchesBike,
+  retiredBikeCell,
   hasActiveFilters,
   installedBikeParts,
   serviceFilterOf,
@@ -31,6 +33,8 @@ function component(overrides: Partial<ComponentListItem> = {}): ComponentListIte
     model: null,
     notes: null,
     service_status: null,
+    effectively_retired: false,
+    effective_retired_on: null,
     worst_requirement_name: null,
     current_bikes: [],
     last_bike: null,
@@ -253,5 +257,28 @@ describe('sortDirectionOptions', () => {
     expect(sortDirectionOptions('lifetime_distance')[0]).toEqual({ value: 'desc', label: 'Highest first' })
     expect(sortDirectionOptions('acquired_on')[0]).toEqual({ value: 'desc', label: 'Newest first' })
     expect(sortDirectionOptions('component')[0]).toEqual({ value: 'asc', label: 'A–Z' })
+  })
+})
+
+describe('a component left on a retired bike', () => {
+  const lightning = { id: 7, name: 'White lightning', ride_context: 'both' as const }
+  const left = component({ label: 'Chain L', current_bikes: [lightning], effectively_retired: true, effective_retired_on: '2026-10-01' })
+
+  it('groups under Retired and still matches its bike filter', () => {
+    const groups = groupComponents([left, component({ current_bikes: [soloist] })], 'bike', ['chain'])
+    expect(groups.map((g) => g.key).at(-1)).toBe('retired')
+    expect(groups.find((g) => g.key === 'retired')?.rows.map((r) => r.component.label)).toEqual(['Chain L'])
+    expect(matchesBike(left, 7)).toBe(true)
+  })
+
+  it('reads "Retired <bike date>" over "On retired <bike>" in the Bike cell', () => {
+    expect(retiredBikeCell(left)).toEqual({ date: '2026-10-01', where: 'On retired White lightning' })
+    const retired = component({ retired_on: '2026-05-01', effectively_retired: true, effective_retired_on: '2026-05-01', last_bike: { id: 2, name: 'Soloist', removed_at: '2026-05-01T00:00:00Z' } })
+    expect(retiredBikeCell(retired)).toEqual({ date: '2026-05-01', where: 'Last on Soloist' })
+  })
+
+  it("sorts the Retired on field by the bike's date", () => {
+    const older = component({ label: 'Old', retired_on: '2026-03-01', effectively_retired: true, effective_retired_on: '2026-03-01' })
+    expect(sortComponents([older, left], 'retired_on', 'desc').map((c) => c.label)).toEqual(['Chain L', 'Old'])
   })
 })

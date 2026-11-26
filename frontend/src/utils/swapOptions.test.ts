@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { emptyOptionLabel, orderSwapOptions, swapOptions, swapOptionStatus, type SwapSlot } from './swapOptions'
+import { canTakeComponent, emptyOptionLabel, orderSwapOptions, swapOptions, swapOptionStatus, type SwapSlot } from './swapOptions'
 import type { ComponentCurrentBike, ComponentLastBike, ComponentWithServiceStatus } from '../types/models'
 
 function component(
   id: number,
-  extra: { category?: string; retired_on?: string | null; current_bikes?: ComponentCurrentBike[]; last_bike?: ComponentLastBike | null; label?: string } = {},
+  extra: {
+    category?: string
+    retired_on?: string | null
+    effectively_retired?: boolean
+    current_bikes?: ComponentCurrentBike[]
+    last_bike?: ComponentLastBike | null
+    label?: string
+  } = {},
 ): ComponentWithServiceStatus {
   return {
     id, label: extra.label ?? `C${id}`, category: extra.category ?? 'cassette', acquired_on: '2026-01-01',
     retired_on: extra.retired_on ?? null, brand: null, model: null, notes: null, service_status: null,
     current_bikes: extra.current_bikes ?? [], last_bike: extra.last_bike ?? null,
+    effectively_retired: extra.effectively_retired ?? Boolean(extra.retired_on), effective_retired_on: extra.retired_on ?? null,
   }
 }
 
@@ -74,5 +82,14 @@ describe('swapOptionStatus and emptyOptionLabel', () => {
 
   it('names the category in the empty row', () => {
     expect(emptyOptionLabel('cassette')).toBe('No spare cassettes')
+  })
+})
+
+describe('canTakeComponent', () => {
+  it('rejects a component left on a retired bike, like a retired one', () => {
+    const target = { bikeId: 3, category: 'cassette', rideContext: 'indoor_only' as const }
+    expect(canTakeComponent({ category: 'cassette', retired_on: null }, [], target, true)).toBe('spare')
+    expect(canTakeComponent({ category: 'cassette', retired_on: null, effectively_retired: true }, [], target, true)).toBeNull()
+    expect(canTakeComponent({ category: 'cassette', retired_on: '2026-01-01' }, [], target, true)).toBeNull()
   })
 })

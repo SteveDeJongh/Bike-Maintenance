@@ -72,7 +72,9 @@ export type ComponentPlacement =
 
 export function componentPlacement(component: ComponentDetail): ComponentPlacement {
   const state = componentState(component)
-  if (state !== 'installed') return { kind: state, lastBike: component.last_bike }
+  // Still on a bike -- including one left on retired bikes only (retired
+  // by its bike): "On retired <bike> since …".
+  if (state !== 'installed' && component.current_bikes.length === 0) return { kind: state, lastBike: component.last_bike }
 
   const open = component.assignments.filter((assignment) => assignment.ended_at == null)
   const onActive = open.filter((assignment) => installationStatus(assignment, assignment.bike) === 'current')
@@ -227,3 +229,12 @@ export function installationRange(installation: Pick<ComponentInstallation, 'sta
 
 // An Installation history row's DOM id, for scrolling to a new one.
 export const installationRowId = (assignmentId: number) => `installation-${assignmentId}`
+
+// The header's Retire / Un-retire: Retire for anything in the inventory;
+// Un-retire only when it has its own retired_on to clear. A part retired
+// only by its bike gets neither -- retiring would end its installation on
+// that bike, and un-retiring the bike is the way back.
+export function retireAction(component: Pick<ComponentDetail, 'retired_on' | 'effectively_retired'>): 'retire' | 'unretire' | null {
+  if (component.retired_on) return 'unretire'
+  return component.effectively_retired ? null : 'retire'
+}

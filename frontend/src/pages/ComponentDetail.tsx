@@ -10,6 +10,7 @@ import InstallationHistorySection from '../components/component/InstallationHist
 import MaintenanceHistorySection from '../components/component/MaintenanceHistorySection'
 import MaintenanceAlertBanners from '../components/MaintenanceAlertBanners'
 import InstallOnBikeModal from '../components/installOnBike/InstallOnBikeModal'
+import { componentState } from '../utils/componentState'
 import { installationRowId } from '../components/component/componentPageModel'
 
 // The component page (docs/frontend-ui.md, "Component page"): the one place
@@ -62,11 +63,14 @@ export default function ComponentDetail() {
     )
   }
 
+  // Out of the inventory (retired, or left on a retired bike): no installs.
+  const retiredNow = componentState(component) === 'retired'
+
   return (
     <Stack>
       <ComponentPageHeader
         component={component}
-        onInstallOnBike={component.retired_on ? undefined : () => setInstallOrigin('menu')}
+        onInstallOnBike={retiredNow ? undefined : () => setInstallOrigin('menu')}
       />
       <MaintenanceAlertBanners scope={{ componentId }} />
       <ComponentStatTiles component={component} />
@@ -81,11 +85,11 @@ export default function ComponentDetail() {
           <InstallationHistorySection
             installations={component.assignments}
             highlightedId={highlightedId}
-            onAddInstallation={component.retired_on ? undefined : () => setInstallOrigin('history')}
+            onAddInstallation={retiredNow ? undefined : () => setInstallOrigin('history')}
           />
         </Box>
       </Group>
-      {!component.retired_on && (
+      {!retiredNow && (
         <InstallOnBikeModal
           opened={installOrigin != null}
           onClose={() => setInstallOrigin(null)}

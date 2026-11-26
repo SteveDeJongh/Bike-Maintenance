@@ -23,6 +23,7 @@ import {
   firstSortDirection,
   groupComponents,
   installedBikeParts,
+  retiredBikeCell,
   sortComponents,
   type ComponentGroupBy,
   type ComponentRow,
@@ -67,8 +68,10 @@ function fieldCell(field: ComponentListField, component: ComponentListItem): str
       return component.model || '—'
     case 'category':
       return categoryLabel(component.category)
-    case 'retired_on':
-      return component.retired_on ? formatShortDate(component.retired_on) : '—'
+    case 'retired_on': {
+      const date = component.effective_retired_on ?? component.retired_on
+      return date ? formatShortDate(date) : '—'
+    }
   }
 }
 
@@ -123,8 +126,9 @@ export function ComponentBikeCell({
     )
     sub = component.last_bike ? `Last on ${component.last_bike.name}` : 'Never installed'
   } else {
-    main = <Text size="sm">Retired {component.retired_on ? formatShortDate(component.retired_on) : ''}</Text>
-    sub = component.last_bike ? `Last on ${component.last_bike.name}` : 'Never installed'
+    const cell = retiredBikeCell(component)
+    main = <Text size="sm">Retired {cell.date ? formatShortDate(cell.date) : ''}</Text>
+    sub = cell.where
   }
 
   if (inline) {

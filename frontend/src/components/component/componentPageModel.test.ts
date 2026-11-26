@@ -10,6 +10,7 @@ import {
   lastDoneText,
   orderRequirements,
   placementText,
+  retireAction,
   requirementProgressText,
   requirementRuleText,
   worstRequirementStatus,
@@ -47,6 +48,8 @@ function requirement(overrides: Partial<ComponentServiceRequirementWithStatus> =
 
 function detail(overrides: Partial<ComponentDetail> = {}): ComponentDetail {
   return {
+    effectively_retired: false,
+    effective_retired_on: null,
     id: 1,
     label: 'Chain A',
     category: 'chain',
@@ -308,5 +311,26 @@ describe('eventNoteLine', () => {
     ).toBe('Two coats · Session with Cassette, Chain B')
     expect(eventNoteLine(event({ mounted_at_event: false }))).toBe('Off the bike')
     expect(eventNoteLine(event())).toBe('')
+  })
+})
+
+describe('retireAction', () => {
+  it('offers Retire in the inventory, Un-retire with its own retired_on, and neither when its bike retired it', () => {
+    expect(retireAction({ retired_on: null, effectively_retired: false })).toBe('retire')
+    expect(retireAction({ retired_on: '2026-03-01', effectively_retired: true })).toBe('unretire')
+    expect(retireAction({ retired_on: null, effectively_retired: true })).toBeNull()
+  })
+})
+
+describe('componentPlacement for a part retired by its bike', () => {
+  it('keeps "On retired <bike> since …" rather than "Never installed"', () => {
+    const lightning = { id: 7, name: 'White lightning', ride_context: 'both' as const, retired_on: '2026-10-01' }
+    const component = detail({
+      effectively_retired: true,
+      effective_retired_on: '2026-10-01',
+      current_bikes: [lightning],
+      assignments: [install(11, 7, 'White lightning', sameYearDay(2, 2), null, 'both', '2026-10-01')],
+    })
+    expect(placementText(componentPlacement(component), now)).toMatch(/^On retired White lightning since Mar 2 · All rides$/)
   })
 })

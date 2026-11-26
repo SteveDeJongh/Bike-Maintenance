@@ -4,18 +4,22 @@ import type { ComponentCurrentBike, ComponentLastBike, ServiceStatus } from '../
 // "Installed, spare and retired"), used by every count, pill, band and Bike
 // cell -- never re-derive it inline. Mutually exclusive:
 // - retired: retired_on is set (even if an assignment is somehow still
-//   open -- `components:audit_retired_mounted` finds those);
+//   open -- `components:audit_retired_mounted` finds those), or it's
+//   effectively retired -- left on retired bikes only (the server's
+//   effectively_retired; a bike usually goes with its parts);
 // - installed: not retired, with an open assignment on any bike;
 // - spare: neither -- on the shelf.
 export type ComponentState = 'installed' | 'spare' | 'retired'
 
 interface StateFields {
   retired_on: string | null
+  // Absent on payloads that don't carry it (they behave as before).
+  effectively_retired?: boolean
   current_bikes: readonly ComponentCurrentBike[]
 }
 
 export function componentState(component: StateFields): ComponentState {
-  if (component.retired_on) return 'retired'
+  if (component.retired_on || component.effectively_retired) return 'retired'
   return component.current_bikes.length > 0 ? 'installed' : 'spare'
 }
 

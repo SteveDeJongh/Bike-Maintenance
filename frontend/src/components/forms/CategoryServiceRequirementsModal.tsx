@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Alert, Button, Checkbox, Group, Loader, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core'
 import AppModal from '../AppModal'
+import { componentState } from '../../utils/componentState'
 import { useApplyCategoryServiceRequirement, useCreateCategoryServiceRequirement, useDeleteCategoryServiceRequirement, useUpdateCategoryServiceRequirement } from '../../api/mutations'
 import { useAllComponentServiceRequirements, useCategoryServiceRequirements, useComponents } from '../../api/queries'
 import { categoryLabel } from '../../constants'
@@ -83,7 +84,7 @@ function CategoryServiceRequirementsEditor({ category }: { category: string }) {
 
   const templates = useMemo(() => (allTemplates ?? []).filter((t) => t.category === category), [allTemplates, category])
   const categoryComponents = useMemo(
-    () => (components ?? []).filter((c) => c.category === category && !c.retired_on),
+    () => (components ?? []).filter((c) => c.category === category && componentState(c) !== 'retired'),
     [components, category],
   )
 

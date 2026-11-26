@@ -111,7 +111,10 @@ export function matchesSearch(component: ComponentListItem, q: string): boolean 
 // Installed: on that bike now. Spare or retired: last on that bike -- so
 // "Soloist" with the Spare pill on shows the chain off the Soloist.
 export function matchesBike(component: ComponentListItem, bikeId: number): boolean {
-  if (componentState(component) === 'installed') return component.current_bikes.some((bike) => bike.id === bikeId)
+  const state = componentState(component)
+  if (state === 'installed') return component.current_bikes.some((bike) => bike.id === bikeId)
+  // Left on a retired bike: still on it.
+  if (state === 'retired' && component.current_bikes.some((bike) => bike.id === bikeId)) return true
   return component.last_bike?.id === bikeId
 }
 
@@ -145,7 +148,20 @@ export function bikeSortKey(component: ComponentListItem): string {
   const state = componentState(component)
   if (state === 'installed') return `0 ${sortedBikeNames(component)[0]}`
   if (state === 'spare') return component.last_bike ? `1 ${component.last_bike.name}` : '2'
-  return `3 ${component.last_bike?.name ?? ''}`
+  return `3 ${component.last_bike?.name ?? sortedBikeNames(component)[0] ?? ''}`
+}
+
+// A retired row's Bike cell: "Retired Mar 2" over "Last on Soloist", or,
+// for a part left on a retired bike, "On retired White lightning".
+export function retiredBikeCell(
+  component: Pick<ComponentListItem, 'retired_on' | 'effective_retired_on' | 'last_bike' | 'current_bikes'>,
+): { date: string | null; where: string } {
+  const where = component.last_bike
+    ? `Last on ${component.last_bike.name}`
+    : component.current_bikes.length > 0
+      ? `On retired ${component.current_bikes.map((bike) => bike.name).sort((a, b) => a.localeCompare(b)).join(', ')}`
+      : 'Never installed'
+  return { date: component.effective_retired_on ?? component.retired_on, where }
 }
 
 function sortedBikeNames(component: ComponentListItem): string[] {
@@ -174,7 +190,7 @@ function fieldValue(component: ComponentListItem, field: ComponentListField): st
     case 'category':
       return categoryLabel(component.category)
     case 'retired_on':
-      return component.retired_on
+      return component.effective_retired_on ?? component.retired_on
   }
 }
 

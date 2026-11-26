@@ -60,12 +60,12 @@ export interface OpenInstallation {
 // assignments, the slot is indoor_only, and every open installation is
 // indoor_only and on another bike). null when it can't.
 export function canTakeComponent(
-  component: { category: string; retired_on: string | null },
+  component: { category: string; retired_on: string | null; effectively_retired?: boolean },
   open: readonly OpenInstallation[],
   slot: { bikeId: number; category: string; rideContext: RideContext },
   allowsMultiple: boolean,
 ): SwapOptionKind | null {
-  if (component.category !== slot.category || component.retired_on) return null
+  if (component.category !== slot.category || component.retired_on || component.effectively_retired) return null
   if (open.length === 0) return 'spare'
   const shareable =
     allowsMultiple &&
