@@ -274,7 +274,9 @@ function MaintenanceEventForm({
     >
       {opened && (
         <form id={formId} onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack>
+          {/* pb="xl": the gap above the footer reads larger than the gaps
+              between sections, whichever section comes last. */}
+          <Stack pb="xl">
             {baseErrors.length > 0 && (
               <Alert color="red">
                 {baseErrors.map((message) => (
