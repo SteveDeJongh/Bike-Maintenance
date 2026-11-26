@@ -237,6 +237,7 @@ function InstallOnBikeForm({ opened, onClose, component, origin, onInstalled }: 
                 setServerErrors((current) => ({ ...current, started_at: undefined }))
               }}
               maxDate={new Date()}
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               error={startError}
               style={{ flex: '1 1 220px' }}
             />
@@ -251,6 +252,9 @@ function InstallOnBikeForm({ opened, onClose, component, origin, onInstalled }: 
               }}
               maxDate={new Date()}
               description={requiredReason ?? "Leave blank if it's still on the bike."}
+              // Helper text under the input, so both fields' labels and inputs
+              // share rows; errors stay under their own field.
+              inputWrapperOrder={['label', 'input', 'description', 'error']}
               error={endError}
               style={{ flex: '1 1 220px' }}
             />
