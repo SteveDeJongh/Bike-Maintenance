@@ -378,8 +378,11 @@ place for a part's whole life. Everything comes from `GET /components/:id`.
     shows that row: it unfolds the section (`PageSection`'s `openOnMount`), scrolls to
     the row, highlights it (`DataListRow`'s `highlight` tone) and opens it.
   - **Installations** ("3 installations · 2 bikes", `installationsSummary`): every
-    assignment, newest first. Each row has a bike icon (primary while current), the
-    bike with a "Current" chip and "Jun 2 → Sep 30, 2026 · Trainer only"
+    assignment by `installationStatus` (`utils/installationStatus.ts`: `current` |
+    `retired_bike` | `past`) -- current ones, then open ones left on a retired bike
+    (a grey "Retired bike" chip and grey icon, never "Current"), then past ones, each
+    newest first (`sortInstallations`). Each row has a bike icon (primary while
+    current), the bike with a "Current" chip and "Jun 2 → Sep 30, 2026 · Trainer only"
     (`installationRangeText`), and the stint's distance. A row opens that
     installation's `AssignmentDetailModal`. The header's **+ Add installation** (not
     for a retired component) opens Install on bike, the natural place to back-fill
@@ -415,6 +418,10 @@ everything else: editing intervals, maintenance history and every installation.
   - a read-only **Service status**: one row per enabled interval with "Last done …",
     a wear bar and what's left (`serviceStatusRows`), or "No service intervals"
     linking to the component page's `#intervals`.
+
+  **On a retired bike** (`installationStatus` `retired_bike`): "On <bike> (retired) since
+  <date>"; Edit installation and Remove from bike stay, the swap pill, Log service and
+  service status are hidden.
 
   **Past** ones get only Edit installation and no service status, since the intervals
   describe the component now, not that stint. Edit installation (both) has **Delete

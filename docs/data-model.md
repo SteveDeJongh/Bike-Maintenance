@@ -85,7 +85,11 @@
   "Overlaps Chain S2 on this slot, Jun 2 → Sep 30" / "Overlaps its own installation on
   Libre, Feb 1 → Apr 1" (times when a range is one day; "→ now" while open). An
   assignment needs no `BikeComponentSlot`: attribution and both history lists read
-  assignments, and only the bike page's current lineup goes by slots.
+  assignments, and only the bike page's current lineup goes by slots. Retiring a bike ends none of
+  its assignments (its parts usually go with it); a component whose open assignments are
+  all on retired bikes is **effectively retired** -- derived, never stored
+  (`Component.effectively_retired`; see "Installed, spare and retired" in
+  `docs/components-and-setup.md`).
   Validates that `component.user_id == bike.user_id` (no cross-user assignments).
   Reachable from a `User` via `has_many through:` on `bikes` — no direct `user_id`
   column of its own. `#overlaps?` (the private helper both overlap validations above

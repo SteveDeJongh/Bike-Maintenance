@@ -106,7 +106,11 @@ Domain and backend:
   `StravaActivity.needs_attention_for`/`.ignored_for`. Every raw Strava payload write goes
   through `Strava::ActivityUpsert` (it clears `ignored_at` on attribution). Serviceable
   components: `Bikes::ServiceableComponents`. Installed / spare / retired:
-  `componentState` (`utils/componentState.ts`), never re-derived inline.
+  `componentState` (`utils/componentState.ts`), never re-derived inline. "Retired"
+  includes **effectively retired** (left on retired bikes only): one backend definition,
+  `Component.effectively_retired` / `#effectively_retired?`, sent as
+  `effectively_retired`. Retiring a bike leaves its parts installed. An installation's
+  current / on a retired bike / past: `installationStatus` (`utils/installationStatus.ts`).
 - **Check batching before adding a per-row column.** `Component#total_distance`/
   `#distance_since` run one query per assignment — fine for a handful of components, not
   for a list. Many-row tables need a grouped/batched query like `BikesController#index`

@@ -101,7 +101,10 @@ from a bike's empty slot (the bike page's empty-slot picker, unchanged).
     spare, or a shared indoor cassette for an `indoor_only` slot on another bike); a
     past stint can go in any of them.
   - **Installed on** (date and time, now by default) and **Removed on** (optional,
-    "Leave blank if it's still on the bike"). Removed on is required for a component
+    "Leave blank if it's still on the bike"), side by side with the same picker. Both
+    order label, input, description, error (`inputWrapperOrder`), so the helper text
+    sits under the input and the two inputs line up; each error stays under its own
+    field. On a phone they stack. Removed on is required for a component
     that's mounted now (moving it is the swap's job) and for a retired bike. Neither
     may be in the future; Removed on must be after Installed on.
 - **What submit does** (`submitCase`):
@@ -134,11 +137,37 @@ The one classification of a component's state, `componentState` in
 `frontend/src/utils/componentState.ts`. Every count, pill, band and cell uses it, and
 nothing re-derives it inline. The three states are mutually exclusive:
 
-- **Retired:** `retired_on` is set. This wins even if an assignment is somehow
-  still open; `components:audit_retired_mounted` finds those.
+- **Retired:** `retired_on` is set, **or it's effectively retired**: it has at least
+  one open assignment and every one is on a retired bike. This wins even if an
+  assignment is still open (`components:audit_retired_mounted` finds the `retired_on`
+  ones).
 - **Installed:** not retired, with an open assignment (`ended_at: nil`) on any bike.
   A shared indoor cassette is one installed component on two bikes.
 - **Spare:** neither; on the shelf.
+
+**Effectively retired.** Retiring a bike deliberately leaves its parts installed (a
+retired bike is usually sold or given away with them), so those parts leave the
+inventory with it. It's derived, never stored: retiring a bike writes nothing to its
+components, and un-retiring it brings them straight back. A spare (no open assignment)
+is unaffected, and a shared cassette still on any active bike stays installed. There's
+no separate label: they show exactly like retired components, with the header line
+saying where they went ("On retired White lightning since …").
+- **One definition (backend):** `Component.effectively_retired` / `.in_inventory`
+  (scopes) and `#effectively_retired?` (parity-specced; reads preloaded assignments),
+  plus `effectively_retired_from?` / `effective_retired_on_from` for batched lists.
+  `GET /components` and `/components/:id` send `effectively_retired` and
+  `effective_retired_on` (`retired_on`, else the latest retired date of those bikes),
+  so the frontend never re-derives it; `componentState` reads the flag.
+- **What uses it:** `RequirementStatus::Result#retired?` (so alerts and Up next on Home
+  and the bike page skip these parts), `Bikes::ServiceableComponents` (nothing is
+  mounted on a bike retired by `at`), the Bikes list's `status_counts` (a retired
+  bike's card counts nothing due), and on the frontend every `componentState` consumer
+  plus `canTakeComponent` (swap, empty slot, Install on bike).
+- **Unchanged:** `retired_on` and everything that sets it (Retire, the edit form); the
+  Retire and swap services' "is retired" checks (a part on a retired bike is blocked
+  elsewhere by its open assignment). On the component page a part retired only by its
+  bike shows neither Retire (it would end that stint) nor Un-retire (`retireAction`);
+  un-retiring the bike is the way back.
 
 The Components list's counts are computed on the frontend from the full, unpaged
 `GET /components` list, so there's no backend twin. **Ready** (`spareReadyLabel`) is
